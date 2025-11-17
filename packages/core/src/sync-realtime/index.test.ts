@@ -24,7 +24,7 @@ import {
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import { parseEther } from "viem";
@@ -47,7 +47,7 @@ test("createRealtimeSync()", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -72,7 +72,7 @@ test("sync() handles block", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -105,7 +105,7 @@ test("sync() no-op when receiving same block twice", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -138,7 +138,7 @@ test("sync() gets missing block", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -175,7 +175,7 @@ test("sync() catches error", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -219,7 +219,7 @@ test("handleBlock() block event with log", async (context) => {
     address,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -230,7 +230,7 @@ test("handleBlock() block event with log", async (context) => {
     childAddresses: new Map(),
   });
 
-  const block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -291,7 +291,7 @@ test("handleBlock() block event with log factory", async (context) => {
 
   const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -302,11 +302,11 @@ test("handleBlock() block event with log factory", async (context) => {
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
-  let block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
 
   const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await eth_getBlockByNumber(rpc, ["0x3", true]);
+  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
 
   const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -399,7 +399,7 @@ test("handleBlock() block event with block", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -455,7 +455,7 @@ test("handleBlock() block event with transaction", async (context) => {
     address: ALICE,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -468,7 +468,7 @@ test("handleBlock() block event with transaction", async (context) => {
     childAddresses: new Map(),
   });
 
-  const block = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -525,7 +525,7 @@ test("handleBlock() block event with transfer", async (context) => {
     return rpc.request(request);
   };
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -539,7 +539,7 @@ test("handleBlock() block event with transfer", async (context) => {
     childAddresses: new Map(),
   });
 
-  const block = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const block = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -625,7 +625,7 @@ test("handleBlock() block event with trace", async (context) => {
     return rpc.request(request);
   };
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -687,7 +687,7 @@ test("handleBlock() finalize event", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -740,7 +740,7 @@ test("handleReorg() finds common ancestor", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -788,7 +788,7 @@ test("handleReorg() throws error for deep reorg", async (context) => {
     interval: 1,
   });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 0 });
 
   const realtimeSync = createRealtimeSync({
     common,

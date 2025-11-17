@@ -1,6 +1,5 @@
 import { RpcProviderError } from "@/internal/errors.js";
 import type {
-  LightBlock,
   SyncBlock,
   SyncBlockHeader,
   SyncLog,
@@ -8,16 +7,21 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
-import type { RequestParameters, Rpc } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
 import {
+  type Address,
   BlockNotFoundError,
+  type Hash,
   type Hex,
+  type LogTopic,
   TransactionReceiptNotFoundError,
   hexToBigInt,
   hexToNumber,
-  isHex,
+  numberToHex,
+  toHex,
   zeroAddress,
   zeroHash,
 } from "viem";
@@ -25,121 +29,183 @@ import {
 /**
  * Helper function for "eth_getBlockByNumber" request.
  */
-export const eth_getBlockByNumber = <
-  params extends Extract<
-    RequestParameters,
-    { method: "eth_getBlockByNumber" }
-  >["params"],
->(
+export const _eth_getBlockByNumber = (
   rpc: Rpc,
-  params: params,
+  {
+    blockNumber,
+    blockTag,
+  }:
+    | { blockNumber: Hex | number; blockTag?: never }
+    | { blockNumber?: never; blockTag: "latest" },
   context?: Parameters<Rpc["request"]>[1],
-): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
+): Promise<SyncBlock> =>
   rpc
-    .request({ method: "eth_getBlockByNumber", params }, context)
-    .then((_block) => {
-      if (!_block) {
-        let blockNumber: bigint;
-        if (isHex(params[0])) {
-          blockNumber = hexToBigInt(params[0]);
-        } else {
-          // @ts-ignore `BlockNotFoundError` expects a bigint, but it also just passes
-          // the `blockNumber` directly to the error message, so breaking the type constraint is fine.
-          blockNumber = params[0];
-        }
-
-        throw new BlockNotFoundError({ blockNumber });
-      }
-      return standardizeBlock(_block as SyncBlock, {
+    .request(
+      {
         method: "eth_getBlockByNumber",
-        params,
-      });
+        params: [
+          typeof blockNumber === "number"
+            ? numberToHex(blockNumber)
+            : (blockNumber ?? blockTag),
+          true,
+        ],
+      },
+      context,
+    )
+    .then((_block) => {
+      if (!_block)
+        throw new BlockNotFoundError({
+          blockNumber: (blockNumber ?? blockTag) as any,
+        });
+      return standardizeBlock(_block as SyncBlock, "number");
     });
 
 /**
- * Helper function for "eth_getBlockByHash" request.
+ * Helper function for "eth_getBlockByNumber" request.
  */
-export const eth_getBlockByHash = <
-  params extends Extract<
-    RequestParameters,
-    { method: "eth_getBlockByHash" }
-  >["params"],
->(
+export const _eth_getBlockByHash = (
   rpc: Rpc,
-  params: params,
+  { hash }: { hash: Hex },
   context?: Parameters<Rpc["request"]>[1],
-): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
+): Promise<SyncBlock> =>
   rpc
-    .request({ method: "eth_getBlockByHash", params }, context)
-    .then((_block) => {
-      if (!_block) throw new BlockNotFoundError({ blockHash: params[0] });
-      return standardizeBlock(_block as SyncBlock, {
+    .request(
+      {
         method: "eth_getBlockByHash",
-        params,
-      });
+        params: [hash, true],
+      },
+      context,
+    )
+    .then((_block) => {
+      if (!_block)
+        throw new BlockNotFoundError({
+          blockHash: hash,
+        });
+      return standardizeBlock(_block as SyncBlock, "hash");
     });
 
 /**
  * Helper function for "eth_getLogs" rpc request.
  * Handles different error types and retries the request if applicable.
  */
-export const eth_getLogs = async (
+export const _eth_getLogs = async (
   rpc: Rpc,
-  params: Extract<RequestParameters, { method: "eth_getLogs" }>["params"],
+  params: {
+    address?: Address | Address[];
+    topics?: LogTopic[];
+  } & (
+    | { fromBlock: Hex | number; toBlock: Hex | number }
+    | { blockHash: Hash }
+  ),
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncLog[]> => {
-  const request: Extract<RequestParameters, { method: "eth_getLogs" }> = {
-    method: "eth_getLogs",
-    params,
-  };
+  if ("blockHash" in params) {
+    return rpc
+      .request(
+        {
+          method: "eth_getLogs",
+          params: [
+            {
+              blockHash: params.blockHash,
 
-  return rpc.request(request, context).then((logs) => {
-    if (logs === null || logs === undefined) {
-      throw new Error("Received invalid empty eth_getLogs response.");
-    }
+              topics: params.topics,
+              address: params.address
+                ? Array.isArray(params.address)
+                  ? params.address.map((a) => toLowerCase(a))
+                  : toLowerCase(params.address)
+                : undefined,
+            },
+          ],
+        },
+        context,
+      )
+      .then((l) => {
+        if (l === null || l === undefined) {
+          throw new Error("Received invalid empty eth_getLogs response.");
+        }
 
-    return (logs as SyncLog[]).map((log) => standardizeLog(log, request));
-  });
+        return (l as SyncLog[]).map(standardizeLog);
+      });
+  }
+
+  return rpc
+    .request(
+      {
+        method: "eth_getLogs",
+        params: [
+          {
+            fromBlock:
+              typeof params.fromBlock === "number"
+                ? numberToHex(params.fromBlock)
+                : params.fromBlock,
+            toBlock:
+              typeof params.toBlock === "number"
+                ? numberToHex(params.toBlock)
+                : params.toBlock,
+
+            topics: params.topics,
+            address: params.address
+              ? Array.isArray(params.address)
+                ? params.address.map((a) => toLowerCase(a))
+                : toLowerCase(params.address)
+              : undefined,
+          },
+        ],
+      },
+      context,
+    )
+    .then((l) => {
+      if (l === null || l === undefined) {
+        throw new Error("Received invalid empty eth_getLogs response.");
+      }
+
+      return (l as SyncLog[]).map(standardizeLog);
+    });
 };
 
 /**
  * Helper function for "eth_getTransactionReceipt" request.
  */
-export const eth_getTransactionReceipt = (
+export const _eth_getTransactionReceipt = (
   rpc: Rpc,
-  params: Extract<
-    RequestParameters,
-    { method: "eth_getTransactionReceipt" }
-  >["params"],
+  { hash }: { hash: Hex },
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTransactionReceipt> =>
   rpc
-    .request({ method: "eth_getTransactionReceipt", params }, context)
-    .then((receipt) => {
-      if (!receipt) {
-        throw new TransactionReceiptNotFoundError({
-          hash: params[0],
-        });
-      }
-      return standardizeTransactionReceipt(receipt as SyncTransactionReceipt, {
+    .request(
+      {
         method: "eth_getTransactionReceipt",
-        params,
-      });
+        params: [hash],
+      },
+      context,
+    )
+    .then((receipt) => {
+      if (!receipt)
+        throw new TransactionReceiptNotFoundError({
+          hash,
+        });
+      return standardizeTransactionReceipt(
+        receipt as SyncTransactionReceipt,
+        "eth_getTransactionReceipt",
+      );
     });
 
 /**
  * Helper function for "eth_getBlockReceipts" request.
  */
-export const eth_getBlockReceipts = (
+export const _eth_getBlockReceipts = (
   rpc: Rpc,
-  params: Extract<
-    RequestParameters,
-    { method: "eth_getBlockReceipts" }
-  >["params"],
+  { blockHash }: { blockHash: Hash },
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTransactionReceipt[]> =>
   rpc
-    .request({ method: "eth_getBlockReceipts", params }, context)
+    .request(
+      {
+        method: "eth_getBlockReceipts",
+        params: [blockHash],
+      },
+      context,
+    )
     .then((receipts) => {
       if (receipts === null || receipts === undefined) {
         throw new Error(
@@ -148,26 +214,35 @@ export const eth_getBlockReceipts = (
       }
 
       return receipts.map((receipt) =>
-        standardizeTransactionReceipt(receipt, {
-          method: "eth_getBlockReceipts",
-          params,
-        }),
+        standardizeTransactionReceipt(receipt, "eth_getBlockReceipts"),
       );
     });
 
 /**
  * Helper function for "debug_traceBlockByNumber" request.
  */
-export const debug_traceBlockByNumber = (
+export const _debug_traceBlockByNumber = (
   rpc: Rpc,
-  params: Extract<
-    RequestParameters,
-    { method: "debug_traceBlockByNumber" }
-  >["params"],
+  {
+    blockNumber,
+  }: {
+    blockNumber: Hex | number;
+  },
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTrace[]> =>
   rpc
-    .request({ method: "debug_traceBlockByNumber", params }, context)
+    .request(
+      {
+        method: "debug_traceBlockByNumber",
+        params: [
+          typeof blockNumber === "number"
+            ? numberToHex(blockNumber)
+            : blockNumber,
+          { tracer: "callTracer" },
+        ],
+      },
+      context,
+    )
     .then((traces) => {
       if (traces === null || traces === undefined) {
         throw new Error(
@@ -224,27 +299,29 @@ export const debug_traceBlockByNumber = (
         dfs([trace.result], trace.txHash, undefined);
       }
 
-      return result.map((trace) =>
-        standardizeTrace(trace, {
-          method: "debug_traceBlockByNumber",
-          params,
-        }),
-      );
+      return result.map(standardizeTrace);
     });
 
 /**
  * Helper function for "debug_traceBlockByHash" request.
  */
-export const debug_traceBlockByHash = (
+export const _debug_traceBlockByHash = (
   rpc: Rpc,
-  params: Extract<
-    RequestParameters,
-    { method: "debug_traceBlockByHash" }
-  >["params"],
+  {
+    hash,
+  }: {
+    hash: Hash;
+  },
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncTrace[]> =>
   rpc
-    .request({ method: "debug_traceBlockByHash", params }, context)
+    .request(
+      {
+        method: "debug_traceBlockByHash",
+        params: [hash, { tracer: "callTracer" }],
+      },
+      context,
+    )
     .then((traces) => {
       if (traces === null || traces === undefined) {
         throw new Error(
@@ -301,12 +378,7 @@ export const debug_traceBlockByHash = (
         dfs([trace.result], trace.txHash, undefined);
       }
 
-      return result.map((trace) =>
-        standardizeTrace(trace, {
-          method: "debug_traceBlockByHash",
-          params,
-        }),
-      );
+      return result.map(standardizeTrace);
     });
 
 /**
@@ -314,10 +386,7 @@ export const debug_traceBlockByHash = (
  */
 export const validateTransactionsAndBlock = (
   block: SyncBlock,
-  request: Extract<
-    RequestParameters,
-    { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
-  >,
+  blockIdentifier: "number" | "hash",
 ) => {
   const transactionIds = new Set<Hex>();
   for (const [index, transaction] of block.transactions.entries()) {
@@ -327,7 +396,9 @@ export const validateTransactionsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(request),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -339,7 +410,9 @@ export const validateTransactionsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(request),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -351,7 +424,9 @@ export const validateTransactionsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(request),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -370,11 +445,7 @@ export const validateTransactionsAndBlock = (
 export const validateLogsAndBlock = (
   logs: SyncLog[],
   block: SyncBlock,
-  logsRequest: Extract<RequestParameters, { method: "eth_getLogs" }>,
-  blockRequest: Extract<
-    RequestParameters,
-    { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
-  >,
+  blockIdentifier: "number" | "hash",
 ) => {
   if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
     const error = new RpcProviderError(
@@ -382,8 +453,12 @@ export const validateLogsAndBlock = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(logsRequest),
+      eth_getBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+      eth_getLogsText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -404,8 +479,12 @@ export const validateLogsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(logsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        eth_getLogsText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -417,8 +496,12 @@ export const validateLogsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(logsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        eth_getLogsText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -432,8 +515,16 @@ export const validateLogsAndBlock = (
         );
         error.meta = [
           "Please report this error to the RPC operator.",
-          requestText(blockRequest),
-          requestText(logsRequest),
+          eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+          eth_getLogsText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
         ];
         error.stack = undefined;
         throw error;
@@ -443,8 +534,16 @@ export const validateLogsAndBlock = (
         );
         error.meta = [
           "Please report this error to the RPC operator.",
-          requestText(blockRequest),
-          requestText(logsRequest),
+          eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
+          eth_getLogsText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
         ];
         error.stack = undefined;
         throw error;
@@ -457,8 +556,12 @@ export const validateLogsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(logsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        eth_getLogsText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -474,14 +577,7 @@ export const validateLogsAndBlock = (
 export const validateTracesAndBlock = (
   traces: SyncTrace[],
   block: SyncBlock,
-  tracesRequest: Extract<
-    RequestParameters,
-    { method: "debug_traceBlockByNumber" | "debug_traceBlockByHash" }
-  >,
-  blockRequest: Extract<
-    RequestParameters,
-    { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
-  >,
+  blockIdentifier: "number" | "hash",
 ) => {
   const transactionHashes = new Set(block.transactions.map((t) => t.hash));
   for (const [index, trace] of traces.entries()) {
@@ -491,8 +587,12 @@ export const validateTracesAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(tracesRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        debug_traceBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
       ];
       error.stack = undefined;
       throw error;
@@ -506,8 +606,12 @@ export const validateTracesAndBlock = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(tracesRequest),
+      eth_getBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+      debug_traceBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -520,14 +624,8 @@ export const validateTracesAndBlock = (
 export const validateReceiptsAndBlock = (
   receipts: SyncTransactionReceipt[],
   block: SyncBlock,
-  receiptsRequest: Extract<
-    RequestParameters,
-    { method: "eth_getBlockReceipts" | "eth_getTransactionReceipt" }
-  >,
-  blockRequest: Extract<
-    RequestParameters,
-    { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
-  >,
+  method: "eth_getBlockReceipts" | "eth_getTransactionReceipt",
+  blockIdentifier: "number" | "hash",
 ) => {
   const receiptIds = new Set<string>();
 
@@ -539,8 +637,12 @@ export const validateReceiptsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
       ];
       error.stack = undefined;
       throw error;
@@ -563,8 +665,12 @@ export const validateReceiptsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
       ];
       error.stack = undefined;
       throw error;
@@ -576,8 +682,12 @@ export const validateReceiptsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
       ];
       error.stack = undefined;
       throw error;
@@ -590,8 +700,12 @@ export const validateReceiptsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
       ];
       error.stack = undefined;
       throw error;
@@ -601,8 +715,12 @@ export const validateReceiptsAndBlock = (
       );
       error.meta = [
         "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
+        eth_getBlockText(
+          blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+        ),
+        method === "eth_getBlockReceipts"
+          ? eth_getBlockReceiptsText(block.hash)
+          : eth_getTransactionReceiptText(receipt.transactionHash),
       ];
       error.stack = undefined;
       throw error;
@@ -610,7 +728,7 @@ export const validateReceiptsAndBlock = (
   }
 
   if (
-    receiptsRequest.method === "eth_getBlockReceipts" &&
+    method === "eth_getBlockReceipts" &&
     block.transactions.length !== receipts.length
   ) {
     const error = new RpcProviderError(
@@ -618,8 +736,10 @@ export const validateReceiptsAndBlock = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(receiptsRequest),
+      eth_getBlockText(
+        blockIdentifier === "number" ? hexToNumber(block.number) : block.hash,
+      ),
+      eth_getBlockReceiptsText(block.hash),
     ];
     error.stack = undefined;
     throw error;
@@ -660,12 +780,8 @@ export const standardizeBlock = <
       }),
 >(
   block: block,
-  request:
-    | Extract<
-        RequestParameters,
-        { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
-      >
-    | { method: "eth_subscribe"; params: ["newHeads"] },
+  blockIdentifier: "number" | "hash" | "newHeads",
+  isBlockHeader = false,
 ): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
@@ -674,7 +790,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -685,7 +807,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -696,7 +824,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -707,7 +841,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -718,7 +858,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -771,7 +917,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -782,7 +934,13 @@ export const standardizeBlock = <
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      blockIdentifier === "newHeads"
+        ? eth_subscribeNewHeadsText()
+        : eth_getBlockText(
+            blockIdentifier === "number"
+              ? hexToNumber(block.number)
+              : block.hash,
+          ),
     ];
     error.stack = undefined;
     throw error;
@@ -791,7 +949,7 @@ export const standardizeBlock = <
   // Note: block headers for some providers may contain transactions hashes,
   // but Ponder coerces the transactions property to undefined.
 
-  if (request.method === "eth_subscribe" || request.params[1] === false) {
+  if (isBlockHeader) {
     block.transactions = undefined;
 
     return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
@@ -803,7 +961,7 @@ export const standardizeBlock = <
     }
 
     block.transactions = (block as SyncBlock).transactions.map((transaction) =>
-      standardizeTransaction(transaction, request),
+      standardizeTransaction(transaction, blockIdentifier as "number" | "hash"),
     );
 
     return block as block extends SyncBlock ? SyncBlock : SyncBlockHeader;
@@ -833,10 +991,7 @@ export const standardizeBlock = <
  */
 export const standardizeTransaction = (
   transaction: SyncTransaction,
-  request: Extract<
-    RequestParameters,
-    { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
-  >,
+  blockIdentifier: "number" | "hash",
 ): SyncTransaction => {
   // required properties
   if (transaction.hash === undefined) {
@@ -845,7 +1000,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -856,7 +1015,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -867,7 +1030,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -878,7 +1045,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -889,7 +1060,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -933,7 +1108,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -944,7 +1123,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -955,7 +1138,11 @@ export const standardizeTransaction = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getBlockText(
+        blockIdentifier === "number"
+          ? hexToNumber(transaction.blockNumber)
+          : transaction.blockHash,
+      ),
     ];
     error.stack = undefined;
     throw error;
@@ -982,7 +1169,7 @@ export const standardizeTransaction = (
  */
 export const standardizeLog = (
   log: SyncLog,
-  request: Extract<RequestParameters, { method: "eth_getLogs" }>,
+  blockIdentifier: number | Hash,
 ): SyncLog => {
   // required properties
   if (log.blockNumber === undefined) {
@@ -991,7 +1178,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1002,7 +1189,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1013,7 +1200,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1024,7 +1211,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1035,7 +1222,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1046,7 +1233,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1069,7 +1256,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1080,7 +1267,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1091,7 +1278,7 @@ export const standardizeLog = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      eth_getLogsText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1115,10 +1302,7 @@ export const standardizeLog = (
  */
 export const standardizeTrace = (
   trace: SyncTrace,
-  request: Extract<
-    RequestParameters,
-    { method: "debug_traceBlockByNumber" | "debug_traceBlockByHash" }
-  >,
+  blockIdentifier: number | Hash,
 ): SyncTrace => {
   // required properties
   if (trace.transactionHash === undefined) {
@@ -1127,7 +1311,7 @@ export const standardizeTrace = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      debug_traceBlockText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1138,7 +1322,7 @@ export const standardizeTrace = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      debug_traceBlockText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1149,7 +1333,7 @@ export const standardizeTrace = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      debug_traceBlockText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1160,7 +1344,7 @@ export const standardizeTrace = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      debug_traceBlockText(blockIdentifier),
     ];
     error.stack = undefined;
     throw error;
@@ -1203,10 +1387,7 @@ export const standardizeTrace = (
  */
 export const standardizeTransactionReceipt = (
   receipt: SyncTransactionReceipt,
-  request: Extract<
-    RequestParameters,
-    { method: "eth_getBlockReceipts" | "eth_getTransactionReceipt" }
-  >,
+  method: "eth_getBlockReceipts" | "eth_getTransactionReceipt",
 ): SyncTransactionReceipt => {
   // required properties
   if (receipt.blockHash === undefined) {
@@ -1215,7 +1396,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1226,7 +1409,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1237,7 +1422,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1248,7 +1435,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1259,7 +1448,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1270,7 +1461,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1311,7 +1504,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1322,7 +1517,9 @@ export const standardizeTransactionReceipt = (
     );
     error.meta = [
       "Please report this error to the RPC operator.",
-      requestText(request),
+      method === "eth_getBlockReceipts"
+        ? eth_getBlockReceiptsText(receipt.blockHash)
+        : eth_getTransactionReceiptText(receipt.transactionHash),
     ];
     error.stack = undefined;
     throw error;
@@ -1331,11 +1528,104 @@ export const standardizeTransactionReceipt = (
   return receipt;
 };
 
-function requestText(request: { method: string; params: any[] }): string {
-  return `Request: ${JSON.stringify(
+function eth_getLogsText(numberOrHash: Hex | number): string {
+  if (typeof numberOrHash === "number") {
+    return `Logs request: ${JSON.stringify(
+      {
+        method: "eth_getLogs",
+        params: [
+          {
+            fromBlock: toHex(numberOrHash),
+            toBlock: toHex(numberOrHash),
+          },
+        ],
+      },
+      null,
+      2,
+    )}`;
+  }
+
+  return `Logs request: ${JSON.stringify(
     {
-      method: request.method,
-      params: request.params,
+      method: "eth_getLogs",
+      params: [{ blockHash: numberOrHash }],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_getBlockText(numberOrHash: Hex | number): string {
+  if (typeof numberOrHash === "number") {
+    return `Block request: ${JSON.stringify(
+      {
+        method: "eth_getBlockByNumber",
+        params: [toHex(numberOrHash), true],
+      },
+      null,
+      2,
+    )}`;
+  }
+
+  return `Block request: ${JSON.stringify(
+    {
+      method: "eth_getBlockByHash",
+      params: [numberOrHash, true],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_subscribeNewHeadsText(): string {
+  return `Block request: ${JSON.stringify(
+    {
+      method: "eth_subscribe",
+      params: ["newHeads"],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_getBlockReceiptsText(hash: Hex): string {
+  return `Receipts request: ${JSON.stringify(
+    {
+      method: "eth_getBlockReceipts",
+      params: [hash],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function eth_getTransactionReceiptText(hash: Hex): string {
+  return `Receipt request: ${JSON.stringify(
+    {
+      method: "eth_getTransactionReceipt",
+      params: [hash],
+    },
+    null,
+    2,
+  )}`;
+}
+
+function debug_traceBlockText(numberOrHash: Hex | number): string {
+  if (typeof numberOrHash === "number") {
+    return `Traces request: ${JSON.stringify(
+      {
+        method: "debug_traceBlockByNumber",
+        params: [toHex(numberOrHash), { tracer: "callTracer" }],
+      },
+      null,
+      2,
+    )}`;
+  }
+
+  return `Traces request: ${JSON.stringify(
+    {
+      method: "debug_traceBlockByHash",
+      params: [numberOrHash, { tracer: "callTracer" }],
     },
     null,
     2,

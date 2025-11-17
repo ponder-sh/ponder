@@ -24,7 +24,7 @@ import type {
   Fragment,
   LogFilter,
 } from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
@@ -75,7 +75,7 @@ test("getLocalSyncProgress()", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x0", true]),
+    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
     cachedIntervals,
   });
 
@@ -110,7 +110,7 @@ test("getLocalSyncProgress() future end block", async (context) => {
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
-    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x0", true]),
+    finalizedBlock: await _eth_getBlockByNumber(rpc, { blockNumber: 0 }),
     cachedIntervals,
   });
 

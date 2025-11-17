@@ -25,7 +25,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -146,7 +146,9 @@ test("isBlockFilterMatched", async (context) => {
 
   const filter = eventCallbacks[0]!.filter as BlockFilter;
 
-  const rpcBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 0,
+  });
 
   let isMatched = isBlockFilterMatched({
     filter,
@@ -187,7 +189,9 @@ test("isTransactionFilterMatched()", async (context) => {
     undefined
   >;
 
-  const rpcBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 1,
+  });
 
   let isMatched = isTransactionFilterMatched({
     filter,
@@ -228,7 +232,9 @@ test("isTransactionFilterMatched() with null transaction.to", async (context) =>
   >;
   filter.toAddress = BOB.toLowerCase() as Address;
 
-  const rpcBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const rpcBlock = await _eth_getBlockByNumber(rpc, {
+    blockNumber: 1,
+  });
 
   let isMatched = isTransactionFilterMatched({
     filter,
