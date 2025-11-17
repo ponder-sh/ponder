@@ -3,11 +3,7 @@ import url from "node:url";
 import type { Common } from "@/internal/common.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
-import {
-  _eth_getBlockByHash,
-  _eth_getBlockByNumber,
-  standardizeBlock,
-} from "@/rpc/actions.js";
+import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
@@ -716,9 +712,7 @@ export const createRpc = ({
 
             interval = setInterval(async () => {
               try {
-                const block = await _eth_getBlockByNumber(rpc, {
-                  blockTag: "latest",
-                });
+                const block = await eth_getBlockByNumber(rpc, ["latest", true]);
                 common.logger.trace({
                   msg: "Received successful JSON-RPC polling response",
                   chain: chain.name,
@@ -778,7 +772,10 @@ export const createRpc = ({
                   webSocketErrorCount = 0;
 
                   onBlock(
-                    standardizeBlock(msg.params.result, "newHeads", true),
+                    standardizeBlock(msg.params.result, {
+                      method: "eth_subscribe",
+                      params: ["newHeads"],
+                    }),
                   );
                 } else if (msg.result) {
                   common.logger.debug({

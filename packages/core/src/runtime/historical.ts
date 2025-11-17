@@ -10,7 +10,7 @@ import type {
   RawEvent,
   SyncBlock,
 } from "@/internal/types.js";
-import { _eth_getBlockByNumber } from "@/rpc/actions.js";
+import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
@@ -33,7 +33,7 @@ import { type Interval, intervalSum } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
-import { hexToNumber } from "viem";
+import { hexToNumber, numberToHex } from "viem";
 import {
   type CachedIntervals,
   type ChildAddresses,
@@ -327,16 +327,19 @@ export async function* getHistoricalEventsOmnichain(params: {
       params.indexingBuild.chains.map((chain, i) => {
         const rpc = params.indexingBuild.rpcs[i]!;
 
-        return _eth_getBlockByNumber(rpc, { blockTag: "latest" }, context)
+        return eth_getBlockByNumber(rpc, ["latest", false], context)
           .then((latest) =>
-            _eth_getBlockByNumber(
+            eth_getBlockByNumber(
               rpc,
-              {
-                blockNumber: Math.max(
-                  hexToNumber(latest.number) - chain.finalityBlockCount,
-                  0,
+              [
+                numberToHex(
+                  Math.max(
+                    hexToNumber(latest.number) - chain.finalityBlockCount,
+                    0,
+                  ),
                 ),
-              },
+                false,
+              ],
               context,
             ),
           )
@@ -585,16 +588,19 @@ export async function* getHistoricalEventsMultichain(params: {
       params.indexingBuild.chains.map((chain, i) => {
         const rpc = params.indexingBuild.rpcs[i]!;
 
-        return _eth_getBlockByNumber(rpc, { blockTag: "latest" }, context)
+        return eth_getBlockByNumber(rpc, ["latest", false], context)
           .then((latest) =>
-            _eth_getBlockByNumber(
+            eth_getBlockByNumber(
               rpc,
-              {
-                blockNumber: Math.max(
-                  hexToNumber(latest.number) - chain.finalityBlockCount,
-                  0,
+              [
+                numberToHex(
+                  Math.max(
+                    hexToNumber(latest.number) - chain.finalityBlockCount,
+                    0,
+                  ),
                 ),
-              },
+                false,
+              ],
               context,
             ),
           )
@@ -802,19 +808,22 @@ export async function* getHistoricalEventsIsolated(params: {
 
     const endClock = startClock();
 
-    const finalizedBlock = await _eth_getBlockByNumber(
+    const finalizedBlock = await eth_getBlockByNumber(
       rpc,
-      { blockTag: "latest" },
+      ["latest", false],
       context,
     ).then((latest) =>
-      _eth_getBlockByNumber(
+      eth_getBlockByNumber(
         rpc,
-        {
-          blockNumber: Math.max(
-            hexToNumber(latest.number) - params.chain.finalityBlockCount,
-            0,
+        [
+          numberToHex(
+            Math.max(
+              hexToNumber(latest.number) - params.chain.finalityBlockCount,
+              0,
+            ),
           ),
-        },
+          false,
+        ],
         context,
       ),
     );
