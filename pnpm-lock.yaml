@@ -490,7 +490,7 @@ importers:
     dependencies:
       '@ponder/client':
         specifier: workspace:*
-        version: link:../../../packages/client
+        version: link:../../../packages/sql-over-http
     devDependencies:
       '@types/pg':
         specifier: ^8.10.9
@@ -567,10 +567,10 @@ importers:
     dependencies:
       '@ponder/client':
         specifier: workspace:*
-        version: link:../../../packages/client
+        version: link:../../../packages/sql-over-http
       '@ponder/react':
         specifier: workspace:*
-        version: link:../../../packages/react
+        version: link:../../../packages/sql-over-http-react
       '@tanstack/react-query':
         specifier: ^5.12.2
         version: 5.12.2(react@18.2.0)
@@ -652,7 +652,7 @@ importers:
     dependencies:
       '@ponder/client':
         specifier: workspace:*
-        version: link:../../../packages/client
+        version: link:../../../packages/sql-over-http
       drizzle-orm:
         specifier: 0.41.0
         version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.2)
@@ -742,25 +742,6 @@ importers:
       typescript:
         specifier: ^5.3.2
         version: 5.3.3
-
-  packages/client:
-    dependencies:
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.2)
-      eventsource:
-        specifier: ^3.0.5
-        version: 3.0.5
-      superjson:
-        specifier: ^2.2.2
-        version: 2.2.2
-    devDependencies:
-      tsup:
-        specifier: ^8.0.1
-        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3))(typescript@5.3.3)
-      vitest:
-        specifier: ^1.0.2
-        version: 1.0.2(@edge-runtime/vm@3.2.0)(@types/node@24.6.0)(lightningcss@1.30.0)
 
   packages/core:
     dependencies:
@@ -878,7 +859,7 @@ importers:
         version: 16.0.0
       '@ponder/client':
         specifier: workspace:*
-        version: link:../client
+        version: link:../sql-over-http
       '@types/babel__code-frame':
         specifier: ^7.0.6
         version: 7.0.6
@@ -994,7 +975,26 @@ importers:
 
   packages/eslint-config-ponder: {}
 
-  packages/react:
+  packages/sql-over-http:
+    dependencies:
+      drizzle-orm:
+        specifier: 0.41.0
+        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2)(kysely@0.26.3)(pg@8.16.2)
+      eventsource:
+        specifier: ^3.0.5
+        version: 3.0.5
+      superjson:
+        specifier: ^2.2.2
+        version: 2.2.2
+    devDependencies:
+      tsup:
+        specifier: ^8.0.1
+        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.6.0)(typescript@5.3.3))(typescript@5.3.3)
+      vitest:
+        specifier: ^1.0.2
+        version: 1.0.2(@edge-runtime/vm@3.2.0)(@types/node@24.6.0)(lightningcss@1.30.0)
+
+  packages/sql-over-http-react:
     dependencies:
       superjson:
         specifier: ^2.2.2
@@ -1002,7 +1002,7 @@ importers:
     devDependencies:
       '@ponder/client':
         specifier: workspace:*
-        version: link:../client
+        version: link:../sql-over-http
       '@tanstack/react-query':
         specifier: ^5.12.2
         version: 5.12.2(react@18.2.0)
@@ -1011,7 +1011,7 @@ importers:
         version: 22.15.18
       '@types/react':
         specifier: ^18.2.0
-        version: 18.2.46
+        version: 18.2.37
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3

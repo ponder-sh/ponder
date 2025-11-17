@@ -62,7 +62,7 @@ export type {
 
 export type { ReadonlyDrizzle } from "@/types/db.js";
 
-export { client } from "@/client/index.js";
+export { client } from "@/sql-over-http/index.js";
 
 export { graphql } from "@/graphql/middleware.js";
 

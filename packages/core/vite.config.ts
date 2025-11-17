@@ -6,7 +6,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@ponder/client": path.resolve(__dirname, "../client/src"),
+      "@ponder/client": path.resolve(__dirname, "../sql-over-http/src"),
       "@ponder/utils": path.resolve(__dirname, "../utils/src"),
     },
   },
