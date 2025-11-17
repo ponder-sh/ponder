@@ -1,0 +1,125 @@
+name: Simulation Test
+
+on:
+  schedule:
+    - cron: "0 0,6,12,18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  simulation-test-known-failures:
+    if: github.event_name == 'workflow_dispatch'
+    name: Simulation Test Known Failures
+    runs-on: self-hosted
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app_id: uniswap-v4
+            seed: 451a2d0e399fd375369d53bf04b652ee80730fc215963818f1a387d2aa78b198
+          - app_id: uniswap-v4
+            seed: 4ae5cc4f3594b76798249f1adb56d42dc1b544975a781f4c93b7e565507bd9cf
+          - app_id: feature-multichain
+            seed: e1802a439f23d2706e1a50b4b13aa743b931f8e2dcf1d7e39ea4b6e7dbd34640
+          # Failed because of bug in crash recovery database migration when `ordering: "experimental_isolated"`.
+          # https://github.com/ponder-sh/ponder/blob/e8eae6394a9c73a16d14f7ecf6317cdcd69aa9fd/packages/core/src/database/index.ts#L917
+          - app_id: assessment
+            seed: 3938fff044d4feb11b33dbdb57bae142ec6d73029611ddff14d9d4b11ada2fe6
+          # Failed because of a bug in reorg handling when `ordering: "multichain"`.
+          # https://github.com/ponder-sh/ponder/blob/e8eae6394a9c73a16d14f7ecf6317cdcd69aa9fd/packages/core/src/runtime/realtime.ts#L572-L585
+          - app_id: assessment
+            seed: 8d07d00f53fe5beaf19c06696ea4e00120112ef753404e576372fc1fe18f4d13
+          # Failed because of a bug in checkpoint calculation for pending events when `ordering: "omnichain"`.
+          # https://github.com/ponder-sh/ponder/blob/e8eae6394a9c73a16d14f7ecf6317cdcd69aa9fd/packages/core/src/runtime/historical.ts#L281-L303
+          - app_id: uniswap-v4
+            seed: 31752f35f6443147d8fda82cb9b3c4a878292e9b3c52f2e36c582dba943872ed
+          # Failed because of incorrect finalized block calculation in the test script after a crash recovery.
+          # https://github.com/ponder-sh/ponder/blob/e8eae6394a9c73a16d14f7ecf6317cdcd69aa9fd/integration-test/src/index.ts#L1248-L1270
+          - app_id: project-uniswap-v3-flash
+            seed: 98c5c3716e33ba8ea2a8ba8d36f942cf1c2fb368f2d33a5f6bf434e087487bce
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm build
+      - run: pnpm install
+
+      - name: Test ${{ matrix.app_id }} ${{ matrix.seed }}
+        run: |
+          cd simulation-test
+          pnpm test ${{ matrix.app_id }}
+        env:
+          SEED: ${{ matrix.seed }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
+          PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
+          PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
+          PGDATABASE: railway
+          PGSSLMODE: disable
+          NODE_ENV: ci
+
+  simulation-test-fuzz:
+    name: Simulation Test Fuzz
+    runs-on: self-hosted
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        app_id:
+          - "assessment"
+          - "feature-multichain"
+          - "project-uniswap-v3-flash"
+          - "reference-erc20"
+          - "super-assessment"
+          - "uniswap-v4"
+          - "the-compact"
+          - "basepaint"
+        iteration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm build
+      - run: pnpm install
+
+      - name: Test ${{ matrix.app_id }} ${{ matrix.iteration }}
+        run: |
+          cd simulation-test
+          pnpm test ${{ matrix.app_id }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
+          PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}
+          PONDER_RPC_URL_8453: ${{ secrets.PONDER_RPC_URL_8453 }}
+          PGDATABASE: railway
+          PGSSLMODE: disable
+          NODE_ENV: ci
+
+  cleanup-simulation-test:
+    name: Cleanup Simulation Test Databases
+    needs: [simulation-test-known-failures, simulation-test-fuzz]
+    if: ${{ always() }}
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          cd simulation-test
+          bun run src/cleanup-database.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PGDATABASE: railway
+          PGSSLMODE: disable
+          NODE_ENV: ci

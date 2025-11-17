@@ -567,18 +567,18 @@ export async function* getRealtimeEventsMultichain(params: {
           }
         }
 
-        if (reorgIndex === undefined) continue;
-
         // Move events from executed to pending
 
-        const reorgedEvents = executedEvents.slice(reorgIndex);
-        executedEvents = executedEvents.slice(0, reorgIndex);
-        pendingEvents = pendingEvents.concat(reorgedEvents);
+        if (reorgIndex !== undefined) {
+          const reorgedEvents = executedEvents.slice(reorgIndex);
+          executedEvents = executedEvents.slice(0, reorgIndex);
+          pendingEvents = pendingEvents.concat(reorgedEvents);
 
-        params.common.logger.trace({
-          msg: "Removed and rescheduled reorged events",
-          event_count: reorgedEvents.length,
-        });
+          params.common.logger.trace({
+            msg: "Removed and rescheduled reorged events",
+            event_count: reorgedEvents.length,
+          });
+        }
 
         pendingEvents = pendingEvents.filter(
           (e) => isReorgedEvent(e) === false,

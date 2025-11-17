@@ -1,4 +1,4 @@
-name: Single Integration Test
+name: Single Simulation Test
 
 on:
   workflow_dispatch:
@@ -13,25 +13,26 @@ on:
         type: string
 
 jobs:
-  integration-test:
-    name: Single Integration Test
+  simulation-test:
+    name: Single Simulation Test
     runs-on: self-hosted
     timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/actions/setup
-
+      - uses: oven-sh/setup-bun@v2
+      
       - run: pnpm build
       - run: pnpm install
 
-      - name: Test ${{ github.event.inputs.app }}
+      - name: Simulation Test ${{ github.event.inputs.app }}
         run: |
-          cd integration-test
-          UUID=$(cat /proc/sys/kernel/random/uuid)
-          SEED=${{ github.event.inputs.seed }} pnpm test:node ${{ github.event.inputs.app }}
+          cd simulation-test
+          pnpm test ${{ github.event.inputs.app }}
         env:
-          DATABASE_URL: ${{ secrets.TEST_CONNECTION_STRING }}
+          SEED: ${{ github.event.inputs.seed }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
           PONDER_RPC_URL_10: ${{ secrets.PONDER_RPC_URL_10 }}
           PONDER_RPC_URL_130: ${{ secrets.PONDER_RPC_URL_130 }}

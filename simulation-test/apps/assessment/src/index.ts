@@ -24,7 +24,6 @@ ponder.on("weth9:Transfer", async ({ event, context }) => {
     throw Error("invalid block number");
   } else if (event.block.number === state.blockNumber) {
     if (event.block.hash !== state.blockHash && state.blockHash !== zeroHash) {
-      console.log(event.block.hash, state.blockHash);
       throw Error("invalid block hash");
     }
 
