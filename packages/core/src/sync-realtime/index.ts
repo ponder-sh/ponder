@@ -20,12 +20,12 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import {
-  debug_traceBlockByHash,
-  eth_getBlockByHash,
-  eth_getBlockByNumber,
-  eth_getBlockReceipts,
-  eth_getLogs,
-  eth_getTransactionReceipt,
+  _debug_traceBlockByHash,
+  _eth_getBlockByHash,
+  _eth_getBlockByNumber,
+  _eth_getBlockReceipts,
+  _eth_getLogs,
+  _eth_getTransactionReceipt,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -48,13 +48,7 @@ import type { SyncProgress } from "@/runtime/index.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
-import {
-  type Address,
-  type Hash,
-  hexToNumber,
-  numberToHex,
-  zeroHash,
-} from "viem";
+import { type Address, type Hash, hexToNumber, zeroHash } from "viem";
 import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {
@@ -169,7 +163,6 @@ export const createRealtimeSync = (
   const syncTransactionReceipts = async (
     block: SyncBlock,
     transactionHashes: Set<Hash>,
-    ethGetBlockMethod: "eth_getBlockByHash" | "eth_getBlockByNumber",
     context?: Parameters<Rpc["request"]>[1],
   ): Promise<SyncTransactionReceipt[]> => {
     if (transactionHashes.size === 0) {
@@ -178,33 +171,16 @@ export const createRealtimeSync = (
 
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) => {
-          const receipt = await eth_getTransactionReceipt(
-            args.rpc,
-            [hash],
-            context,
-          );
+        Array.from(transactionHashes).map(async (hash) =>
+          _eth_getTransactionReceipt(args.rpc, { hash }, context),
+        ),
+      );
 
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            ethGetBlockMethod === "eth_getBlockByNumber"
-              ? {
-                  method: "eth_getBlockByNumber",
-                  params: [block.number, true],
-                }
-              : {
-                  method: "eth_getBlockByHash",
-                  params: [block.hash, true],
-                },
-          );
-
-          return receipt;
-        }),
+      validateReceiptsAndBlock(
+        transactionReceipts,
+        block,
+        "eth_getTransactionReceipt",
+        "hash",
       );
 
       return transactionReceipts;
@@ -212,9 +188,9 @@ export const createRealtimeSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await eth_getBlockReceipts(
+      blockReceipts = await _eth_getBlockReceipts(
         args.rpc,
-        [block.hash],
+        { blockHash: block.hash },
         context,
       );
     } catch (_error) {
@@ -228,30 +204,14 @@ export const createRealtimeSync = (
       });
 
       isBlockReceipts = false;
-      return syncTransactionReceipts(
-        block,
-        transactionHashes,
-        ethGetBlockMethod,
-        context,
-      );
+      return syncTransactionReceipts(block, transactionHashes, context);
     }
 
     validateReceiptsAndBlock(
       blockReceipts,
       block,
-      {
-        method: "eth_getBlockReceipts",
-        params: [block.hash],
-      },
-      ethGetBlockMethod === "eth_getBlockByNumber"
-        ? {
-            method: "eth_getBlockByNumber",
-            params: [block.number, true],
-          }
-        : {
-            method: "eth_getBlockByHash",
-            params: [block.hash, true],
-          },
+      "eth_getBlockReceipts",
+      "hash",
     );
 
     const transactionReceipts = blockReceipts.filter((receipt) =>
@@ -283,13 +243,9 @@ export const createRealtimeSync = (
     const endClock = startClock();
 
     let block: SyncBlock | undefined;
-    let ethGetBlockMethod: "eth_getBlockByHash" | "eth_getBlockByNumber";
 
     if (maybeBlockHeader.transactions !== undefined) {
       block = maybeBlockHeader;
-      ethGetBlockMethod = "eth_getBlockByNumber";
-    } else {
-      ethGetBlockMethod = "eth_getBlockByHash";
     }
 
     ////////
@@ -307,38 +263,18 @@ export const createRealtimeSync = (
     if (shouldRequestLogs) {
       if (block === undefined) {
         [block, logs] = await Promise.all([
-          eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
-          eth_getLogs(
+          _eth_getBlockByHash(
             args.rpc,
-            [{ blockHash: maybeBlockHeader.hash }],
+            { hash: maybeBlockHeader.hash },
             context,
           ),
+          _eth_getLogs(args.rpc, { blockHash: maybeBlockHeader.hash }, context),
         ]);
       } else {
-        logs = await eth_getLogs(
-          args.rpc,
-          [{ blockHash: block.hash }],
-          context,
-        );
+        logs = await _eth_getLogs(args.rpc, { blockHash: block.hash }, context);
       }
 
-      validateLogsAndBlock(
-        logs,
-        block,
-        {
-          method: "eth_getLogs",
-          params: [{ blockHash: block.hash }],
-        },
-        ethGetBlockMethod === "eth_getBlockByNumber"
-          ? {
-              method: "eth_getBlockByNumber",
-              params: [block.number, true],
-            }
-          : {
-              method: "eth_getBlockByHash",
-              params: [block.hash, true],
-            },
-      );
+      validateLogsAndBlock(logs, block, "hash");
 
       // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
       let isInvalidLogsBloom = false;
@@ -426,38 +362,26 @@ export const createRealtimeSync = (
     if (shouldRequestTraces) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
-          eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
-          debug_traceBlockByHash(
+          _eth_getBlockByHash(
             args.rpc,
-            [maybeBlockHeader.hash, { tracer: "callTracer" }],
+            { hash: maybeBlockHeader.hash },
+            context,
+          ),
+          _debug_traceBlockByHash(
+            args.rpc,
+            { hash: maybeBlockHeader.hash },
             context,
           ),
         ]);
       } else {
-        traces = await debug_traceBlockByHash(
+        traces = await _debug_traceBlockByHash(
           args.rpc,
-          [block.hash, { tracer: "callTracer" }],
+          { hash: block.hash },
           context,
         );
       }
 
-      validateTracesAndBlock(
-        traces,
-        block,
-        {
-          method: "debug_traceBlockByNumber",
-          params: [block.number, { tracer: "callTracer" }],
-        },
-        ethGetBlockMethod === "eth_getBlockByNumber"
-          ? {
-              method: "eth_getBlockByNumber",
-              params: [block.number, true],
-            }
-          : {
-              method: "eth_getBlockByHash",
-              params: [block.hash, true],
-            },
-      );
+      validateTracesAndBlock(traces, block, "hash");
     }
 
     ////////
@@ -577,24 +501,13 @@ export const createRealtimeSync = (
     }
 
     if (block === undefined) {
-      block = await eth_getBlockByHash(
+      block = await _eth_getBlockByHash(
         args.rpc,
-        [maybeBlockHeader.hash, true],
+        { hash: maybeBlockHeader.hash },
         context,
       );
     }
-    validateTransactionsAndBlock(
-      block,
-      ethGetBlockMethod === "eth_getBlockByNumber"
-        ? {
-            method: "eth_getBlockByNumber",
-            params: [block.number, true],
-          }
-        : {
-            method: "eth_getBlockByHash",
-            params: [block.hash, true],
-          },
-    );
+    validateTransactionsAndBlock(block, "hash");
 
     const transactions = block.transactions.filter((transaction) => {
       let isMatched = requiredTransactions.has(transaction.hash);
@@ -615,7 +528,6 @@ export const createRealtimeSync = (
     const transactionReceipts = await syncTransactionReceipts(
       block,
       requiredTransactionReceipts,
-      ethGetBlockMethod,
       context,
     );
 
@@ -867,7 +779,7 @@ export const createRealtimeSync = (
     );
 
     // Block we are attempting to fit into the local chain.
-    let remoteBlock: LightBlock = block;
+    let remoteBlock = block;
 
     while (true) {
       const parentBlock = getLatestUnfinalizedBlock();
@@ -894,9 +806,9 @@ export const createRealtimeSync = (
           `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`,
         );
       } else {
-        remoteBlock = await eth_getBlockByHash(
+        remoteBlock = await _eth_getBlockByHash(
           args.rpc,
-          [remoteBlock.parentHash, false],
+          { hash: remoteBlock.parentHash },
           context,
         );
         // Add tip to `reorgedBlocks`
@@ -1006,11 +918,15 @@ export const createRealtimeSync = (
 
       const pendingBlocks = await Promise.all(
         missingBlockRange.map((blockNumber) =>
-          eth_getBlockByNumber(args.rpc, [numberToHex(blockNumber), true], {
-            logger: args.common.logger.child({
-              action: "fetch_missing_blocks",
-            }),
-          }).then((block) => fetchBlockEventData(block)),
+          _eth_getBlockByNumber(
+            args.rpc,
+            { blockNumber },
+            {
+              logger: args.common.logger.child({
+                action: "fetch_missing_blocks",
+              }),
+            },
+          ).then((block) => fetchBlockEventData(block)),
         ),
       );
 

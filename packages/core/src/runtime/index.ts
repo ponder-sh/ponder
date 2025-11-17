@@ -8,7 +8,7 @@ import type {
   LightBlock,
 } from "@/internal/types.js";
 import type { SyncBlock } from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
   getFilterFactories,
@@ -32,7 +32,7 @@ import {
   intervalUnion,
   sortIntervals,
 } from "@/utils/interval.js";
-import { type Address, hexToNumber, numberToHex, toHex } from "viem";
+import { type Address, hexToNumber, toHex } from "viem";
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
@@ -126,17 +126,23 @@ export async function getLocalSyncProgress(params: {
   const diagnostics = await Promise.all(
     cached === undefined
       ? [
-          eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
-            retryNullBlockRequest: true,
-          }),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: start },
+            { retryNullBlockRequest: true },
+          ),
         ]
       : [
-          eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
-            retryNullBlockRequest: true,
-          }),
-          eth_getBlockByNumber(params.rpc, [numberToHex(cached), false], {
-            retryNullBlockRequest: true,
-          }),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: start },
+            { retryNullBlockRequest: true },
+          ),
+          _eth_getBlockByNumber(
+            params.rpc,
+            { blockNumber: cached },
+            { retryNullBlockRequest: true },
+          ),
         ],
   );
 
@@ -161,9 +167,9 @@ export async function getLocalSyncProgress(params: {
       timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
-    syncProgress.end = await eth_getBlockByNumber(
+    syncProgress.end = await _eth_getBlockByNumber(
       params.rpc,
-      [numberToHex(end), false],
+      { blockNumber: end },
       { retryNullBlockRequest: true },
     );
   }

@@ -8,7 +8,7 @@ import type {
   Factory,
   FragmentAddress,
 } from "@ponder/internal/types.js";
-import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
+import { _eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
 import {
   decodeFragment,
@@ -42,13 +42,7 @@ import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
-import {
-  type Address,
-  type RpcBlock,
-  custom,
-  hexToNumber,
-  numberToHex,
-} from "viem";
+import { type Address, type RpcBlock, custom, hexToNumber } from "viem";
 import packageJson from "../../packages/core/package.json" assert {
   type: "json",
 };
@@ -1246,10 +1240,10 @@ const onBuild = async (app: PonderApp) => {
 
     if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
       if (RESTART_COUNT === 0) {
-        app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
-          numberToHex(end - SIM_PARAMS.UNFINALIZED_BLOCKS),
-          false,
-        ]);
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          { blockNumber: end - SIM_PARAMS.UNFINALIZED_BLOCKS },
+        );
       } else {
         // Note: Use the latest indexed block as the finalized block. This ensures that
         // the finalized block >= crash recovery checkpoint.
@@ -1261,18 +1255,18 @@ const onBuild = async (app: PonderApp) => {
           `SELECT latest_checkpoint FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
         );
 
-        app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
-          numberToHex(
-            Math.min(
+        app.indexingBuild.finalizedBlocks[i] = await _eth_getBlockByNumber(
+          rpc,
+          {
+            blockNumber: Math.min(
               Math.max(
                 Number(decodeCheckpoint(latest_checkpoint).blockNumber),
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,
             ),
-          ),
-          false,
-        ]);
+          },
+        );
       }
     }
 
