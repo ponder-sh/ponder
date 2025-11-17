@@ -147,7 +147,7 @@ export async function* getHistoricalEventsOmnichain(params: {
             }
           }
         } else {
-          // (all less than cursor are pending or already indexed)
+          // Previous iterations `to` value
           const cursor = perChainCursor.get(chain)!;
 
           // Yield pending events from previous iterations. Note that it is possible for
@@ -165,17 +165,23 @@ export async function* getHistoricalEventsOmnichain(params: {
           );
 
           if (events.length > 0) {
-            const checkpoint = events[events.length - 1]!.checkpoint;
+            if (omnichainTo >= cursor) {
+              const blockRange = [
+                Number(decodeCheckpoint(events[0]!.checkpoint).blockNumber),
+                Number(decodeCheckpoint(cursor).blockNumber),
+              ] satisfies [number, number];
 
-            const blockRange = [
-              Number(decodeCheckpoint(cursor).blockNumber),
-              Number(
-                decodeCheckpoint(events[events.length - 1]!.checkpoint)
-                  .blockNumber,
-              ),
-            ] satisfies [number, number];
+              yield { events, checkpoint: cursor, blockRange };
+            } else {
+              const checkpoint = events[events.length - 1]!.checkpoint;
 
-            yield { events, checkpoint, blockRange };
+              const blockRange = [
+                Number(decodeCheckpoint(events[0]!.checkpoint).blockNumber),
+                Number(decodeCheckpoint(checkpoint).blockNumber),
+              ] satisfies [number, number];
+
+              yield { events, checkpoint, blockRange };
+            }
           }
 
           from = encodeCheckpoint({
@@ -276,8 +282,8 @@ export async function* getHistoricalEventsOmnichain(params: {
               events,
               (event) => event.checkpoint <= omnichainTo,
             );
-            pendingEvents = pendingEvents.concat(right);
             events = left;
+            pendingEvents = pendingEvents.concat(right);
 
             params.common.logger.trace({
               msg: "Filtered pending events",
