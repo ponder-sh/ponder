@@ -280,7 +280,7 @@ Specifies a list of addresses collected from decoded event logs. Both [`contract
 
 | field         |                         type                         |                                                                                            |
 | :------------ | :--------------------------------------------------: | :----------------------------------------------------------------------------------------- |
-| **address**   |             `0x{string} \| 0x{string}[]`             | **Required**. Address of the factory contract that creates instances of this contract.     |
+| **address**   |     `0x{string} \| 0x{string}[] \| undefined`        | **Optional**. Address of the factory contract that creates instances of this contract.     |
 | **event**     | [`AbiEvent`](https://abitype.dev/api/types#abievent) | **Required**. ABI item of the event that announces the creation of a new child contract.   |
 | **parameter** |                       `string`                       | **Required**. Name of the parameter within `event` that contains child contract addresses. |
 
