@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.5
+
+### Patch Changes
+
+- [`2d1b0af`](https://github.com/ponder-sh/ponder/commit/2d1b0af849dcb3347239e86bb684f042cc9081f0) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved JSON-RPC response validation errors.
+
 ## 0.15.4
 
 ### Patch Changes
