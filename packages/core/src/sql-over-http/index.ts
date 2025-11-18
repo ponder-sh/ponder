@@ -1,4 +1,5 @@
 import type { PonderApp5 } from "@/database/index.js";
+import { getSql } from "@/drizzle/kit/index.js";
 import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
@@ -90,6 +91,18 @@ export const client = ({
   const views = Object.values(schema).filter(isView);
   const tableNames = new Set(tables.map(getTableName));
   const viewNames = new Set(views.map(getViewName));
+
+  const jsonSchema = getSql(schema);
+  // @ts-ignore
+  jsonSchema.tables.sql = undefined;
+  // @ts-ignore
+  jsonSchema.views.sql = undefined;
+  // @ts-ignore
+  jsonSchema.enums.sql = undefined;
+  // @ts-ignore
+  jsonSchema.indexes.sql = undefined;
+  // @ts-ignore
+  jsonSchema.schema = globalThis.PONDER_NAMESPACE_BUILD.schema;
 
   // Note: Add system tables to the live query registry.
   tableNames.add("_ponder_checkpoint");
@@ -350,7 +363,7 @@ export const client = ({
     const crypto = await import(/* webpackIgnore: true */ "node:crypto");
     await parseViewPromise;
 
-    if (c.req.path === "/sql/db") {
+    if (c.req.path === "/sql/db" && c.req.method === "GET") {
       const queryString = c.req.query("sql");
       if (queryString === undefined) {
         return c.text('Missing "sql" query parameter', 400);
@@ -407,7 +420,7 @@ export const client = ({
       }
     }
 
-    if (c.req.path === "/sql/live") {
+    if (c.req.path === "/sql/live" && c.req.method === "GET") {
       if (isReady === false) {
         return c.text(
           "Live queries are not available until the backfill is complete",
@@ -531,6 +544,10 @@ export const client = ({
           }
         }
       });
+    }
+
+    if (c.req.path === "/sql/schema" && c.req.method === "GET") {
+      return c.json(jsonSchema);
     }
 
     return next();
