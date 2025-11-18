@@ -18,7 +18,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { _eth_getBlockByNumber } from "@/rpc/actions.js";
+import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { type Rpc, createRpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
@@ -42,6 +42,7 @@ import {
   type Hex,
   type LogTopic,
   hexToNumber,
+  numberToHex,
   toEventSelector,
   toFunctionSelector,
 } from "viem";
@@ -159,11 +160,10 @@ export async function buildIndexingFunctions({
   const finalizedBlocks = await Promise.all(
     chains.map((chain) => {
       const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
-      const blockPromise = _eth_getBlockByNumber(
-        rpc,
-        { blockTag: "latest" },
-        { ...context, retryNullBlockRequest: true },
-      )
+      const blockPromise = eth_getBlockByNumber(rpc, ["latest", false], {
+        ...context,
+        retryNullBlockRequest: true,
+      })
         .then((block) => hexToNumber((block as SyncBlock).number))
         .catch((e) => {
           throw new Error(
@@ -174,9 +174,9 @@ export async function buildIndexingFunctions({
       perChainLatestBlockNumber.set(chain.name, blockPromise);
 
       return blockPromise.then((latest) =>
-        _eth_getBlockByNumber(
+        eth_getBlockByNumber(
           rpc,
-          { blockNumber: Math.max(latest - chain.finalityBlockCount, 0) },
+          [numberToHex(Math.max(latest - chain.finalityBlockCount, 0)), false],
           { ...context, retryNullBlockRequest: true },
         ).then((block) => ({
           hash: block.hash,
