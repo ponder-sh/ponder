@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.4
+
+### Patch Changes
+
+- [#2186](https://github.com/ponder-sh/ponder/pull/2186) [`87e369c`](https://github.com/ponder-sh/ponder/commit/87e369c19b422199818ae2c4dceacb0ae16e05e4) Thanks [@kyscott18](https://github.com/kyscott18)! - Reverted a regression introduced in `0.15.3`.
+
 ## 0.15.3
 
 ### Patch Changes
