@@ -53,7 +53,7 @@ export const getFactoryFragments = (factory: Factory): Fragment[] => {
     const fragment = {
       type: "factory_log",
       chainId: factory.chainId,
-      address: fragmentAddress,
+      address: fragmentAddress ?? null,
       eventSelector: factory.eventSelector,
       childAddressLocation: factory.childAddressLocation,
     } satisfies Fragment;
@@ -77,7 +77,7 @@ export const getAddressFragments = (
       ? address.address
       : [address.address]) {
       const fragment = {
-        address: fragmentAddress,
+        address: fragmentAddress ?? null,
         eventSelector: address.eventSelector,
         childAddressLocation: address.childAddressLocation,
       } satisfies FragmentAddress;
@@ -85,7 +85,7 @@ export const getAddressFragments = (
       fragments.push({
         fragment,
         adjacentIds: [
-          `${fragmentAddress}_${address.eventSelector}_${address.childAddressLocation}` as const,
+          `${fragmentAddress ?? null}_${address.eventSelector}_${address.childAddressLocation}` as const,
         ],
       });
     }
@@ -546,8 +546,9 @@ const recoverAddress = <filterAddress extends FilterAddress>(
 ): filterAddress => {
   if (baseAddress === undefined) return undefined as filterAddress;
   if (typeof baseAddress === "string") return baseAddress as filterAddress;
-  if (Array.isArray(baseAddress))
+  if (Array.isArray(baseAddress)) {
     return dedupe(fragmentAddresses) as filterAddress;
+  }
 
   // Note: At this point, `baseAddress` is a factory. We explicitly don't try to recover the factory
   // address from the fragments because we want a `insertChildAddresses` and `getChildAddresses` to

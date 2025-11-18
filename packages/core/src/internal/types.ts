@@ -168,7 +168,7 @@ export type LogFactory = {
   id: FactoryId;
   type: "log";
   chainId: number;
-  address: Address | Address[];
+  address: Address | Address[] | undefined;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
   fromBlock: number | undefined;
@@ -180,7 +180,7 @@ export type LogFactory = {
 export type FragmentAddress =
   | Address
   | {
-      address: Address;
+      address: Address | null;
       eventSelector: Factory["eventSelector"];
       childAddressLocation: Factory["childAddressLocation"];
     }
@@ -188,7 +188,7 @@ export type FragmentAddress =
 
 export type FragmentAddressId =
   | Address
-  | `${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
   | null;
 export type FragmentTopic = Hex | null;
 
@@ -233,7 +233,7 @@ export type Fragment =
   | {
       type: "factory_log";
       chainId: number;
-      address: Address;
+      address: Address | null;
       eventSelector: Factory["eventSelector"];
       childAddressLocation: Factory["childAddressLocation"];
     };
@@ -251,7 +251,7 @@ export type FragmentId =
   /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
   | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`
   /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation} */
-  | `factory_log_${number}_${Address}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`;
+  | `factory_log_${number}_${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`;
 
 // Contract
 export type Contract = {

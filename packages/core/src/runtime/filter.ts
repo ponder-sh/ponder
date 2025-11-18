@@ -36,8 +36,13 @@ import { type Address, hexToNumber } from "viem";
 export const isAddressFactory = (
   address: Address | Address[] | Factory | undefined | null,
 ): address is LogFactory => {
-  if (address === undefined || address === null || typeof address === "string")
+  if (
+    address === undefined ||
+    address === null ||
+    typeof address === "string"
+  ) {
     return false;
+  }
   return Array.isArray(address) ? isAddressFactory(address[0]) : true;
 };
 
@@ -111,18 +116,20 @@ const isValueMatched = <T extends string>(
 };
 
 /**
- * Returns `true` if `log` matches `filter`
+ * Returns `true` if `log` matches `factory`
  */
 export const isLogFactoryMatched = ({
   factory,
   log,
 }: { factory: LogFactory; log: InternalLog | SyncLog }): boolean => {
-  const addresses = Array.isArray(factory.address)
-    ? factory.address
-    : [factory.address];
+  if (factory.address !== undefined) {
+    const addresses = Array.isArray(factory.address)
+      ? factory.address
+      : [factory.address];
 
-  if (addresses.every((address) => address !== toLowerCase(log.address))) {
-    return false;
+    if (addresses.every((address) => address !== toLowerCase(log.address))) {
+      return false;
+    }
   }
   if (log.topics.length === 0) return false;
   if (factory.eventSelector !== toLowerCase(log.topics[0]!)) return false;

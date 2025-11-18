@@ -17,18 +17,24 @@ export function buildLogFactory({
   fromBlock,
   toBlock,
 }: {
-  address: Address | readonly Address[];
+  address?: Address | readonly Address[];
   event: AbiEvent;
   parameter: string;
   chainId: number;
   fromBlock: number | undefined;
   toBlock: number | undefined;
 }): LogFactory {
-  const address = Array.isArray(_address)
-    ? dedupe(_address)
-        .map(toLowerCase)
-        .sort((a, b) => (a < b ? -1 : 1))
-    : toLowerCase(_address);
+  let address: Address | Address[] | undefined;
+  if (_address === undefined) {
+    // noop
+  } else if (Array.isArray(_address)) {
+    address = dedupe(_address)
+      .map(toLowerCase)
+      .sort((a, b) => (a < b ? -1 : 1));
+  } else {
+    address = toLowerCase(_address);
+  }
+
   const eventSelector = toEventSelector(event);
 
   const params = parameter.split(".");

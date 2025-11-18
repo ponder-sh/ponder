@@ -100,6 +100,14 @@ test("isLogFactoryMatched()", async () => {
   });
   expect(isMatched).toBe(true);
 
+  filter.address.address = undefined;
+
+  isMatched = isLogFactoryMatched({
+    factory: filter.address,
+    log: blockData.log,
+  });
+  expect(isMatched).toBe(true);
+
   blockData.log.topics[0] = zeroHash;
 
   isMatched = isLogFactoryMatched({
