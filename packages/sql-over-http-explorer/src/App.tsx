@@ -1,25 +1,28 @@
-import { useState } from "react";
 import "./App.css";
 
 function App() {
-  const [count, setCount] = useState(0);
-
   return (
-    <>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)} type="button">
-          count is {count}
-        </button>
-        <p>
-          Edit <code className="text-3xl text-red-500">src/App.tsx</code> and
-          save to test HMR
-        </p>
+    <div className="grid grid-cols-[200px_1fr] min-h-screen">
+      <aside className="p-4 border-r-1 border-brand-2">
+        <img
+          src="/ponder-light.svg"
+          alt="Ponder Logo"
+          className="h-6 self-start mb-4"
+        />
+        {/* navigation */}
+      </aside>
+      <div className="grid grid-rows-[56px_1fr]">
+        <header className="flex justify-start p-3 text-brand-1 border-b-1 border-brand-2">
+          <button
+            className="rounded-md border-2 border-brand-2 py-1 px-2 flex items-center"
+            type="button"
+          >
+            Columns
+          </button>
+        </header>
+        {/* main content */}
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </div>
   );
 }
 
