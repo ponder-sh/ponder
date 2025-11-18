@@ -13,6 +13,7 @@ test("buildLogFactory throws if provided parameter not found in inputs", () => {
       event: llamaFactoryEventAbiItem,
       parameter: "fakeParameter",
       chainId: 1,
+      sourceId: "Llama",
       fromBlock: undefined,
       toBlock: undefined,
     }),
@@ -27,6 +28,7 @@ test("buildLogFactory handles LlamaInstanceCreated llamaCore", () => {
     event: llamaFactoryEventAbiItem,
     parameter: "llamaCore",
     chainId: 1,
+    sourceId: "Llama",
     fromBlock: undefined,
     toBlock: undefined,
   });
@@ -44,6 +46,7 @@ test("buildLogFactory handles LlamaInstanceCreated llamaPolicy", () => {
     event: llamaFactoryEventAbiItem,
     parameter: "llamaPolicy",
     chainId: 1,
+    sourceId: "Llama",
     fromBlock: undefined,
     toBlock: undefined,
   });
@@ -66,6 +69,7 @@ test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
     event: morphoFactoryEvent,
     parameter: "marketParams.oracle",
     chainId: 1,
+    sourceId: "Llama",
     fromBlock: undefined,
     toBlock: undefined,
   });
@@ -89,6 +93,7 @@ test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
     event: zoraFactoryEvent,
     parameter: "poolKey.hooks",
     chainId: 1,
+    sourceId: "Llama",
     fromBlock: undefined,
     toBlock: undefined,
   });

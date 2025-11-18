@@ -168,6 +168,7 @@ export type LogFactory = {
   id: FactoryId;
   type: "log";
   chainId: number;
+  sourceId: string;
   address: Address | Address[] | undefined;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;

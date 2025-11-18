@@ -282,6 +282,7 @@ test("getCachedBlock() with factory", async () => {
       id: "id",
       type: "log",
       chainId: 1,
+      sourceId: "factory",
       address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
       eventSelector:
         "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
@@ -533,6 +534,7 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
       id: "id",
       type: "log",
       chainId: 1,
+      sourceId: "factory",
       address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
       eventSelector:
         "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
@@ -570,6 +572,7 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
             "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
             "fromBlock": 2,
             "id": "id",
+            "sourceId": "factory",
             "toBlock": 5,
             "type": "log",
           },
@@ -589,6 +592,7 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
               "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
               "fromBlock": 2,
               "id": "id",
+              "sourceId": "factory",
               "toBlock": 5,
               "type": "log",
             },
@@ -621,6 +625,7 @@ test("getRequiredIntervals() with factory", async () => {
       id: "id",
       type: "log",
       chainId: 1,
+      sourceId: "factory",
       address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
       eventSelector:
         "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",

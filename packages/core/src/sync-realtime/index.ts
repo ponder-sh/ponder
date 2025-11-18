@@ -390,14 +390,51 @@ export const createRealtimeSync = (
 
     // Record `blockChildAddresses` that contain factory child addresses
     const blockChildAddresses = new Map<Factory, Set<Address>>();
+
+    const childAddressDecodeFailureIds = new Set<string>();
+    let childAddressDecodeFailureCount = 0;
+    let childAddressDecodeSuccessCount = 0;
+
     for (const factory of factories) {
       blockChildAddresses.set(factory, new Set<Address>());
       for (const log of logs) {
         if (isLogFactoryMatched({ factory, log })) {
-          const address = getChildAddress({ log, factory });
+          let address: Address;
+          try {
+            address = getChildAddress({ log, factory });
+            childAddressDecodeSuccessCount++;
+          } catch (error) {
+            if (factory.address === undefined) {
+              childAddressDecodeFailureCount++;
+              if (childAddressDecodeFailureIds.has(factory.id) === false) {
+                childAddressDecodeFailureIds.add(factory.id);
+                args.common.logger.debug({
+                  msg: "Failed to extract child address from log matched by factory using the provided ABI item",
+                  chain: args.chain.name,
+                  chain_id: args.chain.id,
+                  factory: factory.sourceId,
+                  block_number: hexToNumber(log.blockNumber),
+                  log_index: hexToNumber(log.logIndex),
+                  data: log.data,
+                  topics: JSON.stringify(log.topics),
+                });
+              }
+              continue;
+            } else {
+              throw error;
+            }
+          }
           blockChildAddresses.get(factory)!.add(address);
         }
       }
+    }
+
+    if (childAddressDecodeFailureCount > 0) {
+      args.common.logger.debug({
+        msg: "Logs matched by factory contained child addresses that could not be extracted",
+        failure_count: childAddressDecodeFailureCount,
+        success_count: childAddressDecodeSuccessCount,
+      });
     }
 
     const requiredTransactions = new Set<Hash>();

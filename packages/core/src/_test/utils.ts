@@ -277,6 +277,7 @@ export const getPairWithFactoryIndexingBuild = <
     } => {
   const pairAddress = buildLogFactory({
     chainId: 1,
+    sourceId: "Pair",
     fromBlock: undefined,
     toBlock: undefined,
     ...factory({

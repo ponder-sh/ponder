@@ -324,6 +324,140 @@ test("sync() with log factory", async (context) => {
   expect(intervals).toHaveLength(2);
 });
 
+test("sync() with log factory and no address", async (context) => {
+  const { syncStore, database } = await setupDatabaseServices(context);
+
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  // @ts-ignore
+  eventCallbacks[0].filter.address.address = undefined;
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 3],
+    requiredIntervals: requiredIntervals.intervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
+    chainId: chain.id,
+  });
+
+  const dbLogs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factories).execute(),
+  );
+
+  expect(dbLogs).toHaveLength(1);
+  expect(factories).toHaveLength(1);
+
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
+
+  expect(intervals).toHaveLength(2);
+});
+
+test("sync() with log factory error", async (context) => {
+  const { syncStore, database } = await setupDatabaseServices(context);
+
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  // @ts-ignore
+  eventCallbacks[0].filter.address.address = undefined;
+  // @ts-ignore
+  // Invalid child address location causes extracting child address to throw an error
+  eventCallbacks[0].filter.address.childAddressLocation = "topic3";
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factories).execute(),
+  );
+
+  expect(factories).toHaveLength(0);
+});
+
 test("sync() with trace filter", async (context) => {
   const { syncStore, database } = await setupDatabaseServices(context);
 

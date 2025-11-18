@@ -14,6 +14,7 @@ export function buildLogFactory({
   event,
   parameter,
   chainId,
+  sourceId,
   fromBlock,
   toBlock,
 }: {
@@ -21,6 +22,7 @@ export function buildLogFactory({
   event: AbiEvent;
   parameter: string;
   chainId: number;
+  sourceId: string;
   fromBlock: number | undefined;
   toBlock: number | undefined;
 }): LogFactory {
@@ -52,6 +54,7 @@ export function buildLogFactory({
         id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_topic${(indexedInputPosition + 1) as 1 | 2 | 3}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
         type: "log",
         chainId,
+        sourceId,
         address,
         eventSelector,
         // Add 1 because inputs will not contain an element for topic0 (the signature).
@@ -109,6 +112,7 @@ export function buildLogFactory({
     id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_offset${offset}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
     type: "log",
     chainId,
+    sourceId,
     address,
     eventSelector,
     childAddressLocation: `offset${offset}`,

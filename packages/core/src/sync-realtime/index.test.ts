@@ -359,6 +359,7 @@ test("handleBlock() block event with log factory", async (context) => {
         "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
         "fromBlock": undefined,
         "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+        "sourceId": "Pair",
         "toBlock": undefined,
         "type": "log",
       } => Set {
@@ -375,6 +376,7 @@ test("handleBlock() block event with log factory", async (context) => {
         "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
         "fromBlock": undefined,
         "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+        "sourceId": "Pair",
         "toBlock": undefined,
         "type": "log",
       } => Set {},
@@ -386,6 +388,229 @@ test("handleBlock() block event with log factory", async (context) => {
 
   expect(data[0]?.transactions).toHaveLength(0);
   expect(data[1]?.transactions).toHaveLength(1);
+});
+
+test("handleBlock() block event with log factory and no address", async (context) => {
+  const { common } = context;
+  await setupDatabaseServices(context);
+
+  const chain = getChain({ finalityBlockCount: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
+
+  filter.address.address = undefined;
+
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map([[filter.address.id, new Map()]]),
+  });
+
+  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+
+  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+
+  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+
+  expect(syncResult1).toHaveLength(1);
+  expect(syncResult2).toHaveLength(1);
+
+  const data = [...syncResult1, ...syncResult2] as Extract<
+    RealtimeSyncEvent,
+    { type: "block" }
+  >[];
+
+  expect(data[0]).toStrictEqual({
+    type: "block",
+    blockCallback: undefined,
+    hasMatchedFilter: false,
+    block: expect.any(Object),
+    logs: expect.any(Object),
+    transactions: expect.any(Object),
+    traces: expect.any(Object),
+    transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
+  });
+
+  expect(data[1]).toStrictEqual({
+    type: "block",
+    blockCallback: undefined,
+    hasMatchedFilter: true,
+    block: expect.any(Object),
+    logs: expect.any(Object),
+    transactions: expect.any(Object),
+    traces: expect.any(Object),
+    transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
+  });
+
+  expect(data[0]?.block.number).toBe("0x2");
+  expect(data[1]?.block.number).toBe("0x3");
+
+  expect(data[0]?.logs).toHaveLength(0);
+  expect(data[1]?.logs).toHaveLength(1);
+
+  expect(data[0]?.childAddresses).toMatchInlineSnapshot(`
+    Map {
+      {
+        "address": undefined,
+        "chainId": 1,
+        "childAddressLocation": "topic1",
+        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+        "fromBlock": undefined,
+        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+        "sourceId": "Pair",
+        "toBlock": undefined,
+        "type": "log",
+      } => Set {
+        "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be",
+      },
+    }
+  `);
+  expect(data[1]?.childAddresses).toMatchInlineSnapshot(`
+    Map {
+      {
+        "address": undefined,
+        "chainId": 1,
+        "childAddressLocation": "topic1",
+        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+        "fromBlock": undefined,
+        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+        "sourceId": "Pair",
+        "toBlock": undefined,
+        "type": "log",
+      } => Set {},
+    }
+  `);
+
+  expect(data[0]?.traces).toHaveLength(0);
+  expect(data[1]?.traces).toHaveLength(0);
+
+  expect(data[0]?.transactions).toHaveLength(0);
+  expect(data[1]?.transactions).toHaveLength(1);
+});
+
+test("handleBlock() block event with log factory error", async (context) => {
+  const { common } = context;
+  await setupDatabaseServices(context);
+
+  const chain = getChain({ finalityBlockCount: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
+
+  filter.address.address = undefined;
+  // Invalid child address location causes extracting child address to throw an error
+  filter.address.childAddressLocation = "topic3";
+
+  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map([[filter.address.id, new Map()]]),
+  });
+
+  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+
+  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+
+  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+
+  expect(syncResult1).toHaveLength(1);
+  expect(syncResult2).toHaveLength(1);
+
+  const data = [...syncResult1, ...syncResult2] as Extract<
+    RealtimeSyncEvent,
+    { type: "block" }
+  >[];
+
+  expect(data[0]).toStrictEqual({
+    type: "block",
+    blockCallback: undefined,
+    hasMatchedFilter: false,
+    block: expect.any(Object),
+    logs: expect.any(Object),
+    transactions: expect.any(Object),
+    traces: expect.any(Object),
+    transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
+  });
+
+  expect(data[1]).toStrictEqual({
+    type: "block",
+    blockCallback: undefined,
+    hasMatchedFilter: false,
+    block: expect.any(Object),
+    logs: expect.any(Object),
+    transactions: expect.any(Object),
+    traces: expect.any(Object),
+    transactionReceipts: expect.any(Object),
+    childAddresses: expect.any(Object),
+  });
+
+  expect(data[0]?.block.number).toBe("0x2");
+  expect(data[1]?.block.number).toBe("0x3");
+
+  expect(data[0]?.logs).toHaveLength(0);
+  expect(data[1]?.logs).toHaveLength(0);
+
+  expect(data[0]?.traces).toHaveLength(0);
+  expect(data[1]?.traces).toHaveLength(0);
+
+  expect(data[0]?.transactions).toHaveLength(0);
+  expect(data[1]?.transactions).toHaveLength(0);
 });
 
 test("handleBlock() block event with block", async (context) => {
