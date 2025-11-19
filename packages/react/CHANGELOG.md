@@ -1,5 +1,14 @@
 # @ponder/react
 
+## 0.15.6
+
+### Patch Changes
+
+- [#2191](https://github.com/ponder-sh/ponder/pull/2191) [`c843add`](https://github.com/ponder-sh/ponder/commit/c843add25b7cd6cd4e74d5c029daf8d01e3373b4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `usePonderQuery` when `enabled: false`.
+
+- Updated dependencies []:
+  - @ponder/client@0.15.6
+
 ## 0.15.5
 
 ### Patch Changes
