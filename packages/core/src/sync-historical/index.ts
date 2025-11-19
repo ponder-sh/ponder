@@ -15,11 +15,11 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import {
-  _debug_traceBlockByNumber,
-  _eth_getBlockByNumber,
-  _eth_getBlockReceipts,
-  _eth_getLogs,
-  _eth_getTransactionReceipt,
+  debug_traceBlockByNumber,
+  eth_getBlockByNumber,
+  eth_getBlockReceipts,
+  eth_getLogs,
+  eth_getTransactionReceipt,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -61,6 +61,7 @@ import {
   type LogTopic,
   type RpcError,
   hexToNumber,
+  numberToHex,
   toHex,
   zeroHash,
 } from "viem";
@@ -97,7 +98,7 @@ export const createHistoricalSync = (
   args: CreateHistoricalSyncParameters,
 ): HistoricalSync => {
   /**
-   * Flag to fetch transaction receipts through _eth_getBlockReceipts (true) or _eth_getTransactionReceipt (false)
+   * Flag to fetch transaction receipts through eth_getBlockReceipts (true) or eth_getTransactionReceipt (false)
    */
   let isBlockReceipts = true;
 
@@ -191,14 +192,16 @@ export const createHistoricalSync = (
     const logs = await Promise.all(
       intervals.flatMap((interval) =>
         addressBatches.map((address) =>
-          _eth_getLogs(
+          eth_getLogs(
             args.rpc,
-            {
-              address,
-              topics,
-              fromBlock: interval[0],
-              toBlock: interval[1],
-            },
+            [
+              {
+                address,
+                topics,
+                fromBlock: numberToHex(interval[0]),
+                toBlock: numberToHex(interval[1]),
+              },
+            ],
             context,
           ).catch((error) => {
             // Note: skip eth_getLogs range retry logic if the chain
@@ -273,16 +276,28 @@ export const createHistoricalSync = (
 
     if (isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map((hash) =>
-          _eth_getTransactionReceipt(args.rpc, { hash }, context),
-        ),
-      );
+        Array.from(transactionHashes).map(async (hash) => {
+          const receipt = await eth_getTransactionReceipt(
+            args.rpc,
+            [hash],
+            context,
+          );
 
-      validateReceiptsAndBlock(
-        transactionReceipts,
-        block,
-        "eth_getTransactionReceipt",
-        "number",
+          validateReceiptsAndBlock(
+            [receipt],
+            block,
+            {
+              method: "eth_getTransactionReceipt",
+              params: [hash],
+            },
+            {
+              method: "eth_getBlockByNumber",
+              params: [block.number, true],
+            },
+          );
+
+          return receipt;
+        }),
       );
 
       return transactionReceipts;
@@ -290,9 +305,9 @@ export const createHistoricalSync = (
 
     let blockReceipts: SyncTransactionReceipt[];
     try {
-      blockReceipts = await _eth_getBlockReceipts(
+      blockReceipts = await eth_getBlockReceipts(
         args.rpc,
-        { blockHash: block.hash },
+        [block.hash],
         context,
       );
     } catch (_error) {
@@ -312,8 +327,14 @@ export const createHistoricalSync = (
     validateReceiptsAndBlock(
       blockReceipts,
       block,
-      "eth_getBlockReceipts",
-      "number",
+      {
+        method: "eth_getBlockReceipts",
+        params: [block.hash],
+      },
+      {
+        method: "eth_getBlockByNumber",
+        params: [block.number, true],
+      },
     );
 
     const transactionReceipts = blockReceipts.filter((receipt) =>
@@ -660,9 +681,9 @@ export const createHistoricalSync = (
 
         let logs: SyncLog[] = [];
         if (perBlockLogs.has(blockNumber)) {
-          block = await _eth_getBlockByNumber(
+          block = await eth_getBlockByNumber(
             args.rpc,
-            { blockNumber },
+            [numberToHex(blockNumber), true],
             context,
           );
 
@@ -698,7 +719,25 @@ export const createHistoricalSync = (
           });
 
           if (logs.length > 0) {
-            validateLogsAndBlock(logs, block!, "number");
+            // Note: `logsRequest` could be more accurate by tracking the exact
+            // request made to include `address` and `topics`.
+            validateLogsAndBlock(
+              logs,
+              block,
+              {
+                method: "eth_getLogs",
+                params: [
+                  {
+                    fromBlock: toHex(blockNumber),
+                    toBlock: toHex(blockNumber),
+                  },
+                ],
+              },
+              {
+                method: "eth_getBlockByNumber",
+                params: [toHex(blockNumber), true],
+              },
+            );
           }
         }
 
@@ -716,13 +755,21 @@ export const createHistoricalSync = (
         if (shouldRequestTraces) {
           if (block === undefined) {
             [block, traces] = await Promise.all([
-              _eth_getBlockByNumber(args.rpc, { blockNumber }, context),
-              _debug_traceBlockByNumber(args.rpc, { blockNumber }, context),
+              eth_getBlockByNumber(
+                args.rpc,
+                [numberToHex(blockNumber), true],
+                context,
+              ),
+              debug_traceBlockByNumber(
+                args.rpc,
+                [numberToHex(blockNumber), { tracer: "callTracer" }],
+                context,
+              ),
             ]);
           } else {
-            traces = await _debug_traceBlockByNumber(
+            traces = await debug_traceBlockByNumber(
               args.rpc,
-              { blockNumber },
+              [numberToHex(blockNumber), { tracer: "callTracer" }],
               context,
             );
           }
@@ -805,7 +852,18 @@ export const createHistoricalSync = (
           });
 
           if (traces.length > 0) {
-            validateTracesAndBlock(traces, block, "number");
+            validateTracesAndBlock(
+              traces,
+              block,
+              {
+                method: "debug_traceBlockByNumber",
+                params: [toHex(blockNumber), { tracer: "callTracer" }],
+              },
+              {
+                method: "eth_getBlockByNumber",
+                params: [toHex(blockNumber), true],
+              },
+            );
           }
         }
 
@@ -822,9 +880,9 @@ export const createHistoricalSync = (
             }),
           )
         ) {
-          block = await _eth_getBlockByNumber(
+          block = await eth_getBlockByNumber(
             args.rpc,
-            { blockNumber },
+            [numberToHex(blockNumber), true],
             context,
           );
         }
@@ -844,9 +902,9 @@ export const createHistoricalSync = (
         }
 
         if (block === undefined) {
-          block = await _eth_getBlockByNumber(
+          block = await eth_getBlockByNumber(
             args.rpc,
-            { blockNumber },
+            [numberToHex(blockNumber), true],
             context,
           );
         }
@@ -890,7 +948,10 @@ export const createHistoricalSync = (
         });
 
         if (transactions.length > 0) {
-          validateTransactionsAndBlock(block, "number");
+          validateTransactionsAndBlock(block, {
+            method: "eth_getBlockByNumber",
+            params: [toHex(blockNumber), true],
+          });
         }
 
         const transactionsByHash = new Map<Hash, SyncTransaction>();
