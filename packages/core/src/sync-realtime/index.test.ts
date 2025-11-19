@@ -418,7 +418,7 @@ test("handleBlock() block event with log factory and no address", async (context
 
   filter.address.address = undefined;
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -429,11 +429,11 @@ test("handleBlock() block event with log factory and no address", async (context
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  let block = await eth_getBlockByNumber(rpc, ["0x2", true]);
 
   const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await eth_getBlockByNumber(rpc, ["0x3", true]);
 
   const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
 
@@ -547,7 +547,7 @@ test("handleBlock() block event with log factory error", async (context) => {
   // Invalid child address location causes extracting child address to throw an error
   filter.address.childAddressLocation = "topic3";
 
-  const finalizedBlock = await _eth_getBlockByNumber(rpc, { blockNumber: 1 });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -558,11 +558,11 @@ test("handleBlock() block event with log factory error", async (context) => {
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
-  let block = await _eth_getBlockByNumber(rpc, { blockNumber: 2 });
+  let block = await eth_getBlockByNumber(rpc, ["0x2", true]);
 
   const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
 
-  block = await _eth_getBlockByNumber(rpc, { blockNumber: 3 });
+  block = await eth_getBlockByNumber(rpc, ["0x3", true]);
 
   const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
 
