@@ -458,7 +458,7 @@ export const createSyncStore = ({
     ) => {
       if (childAddresses.size === 0) return;
 
-      const { id, ..._factory } = factory;
+      const { id, sourceId: _sourceId, ..._factory } = factory;
 
       const batchSize = Math.floor(
         common.options.databaseMaxQueryParameters / 3,
@@ -501,7 +501,7 @@ export const createSyncStore = ({
       }
     },
     getChildAddresses: ({ factory }, context) => {
-      const { id, ..._factory } = factory;
+      const { id, sourceId: _sourceId, ..._factory } = factory;
 
       const factoryInsert = qb.raw.$with("factory_insert").as(
         qb.raw

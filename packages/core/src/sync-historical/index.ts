@@ -366,9 +366,37 @@ export const createHistoricalSync = (
     const childAddresses = new Map<Address, number>();
     const childAddressesRecord = args.childAddresses.get(factory.id)!;
 
+    const childAddressDecodeFailureIds = new Set<string>();
+    let childAddressDecodeFailureCount = 0;
+    let childAddressDecodeSuccessCount = 0;
+
     for (const log of logs) {
       if (isLogFactoryMatched({ factory, log })) {
-        const address = getChildAddress({ log, factory });
+        let address: Address;
+        try {
+          address = getChildAddress({ log, factory });
+          childAddressDecodeSuccessCount++;
+        } catch (error) {
+          if (factory.address === undefined) {
+            childAddressDecodeFailureCount++;
+            if (childAddressDecodeFailureIds.has(factory.id) === false) {
+              childAddressDecodeFailureIds.add(factory.id);
+              args.common.logger.debug({
+                msg: "Failed to extract child address from log matched by factory using the provided ABI item",
+                chain: args.chain.name,
+                chain_id: args.chain.id,
+                factory: factory.sourceId,
+                block_number: hexToNumber(log.blockNumber),
+                log_index: hexToNumber(log.logIndex),
+                data: log.data,
+                topics: JSON.stringify(log.topics),
+              });
+            }
+            continue;
+          } else {
+            throw error;
+          }
+        }
         const existingBlockNumber = childAddressesRecord.get(address);
         const newBlockNumber = hexToNumber(log.blockNumber);
 
@@ -380,6 +408,14 @@ export const createHistoricalSync = (
           childAddressesRecord.set(address, newBlockNumber);
         }
       }
+    }
+
+    if (childAddressDecodeFailureCount > 0) {
+      args.common.logger.debug({
+        msg: "Logs matched by factory contained child addresses that could not be extracted",
+        failure_count: childAddressDecodeFailureCount,
+        success_count: childAddressDecodeSuccessCount,
+      });
     }
 
     return childAddresses;

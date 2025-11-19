@@ -14,21 +14,29 @@ export function buildLogFactory({
   event,
   parameter,
   chainId,
+  sourceId,
   fromBlock,
   toBlock,
 }: {
-  address: Address | readonly Address[];
+  address?: Address | readonly Address[];
   event: AbiEvent;
   parameter: string;
   chainId: number;
+  sourceId: string;
   fromBlock: number | undefined;
   toBlock: number | undefined;
 }): LogFactory {
-  const address = Array.isArray(_address)
-    ? dedupe(_address)
-        .map(toLowerCase)
-        .sort((a, b) => (a < b ? -1 : 1))
-    : toLowerCase(_address);
+  let address: Address | Address[] | undefined;
+  if (_address === undefined) {
+    // noop
+  } else if (Array.isArray(_address)) {
+    address = dedupe(_address)
+      .map(toLowerCase)
+      .sort((a, b) => (a < b ? -1 : 1));
+  } else {
+    address = toLowerCase(_address);
+  }
+
   const eventSelector = toEventSelector(event);
 
   const params = parameter.split(".");
@@ -46,6 +54,7 @@ export function buildLogFactory({
         id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_topic${(indexedInputPosition + 1) as 1 | 2 | 3}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
         type: "log",
         chainId,
+        sourceId,
         address,
         eventSelector,
         // Add 1 because inputs will not contain an element for topic0 (the signature).
@@ -103,6 +112,7 @@ export function buildLogFactory({
     id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_offset${offset}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
     type: "log",
     chainId,
+    sourceId,
     address,
     eventSelector,
     childAddressLocation: `offset${offset}`,

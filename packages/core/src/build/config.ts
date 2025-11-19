@@ -417,6 +417,7 @@ export async function buildIndexingFunctions({
       // Note that this can throw.
       const logFactory = buildLogFactory({
         chainId: chain.id,
+        sourceId: source.name,
         ...factoryAddress,
         fromBlock: factoryFromBlock,
         toBlock: factoryToBlock,
@@ -717,6 +718,7 @@ export async function buildIndexingFunctions({
       // Note that this can throw.
       const logFactory = buildLogFactory({
         chainId: chain.id,
+        sourceId: source.name,
         ...resolvedAddress,
         fromBlock: factoryFromBlock,
         toBlock: factoryToBlock,
