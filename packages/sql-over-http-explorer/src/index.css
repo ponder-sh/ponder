@@ -19,3 +19,15 @@
   --color-brand-1: #213547;
   --color-brand-2: #e5e7eb;
 }
+
+@keyframes flash-blue {
+  0% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: #3b83f640;
+  }
+  100% {
+    background-color: transparent;
+  }
+}

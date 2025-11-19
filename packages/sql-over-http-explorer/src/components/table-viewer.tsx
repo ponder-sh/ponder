@@ -1,16 +1,18 @@
 import { useReady } from "@/hooks/use-ready";
 import { useSchema } from "@/hooks/use-schema";
 import type { JsonSchema } from "@/lib/drizzle-kit";
-import { usePonderClient, usePonderQuery } from "@ponder/react";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { getPonderQueryOptions, usePonderClient } from "@ponder/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 const LIMIT = 50;
 
 function TableViewer() {
   const ready = useReady();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+
   const tables = useSchema().data?.tables.json;
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -28,13 +30,37 @@ function TableViewer() {
 
   const client = usePonderClient();
 
+  const queryFn = useCallback(() => {
+    return client.db.execute(
+      `SELECT * FROM "${table?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
+    );
+  }, [client, table?.tableName, page]);
+
+  const queryOptions = useMemo(
+    () => getPonderQueryOptions(client, queryFn),
+    [client, queryFn],
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+  useEffect(() => {
+    if (!ready.data || !table) return;
+
+    const { unsubscribe } = client.live(queryOptions.queryFn, (data) => {
+      queryClient.setQueryData(queryOptions.queryKey, {
+        result: data,
+        duration:
+          // @ts-ignore
+          queryClient.getQueryData(queryOptions.queryKey)?.duration ?? 0,
+      });
+    });
+    return unsubscribe;
+  }, [page, ready.data, table, client, queryClient]);
+
   const tableQuery = useQuery({
-    queryKey: ["table", table?.tableName ?? "", page],
+    queryKey: queryOptions.queryKey,
     queryFn: async () => {
       const start = performance.now();
-      const result = await client.db.execute(
-        `SELECT * FROM "${table?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
-      );
+      const result = await queryOptions.queryFn();
       const end = performance.now();
       return {
         result: result,
@@ -45,8 +71,11 @@ function TableViewer() {
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  const countQuery = usePonderQuery({
-    queryFn: (db) => db.execute(`SELECT COUNT(*) FROM "${table?.tableName}"`),
+  const countQuery = useQuery({
+    queryKey: ["count", table?.tableName ?? ""],
+    queryFn: () => {
+      return client.db.execute(`SELECT COUNT(*) FROM "${table?.tableName}"`);
+    },
     enabled: !!table,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -54,14 +83,14 @@ function TableViewer() {
   if (table === undefined) return <p>No table</p>;
   return (
     <div className="grid grid-rows-[56px_1fr]">
-      <header className="flex justify-between p-3 border-b-1 border-brand-2 items-center px-4 ">
+      <header className="flex justify-between p-3 border-b-1 border-brand-2 items-center px-4 min-w-[600px]">
         <div className="">
           {ready.data !== undefined && (
             <div
               className="text-sm font-semibold border-1 rounded-md px-2 py-1"
               style={{
-                borderColor: ready.data ? "green" : "blue",
-                color: ready.data ? "green" : "blue",
+                borderColor: ready.data ? "green" : "var(--color-brand-1)",
+                color: ready.data ? "green" : "var(--color-brand-1)",
               }}
             >
               {ready.data ? "Live" : "Backfilling..."}
@@ -84,7 +113,7 @@ function TableViewer() {
           )}
 
           {countQuery.data && (
-            <div className="rounded-md border-1 border-brand-2 min-w-[128px] h-[32px] items-center justify-between flex">
+            <div className="rounded-md border-1 border-brand-2 h-[32px] items-center justify-between flex">
               <button
                 type="button"
                 disabled={page === 1}
@@ -146,8 +175,16 @@ function TableViewer() {
             </tr>
           </thead>
           <tbody className="">
-            {tableQuery.data?.result.map((row, index) => (
-              <tr className="" key={index.toString()}>
+            {tableQuery.data?.result.map((row) => (
+              // TODO(kyle) don't flash on mount
+              <tr
+                className=""
+                style={{
+                  animation:
+                    ready.data === true ? "flash-blue 1s ease-in-out" : "",
+                }}
+                key={Object.values(row).join("_")}
+              >
                 {table?.columns.map((column) => (
                   <td
                     className="h-[32px] border-1 border-l-0 border-brand-2 min-w-[200px] max-w-[200px] text-xs text-left px-2 truncate"
