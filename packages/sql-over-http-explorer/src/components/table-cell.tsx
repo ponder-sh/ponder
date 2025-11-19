@@ -18,8 +18,6 @@ function TableCell({
   const isSelected =
     selectedCell?.rowId === rowId && selectedCell?.columnName === column.name;
 
-  // TODO(kyle) multiline
-
   const isTruncated = useMemo(() => {
     const contentElement = contentRef.current;
     if (contentElement) {

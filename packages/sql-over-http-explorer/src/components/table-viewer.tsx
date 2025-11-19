@@ -30,6 +30,10 @@ function TableViewer() {
   const [page, setPage] = useState(1);
   const [paused, setPaused] = useState(false);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [orderBy, setOrderBy] = useState<{
+    columnName: string;
+    direction: "asc" | "desc";
+  } | null>(null);
   // const [selectedColumns, setSelectedColumns] = useState<Set<string>>(
   //   new Set(),
   // );
@@ -53,9 +57,9 @@ function TableViewer() {
 
   const queryFn = useCallback(() => {
     return client.db.execute(
-      `SELECT * FROM "${table?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
+      `SELECT * FROM "${table?.tableName}" ${orderBy ? `ORDER BY "${orderBy.columnName}" ${orderBy.direction}` : ""} LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
     );
-  }, [client, table?.tableName, page]);
+  }, [client, table?.tableName, page, orderBy]);
 
   const queryOptions = useMemo(
     () => getPonderQueryOptions(client, queryFn),
@@ -153,7 +157,12 @@ function TableViewer() {
           <thead className="">
             <tr className="h-[32px]">
               {table.columns.map((column) => (
-                <TableHeaderCell key={column.name} column={column} />
+                <TableHeaderCell
+                  key={column.name}
+                  column={column}
+                  orderBy={orderBy}
+                  setOrderBy={setOrderBy}
+                />
               ))}
             </tr>
           </thead>
