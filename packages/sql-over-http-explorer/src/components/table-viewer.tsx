@@ -9,24 +9,20 @@ function TableViewer() {
   const selectedTable = useSchema().data?.tables.json[0];
   const [page, setPage] = useState(1);
 
-  // TODO(kyle) how to get query duration
-  // const tableQuery = usePonderQuery({
-  //   queryFn: (db) =>
-  //     db.execute(
-  //       `SELECT * FROM "${selectedTable?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
-  //     ),
-  //   enabled: !!selectedTable,
-  //   staleTime: Number.POSITIVE_INFINITY,
-  // });
-
   const client = usePonderClient();
 
   const tableQuery = useQuery({
     queryKey: ["table", selectedTable?.tableName ?? "", page],
-    queryFn: () => {
-      return client.db.execute(
+    queryFn: async () => {
+      const start = performance.now();
+      const result = await client.db.execute(
         `SELECT * FROM "${selectedTable?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
       );
+      const end = performance.now();
+      return {
+        result: result,
+        duration: end - start,
+      };
     },
     enabled: !!selectedTable,
     staleTime: Number.POSITIVE_INFINITY,
@@ -50,7 +46,10 @@ function TableViewer() {
           Columns
         </button> */}
         {tableQuery.data && (
-          <p className="text-sm">{tableQuery.data?.length} rows • 20ms</p>
+          <p className="text-sm">
+            {tableQuery.data.result.length} rows •{" "}
+            {tableQuery.data.duration.toFixed(2)}ms
+          </p>
         )}
 
         {countQuery.data && (
@@ -112,7 +111,7 @@ function TableViewer() {
             </tr>
           </thead>
           <tbody className="">
-            {tableQuery.data?.map((row, index) => (
+            {tableQuery.data?.result.map((row, index) => (
               <tr className="" key={index.toString()}>
                 {selectedTable.columns.map((column) => (
                   <td
