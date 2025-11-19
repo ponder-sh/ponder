@@ -36,15 +36,21 @@ export function usePonderQuery<
     [params.queryFn],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
-    if (live === false) return;
+    if (live === false || params.enabled === false) return;
 
     const { unsubscribe } = client.live(queryOptions.queryFn, (data) => {
       queryClient.setQueryData(queryOptions.queryKey, data);
     });
     return unsubscribe;
-  }, [...queryOptions.queryKey, live]);
+  }, [
+    live,
+    params.enabled,
+    client,
+    queryOptions.queryFn,
+    queryOptions.queryKey,
+    queryClient,
+  ]);
 
   return useQuery({
     ...params,
