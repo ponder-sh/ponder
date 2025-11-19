@@ -1,4 +1,3 @@
-import "./App.css";
 import { createClient } from "@ponder/client";
 import { PonderProvider } from "@ponder/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -27,7 +26,6 @@ function App() {
             <Routes>
               <Route path="/" element={<TableViewer />} />
               <Route path="*" element={<h1>404 Page Not Found</h1>} />
-              {/* <TableViewer /> */}
             </Routes>
           </div>
         </BrowserRouter>

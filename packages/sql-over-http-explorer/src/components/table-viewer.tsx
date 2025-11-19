@@ -53,6 +53,14 @@ function TableViewer() {
     }
   }
 
+  // Reset order by when table changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+  useEffect(() => {
+    setOrderBy(null);
+    setSelectedCell(null);
+    setPage(1);
+  }, [table]);
+
   const client = usePonderClient();
 
   const queryFn = useCallback(() => {
