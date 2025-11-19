@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.7
+
+### Patch Changes
+
+- [#2188](https://github.com/ponder-sh/ponder/pull/2188) [`fb4d4ea`](https://github.com/ponder-sh/ponder/commit/fb4d4ea1028c2c0cabc5bef42ac1e9f3ee51c0e2) Thanks [@kyscott18](https://github.com/kyscott18)! - Allowed for `factory.address` to be undefined. Factories with this config will collect child addresses from logs based only on the event selector.
+
 ## 0.15.6
 
 ## 0.15.5
