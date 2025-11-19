@@ -162,7 +162,11 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
-    const { id: _, ...matchedFilterAddress } = filterAddress as Factory;
+    const {
+      id: _,
+      sourceId: _sourceId,
+      ...matchedFilterAddress
+    } = filterAddress as Factory;
 
     return inArray(
       addressColumn,
