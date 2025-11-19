@@ -1,22 +1,39 @@
+import { useReady } from "@/hooks/use-ready";
 import { useSchema } from "@/hooks/use-schema";
+import type { JsonSchema } from "@/lib/drizzle-kit";
 import { usePonderClient, usePonderQuery } from "@ponder/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 const LIMIT = 50;
 
 function TableViewer() {
-  const selectedTable = useSchema().data?.tables.json[0];
+  const ready = useReady();
   const [page, setPage] = useState(1);
+  const tables = useSchema().data?.tables.json;
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  let table: JsonSchema["tables"]["json"][number] | undefined;
+  if (tables !== undefined) {
+    if (searchParams.get("table")) {
+      table = tables.find((t) => t.tableName === searchParams.get("table"));
+    } else {
+      table = tables[0];
+      if (table) {
+        setSearchParams({ table: table.tableName });
+      }
+    }
+  }
 
   const client = usePonderClient();
 
   const tableQuery = useQuery({
-    queryKey: ["table", selectedTable?.tableName ?? "", page],
+    queryKey: ["table", table?.tableName ?? "", page],
     queryFn: async () => {
       const start = performance.now();
       const result = await client.db.execute(
-        `SELECT * FROM "${selectedTable?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
+        `SELECT * FROM "${table?.tableName}" LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`,
       );
       const end = performance.now();
       return {
@@ -24,21 +41,22 @@ function TableViewer() {
         duration: end - start,
       };
     },
-    enabled: !!selectedTable,
+    enabled: !!table,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
   const countQuery = usePonderQuery({
-    queryFn: (db) =>
-      db.execute(`SELECT COUNT(*) FROM "${selectedTable?.tableName}"`),
-    enabled: !!selectedTable,
+    queryFn: (db) => db.execute(`SELECT COUNT(*) FROM "${table?.tableName}"`),
+    enabled: !!table,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  if (selectedTable === undefined) return <p>No table</p>;
+  if (table === undefined) return <p>No table</p>;
   return (
     <div className="grid grid-rows-[56px_1fr]">
       <header className="flex justify-end p-3 text-brand-1 border-b-1 border-brand-2 items-center px-4 gap-2">
+        <div className="">{ready.data ? "Live" : "Backfilling..."}</div>
+
         {/* <button
           className="rounded-md border-2 border-brand-2 py-1 px-2 flex items-center"
           type="button"
@@ -86,7 +104,10 @@ function TableViewer() {
           type="button"
           title="Refresh rows"
           className="p-1 rounded-md border-1 border-brand-2 w-[32px] h-[32px] text-brand-2 cursor-pointer"
-          onClick={() => tableQuery.refetch()}
+          onClick={() => {
+            tableQuery.refetch();
+            countQuery.refetch();
+          }}
         >
           <img src="/refresh.svg" alt="refresh" className="" />
         </button>
@@ -95,7 +116,7 @@ function TableViewer() {
         <table className="table-fixed">
           <thead className="">
             <tr className="h-[32px]">
-              {selectedTable.columns.map((column) => (
+              {table.columns.map((column) => (
                 <th
                   className="border-1 border-l-0 border-t-0 border-brand-2 min-w-[200px] max-w-[200px] text-xs font-semibold text-left px-2 truncate"
                   key={column.name}
@@ -113,7 +134,7 @@ function TableViewer() {
           <tbody className="">
             {tableQuery.data?.result.map((row, index) => (
               <tr className="" key={index.toString()}>
-                {selectedTable.columns.map((column) => (
+                {table?.columns.map((column) => (
                   <td
                     className="h-[32px] border-1 border-l-0 border-brand-2 min-w-[200px] max-w-[200px] text-xs text-left px-2 truncate"
                     key={column.name}

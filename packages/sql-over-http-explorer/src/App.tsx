@@ -2,6 +2,7 @@ import "./App.css";
 import { createClient } from "@ponder/client";
 import { PonderProvider } from "@ponder/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Schema from "./components/schema";
 import TableViewer from "./components/table-viewer";
 import { getServerUrl } from "./lib/utils";
@@ -13,17 +14,23 @@ function App() {
   return (
     <PonderProvider client={client}>
       <QueryClientProvider client={queryClient}>
-        <div className="grid grid-cols-[200px_1fr] min-h-screen">
-          <aside className="p-4 border-r-1 border-brand-2">
-            <img
-              src="/ponder-light.svg"
-              alt="Ponder Logo"
-              className="h-6 self-start mb-4"
-            />
-            <Schema />
-          </aside>
-          <TableViewer />
-        </div>
+        <BrowserRouter>
+          <div className="grid grid-cols-[200px_1fr] min-h-screen">
+            <aside className="p-4 border-r-1 border-brand-2">
+              <img
+                src="/ponder-light.svg"
+                alt="Ponder Logo"
+                className="h-6 self-start mb-4"
+              />
+              <Schema />
+            </aside>
+            <Routes>
+              <Route path="/" element={<TableViewer />} />
+              <Route path="*" element={<h1>404 Page Not Found</h1>} />
+              {/* <TableViewer /> */}
+            </Routes>
+          </div>
+        </BrowserRouter>
       </QueryClientProvider>
     </PonderProvider>
   );
