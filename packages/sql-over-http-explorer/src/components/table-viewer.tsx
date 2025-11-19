@@ -54,8 +54,20 @@ function TableViewer() {
   if (table === undefined) return <p>No table</p>;
   return (
     <div className="grid grid-rows-[56px_1fr]">
-      <header className="flex justify-end p-3 text-brand-1 border-b-1 border-brand-2 items-center px-4 gap-2">
-        <div className="">{ready.data ? "Live" : "Backfilling..."}</div>
+      <header className="flex justify-between p-3 border-b-1 border-brand-2 items-center px-4 ">
+        <div className="">
+          {ready.data !== undefined && (
+            <div
+              className="text-sm font-semibold border-1 rounded-md px-2 py-1"
+              style={{
+                borderColor: ready.data ? "green" : "blue",
+                color: ready.data ? "green" : "blue",
+              }}
+            >
+              {ready.data ? "Live" : "Backfilling..."}
+            </div>
+          )}
+        </div>
 
         {/* <button
           className="rounded-md border-2 border-brand-2 py-1 px-2 flex items-center"
@@ -63,54 +75,56 @@ function TableViewer() {
         >
           Columns
         </button> */}
-        {tableQuery.data && (
-          <p className="text-sm">
-            {tableQuery.data.result.length} rows •{" "}
-            {tableQuery.data.duration.toFixed(2)}ms
-          </p>
-        )}
+        <div className="flex items-center gap-2">
+          {tableQuery.data && (
+            <p className="text-sm">
+              {tableQuery.data.result.length} rows •{" "}
+              {tableQuery.data.duration.toFixed(2)}ms
+            </p>
+          )}
 
-        {countQuery.data && (
-          <div className="rounded-md border-1 border-brand-2 min-w-[128px] h-[32px] items-center justify-between flex">
-            <button
-              type="button"
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
-              className="disabled:cursor-not-allowed"
-            >
-              <img src="/chevron.svg" alt="back" className="" />
-            </button>
-            <div className="text-sm">
-              <code>
-                {page}/
-                {Math.ceil((countQuery.data[0]!.count as number) / LIMIT)}
-              </code>
+          {countQuery.data && (
+            <div className="rounded-md border-1 border-brand-2 min-w-[128px] h-[32px] items-center justify-between flex">
+              <button
+                type="button"
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+                className="disabled:cursor-not-allowed"
+              >
+                <img src="/chevron.svg" alt="back" className="" />
+              </button>
+              <div className="text-sm">
+                <code>
+                  {page}/
+                  {Math.ceil((countQuery.data[0]!.count as number) / LIMIT)}
+                </code>
+              </div>
+              <button
+                type="button"
+                disabled={
+                  page ===
+                  Math.ceil((countQuery.data[0]!.count as number) / LIMIT)
+                }
+                onClick={() => setPage(page + 1)}
+                className="disabled:cursor-not-allowed"
+              >
+                <img src="/chevron.svg" alt="next" className="rotate-180" />
+              </button>
             </div>
-            <button
-              type="button"
-              disabled={
-                page ===
-                Math.ceil((countQuery.data[0]!.count as number) / LIMIT)
-              }
-              onClick={() => setPage(page + 1)}
-              className="disabled:cursor-not-allowed"
-            >
-              <img src="/chevron.svg" alt="next" className="rotate-180" />
-            </button>
-          </div>
-        )}
+          )}
 
-        <button
-          type="button"
-          title="Refresh rows"
-          className="p-1 rounded-md border-1 border-brand-2 w-[32px] h-[32px] text-brand-2 cursor-pointer"
-          onClick={() => {
-            tableQuery.refetch();
-            countQuery.refetch();
-          }}
-        >
-          <img src="/refresh.svg" alt="refresh" className="" />
-        </button>
+          <button
+            type="button"
+            title="Refresh rows"
+            className="p-1 rounded-md border-1 border-brand-2 w-[32px] h-[32px] text-brand-2 cursor-pointer"
+            onClick={() => {
+              tableQuery.refetch();
+              countQuery.refetch();
+            }}
+          >
+            <img src="/refresh.svg" alt="refresh" className="" />
+          </button>
+        </div>
       </header>
       <div className="overflow-auto">
         <table className="table-fixed">
