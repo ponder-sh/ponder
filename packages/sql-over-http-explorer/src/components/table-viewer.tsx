@@ -1,7 +1,11 @@
 import { useReady } from "@/hooks/use-ready";
 import { useSchema } from "@/hooks/use-schema";
 import type { JsonSchema } from "@/lib/drizzle-kit";
-import { getPonderQueryOptions, usePonderClient } from "@ponder/react";
+import {
+  getPonderQueryOptions,
+  usePonderClient,
+  usePonderQuery,
+} from "@ponder/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -71,12 +75,12 @@ function TableViewer() {
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  const countQuery = useQuery({
-    queryKey: ["count", table?.tableName ?? ""],
-    queryFn: () => {
-      return client.db.execute(`SELECT COUNT(*) FROM "${table?.tableName}"`);
+  const countQuery = usePonderQuery({
+    queryFn: (db) => {
+      return db.execute(`SELECT COUNT(*) FROM "${table?.tableName}"`);
     },
     enabled: !!table,
+    live: !!table && ready.data === true,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
@@ -125,14 +129,20 @@ function TableViewer() {
               <div className="text-sm">
                 <code>
                   {page}/
-                  {Math.ceil((countQuery.data[0]!.count as number) / LIMIT)}
+                  {Math.max(
+                    Math.ceil((countQuery.data[0]!.count as number) / LIMIT),
+                    1,
+                  )}
                 </code>
               </div>
               <button
                 type="button"
                 disabled={
                   page ===
-                  Math.ceil((countQuery.data[0]!.count as number) / LIMIT)
+                  Math.min(
+                    Math.ceil((countQuery.data[0]!.count as number) / LIMIT),
+                    1,
+                  )
                 }
                 onClick={() => setPage(page + 1)}
                 className="disabled:cursor-not-allowed"
