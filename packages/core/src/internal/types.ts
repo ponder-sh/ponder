@@ -58,7 +58,13 @@ export type Filter =
   | TransactionFilter
   | TraceFilter;
 
-/** Filter that matches addresses. */
+/**
+ * Filter that matches addresses.
+ *
+ * @dev This object is used as a unique constraint in the `ponder_sync.factories` table.
+ * Any changes to the type must be backwards compatible and probably requires updating
+ * `syncStore.getChildAddresses` and `syncStore.insertChildAddresses`.
+ */
 export type Factory = LogFactory;
 export type FilterAddress<
   factory extends Factory | undefined = Factory | undefined,
