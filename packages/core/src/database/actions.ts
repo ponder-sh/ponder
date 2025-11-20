@@ -140,8 +140,7 @@ export const createLiveQueryTriggers = async (
   {
     namespaceBuild,
     tables,
-    chainId,
-  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
+  }: { namespaceBuild: NamespaceBuild; tables: Table[] },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -166,12 +165,14 @@ EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
       for (const table of tables) {
         const schema = getTableConfig(table).schema ?? "public";
 
+        // Note: Because the realtime indexing store writes to the parent table, we create the trigger on
+        // the parent table instead of the partition table.
         await tx.wrap((tx) =>
           tx.execute(
             `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
+ON "${schema}"."${getTableName(table)}"
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${schema}".${procedure};`,
           ),
