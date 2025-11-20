@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.8
+
+### Patch Changes
+
+- [#2195](https://github.com/ponder-sh/ponder/pull/2195) [`cd0ac8b`](https://github.com/ponder-sh/ponder/commit/cd0ac8bdeb36439afce8156c360838ba1bcb0be8) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with live queries when `ordering: "experimental_isolated"`.
+
 ## 0.15.7
 
 ### Patch Changes
