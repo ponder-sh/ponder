@@ -126,6 +126,7 @@ export async function runOmnichain({
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const indexingCache = createIndexingCache({

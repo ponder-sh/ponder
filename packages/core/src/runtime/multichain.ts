@@ -123,6 +123,7 @@ export async function runMultichain({
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const indexingCache = createIndexingCache({

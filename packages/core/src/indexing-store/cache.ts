@@ -391,7 +391,7 @@ export const createIndexingCache = ({
     async get({ table, key }) {
       if (
         event &&
-        eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
+        eventCount[event.eventCallback.name]! % SAMPLING_RATE === 0
       ) {
         if (profile.has(event.eventCallback.name) === false) {
           profile.set(event.eventCallback.name, new Map());

@@ -145,6 +145,7 @@ export const createIndexing = ({
   client,
   indexingErrorHandler,
   columnAccessPattern,
+  eventCount,
 }: {
   common: Common;
   indexingBuild: Pick<
@@ -154,6 +155,7 @@ export const createIndexing = ({
   client: CachedViemClient;
   indexingErrorHandler: IndexingErrorHandler;
   columnAccessPattern: ColumnAccessPattern;
+  eventCount: { [eventName: string]: number };
 }): Indexing => {
   const context: Context = {
     chain: { name: undefined!, id: undefined! },
@@ -535,6 +537,7 @@ export const createIndexing = ({
           1,
         );
         columnAccessPattern.get(event.eventCallback.name)!.count++;
+        eventCount[event.eventCallback.name]++;
 
         const now = performance.now();
 
@@ -695,12 +698,13 @@ export const createIndexing = ({
         client.event = event;
         context.client = clientByChainId[event.chain.id]!;
 
+        await executeEvent(event);
+
         common.metrics.ponder_indexing_completed_events.inc(
           { event: event.eventCallback.name },
           1,
         );
-
-        await executeEvent(event);
+        eventCount[event.eventCallback.name]++;
       }
     },
   };
