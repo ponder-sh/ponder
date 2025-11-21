@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.10
+
+### Patch Changes
+
+- [#2200](https://github.com/ponder-sh/ponder/pull/2200) [`2f8d5c4`](https://github.com/ponder-sh/ponder/commit/2f8d5c43ce6316bef047c695f63c134da4e7657f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a performance regression introduced in `0.15.0` related to `context.db` and `context.client` prediction.
+
 ## 0.15.9
 
 ### Patch Changes
