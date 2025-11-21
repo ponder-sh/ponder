@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.9
+
+### Patch Changes
+
+- [#2198](https://github.com/ponder-sh/ponder/pull/2198) [`bc65ad3`](https://github.com/ponder-sh/ponder/commit/bc65ad3d53e1b9488e7f7405a42a27534dd44a21) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.15.8`.
+
 ## 0.15.8
 
 ### Patch Changes
