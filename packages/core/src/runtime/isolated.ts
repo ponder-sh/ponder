@@ -111,6 +111,7 @@ export async function runIsolated({
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const indexingCache = createIndexingCache({
