@@ -500,7 +500,7 @@ export const createCachedViemClient = ({
         if (
           event.type !== "setup" &&
           userBlockNumber === undefined &&
-          eventCount[event.eventCallback.name]! % SAMPLING_RATE === 0
+          eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
         ) {
           const eventName = event.eventCallback.name;
 

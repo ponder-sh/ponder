@@ -93,6 +93,7 @@ test("createIndexing()", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   expect(indexing).toBeDefined();
@@ -134,6 +135,7 @@ test("processSetupEvents() empty", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -176,6 +178,7 @@ test("processSetupEvents()", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -243,6 +246,7 @@ test("processEvent()", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const event = getSimulatedEvent({
@@ -324,6 +328,7 @@ test("processEvents eventCount", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const event = getSimulatedEvent({
@@ -389,6 +394,7 @@ test("executeSetup() context.client", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const getBalanceSpy = vi.spyOn(rpc, "request");
@@ -449,6 +455,7 @@ test("executeSetup() context.db", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -502,6 +509,7 @@ test("executeSetup() metrics", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   await indexing.processSetupEvents({ db: indexingStore });
@@ -548,6 +556,7 @@ test("executeSetup() error", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   // @ts-ignore
@@ -610,6 +619,7 @@ test("processEvents() context.client", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const getBalanceSpy = vi.spyOn(rpc, "request");
@@ -685,6 +695,7 @@ test("processEvents() context.db", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const insertSpy = vi.spyOn(indexingStore, "insert");
@@ -748,6 +759,7 @@ test("processEvents() metrics", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const event = getSimulatedEvent({
@@ -807,6 +819,7 @@ test("processEvents() error", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   // @ts-ignore
@@ -877,6 +890,7 @@ test("processEvents() error with missing event object properties", async (contex
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const event = getSimulatedEvent({
@@ -946,6 +960,7 @@ test("processEvents() column selection", async (context) => {
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
+    eventCount,
   });
 
   const event = getSimulatedEvent({
