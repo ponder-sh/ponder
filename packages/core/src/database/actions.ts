@@ -189,8 +189,7 @@ export const dropLiveQueryTriggers = async (
   {
     namespaceBuild,
     tables,
-    chainId,
-  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
+  }: { namespaceBuild: NamespaceBuild; tables: Table[] },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -208,7 +207,7 @@ export const dropLiveQueryTriggers = async (
 
         await tx.wrap((tx) =>
           tx.execute(
-            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}";`,
+            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${getTableName(table)}";`,
           ),
         );
       }

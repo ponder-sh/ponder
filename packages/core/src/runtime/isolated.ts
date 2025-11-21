@@ -680,7 +680,7 @@ export async function runIsolated({
             await dropTriggers(tx, { tables, chainId: chain.id }, context);
             await dropLiveQueryTriggers(
               tx,
-              { namespaceBuild, tables, chainId: chain.id },
+              { namespaceBuild, tables },
               context,
             );
 
