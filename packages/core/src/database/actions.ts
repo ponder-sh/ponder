@@ -99,7 +99,7 @@ export const createTriggers = async (
               `
   CREATE OR REPLACE TRIGGER "${getReorgTriggerName()}"
   AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
-  FOR EACH ROW EXECUTE FUNCTION "${schema}".${getReorgProcedureName(table)};
+  FOR EACH ROW EXECUTE PROCEDURE "${schema}".${getReorgProcedureName(table)};
   `,
             ),
           );
@@ -140,7 +140,8 @@ export const createLiveQueryTriggers = async (
   {
     namespaceBuild,
     tables,
-  }: { namespaceBuild: NamespaceBuild; tables: Table[] },
+    chainId,
+  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -152,10 +153,8 @@ export const createLiveQueryTriggers = async (
         tx.execute(
           `
 CREATE OR REPLACE TRIGGER "${notifyTrigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${namespaceBuild.schema}"._ponder_checkpoint
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
+AFTER INSERT OR UPDATE OR DELETE ON "${namespaceBuild.schema}"._ponder_checkpoint
+FOR EACH STATEMENT EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
         ),
       );
 
@@ -171,10 +170,8 @@ EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
           tx.execute(
             `
 CREATE OR REPLACE TRIGGER "${trigger}"
-AFTER INSERT OR UPDATE OR DELETE
-ON "${schema}"."${getTableName(table)}"
-FOR EACH STATEMENT
-EXECUTE PROCEDURE "${schema}".${procedure};`,
+AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
+FOR EACH ROW EXECUTE PROCEDURE "${schema}".${procedure};`,
           ),
         );
       }
@@ -189,7 +186,8 @@ export const dropLiveQueryTriggers = async (
   {
     namespaceBuild,
     tables,
-  }: { namespaceBuild: NamespaceBuild; tables: Table[] },
+    chainId,
+  }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -207,7 +205,7 @@ export const dropLiveQueryTriggers = async (
 
         await tx.wrap((tx) =>
           tx.execute(
-            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${getTableName(table)}";`,
+            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}";`,
           ),
         );
       }
@@ -818,6 +816,13 @@ export const crashRecovery = async (
 ) => {
   const primaryKeyColumns = getPrimaryKeyColumns(table);
   const schema = getTableConfig(table).schema ?? "public";
+
+  const { rows } = await qb.wrap((db) =>
+    db.execute(`
+    SELECT * FROM "${schema}"."${getReorgTableName(table)}"`),
+  );
+
+  console.log({ rows: rows.length });
 
   await qb.wrap(
     (db) =>
