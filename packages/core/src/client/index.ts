@@ -79,7 +79,8 @@ export const client = ({
   if (
     globalThis.PONDER_COMMON === undefined ||
     globalThis.PONDER_DATABASE === undefined ||
-    globalThis.PONDER_NAMESPACE_BUILD === undefined
+    globalThis.PONDER_NAMESPACE_BUILD === undefined ||
+    globalThis.PONDER_PRE_BUILD === undefined
   ) {
     throw new Error(
       "client() middleware cannot be initialized outside of a Ponder project",
@@ -253,7 +254,19 @@ export const client = ({
             });
 
             client.on("notification", (notification) => {
-              const tables = JSON.parse(notification.payload!) as string[];
+              let tables = JSON.parse(notification.payload!) as string[];
+
+              // Convert partition names to table names
+              if (
+                globalThis.PONDER_PRE_BUILD.ordering === "experimental_isolated"
+              ) {
+                tables = tables.map((table) => {
+                  const _table = table.split("_");
+                  _table.pop();
+                  return _table.join("_");
+                });
+              }
+
               tables.push("_ponder_checkpoint");
               let invalidQueryCount = 0;
 

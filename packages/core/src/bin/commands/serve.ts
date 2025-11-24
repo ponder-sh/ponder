@@ -183,6 +183,7 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
   }
 
   const apiResult = await build.executeApi({
+    preBuild: preCompileResult.result,
     configBuild: configBuildResult.result,
     database,
   });

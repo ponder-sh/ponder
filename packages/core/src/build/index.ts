@@ -41,6 +41,7 @@ import { parseViteNodeError } from "./stacktrace.js";
 
 declare global {
   var PONDER_COMMON: Common;
+  var PONDER_PRE_BUILD: PreBuild;
   var PONDER_NAMESPACE_BUILD: NamespaceBuild;
   var PONDER_INDEXING_BUILD: Pick<IndexingBuild, "chains" | "rpcs">;
   var PONDER_DATABASE: Database;
@@ -61,6 +62,7 @@ export type Build = {
   executeSchema: () => Promise<SchemaResult>;
   executeIndexingFunctions: () => Promise<IndexingResult>;
   executeApi: (params: {
+    preBuild: PreBuild;
     configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
     database: Database;
   }) => Promise<ApiResult>;
@@ -291,7 +293,8 @@ export const createBuild = async ({
         },
       };
     },
-    async executeApi({ configBuild, database }): Promise<ApiResult> {
+    async executeApi({ preBuild, configBuild, database }): Promise<ApiResult> {
+      globalThis.PONDER_PRE_BUILD = preBuild;
       globalThis.PONDER_INDEXING_BUILD = configBuild;
       globalThis.PONDER_DATABASE = database;
 

@@ -817,13 +817,6 @@ export const crashRecovery = async (
   const primaryKeyColumns = getPrimaryKeyColumns(table);
   const schema = getTableConfig(table).schema ?? "public";
 
-  const { rows } = await qb.wrap((db) =>
-    db.execute(`
-    SELECT * FROM "${schema}"."${getReorgTableName(table)}"`),
-  );
-
-  console.log({ rows: rows.length });
-
   await qb.wrap(
     (db) =>
       db.execute(`

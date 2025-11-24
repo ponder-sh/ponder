@@ -234,6 +234,7 @@ export async function start({
   await database.migrateSync();
 
   const apiResult = await build.executeApi({
+    preBuild: preCompileResult.result,
     configBuild: configBuildResult.result,
     database,
   });
