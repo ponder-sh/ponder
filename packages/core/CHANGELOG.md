@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.11
+
+### Patch Changes
+
+- [#2203](https://github.com/ponder-sh/ponder/pull/2203) [`da4e68c`](https://github.com/ponder-sh/ponder/commit/da4e68c917c9cc73f4b72b9842d1eed71df07b6c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a regression introduced in `0.15.8` that caused `error: relation "live_query_tables" does not exist`.
+
 ## 0.15.10
 
 ### Patch Changes
