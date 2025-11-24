@@ -22,6 +22,10 @@ const queryToParams = (query: QueryWithTypings) =>
 
 test("client.db", async (context) => {
   globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
@@ -68,6 +72,10 @@ test("client.db error", async (context) => {
   globalThis.PONDER_COMMON = context.common;
   const { database } = await setupDatabaseServices(context);
   globalThis.PONDER_DATABASE = database;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
 
   const app = new Hono().use(
     client({
@@ -94,6 +102,10 @@ test("client.db error", async (context) => {
 
 test("client.db search_path", async (context) => {
   globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "Ponder",
     viewsSchema: undefined,
@@ -132,6 +144,10 @@ test("client.db search_path", async (context) => {
 
 test("client.db readonly", async (context) => {
   globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
@@ -164,6 +180,10 @@ test("client.db readonly", async (context) => {
 
 test("client.db recursive", async (context) => {
   globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
@@ -204,6 +224,10 @@ FROM infinite_cte;`,
 
 test("client.db load", async (context) => {
   globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,
@@ -246,6 +270,10 @@ test("client.db cache", async (context) => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
   globalThis.PONDER_NAMESPACE_BUILD = {
     schema: "public",
     viewsSchema: undefined,

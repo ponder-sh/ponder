@@ -12,6 +12,7 @@ import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
+  PreBuild,
 } from "@/internal/types.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
@@ -213,6 +214,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           });
           return;
         }
+        preBuild = preCompileResult.result;
         configBuild = configBuildResult.result;
 
         const rpcDiagnosticResult = await build.rpcDiagnostic({
@@ -283,6 +285,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         await database.migrateSync();
 
         const apiResult = await build.executeApi({
+          preBuild: preCompileResult.result,
           configBuild: configBuildResult.result,
           database,
         });
@@ -391,6 +394,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         metrics.resetApiMetrics();
 
         const apiResult = await build.executeApi({
+          preBuild: preBuild!,
           configBuild: configBuild!,
           database: database!,
         });
@@ -422,6 +426,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     },
   });
 
+  let preBuild: PreBuild | undefined;
   let configBuild: Pick<IndexingBuild, "chains" | "rpcs"> | undefined;
   let database: Database | undefined;
   let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;

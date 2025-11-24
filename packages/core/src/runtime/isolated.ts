@@ -496,7 +496,11 @@ export async function runIsolated({
   const endClock = startClock();
 
   await createTriggers(database.adminQB, { tables, chainId: chain.id });
-  await createLiveQueryTriggers(database.adminQB, { namespaceBuild, tables });
+  await createLiveQueryTriggers(database.adminQB, {
+    namespaceBuild,
+    tables,
+    chainId: chain.id,
+  });
 
   common.logger.debug({
     msg: "Created database triggers",
@@ -681,7 +685,7 @@ export async function runIsolated({
             await dropTriggers(tx, { tables, chainId: chain.id }, context);
             await dropLiveQueryTriggers(
               tx,
-              { namespaceBuild, tables },
+              { namespaceBuild, tables, chainId: chain.id },
               context,
             );
 
@@ -707,7 +711,7 @@ export async function runIsolated({
             await createTriggers(tx, { tables, chainId: chain.id }, context);
             await createLiveQueryTriggers(
               tx,
-              { namespaceBuild, tables },
+              { namespaceBuild, tables, chainId: chain.id },
               context,
             );
           },

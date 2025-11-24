@@ -923,7 +923,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
               await dropTriggers(tx, { tables, chainId });
               await dropLiveQueryTriggers(
                 tx,
-                { namespaceBuild: namespace, tables },
+                { namespaceBuild: namespace, tables, chainId },
                 context,
               );
             }
