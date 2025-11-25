@@ -243,6 +243,8 @@ export type Fragment =
       address: Address | null;
       eventSelector: Factory["eventSelector"];
       childAddressLocation: Factory["childAddressLocation"];
+      fromBlock: number | null;
+      toBlock: number | null;
     };
 
 /** Minimum slice of a {@link Filter} */
@@ -257,8 +259,8 @@ export type FragmentId =
   | `log_${number}_${FragmentAddressId}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${FragmentTopic}_${0 | 1}`
   /** transfer_{chainId}_{fromAddress}_{toAddress}_{includeReceipts} */
   | `transfer_${number}_${FragmentAddressId}_${FragmentAddressId}_${0 | 1}`
-  /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation} */
-  | `factory_log_${number}_${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`;
+  /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation}_{fromBlock}_{toBlock} */
+  | `factory_log_${number}_${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}_${number | null}_${number | null}`;
 
 // Contract
 export type Contract = {

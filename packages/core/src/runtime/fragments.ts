@@ -56,6 +56,8 @@ export const getFactoryFragments = (factory: Factory): Fragment[] => {
       address: fragmentAddress ?? null,
       eventSelector: factory.eventSelector,
       childAddressLocation: factory.childAddressLocation,
+      fromBlock: factory.fromBlock ?? null,
+      toBlock: factory.toBlock ?? null,
     } satisfies Fragment;
 
     fragments.push(fragment);
@@ -333,7 +335,7 @@ export const encodeFragment = (fragment: Fragment): FragmentId => {
     case "transfer":
       return `transfer_${fragment.chainId}_${fragmentAddressToId(fragment.fromAddress)}_${fragmentAddressToId(fragment.toAddress)}_${fragment.includeTransactionReceipts ? 1 : 0}`;
     case "factory_log":
-      return `factory_log_${fragment.chainId}_${fragment.address}_${fragment.eventSelector}_${fragment.childAddressLocation}`;
+      return `factory_log_${fragment.chainId}_${fragment.address}_${fragment.eventSelector}_${fragment.childAddressLocation}_${fragment.fromBlock}_${fragment.toBlock}`;
   }
 };
 
@@ -526,8 +528,15 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
       };
     }
     case "factory_log": {
-      const [, chainId, address, eventSelector, childAddressLocation] =
-        fragmentId.split("_");
+      const [
+        ,
+        chainId,
+        address,
+        eventSelector,
+        childAddressLocation,
+        fromBlock,
+        toBlock,
+      ] = fragmentId.split("_");
       return {
         type: "factory_log",
         chainId: Number(chainId),
@@ -535,6 +544,8 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
         eventSelector: eventSelector as Factory["eventSelector"],
         childAddressLocation:
           childAddressLocation as Factory["childAddressLocation"],
+        fromBlock: fromBlock ? Number(fromBlock) : null,
+        toBlock: toBlock ? Number(toBlock) : null,
       };
     }
   }
