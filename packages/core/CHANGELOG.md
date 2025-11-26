@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.12
+
+### Patch Changes
+
+- [`c9d96fc`](https://github.com/ponder-sh/ponder/commit/c9d96fc8d4088cef26aac9d36d4e12f2e94ae2e0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused factories to miss child addresses after updating the factory start block. Please note that this affects the rpc cache for apps with factories that have different start blocks than the corresponding contract or account. Affected apps will refetch block data automatically.
+
 ## 0.15.11
 
 ### Patch Changes
