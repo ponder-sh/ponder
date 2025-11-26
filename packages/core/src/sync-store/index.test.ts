@@ -364,6 +364,8 @@ test("getIntervals() 0.15 migration", async (context) => {
             "chainId": 1,
             "childAddressLocation": "topic1",
             "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+            "fromBlock": 10,
+            "toBlock": 20,
             "type": "factory_log",
           },
           "intervals": [
