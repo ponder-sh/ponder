@@ -105,7 +105,10 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     // Half of the max query parameters for PGlite
     databaseMaxQueryParameters: 16_000,
 
-    maxThreads: 4,
+    maxThreads:
+      process.env.PONDER_MAX_THREADS !== undefined
+        ? Number(process.env.PONDER_MAX_THREADS)
+        : 4,
 
     factoryAddressCountThreshold: 1_000,
 
