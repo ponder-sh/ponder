@@ -135,9 +135,10 @@ export async function* getHistoricalEventsOmnichain(params: {
             }
           }
         } else {
+          // Previous iterations `to` value
           const cursor = perChainCursor.get(chain)!;
 
-          // Yield pending events from previous iterations. Note that it is possible to
+          // Yield pending events from previous iterations. Note that it is possible for
           // previous pending events to still be pending after the catchup.
 
           const events = pendingEvents.filter(
@@ -151,7 +152,16 @@ export async function* getHistoricalEventsOmnichain(params: {
                 event.checkpoint <= omnichainTo) === false,
           );
 
-          yield { events, checkpoint: min(cursor, omnichainTo) };
+          // yield { events, checkpoint: min(cursor, omnichainTo) };
+
+          if (events.length > 0) {
+            if (omnichainTo >= cursor) {
+              yield { events, checkpoint: cursor };
+            } else {
+              const checkpoint = events[events.length - 1]!.checkpoint;
+              yield { events, checkpoint };
+            }
+          }
 
           from = encodeCheckpoint({
             ...ZERO_CHECKPOINT,
@@ -216,12 +226,17 @@ export async function* getHistoricalEventsOmnichain(params: {
               events,
               (event) => event.checkpoint <= omnichainTo,
             );
-            pendingEvents = pendingEvents.concat(right);
             events = left;
-            checkpoint = omnichainTo;
-          }
+            pendingEvents = pendingEvents.concat(right);
 
-          yield { events, checkpoint };
+            if (left.length > 0) {
+              checkpoint = left[left.length - 1]!.checkpoint;
+
+              yield { events, checkpoint };
+            }
+          } else {
+            yield { events, checkpoint };
+          }
         }
 
         perChainCursor.set(chain, to);
