@@ -1,5 +1,8 @@
 import { createBuild } from "@/build/index.js";
 import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
+  PONDER_STATUS_TABLE_NAME,
   type PonderApp0,
   type PonderApp1,
   type PonderApp2,
@@ -11,10 +14,11 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import { TABLES } from "@/database/index.js";
-import { sqlToReorgTableName } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryNotifyProcedureName,
   getLiveQueryProcedureName,
+  getReorgProcedureName,
+  getReorgTableName,
 } from "@/drizzle/onchain.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -117,7 +121,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
           database.adminQB.raw
             .select({ schema: TABLES.table_schema })
             .from(TABLES)
-            .where(eq(TABLES.table_name, "_ponder_meta")),
+            .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
         ),
       )
       .groupBy(TABLES.table_schema),
@@ -127,7 +131,7 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     db
       .select({ schema: VIEWS.table_schema })
       .from(VIEWS)
-      .where(eq(VIEWS.table_name, "_ponder_meta")),
+      .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
   );
 
   const queries = ponderSchemas.map((row) =>
@@ -199,11 +203,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
           viewsToDrop.push(`"${schema}"."${view}"`);
         }
       }
-      viewsToDrop.push(`"${schema}"."_ponder_meta"`);
+      viewsToDrop.push(`"${schema}"."${PONDER_META_TABLE_NAME}"`);
       if (value.version === "2") {
-        viewsToDrop.push(`"${schema}"."_ponder_checkpoint"`);
+        viewsToDrop.push(`"${schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`);
       } else {
-        viewsToDrop.push(`"${schema}"."_ponder_status"`);
+        viewsToDrop.push(`"${schema}"."${PONDER_STATUS_TABLE_NAME}"`);
       }
 
       const tableCount = ponderSchemas.find(
@@ -216,8 +220,8 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     } else {
       for (const table of value.table_names) {
         tablesToDrop.push(`"${schema}"."${table}"`);
-        tablesToDrop.push(`"${schema}"."${sqlToReorgTableName(table)}"`);
-        functionsToDrop.push(`"${schema}"."operation_reorg__${table}"`);
+        tablesToDrop.push(`"${schema}"."${getReorgTableName(table)}"`);
+        functionsToDrop.push(`"${schema}"."${getReorgProcedureName(table)}"`);
       }
       functionsToDrop.push(`"${schema}".${getLiveQueryProcedureName()}`);
       functionsToDrop.push(`"${schema}".${getLiveQueryNotifyProcedureName()}`);
@@ -226,11 +230,11 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
           viewsToDrop.push(`"${schema}"."${view}"`);
         }
       }
-      tablesToDrop.push(`"${schema}"."_ponder_meta"`);
+      tablesToDrop.push(`"${schema}"."${PONDER_META_TABLE_NAME}"`);
       if (value.version === "2") {
-        tablesToDrop.push(`"${schema}"."_ponder_checkpoint"`);
+        tablesToDrop.push(`"${schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`);
       } else {
-        tablesToDrop.push(`"${schema}"."_ponder_status"`);
+        tablesToDrop.push(`"${schema}"."${PONDER_STATUS_TABLE_NAME}"`);
       }
 
       const tableCount = ponderSchemas.find(

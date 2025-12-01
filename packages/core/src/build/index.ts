@@ -354,6 +354,14 @@ export const createBuild = async ({
       const viewsSchema =
         cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
 
+      if (viewsSchema === schema) {
+        const error = new BuildError(
+          "Views schema cannot be the same as the schema.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
       globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
 
       return {

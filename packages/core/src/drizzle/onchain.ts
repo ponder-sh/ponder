@@ -4,6 +4,7 @@ import {
   type ColumnBuilderBase,
   Table,
   type Writable,
+  getTableName,
 } from "drizzle-orm";
 import { toSnakeCase } from "drizzle-orm/casing";
 import {
@@ -38,6 +39,8 @@ import {
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
+// TODO(kyle) what needs to be less than 63 characters?
+
 export const getLiveQueryTriggerName = () => {
   return "live_query_trigger";
 };
@@ -55,6 +58,21 @@ export const getViewsLiveQueryNotifyTriggerName = (schema?: string) => {
 };
 export const getLiveQueryNotifyProcedureName = () => {
   return "live_query_notify_procedure()";
+};
+export const getPartitionName = (table: string | PgTable, chainId: number) => {
+  return `${typeof table === "string" ? table : getTableName(table)}_${chainId}`;
+};
+export const getReorgTableName = (table: string | PgTable) => {
+  return `_reorg__${typeof table === "string" ? table : getTableName(table)}`;
+};
+export const getReorgTriggerName = () => {
+  return "reorg_trigger";
+};
+export const getReorgProcedureName = (table: string | PgTable) => {
+  return `operation_reorg__${typeof table === "string" ? table : getTableName(table)}()`;
+};
+export const getReorgSequenceName = () => {
+  return "operation_id_seq";
 };
 
 /** @internal */

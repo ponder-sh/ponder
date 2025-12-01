@@ -1,5 +1,7 @@
 import { createBuild } from "@/build/index.js";
 import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
   type PonderApp0,
   type PonderApp1,
   type PonderApp2,
@@ -234,14 +236,8 @@ export async function createViews({
 
   await database.adminQB.wrap((db) =>
     db.execute(
-      sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_meta"`),
-    ),
-  );
-
-  await database.adminQB.wrap((db) =>
-    db.execute(
       sql.raw(
-        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_checkpoint"`,
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
       ),
     ),
   );
@@ -249,7 +245,7 @@ export async function createViews({
   await database.adminQB.wrap((db) =>
     db.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema!}"."_ponder_meta"`,
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
       ),
     ),
   );
@@ -257,7 +253,15 @@ export async function createViews({
   await database.adminQB.wrap((db) =>
     db.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema!}"."_ponder_checkpoint"`,
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_META_TABLE_NAME}"`,
+      ),
+    ),
+  );
+
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql.raw(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
       ),
     ),
   );

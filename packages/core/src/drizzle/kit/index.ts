@@ -1,4 +1,4 @@
-import { SQL, getTableName, is, sql } from "drizzle-orm";
+import { SQL, is, sql } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
@@ -21,6 +21,7 @@ import {
   pgTable,
   varchar,
 } from "drizzle-orm/pg-core";
+import { getReorgSequenceName, getReorgTableName } from "../onchain.js";
 
 type Dialect = "postgresql";
 type CasingType = "snake_case" | "camelCase";
@@ -41,22 +42,17 @@ export type SqlStatements = {
   indexes: { sql: string[]; json: JsonPgCreateIndexStatement[] };
 };
 
-export const sqlToReorgTableName = (tableName: string) =>
-  `_reorg__${tableName}`;
-
-export const SHARED_OPERATION_ID_SEQUENCE = "operation_id_seq";
-
 export const getReorgTable = (table: PgTable) => {
   const schema = getTableConfig(table).schema;
   if (schema && schema !== "public") {
     return pgSchema(schema).table(
-      sqlToReorgTableName(getTableName(table)),
+      getReorgTableName(table),
       {
         operation_id: integer()
           .notNull()
           .primaryKey()
           .default(
-            sql.raw(`nextval('"${schema}"."${SHARED_OPERATION_ID_SEQUENCE}"')`),
+            sql.raw(`nextval('"${schema}"."${getReorgSequenceName()}"')`),
           ),
         operation: integer().notNull().$type<0 | 1 | 2>(),
         checkpoint: varchar({ length: 75 }).notNull(),
@@ -65,12 +61,12 @@ export const getReorgTable = (table: PgTable) => {
     );
   }
   return pgTable(
-    sqlToReorgTableName(getTableName(table)),
+    getReorgTableName(table),
     {
       operation_id: integer()
         .notNull()
         .primaryKey()
-        .default(sql.raw(`nextval('"${SHARED_OPERATION_ID_SEQUENCE}"')`)),
+        .default(sql.raw(`nextval('"${getReorgSequenceName()}"')`)),
       operation: integer().notNull().$type<0 | 1 | 2>(),
       checkpoint: varchar({ length: 75 }).notNull(),
     },
@@ -169,7 +165,7 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
               .primaryKey()
               .default(
                 sql.raw(
-                  `nextval('"${statement.schema === "" ? "public" : statement.schema}"."${SHARED_OPERATION_ID_SEQUENCE}"')`,
+                  `nextval('"${statement.schema === "" ? "public" : statement.schema}"."${getReorgSequenceName()}"')`,
                 ),
               ),
             operation: integer().notNull(),
@@ -187,7 +183,7 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
 
   reorgStatement.columns.push(...Object.values(reorgColumns));
 
-  reorgStatement.tableName = sqlToReorgTableName(reorgStatement.tableName);
+  reorgStatement.tableName = getReorgTableName(reorgStatement.tableName);
 
   return reorgStatement;
 };

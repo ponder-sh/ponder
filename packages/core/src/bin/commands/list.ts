@@ -1,5 +1,6 @@
 import { createBuild } from "@/build/index.js";
 import {
+  PONDER_META_TABLE_NAME,
   type PonderApp0,
   type PonderApp1,
   type PonderApp2,
@@ -107,14 +108,14 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     db
       .select({ schema: TABLES.table_schema })
       .from(TABLES)
-      .where(eq(TABLES.table_name, "_ponder_meta")),
+      .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
   );
 
   const ponderViewSchemas = await database.adminQB.wrap((db) =>
     db
       .select({ schema: VIEWS.table_schema })
       .from(VIEWS)
-      .where(eq(VIEWS.table_name, "_ponder_meta")),
+      .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
   );
 
   const queries = ponderSchemas.map((row) =>

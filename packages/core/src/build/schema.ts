@@ -1,3 +1,7 @@
+import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
+} from "@/database/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
@@ -36,6 +40,15 @@ export const buildSchema = ({
     if (is(s, PgTable)) {
       let hasPrimaryKey = false;
       let hasChainIdColumn = false;
+
+      if (
+        name === PONDER_META_TABLE_NAME ||
+        name === PONDER_CHECKPOINT_TABLE_NAME
+      ) {
+        throw new Error(
+          `Schema validation failed: '${name}' is a reserved table name.`,
+        );
+      }
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
@@ -100,6 +113,16 @@ export const buildSchema = ({
         // TODO(kyle) It is an invariant that `getColumnCasing(column, "snake_case") === column.name`
         if (columnName === "chainId" && column.name === "chain_id") {
           hasChainIdColumn = true;
+        }
+
+        if (
+          columnName === "operation_id" ||
+          columnName === "operation" ||
+          columnName === "checkpoint"
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}.${columnName}' is a reserved column name.`,
+          );
         }
       }
 

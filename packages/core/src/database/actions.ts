@@ -1,10 +1,4 @@
-import {
-  getPartitionName,
-  getPrimaryKeyColumns,
-  getReorgProcedureName,
-  getReorgTableName,
-  getReorgTriggerName,
-} from "@/drizzle/index.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
@@ -12,6 +6,10 @@ import {
   getLiveQueryNotifyTriggerName,
   getLiveQueryProcedureName,
   getLiveQueryTriggerName,
+  getPartitionName,
+  getReorgProcedureName,
+  getReorgTableName,
+  getReorgTriggerName,
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
 import type { Logger } from "@/internal/logger.js";
@@ -34,7 +32,11 @@ import {
   sql,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { getPonderCheckpointTable } from "./index.js";
+import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
+  getPonderCheckpointTable,
+} from "./index.js";
 import type { QB } from "./queryBuilder.js";
 
 export const createIndexes = async (
@@ -333,25 +335,25 @@ export const createViews = async (
 
       await tx.wrap((tx) =>
         tx.execute(
-          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."_ponder_meta"`,
+          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
         ),
       );
 
       await tx.wrap((tx) =>
         tx.execute(
-          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."_ponder_checkpoint"`,
+          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
         ),
       );
 
       await tx.wrap((tx) =>
         tx.execute(
-          `CREATE VIEW "${namespaceBuild.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_meta"`,
+          `CREATE VIEW "${namespaceBuild.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${namespaceBuild.schema}"."${PONDER_META_TABLE_NAME}"`,
         ),
       );
 
       await tx.wrap((tx) =>
         tx.execute(
-          `CREATE VIEW "${namespaceBuild.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${namespaceBuild.schema}"."_ponder_checkpoint"`,
+          `CREATE VIEW "${namespaceBuild.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
         ),
       );
 

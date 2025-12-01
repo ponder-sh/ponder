@@ -1,11 +1,9 @@
-import { getPartitionName, getReorgTableName } from "@/drizzle/index.js";
-import {
-  SHARED_OPERATION_ID_SEQUENCE,
-  sqlToReorgTableName,
-} from "@/drizzle/kit/index.js";
 import {
   getLiveQueryNotifyProcedureName,
   getLiveQueryProcedureName,
+  getPartitionName,
+  getReorgSequenceName,
+  getReorgTableName,
 } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
@@ -93,6 +91,16 @@ export const VIEWS = pgSchema("information_schema").table("views", (t) => ({
   table_schema: t.text().notNull(),
 }));
 
+export const PONDER_META_TABLE_NAME = "_ponder_meta";
+/**
+ * @dev Used since version 0.11.
+ */
+export const PONDER_CHECKPOINT_TABLE_NAME = "_ponder_checkpoint";
+/**
+ * @dev Used from version 0.9 to 0.11.
+ */
+export const PONDER_STATUS_TABLE_NAME = "_ponder_status";
+
 // Note: "version" was introduced in 0.9
 
 export type PonderApp0 = {
@@ -146,13 +154,13 @@ type PostgresDriver = {
 
 export const getPonderMetaTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
-    return pgTable("_ponder_meta", (t) => ({
+    return pgTable(PONDER_META_TABLE_NAME, (t) => ({
       key: t.text().primaryKey().$type<"app">(),
       value: t.jsonb().$type<PonderApp5>().notNull(),
     }));
   }
 
-  return pgSchema(schema).table("_ponder_meta", (t) => ({
+  return pgSchema(schema).table(PONDER_META_TABLE_NAME, (t) => ({
     key: t.text().primaryKey().$type<"app">(),
     value: t.jsonb().$type<PonderApp5>().notNull(),
   }));
@@ -163,7 +171,7 @@ export const getPonderMetaTable = (schema?: string) => {
  */
 export const getPonderCheckpointTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
-    return pgTable("_ponder_checkpoint", (t) => ({
+    return pgTable(PONDER_CHECKPOINT_TABLE_NAME, (t) => ({
       chainName: t.text().primaryKey(),
       chainId: t.bigint({ mode: "number" }).notNull(),
       safeCheckpoint: t.varchar({ length: 75 }).notNull(),
@@ -172,7 +180,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
     }));
   }
 
-  return pgSchema(schema).table("_ponder_checkpoint", (t) => ({
+  return pgSchema(schema).table(PONDER_CHECKPOINT_TABLE_NAME, (t) => ({
     chainName: t.text().primaryKey(),
     chainId: t.bigint({ mode: "number" }).notNull(),
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
@@ -593,7 +601,7 @@ export const createDatabase = ({
           (tx) =>
             tx.execute(
               `
-CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_META_TABLE_NAME}" (
   "key" TEXT PRIMARY KEY,
   "value" JSONB NOT NULL
 )`,
@@ -605,7 +613,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_meta" (
           (tx) =>
             tx.execute(
               `
-CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}" (
   "chain_name" TEXT PRIMARY KEY,
   "chain_id" BIGINT NOT NULL,
   "safe_checkpoint" VARCHAR(75) NOT NULL,
@@ -619,7 +627,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
         await tx.wrap(
           (tx) =>
             tx.execute(
-              `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${SHARED_OPERATION_ID_SEQUENCE}" AS integer INCREMENT BY 1`,
+              `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${getReorgSequenceName()}" AS integer INCREMENT BY 1`,
             ),
           context,
         );
@@ -727,7 +735,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
               await tx.wrap(
                 (tx) =>
                   tx.execute(
-                    `DROP TABLE IF EXISTS "${namespace.schema}"."${sqlToReorgTableName(table)}" CASCADE`,
+                    `DROP TABLE IF EXISTS "${namespace.schema}"."${getReorgTableName(table)}" CASCADE`,
                   ),
                 context,
               );
@@ -792,7 +800,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             await tx.wrap(
               (tx) =>
                 tx.execute(
-                  `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_CHECKPOINT)}" CASCADE`,
+                  `DROP TABLE IF EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}" CASCADE`,
                 ),
               context,
             );
@@ -800,7 +808,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."_ponder_checkpoint" (
             await tx.wrap(
               (tx) =>
                 tx.execute(
-                  `DROP TABLE IF EXISTS "${namespace.schema}"."${getTableName(PONDER_META)}" CASCADE`,
+                  `DROP TABLE IF EXISTS "${namespace.schema}"."${PONDER_META_TABLE_NAME}" CASCADE`,
                 ),
               context,
             );
