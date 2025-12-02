@@ -362,6 +362,22 @@ export const createBuild = async ({
         return { status: "error", error } as const;
       }
 
+      if (schema === "ponder_sync") {
+        const error = new BuildError(
+          `Invalid schema name. "ponder_sync" is a reserved schema name.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (viewsSchema === "ponder_sync") {
+        const error = new BuildError(
+          `Invalid views schema name. "ponder_sync" is a reserved schema name.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
       globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
 
       return {
