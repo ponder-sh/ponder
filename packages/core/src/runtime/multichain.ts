@@ -14,6 +14,7 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
+import { getLiveQueryTempTableName } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
 import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
@@ -642,7 +643,7 @@ export async function runMultichain({
               await tx.wrap(
                 (tx) =>
                   tx.execute(
-                    "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                    `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
                   ),
                 context,
               );
@@ -650,7 +651,7 @@ export async function runMultichain({
               await tx.wrap(
                 (tx) =>
                   tx.execute(
-                    "CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)",
+                    `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
                   ),
                 context,
               );
@@ -737,7 +738,8 @@ export async function runMultichain({
 
             if (database.userQB.$dialect === "pglite") {
               await tx.wrap(
-                (tx) => tx.execute("TRUNCATE TABLE live_query_tables"),
+                (tx) =>
+                  tx.execute(`TRUNCATE TABLE ${getLiveQueryTempTableName()}`),
                 context,
               );
             }

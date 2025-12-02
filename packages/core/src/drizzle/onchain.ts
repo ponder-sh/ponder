@@ -39,7 +39,7 @@ import {
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
-// TODO(kyle) what needs to be less than 63 characters?
+// TODO(kyle) what needs to be less than 63 characters? Everything.
 
 export const getLiveQueryTriggerName = () => {
   return "live_query_trigger";
@@ -53,11 +53,18 @@ export const getLiveQueryChannelName = (schema: string) => {
 export const getLiveQueryNotifyTriggerName = () => {
   return "live_query_notify_trigger";
 };
-export const getViewsLiveQueryNotifyTriggerName = (schema?: string) => {
-  return `${schema}_live_query_notify_trigger`;
+/**
+ * Returns the name of the trigger used to notify live queries for the views pattern.
+ * @dev The trigger is placed in the base schema, but used to notify in the views schema.
+ */
+export const getViewsLiveQueryNotifyTriggerName = (viewsSchema: string) => {
+  return `${viewsSchema}_live_query_notify_trigger`;
 };
 export const getLiveQueryNotifyProcedureName = () => {
   return "live_query_notify_procedure()";
+};
+export const getLiveQueryTempTableName = () => {
+  return "live_query_tables";
 };
 export const getPartitionName = (table: string | PgTable, chainId: number) => {
   return `${typeof table === "string" ? table : getTableName(table)}_${chainId}`;

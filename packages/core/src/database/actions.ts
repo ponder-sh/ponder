@@ -5,6 +5,7 @@ import {
   getLiveQueryNotifyProcedureName,
   getLiveQueryNotifyTriggerName,
   getLiveQueryProcedureName,
+  getLiveQueryTempTableName,
   getLiveQueryTriggerName,
   getPartitionName,
   getReorgProcedureName,
@@ -155,7 +156,7 @@ export const createLiveQueryTriggers = async (
         tx.execute(
           `
 CREATE OR REPLACE TRIGGER "${notifyTrigger}"
-AFTER INSERT OR UPDATE OR DELETE ON "${namespaceBuild.schema}"._ponder_checkpoint
+AFTER INSERT OR UPDATE OR DELETE ON "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"
 FOR EACH STATEMENT EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
         ),
       );
@@ -197,7 +198,7 @@ export const dropLiveQueryTriggers = async (
       const notifyTrigger = getLiveQueryNotifyTriggerName();
       await tx.wrap((tx) =>
         tx.execute(
-          `DROP TRIGGER IF EXISTS "${notifyTrigger}" ON "${namespaceBuild.schema}"._ponder_checkpoint;`,
+          `DROP TRIGGER IF EXISTS "${notifyTrigger}" ON "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}";`,
         ),
       );
 
@@ -235,7 +236,7 @@ CREATE OR REPLACE FUNCTION "${schema}".${procedure}
 RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
 BEGIN
-  INSERT INTO live_query_tables (table_name)
+  INSERT INTO ${getLiveQueryTempTableName()} (table_name)
   VALUES (TG_TABLE_NAME)
   ON CONFLICT (table_name) DO NOTHING;
   RETURN NULL;
@@ -261,13 +262,13 @@ AS $$
     SELECT EXISTS (
       SELECT 1
       FROM information_schema.tables
-      WHERE table_name = 'live_query_tables'
+      WHERE table_name = '${getLiveQueryTempTableName()}'
       AND table_type = 'LOCAL TEMPORARY'
     ) INTO table_exists;
 
     IF table_exists THEN
       SELECT json_agg(table_name) INTO table_names
-      FROM live_query_tables;
+      FROM ${getLiveQueryTempTableName()};
 
       table_names := COALESCE(table_names, '[]'::json);
       PERFORM pg_notify('${channel}', table_names::text);
@@ -372,13 +373,13 @@ AS $$
     SELECT EXISTS (
       SELECT 1
       FROM information_schema.tables
-      WHERE table_name = 'live_query_tables'
+      WHERE table_name = '${getLiveQueryTempTableName()}'
       AND table_type = 'LOCAL TEMPORARY'
     ) INTO table_exists;
 
     IF table_exists THEN
       SELECT json_agg(table_name) INTO table_names
-      FROM live_query_tables;
+      FROM ${getLiveQueryTempTableName()};
 
       table_names := COALESCE(table_names, '[]'::json);
       PERFORM pg_notify('${channel}', table_names::text);
@@ -390,7 +391,7 @@ $$;`),
       );
 
       const trigger = getViewsLiveQueryNotifyTriggerName(
-        namespaceBuild.viewsSchema,
+        namespaceBuild.viewsSchema!,
       );
 
       await tx.wrap((tx) =>
@@ -398,7 +399,7 @@ $$;`),
           `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${namespaceBuild.schema!}"._ponder_checkpoint
+ON "${namespaceBuild.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notifyProcedure};`,
         ),
