@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.13
+
+### Patch Changes
+
+- [#2210](https://github.com/ponder-sh/ponder/pull/2210) [`6617af4`](https://github.com/ponder-sh/ponder/commit/6617af49a21ec27c5c96704fca50559a9f3cd289) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused Ponder to crash when `disable_cache: true`.
+
 ## 0.15.12
 
 ### Patch Changes
