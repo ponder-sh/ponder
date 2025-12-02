@@ -378,6 +378,22 @@ export const createBuild = async ({
         return { status: "error", error } as const;
       }
 
+      if (schema.length > 63) {
+        const error = new BuildError(
+          "Schema name cannot be longer than 63 characters.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (viewsSchema && viewsSchema.length > 63) {
+        const error = new BuildError(
+          "Views schema name cannot be longer than 63 characters.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
       globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
 
       return {

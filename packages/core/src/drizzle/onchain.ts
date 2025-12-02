@@ -39,7 +39,8 @@ import {
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
-// TODO(kyle) what needs to be less than 63 characters? Everything.
+// Note: All of these database object names should be less than 63 characters, otherwise they will
+// be truncated by postgres.
 
 export const getLiveQueryTriggerName = () => {
   return "live_query_trigger";
@@ -48,7 +49,8 @@ export const getLiveQueryProcedureName = () => {
   return "live_query_procedure()";
 };
 export const getLiveQueryChannelName = (schema: string) => {
-  return `${schema}_live_query_channel`;
+  // Note: No appendments are allowed because the name must be less than 63 characters.
+  return schema;
 };
 export const getLiveQueryNotifyTriggerName = () => {
   return "live_query_notify_trigger";
@@ -58,7 +60,8 @@ export const getLiveQueryNotifyTriggerName = () => {
  * @dev The trigger is placed in the base schema, but used to notify in the views schema.
  */
 export const getViewsLiveQueryNotifyTriggerName = (viewsSchema: string) => {
-  return `${viewsSchema}_live_query_notify_trigger`;
+  // Note: No appendments are allowed because the name must be less than 63 characters.
+  return viewsSchema;
 };
 export const getLiveQueryNotifyProcedureName = () => {
   return "live_query_notify_procedure()";

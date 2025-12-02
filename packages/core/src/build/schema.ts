@@ -120,10 +120,12 @@ export const buildSchema = ({
           hasChainIdColumn = true;
         }
 
+        // Note: Ponder lets postgres handle the column name length limit and truncation.
+
         if (
-          columnName === "operation_id" ||
-          columnName === "operation" ||
-          columnName === "checkpoint"
+          column.name === "operation_id" ||
+          column.name === "operation" ||
+          column.name === "checkpoint"
         ) {
           throw new Error(
             `Schema validation failed: '${name}.${columnName}' is a reserved column name.`,
@@ -156,6 +158,8 @@ export const buildSchema = ({
           );
         }
       }
+
+      // Note: Ponder lets postgres handle the table name length limit and truncation.
 
       if (tableNames.has(getTableName(s))) {
         throw new Error(
@@ -205,6 +209,8 @@ export const buildSchema = ({
       }
 
       for (const index of getTableConfig(s).indexes) {
+        // Note: Ponder lets postgres handle the index name length limit and truncation.
+
         if (index.config.name && indexNames.has(index.config.name)) {
           throw new Error(
             `Schema validation failed: index name '${index.config.name}' is used multiple times.`,
@@ -222,6 +228,8 @@ export const buildSchema = ({
     }
 
     if (is(s, PgView)) {
+      // Note: Ponder lets postgres handle the view name length limit and truncation.
+
       if (viewNames.has(getViewName(s))) {
         throw new Error(
           `Schema validation failed: view name '${getViewName(s)}' is used multiple times.`,
