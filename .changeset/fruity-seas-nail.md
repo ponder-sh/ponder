@@ -2,4 +2,4 @@
 "ponder": minor
 ---
 
-Fix onchainView alias build error
+Added support for alias column in `onchainView`.
