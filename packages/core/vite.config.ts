@@ -1,6 +1,10 @@
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
+
+// Fixes `Duplicate "graphql" modules cannot be used at the same time` issue
+const graphqlPath = createRequire(import.meta.url).resolve("graphql");
 
 export default defineConfig({
   resolve: {
@@ -8,6 +12,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
       "@ponder/client": path.resolve(__dirname, "../client/src"),
       "@ponder/utils": path.resolve(__dirname, "../utils/src"),
+      graphql: graphqlPath,
     },
   },
   test: {
