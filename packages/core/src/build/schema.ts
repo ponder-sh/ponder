@@ -226,7 +226,6 @@ export const buildSchema = ({
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
         )) {
-          // Accept both PgColumn and SQL.Aliased (for aggregate functions like sum().as())
           if (
             is(column, PgColumn) === false &&
             is(column, SQL.Aliased) === false
@@ -236,7 +235,6 @@ export const buildSchema = ({
             );
           }
 
-          // Only validate column-specific constraints for actual PgColumns
           if (is(column, PgColumn)) {
             if (
               column instanceof PgSerial ||

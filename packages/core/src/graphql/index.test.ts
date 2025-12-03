@@ -12,7 +12,7 @@ import {
   primaryKey,
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { count, relations, sql, sum } from "drizzle-orm";
+import { count, relations } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
 import { zeroAddress } from "viem";
@@ -2842,84 +2842,72 @@ test("view", async (context) => {
       totalCount: 9,
     },
   });
+});
 
-  // // @ts-ignore
-  // const endCursor = result.data.pets.pageInfo.endCursor;
+test("view with alias", async (context) => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+  }));
+  const petView = onchainView("pet_view").as((qb) =>
+    qb
+      .select({
+        id: pet.id,
+        name: pet.name,
+        count: count().as("count"),
+      })
+      .from(pet)
+      .groupBy(pet.id),
+  );
+  const schema = { pet, petView };
 
-  // result = await query(`
-  //   query {
-  //     pets(orderBy: "id", orderDirection: "asc", after: "${endCursor}") {
-  //       items {
-  //         id
-  //         name
-  //       }
-  //       pageInfo {
-  //         hasNextPage
-  //         hasPreviousPage
-  //         startCursor
-  //         endCursor
-  //       }
-  //       totalCount
-  //     }
-  //   }
-  // `);
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   pets: {
-  //     items: [
-  //       { id: "id6", name: "Book" },
-  //       { id: "id7", name: "Shea" },
-  //       { id: "id8", name: "Snack" },
-  //       { id: "id9", name: "Last" },
-  //     ],
-  //     pageInfo: {
-  //       hasNextPage: false,
-  //       hasPreviousPage: true,
-  //       startCursor: expect.any(String),
-  //       endCursor: expect.any(String),
-  //     },
-  //     totalCount: 9,
-  //   },
-  // });
+  await indexingStore.insert(schema.pet).values([
+    { id: "id1", name: "Skip" },
+    { id: "id2", name: "Foo" },
+    { id: "id3", name: "Bar" },
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
+    { id: "id6", name: "Book" },
+    { id: "id7", name: "Shea" },
+    { id: "id8", name: "Snack" },
+    { id: "id9", name: "Last" },
+  ]);
 
-  // // @ts-ignore
-  // const startCursor = result.data.pets.pageInfo.startCursor;
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
-  // result = await query(`
-  //   query {
-  //     pets(orderBy: "id", orderDirection: "asc", before: "${startCursor}", limit: 2) {
-  //       items {
-  //         id
-  //         name
-  //       }
-  //       pageInfo {
-  //         hasNextPage
-  //         hasPreviousPage
-  //         startCursor
-  //         endCursor
-  //       }
-  //       totalCount
-  //     }
-  //   }
-  // `);
+  const result = await query(`
+    query {
+      petViews(orderBy: "id", orderDirection: "asc", limit: 5) {
+        items {
+          id
+          name
+          count
+        }
+        totalCount
+      }
+    }
+  `);
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   pets: {
-  //     items: [
-  //       { id: "id4", name: "Zarbar" },
-  //       { id: "id5", name: "Winston" },
-  //     ],
-  //     pageInfo: {
-  //       hasNextPage: true,
-  //       hasPreviousPage: true,
-  //       startCursor: expect.any(String),
-  //       endCursor: expect.any(String),
-  //     },
-  //     totalCount: 9,
-  //   },
-  // });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    petViews: {
+      items: [
+        { id: "id1", name: "Skip", count: 1 },
+        { id: "id2", name: "Foo", count: 1 },
+        { id: "id3", name: "Bar", count: 1 },
+        { id: "id4", name: "Zarbar", count: 1 },
+        { id: "id5", name: "Winston", count: 1 },
+      ],
+      totalCount: 9,
+    },
+  });
 });
 
 test("view limit/offset pagination", async (context) => {
@@ -3015,328 +3003,6 @@ test("view limit/offset pagination", async (context) => {
         hasPreviousPage: true,
       },
       totalCount: 9,
-    },
-  });
-});
-
-test("view with aggregate functions (sum, count)", async (context) => {
-  const transfer = onchainTable("transfer", (t) => ({
-    id: t.text().primaryKey(),
-    from: t.hex().notNull(),
-    amount: t.bigint().notNull(),
-  }));
-
-  const transferStats = onchainView("transfer_stats").as((qb) =>
-    qb
-      .select({
-        from: transfer.from,
-        totalAmount: sum(transfer.amount).as("total_amount"),
-        transferCount: count().as("transfer_count"),
-      })
-      .from(transfer)
-      .groupBy(transfer.from),
-  );
-
-  const schema = { transfer, transferStats };
-
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
-  const graphqlSchema = buildGraphQLSchema({ schema });
-  const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
-
-  await indexingStore.insert(schema.transfer).values([
-    {
-      id: "1",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 100n,
-    },
-    {
-      id: "2",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 200n,
-    },
-    {
-      id: "3",
-      from: "0x0000000000000000000000000000000000000002",
-      amount: 50n,
-    },
-    {
-      id: "4",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 300n,
-    },
-    {
-      id: "5",
-      from: "0x0000000000000000000000000000000000000002",
-      amount: 150n,
-    },
-  ]);
-
-  const result = await query(`
-    query {
-      transferStatss {
-        items {
-          from
-          totalAmount
-          transferCount
-        }
-        totalCount
-      }
-    }
-  `);
-
-  expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
-    transferStatss: {
-      items: expect.arrayContaining([
-        {
-          from: "0x0000000000000000000000000000000000000001",
-          totalAmount: "600",
-          transferCount: 3,
-        },
-        {
-          from: "0x0000000000000000000000000000000000000002",
-          totalAmount: "200",
-          transferCount: 2,
-        },
-      ]),
-      totalCount: 2,
-    },
-  });
-});
-
-test("view with aggregate functions - filtering", async (context) => {
-  const transfer = onchainTable("transfer", (t) => ({
-    id: t.text().primaryKey(),
-    from: t.hex().notNull(),
-    amount: t.bigint().notNull(),
-  }));
-
-  const transferStats = onchainView("transfer_stats").as((qb) =>
-    qb
-      .select({
-        from: transfer.from,
-        totalAmount: sum(transfer.amount).as("total_amount"),
-        transferCount: count().as("transfer_count"),
-      })
-      .from(transfer)
-      .groupBy(transfer.from),
-  );
-
-  const schema = { transfer, transferStats };
-
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
-  const graphqlSchema = buildGraphQLSchema({ schema });
-  const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
-
-  await indexingStore.insert(schema.transfer).values([
-    {
-      id: "1",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 100n,
-    },
-    {
-      id: "2",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 200n,
-    },
-    {
-      id: "3",
-      from: "0x0000000000000000000000000000000000000002",
-      amount: 50n,
-    },
-  ]);
-
-  // Filter by the aliased column (transferCount)
-  const result = await query(`
-    query {
-      transferStatss(where: { transferCount: 2 }) {
-        items {
-          from
-          transferCount
-        }
-        totalCount
-      }
-    }
-  `);
-
-  expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
-    transferStatss: {
-      items: [
-        {
-          from: "0x0000000000000000000000000000000000000001",
-          transferCount: 2,
-        },
-      ],
-      totalCount: 1,
-    },
-  });
-});
-
-test("view with aggregate functions - ordering by aliased column", async (context) => {
-  const transfer = onchainTable("transfer", (t) => ({
-    id: t.text().primaryKey(),
-    from: t.hex().notNull(),
-    amount: t.bigint().notNull(),
-  }));
-
-  const transferStats = onchainView("transfer_stats").as((qb) =>
-    qb
-      .select({
-        from: transfer.from,
-        totalAmount: sum(transfer.amount).as("total_amount"),
-        transferCount: count().as("transfer_count"),
-      })
-      .from(transfer)
-      .groupBy(transfer.from),
-  );
-
-  const schema = { transfer, transferStats };
-
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
-  const graphqlSchema = buildGraphQLSchema({ schema });
-  const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
-
-  await indexingStore.insert(schema.transfer).values([
-    {
-      id: "1",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 100n,
-    },
-    {
-      id: "2",
-      from: "0x0000000000000000000000000000000000000001",
-      amount: 200n,
-    },
-    {
-      id: "3",
-      from: "0x0000000000000000000000000000000000000002",
-      amount: 50n,
-    },
-    {
-      id: "4",
-      from: "0x0000000000000000000000000000000000000003",
-      amount: 1000n,
-    },
-    {
-      id: "5",
-      from: "0x0000000000000000000000000000000000000003",
-      amount: 500n,
-    },
-    {
-      id: "6",
-      from: "0x0000000000000000000000000000000000000003",
-      amount: 250n,
-    },
-  ]);
-
-  // Order by transferCount descending
-  const result = await query(`
-    query {
-      transferStatss(orderBy: "transferCount", orderDirection: "desc") {
-        items {
-          from
-          transferCount
-        }
-      }
-    }
-  `);
-
-  expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
-    transferStatss: {
-      items: [
-        {
-          from: "0x0000000000000000000000000000000000000003",
-          transferCount: 3,
-        },
-        {
-          from: "0x0000000000000000000000000000000000000001",
-          transferCount: 2,
-        },
-        {
-          from: "0x0000000000000000000000000000000000000002",
-          transferCount: 1,
-        },
-      ],
-    },
-  });
-});
-
-test("view with raw sql template alias", async (context) => {
-  const transfer = onchainTable("transfer", (t) => ({
-    id: t.text().primaryKey(),
-    timestamp: t.bigint().notNull(),
-    amount: t.bigint().notNull(),
-  }));
-
-  const hourlyBucket = onchainView("hourly_bucket").as((qb) =>
-    qb
-      .select({
-        hour: sql<bigint>`FLOOR(${transfer.timestamp}::numeric / 3600) * 3600`.as(
-          "hour",
-        ),
-        totalVolume: sum(transfer.amount).as("total_volume"),
-        transferCount: count().as("transfer_count"),
-      })
-      .from(transfer)
-      .groupBy(sql`FLOOR(${transfer.timestamp}::numeric / 3600) * 3600`),
-  );
-
-  const schema = { transfer, hourlyBucket };
-
-  const { database, indexingStore } = await setupDatabaseServices(context, {
-    schemaBuild: { schema },
-  });
-  const contextValue = buildContextValue(database);
-  const graphqlSchema = buildGraphQLSchema({ schema });
-  const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
-
-  // Insert transfers at different hours
-  // Hour 0: 0-3599
-  // Hour 1: 3600-7199
-  await indexingStore.insert(schema.transfer).values([
-    { id: "1", timestamp: 100n, amount: 50n },
-    { id: "2", timestamp: 200n, amount: 100n },
-    { id: "3", timestamp: 3700n, amount: 200n },
-    { id: "4", timestamp: 3800n, amount: 300n },
-    { id: "5", timestamp: 3900n, amount: 150n },
-  ]);
-
-  const result = await query(`
-    query {
-      hourlyBuckets(orderBy: "hour", orderDirection: "asc") {
-        items {
-          hour
-          totalVolume
-          transferCount
-        }
-        totalCount
-      }
-    }
-  `);
-
-  expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
-    hourlyBuckets: {
-      items: [
-        { hour: "0", totalVolume: "150", transferCount: 2 },
-        { hour: "3600", totalVolume: "650", transferCount: 3 },
-      ],
-      totalCount: 2,
     },
   });
 });

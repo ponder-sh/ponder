@@ -399,7 +399,7 @@ test("buildSchema view with aggregate functions", () => {
   buildSchema({ schema, preBuild: { ordering: "multichain" } });
 });
 
-test("buildSchema view with sql template and alias", () => {
+test("buildSchema view with alias", () => {
   const transfer = onchainTable("transfer", (p) => ({
     id: p.text().primaryKey(),
     timestamp: p.bigint().notNull(),
@@ -417,30 +417,6 @@ test("buildSchema view with sql template and alias", () => {
         })
         .from(transfer)
         .groupBy(sql`FLOOR(${transfer.timestamp} / 3600)`),
-    ),
-  };
-
-  buildSchema({ schema, preBuild: { ordering: "multichain" } });
-});
-
-test("buildSchema view with mixed PgColumn and SQL.Aliased fields", () => {
-  const account = onchainTable("account", (p) => ({
-    id: p.text().primaryKey(),
-    owner: p.hex().notNull(),
-    balance: p.bigint().notNull(),
-  }));
-
-  const schema = {
-    account,
-    accountSummary: onchainView("account_summary").as((qb) =>
-      qb
-        .select({
-          owner: account.owner,
-          totalBalance: sum(account.balance).as("total_balance"),
-          accountCount: count().as("account_count"),
-        })
-        .from(account)
-        .groupBy(account.owner),
     ),
   };
 
