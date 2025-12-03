@@ -65,14 +65,3 @@ export const approvalEvent = onchainTable("approval_event", (t) => ({
   owner: t.hex().notNull(),
   spender: t.hex().notNull(),
 }));
-
-export const transferStats = onchainView("transfer_stats").as((qb) =>
-  qb
-    .select({
-      from: transferEvent.from,
-      totalAmount: sum(transferEvent.amount).as("total_amount"),
-      transferCount: count().as("transfer_count"),
-    })
-    .from(transferEvent)
-    .groupBy(transferEvent.from),
-);
