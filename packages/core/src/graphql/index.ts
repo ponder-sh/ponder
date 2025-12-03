@@ -10,7 +10,7 @@ import {
   type Column,
   Many,
   One,
-  type SQL,
+  SQL,
   type TableRelationalConfig,
   and,
   arrayContained,
@@ -208,7 +208,10 @@ export function buildGraphQLSchema({
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
         )) {
-          const type = columnToGraphQLCore(column as PgColumn, enumTypes);
+          // Handle SQL.Aliased fields (e.g., sum().as(), count().as())
+          const type = is(column, SQL.Aliased)
+            ? aliasedToGraphQLCore(column)
+            : columnToGraphQLCore(column as PgColumn, enumTypes);
 
           // List fields => universal, plural
           if (type instanceof GraphQLList) {
@@ -466,6 +469,13 @@ export function buildGraphQLSchema({
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
         )) {
+          // Handle SQL.Aliased fields (e.g., sum().as(), count().as())
+          if (is(column, SQL.Aliased)) {
+            const type = aliasedToGraphQLCore(column);
+            // Aliased fields are always nullable (we can't know from the SQL)
+            fieldConfigMap[columnName] = { type };
+            continue;
+          }
           const type = columnToGraphQLCore(column as PgColumn, enumTypes);
           fieldConfigMap[columnName] = {
             type: (column as PgColumn).notNull
@@ -733,6 +743,30 @@ const columnToGraphQLCore = (
     }
     default:
       throw new Error(`Type ${column.dataType} is not implemented`);
+  }
+};
+
+/**
+ * Converts an SQL.Aliased field to a GraphQL type based on its decoder.
+ * Used for aggregate functions like sum(), count(), avg() in views.
+ */
+const aliasedToGraphQLCore = (
+  aliased: SQL.Aliased<unknown>,
+): GraphQLOutputType => {
+  const decoderName = (aliased.sql as any).decoder?.mapFromDriverValue?.name;
+
+  switch (decoderName) {
+    case "Number":
+      return GraphQLFloat;
+    case "String":
+      return GraphQLString;
+    case "Boolean":
+      return GraphQLBoolean;
+    case "BigInt":
+      return GraphQLString;
+    default:
+      // For raw SQL templates or unknown types, default to String
+      return GraphQLString;
   }
 };
 
