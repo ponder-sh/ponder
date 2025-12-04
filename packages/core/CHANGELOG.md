@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.14
+
+### Patch Changes
+
+- [#2212](https://github.com/ponder-sh/ponder/pull/2212) [`ef7b50b`](https://github.com/ponder-sh/ponder/commit/ef7b50be335fb0f2b4519a8dcbe1c130acc31dbd) Thanks [@typedarray](https://github.com/typedarray)! - Updated `vite`, `glob`, `graphql`, and `graphql-yoga` dependencies for security patches.
+
 ## 0.15.13
 
 ### Patch Changes
