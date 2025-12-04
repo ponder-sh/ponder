@@ -5,7 +5,7 @@ import {
   onchainTable,
   onchainView,
 } from "@/index.js";
-import { sql } from "drizzle-orm";
+import { count, sql, sum } from "drizzle-orm";
 import {
   check,
   index,
@@ -370,6 +370,54 @@ test("buildSchema view raw sql", () => {
       address: hex().primaryKey(),
       balance: bigint().notNull(),
     }).as(sql`SELECT * FROM account`),
+  };
+
+  buildSchema({ schema, preBuild: { ordering: "multichain" } });
+});
+
+test("buildSchema view with aggregate functions", () => {
+  const trade = onchainTable("trade", (p) => ({
+    id: p.text().primaryKey(),
+    marketAddress: p.hex().notNull(),
+    cost: p.bigint().notNull(),
+  }));
+
+  const schema = {
+    trade,
+    tradeVolume: onchainView("trade_volume").as((qb) =>
+      qb
+        .select({
+          marketAddress: trade.marketAddress,
+          volume: sum(trade.cost).as("volume"),
+          count: count().as("count"),
+        })
+        .from(trade)
+        .groupBy(trade.marketAddress),
+    ),
+  };
+
+  buildSchema({ schema, preBuild: { ordering: "multichain" } });
+});
+
+test("buildSchema view with alias", () => {
+  const transfer = onchainTable("transfer", (p) => ({
+    id: p.text().primaryKey(),
+    timestamp: p.bigint().notNull(),
+    amount: p.bigint().notNull(),
+  }));
+
+  const schema = {
+    transfer,
+    hourlyBucket: onchainView("hourly_bucket").as((qb) =>
+      qb
+        .select({
+          hour: sql`FLOOR(${transfer.timestamp} / 3600) * 3600`.as("hour"),
+          totalVolume: sum(transfer.amount).as("total_volume"),
+          transferCount: count().as("transfer_count"),
+        })
+        .from(transfer)
+        .groupBy(sql`FLOOR(${transfer.timestamp} / 3600)`),
+    ),
   };
 
   buildSchema({ schema, preBuild: { ordering: "multichain" } });

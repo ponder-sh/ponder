@@ -10,9 +10,10 @@ import {
   onchainTable,
   onchainView,
   primaryKey,
+  text,
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { relations } from "drizzle-orm";
+import { count, eq, relations, sql } from "drizzle-orm";
 import { type GraphQLType, execute, parse } from "graphql";
 import { toBytes } from "viem";
 import { zeroAddress } from "viem";
@@ -2842,84 +2843,72 @@ test("view", async (context) => {
       totalCount: 9,
     },
   });
+});
 
-  // // @ts-ignore
-  // const endCursor = result.data.pets.pageInfo.endCursor;
+test("view with alias", async (context) => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+  }));
+  const petView = onchainView("pet_view").as((qb) =>
+    qb
+      .select({
+        id: pet.id,
+        name: pet.name,
+        count: count().as("count"),
+      })
+      .from(pet)
+      .groupBy(pet.id),
+  );
+  const schema = { pet, petView };
 
-  // result = await query(`
-  //   query {
-  //     pets(orderBy: "id", orderDirection: "asc", after: "${endCursor}") {
-  //       items {
-  //         id
-  //         name
-  //       }
-  //       pageInfo {
-  //         hasNextPage
-  //         hasPreviousPage
-  //         startCursor
-  //         endCursor
-  //       }
-  //       totalCount
-  //     }
-  //   }
-  // `);
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   pets: {
-  //     items: [
-  //       { id: "id6", name: "Book" },
-  //       { id: "id7", name: "Shea" },
-  //       { id: "id8", name: "Snack" },
-  //       { id: "id9", name: "Last" },
-  //     ],
-  //     pageInfo: {
-  //       hasNextPage: false,
-  //       hasPreviousPage: true,
-  //       startCursor: expect.any(String),
-  //       endCursor: expect.any(String),
-  //     },
-  //     totalCount: 9,
-  //   },
-  // });
+  await indexingStore.insert(schema.pet).values([
+    { id: "id1", name: "Skip" },
+    { id: "id2", name: "Foo" },
+    { id: "id3", name: "Bar" },
+    { id: "id4", name: "Zarbar" },
+    { id: "id5", name: "Winston" },
+    { id: "id6", name: "Book" },
+    { id: "id7", name: "Shea" },
+    { id: "id8", name: "Snack" },
+    { id: "id9", name: "Last" },
+  ]);
 
-  // // @ts-ignore
-  // const startCursor = result.data.pets.pageInfo.startCursor;
+  const graphqlSchema = buildGraphQLSchema({ schema });
 
-  // result = await query(`
-  //   query {
-  //     pets(orderBy: "id", orderDirection: "asc", before: "${startCursor}", limit: 2) {
-  //       items {
-  //         id
-  //         name
-  //       }
-  //       pageInfo {
-  //         hasNextPage
-  //         hasPreviousPage
-  //         startCursor
-  //         endCursor
-  //       }
-  //       totalCount
-  //     }
-  //   }
-  // `);
+  const result = await query(`
+    query {
+      petViews(orderBy: "id", orderDirection: "asc", limit: 5) {
+        items {
+          id
+          name
+          count
+        }
+        totalCount
+      }
+    }
+  `);
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   pets: {
-  //     items: [
-  //       { id: "id4", name: "Zarbar" },
-  //       { id: "id5", name: "Winston" },
-  //     ],
-  //     pageInfo: {
-  //       hasNextPage: true,
-  //       hasPreviousPage: true,
-  //       startCursor: expect.any(String),
-  //       endCursor: expect.any(String),
-  //     },
-  //     totalCount: 9,
-  //   },
-  // });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    petViews: {
+      items: [
+        { id: "id1", name: "Skip", count: 1 },
+        { id: "id2", name: "Foo", count: 1 },
+        { id: "id3", name: "Bar", count: 1 },
+        { id: "id4", name: "Zarbar", count: 1 },
+        { id: "id5", name: "Winston", count: 1 },
+      ],
+      totalCount: 9,
+    },
+  });
 });
 
 test("view limit/offset pagination", async (context) => {
@@ -3015,6 +3004,178 @@ test("view limit/offset pagination", async (context) => {
         hasPreviousPage: true,
       },
       totalCount: 9,
+    },
+  });
+});
+
+test("view with innerJoin selecting fields from second table", async (context) => {
+  const animal = onchainTable("animal", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+    caretakerId: t.text().notNull(),
+  }));
+  const caretaker = onchainTable("caretaker", (t) => ({
+    id: t.text().primaryKey(),
+    caretakerName: t.text().notNull(),
+  }));
+  // Test view with innerJoin selecting fields from the second table (caretaker)
+  // Using manual view definition to test expected behavior
+  // Note: Using query builder approach (.as((qb) => qb.select({...}).from(...).innerJoin(...)))
+  // produces "column undefined does not exist" error when selecting fields from the joined table
+  const animalWithCaretakerView = onchainView("animal_with_caretaker_view", {
+    id: text().notNull(),
+    animalName: text().notNull(),
+    caretakerId: text().notNull(),
+    caretakerName: text().notNull(),
+  }).as(
+    sql`SELECT "animal"."id", "animal"."name" AS "animal_name", "caretaker"."id" AS "caretaker_id", "caretaker"."caretaker_name" FROM "animal" INNER JOIN "caretaker" ON "animal"."caretaker_id" = "caretaker"."id"`,
+  );
+  const schema = { animal, caretaker, animalWithCaretakerView };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.caretaker).values([
+    { id: "caretaker1", caretakerName: "Alice" },
+    { id: "caretaker2", caretakerName: "Bob" },
+  ]);
+
+  await indexingStore.insert(schema.animal).values([
+    { id: "animal1", name: "Skip", caretakerId: "caretaker1" },
+    { id: "animal2", name: "Foo", caretakerId: "caretaker2" },
+    { id: "animal3", name: "Bar", caretakerId: "caretaker1" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      animalWithCaretakerViews(orderBy: "id", orderDirection: "asc") {
+        items {
+          id
+          animalName
+          caretakerId
+          caretakerName
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    animalWithCaretakerViews: {
+      items: [
+        {
+          id: "animal1",
+          animalName: "Skip",
+          caretakerId: "caretaker1",
+          caretakerName: "Alice",
+        },
+        {
+          id: "animal2",
+          animalName: "Foo",
+          caretakerId: "caretaker2",
+          caretakerName: "Bob",
+        },
+        {
+          id: "animal3",
+          animalName: "Bar",
+          caretakerId: "caretaker1",
+          caretakerName: "Alice",
+        },
+      ],
+      totalCount: 3,
+    },
+  });
+});
+
+// This test is skipped because using the query builder approach with innerJoin
+// causes "column undefined does not exist" error when selecting fields from the joined table.
+// Unskip this test once the bug is fixed.
+test("view with innerJoin using query builder", async (context) => {
+  const animal = onchainTable("animal", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text().notNull(),
+    caretakerId: t.text().notNull(),
+  }));
+  const caretaker = onchainTable("caretaker", (t) => ({
+    id: t.text().primaryKey(),
+    caretakerName: t.text().notNull(),
+  }));
+  // Using query builder with innerJoin - selecting fields from the second table (caretaker)
+  // This currently produces "column undefined does not exist" error
+  const animalWithCaretakerView = onchainView("animal_with_caretaker_view").as(
+    (qb) =>
+      qb
+        .select({
+          id: animal.id,
+          animalName: animal.name,
+          caretakerName: caretaker.caretakerName,
+        })
+        .from(animal)
+        .innerJoin(caretaker, eq(animal.caretakerId, caretaker.id)),
+  );
+  const schema = { animal, caretaker, animalWithCaretakerView };
+
+  const { database, indexingStore } = await setupDatabaseServices(context, {
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await indexingStore.insert(schema.caretaker).values([
+    { id: "caretaker1", caretakerName: "Alice" },
+    { id: "caretaker2", caretakerName: "Bob" },
+  ]);
+
+  await indexingStore.insert(schema.animal).values([
+    { id: "animal1", name: "Skip", caretakerId: "caretaker1" },
+    { id: "animal2", name: "Foo", caretakerId: "caretaker2" },
+    { id: "animal3", name: "Bar", caretakerId: "caretaker1" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      animalWithCaretakerViews(orderBy: "id", orderDirection: "asc") {
+        items {
+          id
+          animalName
+          caretakerName
+        }
+        totalCount
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    animalWithCaretakerViews: {
+      items: [
+        {
+          id: "animal1",
+          animalName: "Skip",
+          caretakerName: "Alice",
+        },
+        {
+          id: "animal2",
+          animalName: "Foo",
+          caretakerName: "Bob",
+        },
+        {
+          id: "animal3",
+          animalName: "Bar",
+          caretakerName: "Alice",
+        },
+      ],
+      totalCount: 3,
     },
   });
 });

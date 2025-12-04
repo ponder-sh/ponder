@@ -226,39 +226,44 @@ export const buildSchema = ({
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
         )) {
-          if (is(column, PgColumn) === false) {
+          if (
+            is(column, PgColumn) === false &&
+            is(column, SQL.Aliased) === false
+          ) {
             throw new Error(
               `Schema validation failed: view '${getViewName(s)}.${columnName}' is a non-column selected field.`,
             );
           }
 
-          if (
-            column instanceof PgSerial ||
-            column instanceof PgSmallSerial ||
-            column instanceof PgBigSerial53 ||
-            column instanceof PgBigSerial64
-          ) {
-            throw new Error(
-              `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
-            );
-          }
+          if (is(column, PgColumn)) {
+            if (
+              column instanceof PgSerial ||
+              column instanceof PgSmallSerial ||
+              column instanceof PgBigSerial53 ||
+              column instanceof PgBigSerial64
+            ) {
+              throw new Error(
+                `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
+              );
+            }
 
-          if ((column as PgColumn).isUnique) {
-            throw new Error(
-              `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,
-            );
-          }
+            if (column.isUnique) {
+              throw new Error(
+                `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,
+              );
+            }
 
-          if ((column as PgColumn).generated !== undefined) {
-            throw new Error(
-              `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
-            );
-          }
+            if (column.generated !== undefined) {
+              throw new Error(
+                `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
+              );
+            }
 
-          if ((column as PgColumn).generatedIdentity !== undefined) {
-            throw new Error(
-              `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
-            );
+            if (column.generatedIdentity !== undefined) {
+              throw new Error(
+                `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
+              );
+            }
           }
         }
     }
