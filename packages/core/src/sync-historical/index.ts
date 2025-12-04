@@ -44,6 +44,7 @@ import type {
   IntervalWithFilter,
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { dedupe } from "@/utils/dedupe.js";
 import {
   type Interval,
   getChunks,
@@ -433,7 +434,7 @@ export const createHistoricalSync = (
       };
       const endClock = startClock();
       const childAddresses: ChildAddresses = new Map();
-      const logs: SyncLog[] = [];
+      let logs: SyncLog[] = [];
 
       // Dedupe factory intervals by factory id
 
@@ -548,12 +549,22 @@ export const createHistoricalSync = (
           const existingTopic0 = mergedEthGetLogsParams.get(addressKey)!
             .topic0 as Hex | Hex[];
 
-          mergedEthGetLogsParams.get(addressKey)!.topic0 = [
-            ...(Array.isArray(existingTopic0)
-              ? existingTopic0
-              : [existingTopic0]),
-            filter.topic0,
-          ];
+          if (Array.isArray(existingTopic0)) {
+            if (existingTopic0.includes(filter.topic0) === false) {
+              mergedEthGetLogsParams.get(addressKey)!.topic0 = [
+                ...existingTopic0,
+                filter.topic0,
+              ];
+            }
+          } else {
+            if (existingTopic0 !== filter.topic0) {
+              mergedEthGetLogsParams.get(addressKey)!.topic0 = [
+                existingTopic0,
+                filter.topic0,
+              ];
+            }
+          }
+
           mergedEthGetLogsParams.get(addressKey)!.interval = intervalBounds([
             existingInterval,
             interval,
@@ -561,10 +572,13 @@ export const createHistoricalSync = (
         }
       }
 
-      const ethGetLogsParams = [
-        ...singleEthGetLogsParams,
-        ...Array.from(mergedEthGetLogsParams.values()),
-      ];
+      const ethGetLogsParams = dedupe(
+        [
+          ...singleEthGetLogsParams,
+          ...Array.from(mergedEthGetLogsParams.values()),
+        ],
+        (params) => JSON.stringify(params),
+      );
 
       await Promise.all(
         ethGetLogsParams.map(async (params) => {
@@ -572,6 +586,10 @@ export const createHistoricalSync = (
           logs.push(..._logs);
         }),
       );
+
+      // Remove duplicate logs that may have resulted from intersecting
+      // filters.
+      logs = dedupe(logs, (log) => `${log.blockNumber}_${log.logIndex}`);
 
       for (const log of logs) {
         if (log.transactionHash === zeroHash) {
