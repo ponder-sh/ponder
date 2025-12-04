@@ -51,6 +51,7 @@ import {
   intervalBounds,
   intervalRange,
 } from "@/utils/interval.js";
+import { orderObject } from "@/utils/order.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
@@ -434,7 +435,6 @@ export const createHistoricalSync = (
       };
       const endClock = startClock();
       const childAddresses: ChildAddresses = new Map();
-      let logs: SyncLog[] = [];
 
       // Dedupe factory intervals by factory id
 
@@ -577,8 +577,10 @@ export const createHistoricalSync = (
           ...singleEthGetLogsParams,
           ...Array.from(mergedEthGetLogsParams.values()),
         ],
-        (params) => JSON.stringify(params),
+        (params) => JSON.stringify(orderObject(params)),
       );
+
+      let logs: SyncLog[] = [];
 
       await Promise.all(
         ethGetLogsParams.map(async (params) => {
