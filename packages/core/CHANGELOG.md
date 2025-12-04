@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.15
+
+### Patch Changes
+
+- [#2217](https://github.com/ponder-sh/ponder/pull/2217) [`8f2e557`](https://github.com/ponder-sh/ponder/commit/8f2e557cd08d3573bd5b0cfcd1e813dc55f5f9a5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug in JSON-RPC response validation logic that caused `RpcProviderError: Inconsistent RPC response data. The logs array contains two objects with 'logIndex' 0x39d (925)`.
+
 ## 0.15.14
 
 ### Patch Changes
