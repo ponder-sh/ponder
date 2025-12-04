@@ -950,20 +950,22 @@ export const standardizeLogs = (
   logs: SyncLog[],
   request: Extract<RequestParameters, { method: "eth_getLogs" }>,
 ): SyncLog[] => {
-  const logIndexes = new Set<Hex>();
+  const logIds = new Set<string>();
   for (const log of logs) {
-    if (logIndexes.has(log.logIndex)) {
+    if (logIds.has(`${log.blockNumber}_${log.logIndex}`)) {
       const error = new RpcProviderError(
-        `Inconsistent RPC response data. The logs array contains two objects with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}).`,
+        `Inconsistent RPC response data. The logs array contains two objects with 'blockNumber' ${log.blockNumber} (${hexToNumber(log.blockNumber)}) and 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}).`,
       );
       error.meta = [
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
+
+      console.log(logs);
       error.stack = undefined;
       throw error;
     } else {
-      logIndexes.add(log.logIndex);
+      logIds.add(`${log.blockNumber}_${log.logIndex}`);
     }
 
     // required properties
