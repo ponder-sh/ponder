@@ -51,7 +51,6 @@ import {
   intervalBounds,
   intervalRange,
 } from "@/utils/interval.js";
-import { orderObject } from "@/utils/order.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
@@ -577,7 +576,7 @@ export const createHistoricalSync = (
           ...singleEthGetLogsParams,
           ...Array.from(mergedEthGetLogsParams.values()),
         ],
-        (params) => JSON.stringify(orderObject(params)),
+        (params) => JSON.stringify(params),
       );
 
       let logs: SyncLog[] = [];
