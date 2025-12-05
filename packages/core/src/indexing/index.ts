@@ -94,6 +94,7 @@ export type Indexing = {
   processRealtimeEvents: (params: {
     events: Event[];
     db: IndexingStore;
+    cache: IndexingCache;
   }) => Promise<void>;
 };
 
@@ -690,13 +691,14 @@ export const createIndexing = ({
         );
       }
     },
-    async processRealtimeEvents({ events, db }) {
+    async processRealtimeEvents({ events, db, cache }) {
       context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
         context.client = clientByChainId[event.chain.id]!;
+        cache.event = event;
 
         await executeEvent(event);
 

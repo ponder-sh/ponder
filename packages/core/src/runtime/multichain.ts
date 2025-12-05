@@ -16,7 +16,6 @@ import {
 } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
@@ -515,6 +514,7 @@ export async function runMultichain({
   }
 
   indexingCache.clear();
+  indexingCache.invalidate();
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
@@ -602,12 +602,6 @@ export async function runMultichain({
     endpoint: "/ready",
   });
 
-  const realtimeIndexingStore = createRealtimeIndexingStore({
-    common,
-    schemaBuild,
-    indexingErrorHandler,
-  });
-
   const bufferCallback = (bufferSize: number) => {
     // Note: Only log when the buffer size is greater than 1 because
     // a buffer size of 1 is not backpressure.
@@ -635,6 +629,12 @@ export async function runMultichain({
           logger: common.logger.child({ action: "index_block" }),
         };
         const endClock = startClock();
+
+        indexingCache.qb = database.userQB;
+        await Promise.all([
+          indexingCache.prefetch({ events: event.events }),
+          cachedViemClient.prefetch({ events: event.events }),
+        ]);
 
         await database.userQB.transaction(
           async (tx) => {
@@ -665,8 +665,9 @@ export async function runMultichain({
               )!;
 
               try {
-                realtimeIndexingStore.qb = tx;
-                realtimeIndexingStore.isProcessingEvents = true;
+                historicalIndexingStore.qb = tx;
+                historicalIndexingStore.isProcessingEvents = true;
+                indexingCache.qb = tx;
 
                 common.logger.trace({
                   msg: "Processing block events",
@@ -678,7 +679,8 @@ export async function runMultichain({
 
                 await indexing.processRealtimeEvents({
                   events,
-                  db: realtimeIndexingStore,
+                  db: historicalIndexingStore,
+                  cache: indexingCache,
                 });
 
                 common.logger.trace({
@@ -689,13 +691,17 @@ export async function runMultichain({
                   event_count: events.length,
                 });
 
-                realtimeIndexingStore.isProcessingEvents = false;
+                historicalIndexingStore.isProcessingEvents = false;
+
+                await indexingCache.flush();
 
                 await Promise.all(
                   tables.map((table) =>
                     commitBlock(tx, { table, checkpoint, preBuild }, context),
                   ),
                 );
+
+                cachedViemClient.clear();
 
                 common.logger.trace({
                   msg: "Committed reorg data for block",
@@ -706,6 +712,9 @@ export async function runMultichain({
                   checkpoint,
                 });
               } catch (error) {
+                indexingCache.invalidate();
+                indexingCache.clear();
+
                 if (error instanceof NonRetryableUserError === false) {
                   common.logger.warn({
                     msg: "Failed to index block",
