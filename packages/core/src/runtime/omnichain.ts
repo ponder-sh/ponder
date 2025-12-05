@@ -15,7 +15,7 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
@@ -119,15 +119,6 @@ export async function runOmnichain({
     error: undefined as RetryableError | undefined,
   };
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
-    client: cachedViemClient,
-    indexingErrorHandler,
-    columnAccessPattern,
-    eventCount,
-  });
-
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
@@ -135,11 +126,22 @@ export async function runOmnichain({
     eventCount,
   });
 
-  const historicalIndexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common,
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    indexingStore,
+    indexingCache,
+    client: cachedViemClient,
+    indexingErrorHandler,
+    columnAccessPattern,
+    eventCount,
   });
 
   const perChainSync = new Map<
@@ -251,15 +253,13 @@ export async function runOmnichain({
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
-      historicalIndexingStore.qb = tx;
-      historicalIndexingStore.isProcessingEvents = true;
+      indexingStore.qb = tx;
+      indexingStore.isProcessingEvents = true;
       indexingCache.qb = tx;
 
-      await indexing.processSetupEvents({
-        db: historicalIndexingStore,
-      });
+      await indexing.processSetupEvents();
 
-      historicalIndexingStore.isProcessingEvents = false;
+      indexingStore.isProcessingEvents = false;
 
       await indexingCache.flush();
 
@@ -373,8 +373,8 @@ export async function runOmnichain({
         );
 
         try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
+          indexingStore.qb = tx;
+          indexingStore.isProcessingEvents = true;
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -386,8 +386,6 @@ export async function runOmnichain({
 
           await indexing.processHistoricalEvents({
             events,
-            db: historicalIndexingStore,
-            cache: indexingCache,
             updateIndexingSeconds(event) {
               const checkpoint = decodeCheckpoint(event.checkpoint);
               for (const chain of indexingBuild.chains) {
@@ -419,7 +417,7 @@ export async function runOmnichain({
             },
           });
 
-          historicalIndexingStore.isProcessingEvents = false;
+          indexingStore.isProcessingEvents = false;
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "index" },
@@ -681,8 +679,8 @@ export async function runOmnichain({
               )!;
 
               try {
-                historicalIndexingStore.qb = tx;
-                historicalIndexingStore.isProcessingEvents = true;
+                indexingStore.qb = tx;
+                indexingStore.isProcessingEvents = true;
 
                 common.logger.trace({
                   msg: "Processing block events",
@@ -692,11 +690,7 @@ export async function runOmnichain({
                   event_count: events.length,
                 });
 
-                await indexing.processRealtimeEvents({
-                  events,
-                  db: historicalIndexingStore,
-                  cache: indexingCache,
-                });
+                await indexing.processRealtimeEvents({ events });
 
                 common.logger.trace({
                   msg: "Processed block events",
@@ -706,7 +700,7 @@ export async function runOmnichain({
                   event_count: events.length,
                 });
 
-                historicalIndexingStore.isProcessingEvents = false;
+                indexingStore.isProcessingEvents = false;
 
                 await indexingCache.flush();
 

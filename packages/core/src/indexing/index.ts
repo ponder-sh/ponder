@@ -84,18 +84,12 @@ export type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: (params: { db: IndexingStore }) => Promise<void>;
+  processSetupEvents: () => Promise<void>;
   processHistoricalEvents: (params: {
     events: Event[];
-    db: IndexingStore;
-    cache: IndexingCache;
     updateIndexingSeconds: (event: Event, chain: Chain) => void;
   }) => Promise<void>;
-  processRealtimeEvents: (params: {
-    events: Event[];
-    db: IndexingStore;
-    cache: IndexingCache;
-  }) => Promise<void>;
+  processRealtimeEvents: (params: { events: Event[] }) => Promise<void>;
 };
 
 export const getEventCount = (
@@ -143,6 +137,8 @@ export const createColumnAccessPattern = ({
 export const createIndexing = ({
   common,
   indexingBuild: { eventCallbacks, setupCallbacks, chains, contracts },
+  indexingStore,
+  indexingCache,
   client,
   indexingErrorHandler,
   columnAccessPattern,
@@ -153,6 +149,8 @@ export const createIndexing = ({
     IndexingBuild,
     "eventCallbacks" | "setupCallbacks" | "chains" | "contracts"
   >;
+  indexingStore: IndexingStore;
+  indexingCache: IndexingCache;
   client: CachedViemClient;
   indexingErrorHandler: IndexingErrorHandler;
   columnAccessPattern: ColumnAccessPattern;
@@ -406,8 +404,8 @@ export const createIndexing = ({
   }
 
   return {
-    async processSetupEvents({ db }) {
-      context.db = db;
+    async processSetupEvents() {
+      context.db = indexingStore.db;
 
       for (const setupCallback of setupCallbacks.flat()) {
         const event = {
@@ -428,22 +426,17 @@ export const createIndexing = ({
         await executeSetup(event);
       }
     },
-    async processHistoricalEvents({
-      events,
-      db,
-      cache,
-      updateIndexingSeconds,
-    }) {
+    async processHistoricalEvents({ events, updateIndexingSeconds }) {
       let lastEventLoopUpdate = performance.now();
       let lastMetricsUpdate = performance.now();
 
-      context.db = db;
+      context.db = indexingStore.db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
         context.client = clientByChainId[event.chain.id]!;
-        cache.event = event;
+        indexingCache.event = event;
 
         // Note: Create a new event object instead of mutuating the original one because
         // the event object could be reused across multiple indexing functions.
@@ -691,14 +684,14 @@ export const createIndexing = ({
         );
       }
     },
-    async processRealtimeEvents({ events, db, cache }) {
-      context.db = db;
+    async processRealtimeEvents({ events }) {
+      context.db = indexingStore.db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
         context.client = clientByChainId[event.chain.id]!;
-        cache.event = event;
+        indexingCache.event = event;
 
         await executeEvent(event);
 

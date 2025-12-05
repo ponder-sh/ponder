@@ -9,7 +9,7 @@ import {
 } from "@/database/actions.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
@@ -104,15 +104,6 @@ export async function runIsolated({
     error: undefined as RetryableError | undefined,
   };
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
-    client: cachedViemClient,
-    indexingErrorHandler,
-    columnAccessPattern,
-    eventCount,
-  });
-
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
@@ -121,12 +112,23 @@ export async function runIsolated({
     chainId: chain.id,
   });
 
-  const historicalIndexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common,
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
     chainId: chain.id,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    indexingStore,
+    indexingCache,
+    client: cachedViemClient,
+    indexingErrorHandler,
+    columnAccessPattern,
+    eventCount,
   });
 
   const seconds: Seconds = {};
@@ -212,16 +214,14 @@ export async function runIsolated({
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
-      historicalIndexingStore.qb = tx;
-      historicalIndexingStore.isProcessingEvents = true;
+      indexingStore.qb = tx;
+      indexingStore.isProcessingEvents = true;
 
       indexingCache.qb = tx;
 
-      await indexing.processSetupEvents({
-        db: historicalIndexingStore,
-      });
+      await indexing.processSetupEvents();
 
-      historicalIndexingStore.isProcessingEvents = false;
+      indexingStore.isProcessingEvents = false;
 
       await indexingCache.flush();
 
@@ -308,8 +308,8 @@ export async function runIsolated({
         );
 
         try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
+          indexingStore.qb = tx;
+          indexingStore.isProcessingEvents = true;
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -321,8 +321,6 @@ export async function runIsolated({
 
           await indexing.processHistoricalEvents({
             events,
-            db: historicalIndexingStore,
-            cache: indexingCache,
             updateIndexingSeconds(event, chain) {
               const checkpoint = decodeCheckpoint(event!.checkpoint);
 
@@ -344,7 +342,7 @@ export async function runIsolated({
             },
           });
 
-          historicalIndexingStore.isProcessingEvents = false;
+          indexingStore.isProcessingEvents = false;
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "index" },
@@ -573,8 +571,8 @@ export async function runIsolated({
             // update the temporary `checkpoint` value set in the trigger.
             for (const { checkpoint, events } of splitEvents(event.events)) {
               try {
-                historicalIndexingStore.qb = tx;
-                historicalIndexingStore.isProcessingEvents = true;
+                indexingStore.qb = tx;
+                indexingStore.isProcessingEvents = true;
 
                 common.logger.trace({
                   msg: "Processing block events",
@@ -584,11 +582,7 @@ export async function runIsolated({
                   event_count: events.length,
                 });
 
-                await indexing.processRealtimeEvents({
-                  events,
-                  db: historicalIndexingStore,
-                  cache: indexingCache,
-                });
+                await indexing.processRealtimeEvents({ events });
 
                 common.logger.trace({
                   msg: "Processed block events",
@@ -598,7 +592,7 @@ export async function runIsolated({
                   event_count: events.length,
                 });
 
-                historicalIndexingStore.isProcessingEvents = false;
+                indexingStore.isProcessingEvents = false;
 
                 await indexingCache.flush();
 
