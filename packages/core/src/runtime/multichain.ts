@@ -808,6 +808,9 @@ export async function runMultichain({
           context,
         );
 
+        indexingCache.clear();
+        indexingCache.invalidate();
+
         common.logger.info({
           msg: "Reorged block",
           chain: event.chain.name,

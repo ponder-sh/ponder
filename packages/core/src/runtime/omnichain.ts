@@ -820,6 +820,9 @@ export async function runOmnichain({
           );
         });
 
+        indexingCache.clear();
+        indexingCache.invalidate();
+
         common.logger.info({
           msg: "Reorged block",
           chain: event.chain.name,
