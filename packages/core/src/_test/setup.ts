@@ -1,9 +1,6 @@
 import { buildSchema } from "@/build/schema.js";
 import { type Database, createDatabase } from "@/database/index.js";
-import type { IndexingStore } from "@/indexing-store/index.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { Common } from "@/internal/common.js";
-import type { RetryableError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -13,7 +10,6 @@ import type {
   DatabaseConfig,
   EventCallback,
   IndexingBuild,
-  IndexingErrorHandler,
   NamespaceBuild,
   SchemaBuild,
 } from "@/internal/types.js";
@@ -194,7 +190,6 @@ export async function setupDatabaseServices(
 ): Promise<{
   database: Database;
   syncStore: SyncStore;
-  indexingStore: IndexingStore;
 }> {
   const { statements } = buildSchema({
     schema: overrides.schemaBuild?.schema ?? {},
@@ -233,29 +228,8 @@ export async function setupDatabaseServices(
     qb: database.syncQB,
   });
 
-  const indexingErrorHandler: IndexingErrorHandler = {
-    getRetryableError: () => {
-      return indexingErrorHandler.error;
-    },
-    setRetryableError: (error: RetryableError) => {
-      indexingErrorHandler.error = error;
-    },
-    clearRetryableError: () => {
-      indexingErrorHandler.error = undefined;
-    },
-    error: undefined as RetryableError | undefined,
-  };
-
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: overrides.schemaBuild?.schema ?? {} },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
   return {
     database,
-    indexingStore,
     syncStore,
   };
 }
