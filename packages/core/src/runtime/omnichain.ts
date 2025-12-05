@@ -681,6 +681,7 @@ export async function runOmnichain({
               try {
                 indexingStore.qb = tx;
                 indexingStore.isProcessingEvents = true;
+                indexingCache.qb = tx;
 
                 common.logger.trace({
                   msg: "Processing block events",

@@ -573,6 +573,7 @@ export async function runIsolated({
               try {
                 indexingStore.qb = tx;
                 indexingStore.isProcessingEvents = true;
+                indexingCache.qb = tx;
 
                 common.logger.trace({
                   msg: "Processing block events",
