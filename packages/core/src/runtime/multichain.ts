@@ -512,6 +512,7 @@ export async function runMultichain({
   }
 
   indexingCache.clear();
+  // Note: Invalidating the cache means that only predicted rows will be in memory after this point.
   indexingCache.invalidate();
 
   // Manually update metrics to fix a UI bug that occurs when the end
@@ -706,7 +707,6 @@ export async function runMultichain({
                   checkpoint,
                 });
               } catch (error) {
-                indexingCache.invalidate();
                 indexingCache.clear();
 
                 if (error instanceof NonRetryableUserError === false) {
@@ -809,7 +809,6 @@ export async function runMultichain({
         );
 
         indexingCache.clear();
-        indexingCache.invalidate();
 
         common.logger.info({
           msg: "Reorged block",
