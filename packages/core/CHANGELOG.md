@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.16
+
+### Patch Changes
+
+- [#2214](https://github.com/ponder-sh/ponder/pull/2214) [`1cc01d8`](https://github.com/ponder-sh/ponder/commit/1cc01d82d660543982f868a465a13ad8f1b0b7c3) Thanks [@yvesfracari](https://github.com/yvesfracari)! - Added support for alias column in `onchainView`.
+
 ## 0.15.15
 
 ### Patch Changes
