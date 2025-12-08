@@ -10,7 +10,7 @@ import {
   type Column,
   Many,
   One,
-  type SQL,
+  SQL,
   type TableRelationalConfig,
   and,
   arrayContained,
@@ -208,6 +208,10 @@ export function buildGraphQLSchema({
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
         )) {
+          if (is(column, SQL.Aliased)) {
+            // Note: Aliased column filters are not supported by GraphQL because they don't have an associated type.
+            continue;
+          }
           const type = columnToGraphQLCore(column as PgColumn, enumTypes);
 
           // List fields => universal, plural
@@ -466,12 +470,16 @@ export function buildGraphQLSchema({
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
         )) {
-          const type = columnToGraphQLCore(column as PgColumn, enumTypes);
-          fieldConfigMap[columnName] = {
-            type: (column as PgColumn).notNull
-              ? new GraphQLNonNull(type)
-              : type,
-          };
+          if (is(column, SQL.Aliased)) {
+            fieldConfigMap[columnName] = { type: GraphQLJSON };
+          } else {
+            const type = columnToGraphQLCore(column as PgColumn, enumTypes);
+            fieldConfigMap[columnName] = {
+              type: (column as PgColumn).notNull
+                ? new GraphQLNonNull(type)
+                : type,
+            };
+          }
         }
 
         return fieldConfigMap;
