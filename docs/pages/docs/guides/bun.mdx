@@ -29,3 +29,7 @@ If you already have an existing Ponder project, all you need to do is modify you
 Without the `--bun` flag, the Bun package manager will respect the `node` shebang 
 at the top of all executable NodeJS files.
 :::
+
+# Notes
+- When using Bun, Ponder will not export the default NodeJS Prometheus metrics (i.e
+all prom metrics that start with `nodejs_`, such as `nodejs_heap_space_size_available_bytes`).
