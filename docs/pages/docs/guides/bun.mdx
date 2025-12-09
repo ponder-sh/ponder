@@ -1,0 +1,31 @@
+# Bun [Running Ponder with Bun]
+
+In addition to NodeJS, Ponder also runs on the Bun runtime.
+
+## New project
+When starting a new Ponder project, create your project using `bun create`:
+```bash
+bun --bun create ponder 
+```
+
+## Existing project
+If you already have an existing Ponder project, all you need to do is modify your npm
+`scripts` section to make sure Bun is running them with the actual Bun runtime.
+
+```json
+"scripts": {
+    "dev": "ponder dev", // [!code --]
+    "dev": "bun --bun ponder dev", // [!code ++]
+    "start": "ponder start", // [!code --]
+    "start": "bun --bun start", // [!code ++]
+    "codegen": "ponder codegen", // [!code --]
+    "codegen": "bun --bun ponder codegen", // [!code ++]
+    "lint": "eslint .",
+    "typecheck": "tsc"
+},
+```
+
+:::info
+Without the `--bun` flag, the Bun package manager will respect the `node` shebang 
+at the top of all executable NodeJS files.
+:::
