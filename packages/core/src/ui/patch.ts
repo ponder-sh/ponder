@@ -114,7 +114,8 @@ export function patchWriteStreams({ getLines }: { getLines: () => string[] }) {
   let shutdown: () => void;
 
   if (isBun) {
-    // bun needs to patch console.* so they go through handleOutput
+    // bun has a custom impl of console.* methods that do not use process.stdout/process.stderr
+    // so need to patch them as well
     const originalConsoleLog = console.log;
     const originalConsoleInfo = console.info;
     const originalConsoleWarn = console.warn;
