@@ -434,7 +434,10 @@ export async function run({
   packageJson.devDependencies["eslint-config-ponder"] =
     `^${rootPackageJson.version}`;
   if ("bun" in process.versions) {
+    log("using bun");
     packageJson.scripts = addBunFlagToScripts(packageJson.scripts ?? {});
+  } else {
+    log("not using bun");
   }
 
   await fs.writeFile(
