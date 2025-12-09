@@ -35,6 +35,10 @@ yarn start --schema $RAILWAY_DEPLOYMENT_ID
 npm run start -- --schema $RAILWAY_DEPLOYMENT_ID
 ```
 
+```bash [bun]
+bun start -- --schema $RAILWAY_DEPLOYMENT_ID
+```
+
 :::
 
 5. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `3600` seconds (1 hour, the maximum allowed).
