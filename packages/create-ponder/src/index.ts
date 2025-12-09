@@ -37,6 +37,8 @@ export type SerializableChain = {
   rpc: string;
 };
 
+log(process.argv);
+
 export type SerializableContract = {
   abi:
     | { abi: Abi; name: string; dir: string }
