@@ -11,6 +11,7 @@
     "lint:fix": "pnpm lint --write",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
+    "test:bun": "pnpm --parallel --no-bail test:bun",
     "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
   },
   "devDependencies": {
