@@ -37,8 +37,6 @@ export type SerializableChain = {
   rpc: string;
 };
 
-log(process.argv);
-
 export type SerializableContract = {
   abi:
     | { abi: Abi; name: string; dir: string }
@@ -436,10 +434,7 @@ export async function run({
   packageJson.devDependencies["eslint-config-ponder"] =
     `^${rootPackageJson.version}`;
   if ("bun" in process.versions) {
-    log("using bun");
     packageJson.scripts = addBunFlagToScripts(packageJson.scripts ?? {});
-  } else {
-    log("not using bun");
   }
 
   await fs.writeFile(
