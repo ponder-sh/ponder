@@ -188,6 +188,7 @@ test("processSetupEvents()", async (context) => {
 
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledOnce();
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledWith({
+    event: undefined,
     context: {
       chain: { id: 1, name: "mainnet" },
       contracts: {

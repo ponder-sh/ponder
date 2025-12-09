@@ -204,6 +204,7 @@ export const createIndexing = ({
         indexingFunctionArg.context.chain.name = event.chain.name;
         indexingFunctionArg.context.contracts =
           contractsByChainId[event.chain.id]!;
+        indexingFunctionArg.context.client = clientByChainId[event.chain.id]!;
 
         lastChainId = event.chain.id;
       }
