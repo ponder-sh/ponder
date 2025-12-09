@@ -1,4 +1,5 @@
 import {
+  context,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -20,7 +21,7 @@ beforeEach(setupCleanup);
 const queryToParams = (query: QueryWithTypings) =>
   new URLSearchParams({ sql: superjson.stringify(query) });
 
-test("client.db", async (context) => {
+test("client.db", async () => {
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_PRE_BUILD = {
     ordering: "multichain",
@@ -36,7 +37,7 @@ test("client.db", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -55,6 +56,7 @@ test("client.db", async (context) => {
   };
 
   let response = await app.request(`/sql/db?${queryToParams(query)}`);
+
   expect(response.status).toBe(200);
   const result = await response.json();
   expect(result.rows).toStrictEqual([]);
@@ -68,9 +70,9 @@ test("client.db", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("client.db error", async (context) => {
+test("client.db error", async () => {
   globalThis.PONDER_COMMON = context.common;
-  const { database } = await setupDatabaseServices(context);
+  const { database } = await setupDatabaseServices();
   globalThis.PONDER_DATABASE = database;
   globalThis.PONDER_PRE_BUILD = {
     ordering: "multichain",
@@ -100,7 +102,7 @@ test("client.db error", async (context) => {
   expect(await response.text()).toContain('relation "account" does not exist');
 });
 
-test("client.db search_path", async (context) => {
+test("client.db search_path", async () => {
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_PRE_BUILD = {
     ordering: "multichain",
@@ -116,7 +118,7 @@ test("client.db search_path", async (context) => {
     balance: bigint(),
   });
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     namespaceBuild: {
       schema: "Ponder",
       viewsSchema: undefined,
@@ -142,7 +144,7 @@ test("client.db search_path", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("client.db readonly", async (context) => {
+test("client.db readonly", async () => {
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_PRE_BUILD = {
     ordering: "multichain",
@@ -158,7 +160,7 @@ test("client.db readonly", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -178,7 +180,7 @@ test("client.db readonly", async (context) => {
   expect(await response.text()).toContain("InsertStmt not supported");
 });
 
-test("client.db recursive", async (context) => {
+test("client.db recursive", async () => {
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_PRE_BUILD = {
     ordering: "multichain",
@@ -194,7 +196,7 @@ test("client.db recursive", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -222,7 +224,7 @@ FROM infinite_cte;`,
   expect(await response.text()).toContain("Recursive CTEs not supported");
 });
 
-test("client.db load", async (context) => {
+test("client.db load", async () => {
   globalThis.PONDER_COMMON = context.common;
   globalThis.PONDER_PRE_BUILD = {
     ordering: "multichain",
@@ -238,7 +240,7 @@ test("client.db load", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -265,7 +267,7 @@ test("client.db load", async (context) => {
   await Promise.all(promises);
 });
 
-test("client.db cache", async (context) => {
+test("client.db cache", async () => {
   // "spy" not possible with pglite
   if (context.databaseConfig.kind !== "postgres") return;
 
@@ -284,7 +286,7 @@ test("client.db cache", async (context) => {
     balance: p.bigint(),
   }));
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 

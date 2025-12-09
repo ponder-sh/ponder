@@ -24,17 +24,15 @@ import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import { type TestContext, afterAll } from "vitest";
+import { afterAll } from "vitest";
 import { poolId, testClient } from "./utils.js";
 
-declare module "vitest" {
-  export interface TestContext {
-    common: Common;
-    databaseConfig: DatabaseConfig;
-  }
-}
+export const context = {} as {
+  common: Common;
+  databaseConfig: DatabaseConfig;
+};
 
-export function setupCommon(context: TestContext) {
+export function setupCommon() {
   const cliOptions = {
     command: "start",
     config: "",
@@ -59,7 +57,7 @@ export function setupCommon(context: TestContext) {
   };
 }
 
-export function setupCleanup(context: TestContext) {
+export function setupCleanup() {
   return context.common.shutdown.kill;
 }
 
@@ -80,7 +78,7 @@ afterAll(async () => {
  * beforeEach(setupIsolatedDatabase)
  * ```
  */
-export async function setupIsolatedDatabase(context: TestContext) {
+export async function setupIsolatedDatabase() {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
@@ -185,7 +183,6 @@ export async function setupIsolatedDatabase(context: TestContext) {
 }
 
 export async function setupDatabaseServices(
-  context: TestContext,
   overrides: Partial<{
     namespaceBuild: NamespaceBuild;
     schemaBuild: Partial<SchemaBuild>;
