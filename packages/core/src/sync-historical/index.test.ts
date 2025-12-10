@@ -1,5 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  context,
   setupAnvil,
   setupCachedIntervals,
   setupChildAddresses,
@@ -41,7 +42,7 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("createHistoricalSync()", async (context) => {
+test("createHistoricalSync()", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -62,8 +63,8 @@ test("createHistoricalSync()", async (context) => {
   expect(historicalSync).toBeDefined();
 });
 
-test("sync() with log filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with log filter", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -126,8 +127,8 @@ test("sync() with log filter", async (context) => {
   expect(dbIntervals).toHaveLength(1);
 });
 
-test("sync() with log filter and transaction receipts", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with log filter and transaction receipts", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -191,8 +192,8 @@ test("sync() with log filter and transaction receipts", async (context) => {
   expect(intervals).toHaveLength(1);
 });
 
-test("sync() with block filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with block filter", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -251,8 +252,8 @@ test("sync() with block filter", async (context) => {
   expect(intervals).toHaveLength(1);
 });
 
-test("sync() with log factory", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with log factory", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -324,8 +325,8 @@ test("sync() with log factory", async (context) => {
   expect(intervals).toHaveLength(2);
 });
 
-test("sync() with log factory and no address", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with log factory and no address", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -400,8 +401,8 @@ test("sync() with log factory and no address", async (context) => {
   expect(intervals).toHaveLength(2);
 });
 
-test("sync() with log factory error", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with log factory error", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -458,8 +459,8 @@ test("sync() with log factory error", async (context) => {
   expect(factories).toHaveLength(0);
 });
 
-test("sync() with trace filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with trace filter", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -552,8 +553,8 @@ test("sync() with trace filter", async (context) => {
   expect(intervals).toHaveLength(1);
 });
 
-test("sync() with transaction filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with transaction filter", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -623,8 +624,8 @@ test("sync() with transaction filter", async (context) => {
   expect(intervals).toHaveLength(2);
 });
 
-test("sync() with transfer filter", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with transfer filter", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -707,8 +708,8 @@ test("sync() with transfer filter", async (context) => {
   expect(intervals).toHaveLength(2);
 });
 
-test("sync() with many filters", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("sync() with many filters", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -787,8 +788,8 @@ test("sync() with many filters", async (context) => {
   expect(intervals).toHaveLength(2);
 });
 
-test("sync() with cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("sync() with cache", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -880,8 +881,8 @@ test("sync() with cache", async (context) => {
   expect(spy).toHaveBeenCalledTimes(0);
 });
 
-test("sync() with partial cache", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("sync() with partial cache", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({
@@ -1060,8 +1061,8 @@ test("sync() with partial cache", async (context) => {
   );
 });
 
-test("syncAddress() handles many addresses", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("syncAddress() handles many addresses", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({

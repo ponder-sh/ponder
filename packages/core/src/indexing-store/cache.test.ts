@@ -1,5 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  context,
   setupAnvil,
   setupCleanup,
   setupCommon,
@@ -35,7 +36,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("flush() insert", async (context) => {
+test("flush() insert", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -43,7 +44,7 @@ test("flush() insert", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -86,7 +87,7 @@ test("flush() insert", async (context) => {
   });
 });
 
-test("flush() update", async (context) => {
+test("flush() update", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -94,7 +95,7 @@ test("flush() update", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -173,7 +174,7 @@ test("flush() update", async (context) => {
   });
 });
 
-test("flush() recovers error", async (context) => {
+test("flush() recovers error", async () => {
   if (context.databaseConfig.kind !== "postgres") {
     return;
   }
@@ -185,7 +186,7 @@ test("flush() recovers error", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -227,7 +228,7 @@ test("flush() recovers error", async (context) => {
   });
 });
 
-test("flush() encoding", async (context) => {
+test("flush() encoding", async () => {
   const e = onchainEnum("e", ["a", "b", "c"]);
   const schema = {
     e,
@@ -241,7 +242,7 @@ test("flush() encoding", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -299,14 +300,14 @@ test("flush() encoding", async (context) => {
   });
 });
 
-test("flush() encoding escape", async (context) => {
+test("flush() encoding escape", async () => {
   const schema = {
     test: onchainTable("test", (p) => ({
       backslash: p.text().primaryKey(),
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -360,7 +361,7 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("prefetch() uses profile metadata", async (context) => {
+test("prefetch() uses profile metadata", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -368,7 +369,7 @@ test("prefetch() uses profile metadata", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -432,7 +433,7 @@ test("prefetch() uses profile metadata", async (context) => {
   });
 });
 
-test("prefetch() evicts rows", async (context) => {
+test("prefetch() evicts rows", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -440,7 +441,7 @@ test("prefetch() evicts rows", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 

@@ -60,6 +60,8 @@ export const poolId = Number(
   process.env.VITEST_POOL_ID ?? 1,
 );
 
+export const isBunTest = "bun" in process.versions;
+
 export const anvil = {
   ...mainnet, // We are using a mainnet fork for testing.
   id: 1, // We configured our anvil instance to use `1` as the chain id (see `globalSetup.ts`);
@@ -104,6 +106,27 @@ export async function withStubbedEnv(
       process.env[k] = v;
     }
   }
+}
+
+export function stubGlobal<Key extends keyof typeof globalThis>(
+  key: Key,
+  value: (typeof globalThis)[Key],
+): () => void {
+  const g = globalThis as any;
+
+  const hadOwnProperty = Object.prototype.hasOwnProperty.call(g, key);
+  const original = g[key];
+
+  g[key] = value;
+
+  return () => {
+    if (hadOwnProperty) {
+      g[key] = original;
+    } else {
+      // If it didn't exist before, remove it entirely
+      delete g[key];
+    }
+  };
 }
 
 export const isListening = (port: number, host = "127.0.0.1") =>
@@ -713,4 +736,14 @@ export async function waitForIndexedBlock({
       }
     }, 20);
   });
+}
+
+export function getRejectionValue(func: () => Promise<any>): Promise<any> {
+  return func()
+    .then(() => {
+      throw Error("expected promise to reject");
+    })
+    .catch((rejection) => {
+      return rejection;
+    });
 }

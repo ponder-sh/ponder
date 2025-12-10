@@ -1,10 +1,12 @@
 import { ALICE } from "@/_test/constants.js";
 import {
+  context,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { getRejectionValue } from "@/_test/utils.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
@@ -36,7 +38,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("find", async (context) => {
+test("find", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -44,7 +46,7 @@ test("find", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -76,7 +78,7 @@ test("find", async (context) => {
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 });
 
-test("insert", async (context) => {
+test("insert", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -84,7 +86,7 @@ test("insert", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -271,7 +273,7 @@ test("insert", async (context) => {
     });
 });
 
-test("update", async (context) => {
+test("update", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -279,7 +281,7 @@ test("update", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -355,7 +357,7 @@ test("update", async (context) => {
   });
 });
 
-test("update throw error when primary key is updated", async (context) => {
+test("update throw error when primary key is updated", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -363,7 +365,7 @@ test("update throw error when primary key is updated", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -400,7 +402,7 @@ test("update throw error when primary key is updated", async (context) => {
   expect(error).toBeInstanceOf(NonRetryableUserError);
 });
 
-test("delete", async (context) => {
+test("delete", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -408,7 +410,7 @@ test("delete", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -446,7 +448,7 @@ test("delete", async (context) => {
   expect(result).toBe(null);
 });
 
-test("sql", async (context) => {
+test("sql", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -454,7 +456,7 @@ test("sql", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -492,29 +494,33 @@ test("sql", async (context) => {
   // non-null constraint
 
   expect(
-    async () =>
-      // @ts-ignore
-      await indexingStore.sql.insert(schema.account).values({
-        address: "0x0000000000000000000000000000000000000001",
-        balance: undefined,
-      }),
-  ).rejects.toThrowError(RawSqlError);
+    await getRejectionValue(
+      async () =>
+        // @ts-ignore
+        await indexingStore.sql.insert(schema.account).values({
+          address: "0x0000000000000000000000000000000000000001",
+          balance: undefined,
+        }),
+    ),
+  ).toBeInstanceOf(RawSqlError);
 
   // TODO(kyle) check constraint
 
   // unique constraint
 
   expect(
-    async () =>
-      // @ts-ignore
-      await indexingStore.sql.insert(schema.account).values({
-        address: zeroAddress,
-        balance: 10n,
-      }),
-  ).rejects.toThrowError(RawSqlError);
+    await getRejectionValue(
+      async () =>
+        // @ts-ignore
+        await indexingStore.sql.insert(schema.account).values({
+          address: zeroAddress,
+          balance: 10n,
+        }),
+    ),
+  ).toBeInstanceOf(RawSqlError);
 });
 
-test("sql with error", async (context) => {
+test("sql with error", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -522,7 +528,7 @@ test("sql with error", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -549,8 +555,8 @@ test("sql with error", async (context) => {
     .where(eq(schema.account.address, zeroAddress));
 });
 
-test("onchain table", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("onchain table", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: pgTable("account", (p) => ({
@@ -576,7 +582,7 @@ test("onchain table", async (context) => {
   expect(error).toBeDefined();
 });
 
-test("missing rows", async (context) => {
+test("missing rows", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -584,7 +590,7 @@ test("missing rows", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -606,7 +612,7 @@ test("missing rows", async (context) => {
   expect(error).toBeDefined();
 });
 
-test("unawaited promise", async (context) => {
+test("unawaited promise", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -614,7 +620,7 @@ test("unawaited promise", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -640,14 +646,14 @@ test("unawaited promise", async (context) => {
   await expect(promise!).rejects.toThrowError();
 });
 
-test("notNull", async (context) => {
+test("notNull", async () => {
   let schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint(),
     })),
   };
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -700,7 +706,7 @@ test("notNull", async (context) => {
   expect(error).toBeDefined();
 });
 
-test("default", async (context) => {
+test("default", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -708,7 +714,7 @@ test("default", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -728,7 +734,7 @@ test("default", async (context) => {
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 });
 
-test("$default", async (context) => {
+test("$default", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -736,7 +742,7 @@ test("$default", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -756,7 +762,7 @@ test("$default", async (context) => {
   expect(result).toStrictEqual({ address: zeroAddress, balance: 10n });
 });
 
-test("$onUpdateFn", async (context) => {
+test("$onUpdateFn", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -767,7 +773,7 @@ test("$onUpdateFn", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -791,7 +797,7 @@ test("$onUpdateFn", async (context) => {
   // update
 });
 
-test("basic columns", async (context) => {
+test("basic columns", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -809,7 +815,7 @@ test("basic columns", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -858,7 +864,7 @@ test("basic columns", async (context) => {
     `);
 });
 
-test("array", async (context) => {
+test("array", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -866,7 +872,7 @@ test("array", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -896,7 +902,7 @@ test("array", async (context) => {
   // TODO(kyle) fixed size
 });
 
-test("enum", async (context) => {
+test("enum", async () => {
   const moodEnum = onchainEnum("mood", ["sad", "ok", "happy"]);
   const schema = {
     moodEnum,
@@ -906,7 +912,7 @@ test("enum", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -934,7 +940,8 @@ test("enum", async (context) => {
   // TODO(kyle) error
 });
 
-test("json bigint", async (context) => {
+test("json bigint", async () => {
+  console.log("starting bigint");
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -942,7 +949,7 @@ test("json bigint", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -961,6 +968,9 @@ test("json bigint", async (context) => {
         balance: 10n,
       },
     })
+    .then((res) => {
+      throw Error(`Expected error, got ${res}`);
+    })
     .catch((error) => error);
 
   expect(error).toBeInstanceOf(BigIntSerializationError);
@@ -971,7 +981,7 @@ const BIGINT_MAX = 2n ** 256n - 1n;
 const BIGINT_LARGE =
   81043282338925483631878461732084420541800751556297842951124152226153187811344n;
 
-test("bigint array", async (context) => {
+test("bigint array", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -979,7 +989,7 @@ test("bigint array", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1005,7 +1015,7 @@ test("bigint array", async (context) => {
   });
 });
 
-test("bytes", async (context) => {
+test("bytes", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1013,7 +1023,7 @@ test("bytes", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1039,7 +1049,7 @@ test("bytes", async (context) => {
   });
 });
 
-test("text with null bytes", async (context) => {
+test("text with null bytes", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1047,7 +1057,7 @@ test("text with null bytes", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1073,7 +1083,7 @@ test("text with null bytes", async (context) => {
   });
 });
 
-test.skip("time", async (context) => {
+test.skip("time", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1081,7 +1091,7 @@ test.skip("time", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1107,7 +1117,7 @@ test.skip("time", async (context) => {
   });
 });
 
-test("timestamp", async (context) => {
+test("timestamp", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1115,7 +1125,7 @@ test("timestamp", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1141,7 +1151,7 @@ test("timestamp", async (context) => {
   });
 });
 
-test.skip("date", async (context) => {
+test.skip("date", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1149,7 +1159,7 @@ test.skip("date", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1175,7 +1185,7 @@ test.skip("date", async (context) => {
   });
 });
 
-test.skip("interval", async (context) => {
+test.skip("interval", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1183,7 +1193,7 @@ test.skip("interval", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1209,7 +1219,7 @@ test.skip("interval", async (context) => {
   });
 });
 
-test("point", async (context) => {
+test("point", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1217,7 +1227,7 @@ test("point", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1243,7 +1253,7 @@ test("point", async (context) => {
   });
 });
 
-test("line", async (context) => {
+test("line", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1251,7 +1261,7 @@ test("line", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 

@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { setupCommon } from "@/_test/setup.js";
+import { context, setupCommon } from "@/_test/setup.js";
 import { getChain } from "@/_test/utils.js";
 import { TimeoutError } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -8,7 +8,7 @@ import { getHttpRpcClient } from "./http.js";
 
 beforeEach(setupCommon);
 
-test("slow body returns TimeoutError", async (context) => {
+test("slow body returns TimeoutError", async () => {
   const responseDelayMs = 500;
   const timeoutMs = 300;
 
@@ -45,7 +45,7 @@ test("slow body returns TimeoutError", async (context) => {
     chain: getChain(),
   });
 
-  await expect(() =>
+  await expect(
     client.request({
       body: { method: "test", id: 1, jsonrpc: "2.0", params: ["test"] },
     }),

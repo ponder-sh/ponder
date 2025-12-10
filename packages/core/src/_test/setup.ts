@@ -26,7 +26,7 @@ import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 import { afterAll } from "vitest";
-import { poolId, testClient } from "./utils.js";
+import { isBunTest, poolId, testClient } from "./utils.js";
 
 export const context = {} as {
   common: Common;
@@ -59,6 +59,9 @@ export function setupCommon() {
 }
 
 export function setupCleanup() {
+  if (isBunTest)
+    return require("bun:test").afterEach(context.common.shutdown.kill);
+
   return context.common.shutdown.kill;
 }
 
@@ -261,7 +264,6 @@ export async function setupDatabaseServices(
   };
 }
 
-let emptySnapshotId: `0x${string}`;
 /**
  * Sets up an isolated Ethereum client.
  *
@@ -272,19 +274,19 @@ let emptySnapshotId: `0x${string}`;
  * ```
  */
 export async function setupAnvil() {
-  emptySnapshotId = await testClient.snapshot();
-  return async () => {
+  const emptySnapshotId = await testClient.snapshot();
+  const cleanup = async () => {
     await testClient.revert({ id: emptySnapshotId });
   };
+
+  if (isBunTest) return require("bun:test").afterEach(cleanup);
+
+  return cleanup;
 }
 
-export async function cleanupAnvil() {
-  if (emptySnapshotId) await testClient.revert({ id: emptySnapshotId });
-}
-
-if ("bun" in process.versions) {
-  require("bun:test").afterEach(cleanupAnvil);
-}
+// if (isBunTest) {
+//   require("bun:test").afterEach(cleanupAnvil);
+// }
 
 export const setupChildAddresses = (
   eventCallbacks: EventCallback[],

@@ -1,8 +1,6 @@
-import { setTimeout } from "node:timers/promises";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
-  cleanupAnvil,
   context,
   setupAnvil,
   setupCleanup,
@@ -26,7 +24,7 @@ import {
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { parseEther, toHex, zeroAddress } from "viem";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import {
   type Context,
   createColumnAccessPattern,
