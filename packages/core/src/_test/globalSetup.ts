@@ -50,8 +50,10 @@ async function globalSetup() {
 }
 
 if ("bun" in process.versions) {
-  require("bun:test").beforeAll(async () => {
-    await globalSetup();
+  // must be run outside of hook because missing the generated files causes test to fail with 'Cannot find module' error
+  const cleanup = await globalSetup();
+  require("bun:test").afterAll(async () => {
+    await cleanup();
   });
 }
 
