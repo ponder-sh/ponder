@@ -5,7 +5,6 @@ import { startProxy } from "@viem/anvil";
 import dotenv from "dotenv";
 import { execa } from "execa";
 import { Pool } from "pg";
-import { isBunTest } from "./utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +16,7 @@ async function globalSetup() {
     await execa("pnpm", ["wagmi", "generate"]);
   }
 
-  const shutdownProxy = await startProxy({
+  await startProxy({
     options: {
       chainId: 1,
       noMining: true,
@@ -45,7 +44,6 @@ async function globalSetup() {
   }
 
   return async () => {
-    if (!isBunTest) await shutdownProxy();
     await cleanupDatabase?.();
   };
 }
