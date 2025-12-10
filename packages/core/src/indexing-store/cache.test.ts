@@ -211,10 +211,8 @@ test("flush() recovers error", async () => {
       balance: 10n,
     });
 
-    await expect(() =>
-      indexingCache.flush(),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[DelayedInsertError: duplicate key value violates unique constraint "account_pkey"]`,
+    await expect(indexingCache.flush()).rejects.toThrowError(
+      `duplicate key value violates unique constraint "account_pkey"`,
     );
   });
 });

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { createConfig } from "../../../config/index.js";
 import { erc20ABI } from "../../generated.js";
 
@@ -6,10 +5,7 @@ const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 
 function getDatabase() {
   if (process.env.DATABASE_URL) {
-    const databaseName =
-      "bun" in process.versions
-        ? `bun_${randomUUID().slice(0, 8)}`
-        : `vitest_${poolId}`;
+    const databaseName = `vitest_${poolId}`;
     const databaseUrl = new URL(process.env.DATABASE_URL);
     databaseUrl.pathname = `/${databaseName}`;
     const connectionString = databaseUrl.toString();
