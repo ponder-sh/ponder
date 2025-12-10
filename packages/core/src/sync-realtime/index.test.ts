@@ -1,5 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  context,
   setupAnvil,
   setupCleanup,
   setupCommon,
@@ -36,9 +37,9 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("createRealtimeSync()", async (context) => {
+test("createRealtimeSync()", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({ common, chain });
@@ -61,9 +62,9 @@ test("createRealtimeSync()", async (context) => {
   expect(realtimeSync).toBeDefined();
 });
 
-test("sync() handles block", async (context) => {
+test("sync() handles block", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({ chain, common });
@@ -94,9 +95,9 @@ test("sync() handles block", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
-test("sync() no-op when receiving same block twice", async (context) => {
+test("sync() no-op when receiving same block twice", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({ chain, common });
@@ -127,9 +128,9 @@ test("sync() no-op when receiving same block twice", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
-test("sync() gets missing block", async (context) => {
+test("sync() gets missing block", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -164,9 +165,9 @@ test("sync() gets missing block", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
 });
 
-test("sync() catches error", async (context) => {
+test("sync() catches error", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -200,9 +201,9 @@ test("sync() catches error", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 });
 
-test("handleBlock() block event with log", async (context) => {
+test("handleBlock() block event with log", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -265,9 +266,9 @@ test("handleBlock() block event with log", async (context) => {
   ).toHaveLength(1);
 });
 
-test("handleBlock() block event with log factory", async (context) => {
+test("handleBlock() block event with log factory", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -390,9 +391,9 @@ test("handleBlock() block event with log factory", async (context) => {
   expect(data[1]?.transactions).toHaveLength(1);
 });
 
-test("handleBlock() block event with log factory and no address", async (context) => {
+test("handleBlock() block event with log factory and no address", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -517,9 +518,9 @@ test("handleBlock() block event with log factory and no address", async (context
   expect(data[1]?.transactions).toHaveLength(1);
 });
 
-test("handleBlock() block event with log factory error", async (context) => {
+test("handleBlock() block event with log factory error", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -613,9 +614,9 @@ test("handleBlock() block event with log factory error", async (context) => {
   expect(data[1]?.transactions).toHaveLength(0);
 });
 
-test("handleBlock() block event with block", async (context) => {
+test("handleBlock() block event with block", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -663,9 +664,9 @@ test("handleBlock() block event with block", async (context) => {
   expect(data[0]?.transactions).toHaveLength(0);
 });
 
-test("handleBlock() block event with transaction", async (context) => {
+test("handleBlock() block event with transaction", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -720,9 +721,9 @@ test("handleBlock() block event with transaction", async (context) => {
   expect(data[0]?.transactionReceipts).toHaveLength(1);
 });
 
-test("handleBlock() block event with transfer", async (context) => {
+test("handleBlock() block event with transfer", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ common, chain });
@@ -791,9 +792,9 @@ test("handleBlock() block event with transfer", async (context) => {
   expect(data[0]?.transactionReceipts).toHaveLength(1);
 });
 
-test("handleBlock() block event with trace", async (context) => {
+test("handleBlock() block event with trace", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({ chain, common });
@@ -898,9 +899,9 @@ test("handleBlock() block event with trace", async (context) => {
   expect(data[1]?.transactionReceipts).toHaveLength(0);
 });
 
-test("handleBlock() finalize event", async (context) => {
+test("handleBlock() finalize event", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
@@ -951,9 +952,9 @@ test("handleBlock() finalize event", async (context) => {
   ).toBe("0x2");
 });
 
-test("handleReorg() finds common ancestor", async (context) => {
+test("handleReorg() finds common ancestor", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
@@ -999,9 +1000,9 @@ test("handleReorg() finds common ancestor", async (context) => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
-test("handleReorg() throws error for deep reorg", async (context) => {
+test("handleReorg() throws error for deep reorg", async () => {
   const { common } = context;
-  await setupDatabaseServices(context);
+  await setupDatabaseServices();
 
   const chain = getChain({ finalityBlockCount: 2 });
   const rpc = createRpc({
