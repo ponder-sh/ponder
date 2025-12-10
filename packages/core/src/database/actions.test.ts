@@ -7,7 +7,6 @@ import {
 import { buildSchema } from "@/build/schema.js";
 import { getReorgTable } from "@/drizzle/kit/index.js";
 import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { RetryableError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
@@ -75,14 +74,7 @@ test("finalize()", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -92,11 +84,12 @@ test("finalize()", async (context) => {
     preBuild: { ordering: "multichain" },
   });
 
-  await indexingStore
-    .update(account, { address: zeroAddress })
-    .set({ balance: 88n });
+  await database.userQB.raw
+    .update(account)
+    .set({ balance: 88n })
+    .where(eq(account.address, zeroAddress));
 
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
@@ -155,14 +148,7 @@ test("createTriggers()", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -197,14 +183,7 @@ test("commitBlock()", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -248,14 +227,7 @@ test("commitBlock() isolated", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ chainId: 1, address: zeroAddress, balance: 10n });
 
@@ -315,14 +287,7 @@ test("revert()", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -332,11 +297,12 @@ test("revert()", async (context) => {
     preBuild: { ordering: "multichain" },
   });
 
-  await indexingStore
-    .update(account, { address: zeroAddress })
-    .set({ balance: 88n });
+  await database.userQB.raw
+    .update(account)
+    .set({ balance: 88n })
+    .where(eq(account.address, zeroAddress));
 
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
@@ -346,7 +312,9 @@ test("revert()", async (context) => {
     preBuild: { ordering: "multichain" },
   });
 
-  await indexingStore.delete(account, { address: zeroAddress });
+  await database.userQB.raw
+    .delete(account)
+    .where(eq(account.address, zeroAddress));
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
@@ -388,21 +356,17 @@ test("revert() with composite primary key", async (context) => {
 
   await createTriggers(database.userQB, { tables: [test] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { test } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore.insert(test).values({ a: 1, b: 1 });
+  await database.userQB.raw.insert(test).values({ a: 1, b: 1 });
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: test,
     preBuild: { ordering: "multichain" },
   });
-  await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
+  await database.userQB.raw
+    .update(test)
+    .set({ c: 1 })
+    .where(and(eq(test.a, 1), eq(test.b, 1)));
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),

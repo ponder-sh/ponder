@@ -9,8 +9,7 @@ import {
 } from "@/database/actions.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
@@ -105,15 +104,6 @@ export async function runIsolated({
     error: undefined as RetryableError | undefined,
   };
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
-    client: cachedViemClient,
-    indexingErrorHandler,
-    columnAccessPattern,
-    eventCount,
-  });
-
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
@@ -122,12 +112,23 @@ export async function runIsolated({
     chainId: chain.id,
   });
 
-  const historicalIndexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common,
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
     chainId: chain.id,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    indexingStore,
+    indexingCache,
+    client: cachedViemClient,
+    indexingErrorHandler,
+    columnAccessPattern,
+    eventCount,
   });
 
   const seconds: Seconds = {};
@@ -213,16 +214,14 @@ export async function runIsolated({
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
-      historicalIndexingStore.qb = tx;
-      historicalIndexingStore.isProcessingEvents = true;
+      indexingStore.qb = tx;
+      indexingStore.isProcessingEvents = true;
 
       indexingCache.qb = tx;
 
-      await indexing.processSetupEvents({
-        db: historicalIndexingStore,
-      });
+      await indexing.processSetupEvents();
 
-      historicalIndexingStore.isProcessingEvents = false;
+      indexingStore.isProcessingEvents = false;
 
       await indexingCache.flush();
 
@@ -309,8 +308,8 @@ export async function runIsolated({
         );
 
         try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
+          indexingStore.qb = tx;
+          indexingStore.isProcessingEvents = true;
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -322,8 +321,6 @@ export async function runIsolated({
 
           await indexing.processHistoricalEvents({
             events,
-            db: historicalIndexingStore,
-            cache: indexingCache,
             updateIndexingSeconds(event, chain) {
               const checkpoint = decodeCheckpoint(event!.checkpoint);
 
@@ -345,7 +342,7 @@ export async function runIsolated({
             },
           });
 
-          historicalIndexingStore.isProcessingEvents = false;
+          indexingStore.isProcessingEvents = false;
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "index" },
@@ -460,6 +457,8 @@ export async function runIsolated({
   }
 
   indexingCache.clear();
+  // Note: Invalidating the cache means that only predicted rows will be in memory after this point.
+  indexingCache.invalidate();
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
@@ -512,13 +511,6 @@ export async function runIsolated({
 
   onReady();
 
-  const realtimeIndexingStore = createRealtimeIndexingStore({
-    common,
-    schemaBuild,
-    indexingErrorHandler,
-    chainId: chain.id,
-  });
-
   const bufferCallback = (bufferSize: number) => {
     // Note: Only log when the buffer size is greater than 1 because
     // a buffer size of 1 is not backpressure.
@@ -550,6 +542,12 @@ export async function runIsolated({
         };
         const endClock = startClock();
 
+        indexingCache.qb = database.userQB;
+        await Promise.all([
+          indexingCache.prefetch({ events: event.events }),
+          cachedViemClient.prefetch({ events: event.events }),
+        ]);
+
         await database.userQB.transaction(
           async (tx) => {
             if (database.userQB.$dialect === "postgres") {
@@ -574,8 +572,9 @@ export async function runIsolated({
             // update the temporary `checkpoint` value set in the trigger.
             for (const { checkpoint, events } of splitEvents(event.events)) {
               try {
-                realtimeIndexingStore.qb = tx;
-                realtimeIndexingStore.isProcessingEvents = true;
+                indexingStore.qb = tx;
+                indexingStore.isProcessingEvents = true;
+                indexingCache.qb = tx;
 
                 common.logger.trace({
                   msg: "Processing block events",
@@ -585,10 +584,7 @@ export async function runIsolated({
                   event_count: events.length,
                 });
 
-                await indexing.processRealtimeEvents({
-                  events,
-                  db: realtimeIndexingStore,
-                });
+                await indexing.processRealtimeEvents({ events });
 
                 common.logger.trace({
                   msg: "Processed block events",
@@ -598,13 +594,17 @@ export async function runIsolated({
                   event_count: events.length,
                 });
 
-                realtimeIndexingStore.isProcessingEvents = false;
+                indexingStore.isProcessingEvents = false;
+
+                await indexingCache.flush();
 
                 await Promise.all(
                   tables.map((table) =>
                     commitBlock(tx, { table, checkpoint, preBuild }, context),
                   ),
                 );
+
+                cachedViemClient.clear();
 
                 common.logger.trace({
                   msg: "Committed reorg data for block",
@@ -620,6 +620,8 @@ export async function runIsolated({
                   Number(decodeCheckpoint(checkpoint).blockTimestamp),
                 );
               } catch (error) {
+                indexingCache.clear();
+
                 if (error instanceof NonRetryableUserError === false) {
                   common.logger.warn({
                     msg: "Failed to index block",
@@ -718,6 +720,8 @@ export async function runIsolated({
           undefined,
           context,
         );
+
+        indexingCache.clear();
 
         common.logger.info({
           msg: "Reorged block",
