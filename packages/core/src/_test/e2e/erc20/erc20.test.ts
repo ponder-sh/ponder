@@ -32,46 +32,42 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test(
-  "erc20",
-  async () => {
-    const port = await getFreePort();
-    const client = createClient(`http://localhost:${port}/sql`, { schema });
+test("erc20", { timeout: 15_000 }, async () => {
+  const port = await getFreePort();
+  const client = createClient(`http://localhost:${port}/sql`, { schema });
 
-    const shutdown = await start({
-      cliOptions: {
-        ...cliOptions,
-        command: "start",
-        port,
-        version: "0.0.0",
-      },
-    });
-
-    const { address } = await deployErc20({ sender: ALICE });
-
-    await mintErc20({
-      erc20: address,
-      to: ALICE,
-      amount: parseEther("1"),
-      sender: ALICE,
-    });
-    await waitForIndexedBlock({
+  const shutdown = await start({
+    cliOptions: {
+      ...cliOptions,
+      command: "start",
       port,
-      chainName: "mainnet",
-      block: { number: 2 },
-    });
-    const result = await client.db.select().from(schema.account);
+      version: "0.0.0",
+    },
+  });
 
-    expect(result[0]).toMatchObject({
-      address: zeroAddress,
-      balance: -1n * 10n ** 18n,
-    });
-    expect(result[1]).toMatchObject({
-      address: ALICE.toLowerCase(),
-      balance: 10n ** 18n,
-    });
+  const { address } = await deployErc20({ sender: ALICE });
 
-    await shutdown!();
-  },
-  { timeout: 15_000 },
-);
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  await waitForIndexedBlock({
+    port,
+    chainName: "mainnet",
+    block: { number: 2 },
+  });
+  const result = await client.db.select().from(schema.account);
+
+  expect(result[0]).toMatchObject({
+    address: zeroAddress,
+    balance: -1n * 10n ** 18n,
+  });
+  expect(result[1]).toMatchObject({
+    address: ALICE.toLowerCase(),
+    balance: 10n ** 18n,
+  });
+
+  await shutdown!();
+});

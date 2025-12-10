@@ -59,8 +59,12 @@ export function setupCommon() {
 }
 
 export function setupCleanup() {
-  if (isBunTest)
-    return require("bun:test").afterEach(context.common.shutdown.kill);
+  if (isBunTest) {
+    require("bun:test").afterEach(async () => {
+      await context.common.shutdown.kill();
+    });
+    return;
+  }
 
   return context.common.shutdown.kill;
 }
