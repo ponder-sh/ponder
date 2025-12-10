@@ -88,6 +88,7 @@ jobs:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && steps.postgres.outputs.connection-uri || '' }}
         run: |
           if [ "${{ matrix.runtime }}" = "bun" ]; then
+            pnpm --filter @ponder/client build
             pnpm --filter "ponder" test:bun
           else
             pnpm --filter "ponder" test
