@@ -71,10 +71,10 @@ test("buildIndexingFunctions() builds topics for multiple events", async () => {
     configBuild,
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1),
   );
 });
@@ -109,10 +109,10 @@ test("buildIndexingFunctions() handles overloaded event signatures and combines 
     configBuild,
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
 });
@@ -150,10 +150,10 @@ test("buildIndexingFunctions() handles multiple addresses", async () => {
     configBuild,
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
 });
@@ -257,12 +257,10 @@ test("buildIndexingFunctions() builds topics for event filter", async () => {
   });
 
   expect(eventCallbacks).toHaveLength(1);
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toMatchObject(
-    bytes1,
-  );
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
 test("buildIndexingFunctions() builds topics for multiple event filters", async () => {
@@ -308,19 +306,17 @@ test("buildIndexingFunctions() builds topics for multiple event filters", async 
   });
 
   expect(eventCallbacks[0]).toHaveLength(2);
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic1).toMatchObject([
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic1).toEqual([
     bytes1,
     bytes2,
   ]);
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toMatchObject(
-    bytes1,
-  );
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
 test("buildIndexingFunctions() overrides default values with chain-specific values", async () => {
@@ -440,7 +436,7 @@ test.skip("buildConfig() warns for public RPC URL", () => {
   });
 
   expect(result.status).toBe("success");
-  expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
+  expect(result.logs!.filter((l) => l.level === "warn")).toEqual([
     {
       level: "warn",
       msg: "Chain 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
@@ -710,12 +706,12 @@ test("buildIndexingFunctions() includeCallTraces", async () => {
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).fromAddress,
   ).toBeUndefined();
-  expect(
-    (eventCallbacks[0]![0]!.filter as TraceFilter).toAddress,
-  ).toMatchObject(zeroAddress);
+  expect((eventCallbacks[0]![0]!.filter as TraceFilter).toAddress).toEqual(
+    zeroAddress,
+  );
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toMatchObject(toFunctionSelector(func0));
+  ).toEqual(toFunctionSelector(func0));
   expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
@@ -758,10 +754,10 @@ test("buildIndexingFunctions() includeCallTraces with factory", async () => {
   expect(
     ((eventCallbacks[0]![0]!.filter as TraceFilter).toAddress as LogFactory)
       .address,
-  ).toMatchObject(address2);
+  ).toEqual(address2);
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toMatchObject(toFunctionSelector(func0));
+  ).toEqual(toFunctionSelector(func0));
   expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 

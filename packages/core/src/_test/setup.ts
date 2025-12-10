@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { buildSchema } from "@/build/schema.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
@@ -82,7 +83,10 @@ export async function setupIsolatedDatabase() {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
-    const databaseName = `vitest_${poolId}`;
+    const databaseName =
+      "bun" in process.versions
+        ? `bun_${randomUUID().slice(0, 8)}`
+        : `vitest_${poolId}`;
 
     const client = new pg.Client({ connectionString });
     await client.connect();
@@ -257,6 +261,7 @@ export async function setupDatabaseServices(
   };
 }
 
+let emptySnapshotId: `0x${string}`;
 /**
  * Sets up an isolated Ethereum client.
  *
@@ -267,11 +272,18 @@ export async function setupDatabaseServices(
  * ```
  */
 export async function setupAnvil() {
-  const emptySnapshotId = await testClient.snapshot();
-
+  emptySnapshotId = await testClient.snapshot();
   return async () => {
     await testClient.revert({ id: emptySnapshotId });
   };
+}
+
+export async function cleanupAnvil() {
+  if (emptySnapshotId) await testClient.revert({ id: emptySnapshotId });
+}
+
+if ("bun" in process.versions) {
+  require("bun:test").afterEach(cleanupAnvil);
 }
 
 export const setupChildAddresses = (

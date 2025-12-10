@@ -56,7 +56,8 @@ import type {
 // ID of the current test worker. Used by the `@viem/anvil` proxy server.
 
 export const poolId = Number(
-  process.env.VITEST_POOL_ID ?? Math.floor(Math.random() * 99999),
+  // process.env.VITEST_POOL_ID ?? Math.floor(Math.random() * 99999),
+  process.env.VITEST_POOL_ID ?? 1,
 );
 
 export const anvil = {

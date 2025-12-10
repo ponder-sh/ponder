@@ -71,7 +71,7 @@ test("middleware serves request", async () => {
 
   expect(response.status).toBe(200);
 
-  expect(await response.json()).toMatchObject({
+  expect(JSON.parse(await response.text())).toMatchObject({
     data: {
       table: {
         id: "0",

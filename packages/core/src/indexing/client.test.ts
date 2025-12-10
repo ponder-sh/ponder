@@ -658,7 +658,7 @@ test("readContract() with no retry empty response", async () => {
 
   cachedViemClient.event = event;
 
-  await expect(() =>
+  await expect(
     cachedViemClient.getClient(chain).readContract({
       abi: erc20ABI,
       functionName: "totalSupply",

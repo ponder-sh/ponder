@@ -1,0 +1,3 @@
+[test]
+preload = ["./src/_test/globalSetup.ts", "./src/_test/setup.ts"]
+timeout = 15000

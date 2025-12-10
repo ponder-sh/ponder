@@ -8,7 +8,7 @@ import { Pool } from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export default async function () {
+async function globalSetup() {
   dotenv.config({ path: ".env.local" });
 
   const generatedFilePath = join(__dirname, "generated.ts");
@@ -48,3 +48,11 @@ export default async function () {
     await cleanupDatabase?.();
   };
 }
+
+if ("bun" in process.versions) {
+  require("bun:test").beforeAll(async () => {
+    await globalSetup();
+  });
+}
+
+export default globalSetup;

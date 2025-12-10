@@ -1,6 +1,8 @@
+import { setTimeout } from "node:timers/promises";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
+  cleanupAnvil,
   context,
   setupAnvil,
   setupCleanup,
@@ -24,7 +26,7 @@ import {
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { parseEther, toHex, zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   type Context,
   createColumnAccessPattern,
@@ -36,6 +38,7 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+// if ("bun" in process.versions) afterEach(cleanupAnvil);
 
 const account = onchainTable("account", (p) => ({
   address: p.hex().primaryKey(),
@@ -563,7 +566,7 @@ test("executeSetup() error", async () => {
   // @ts-ignore
   setupCallbacks[0]!.fn.mockRejectedValue(new Error());
 
-  await expect(() =>
+  await expect(
     indexing.processSetupEvents({ db: indexingStore }),
   ).rejects.toThrowError();
 
@@ -571,6 +574,8 @@ test("executeSetup() error", async () => {
 });
 
 test("processEvents() context.client", async () => {
+  // console.log("pausing test...");
+  // await setTimeout(1200000);
   const { common } = context;
   const { syncStore, indexingStore } = await setupDatabaseServices({
     schemaBuild: { schema },
@@ -830,7 +835,7 @@ test("processEvents() error", async () => {
     eventCallback: eventCallbacks[0],
     blockData,
   });
-  await expect(() =>
+  await expect(
     indexing.processRealtimeEvents({ db: indexingStore, events: [event] }),
   ).rejects.toThrowError();
 
@@ -898,7 +903,7 @@ test("processEvents() error with missing event object properties", async () => {
     eventCallback: eventCallbacks[0],
     blockData,
   });
-  await expect(() =>
+  await expect(
     indexing.processRealtimeEvents({ events: [event], db: indexingStore }),
   ).rejects.toThrowError();
 });
@@ -1003,7 +1008,7 @@ test("processEvents() column selection", async () => {
   // biome-ignore lint/performance/noDelete: <explanation>
   delete event.event.transaction.maxPriorityFeePerGas;
 
-  await expect(() =>
+  await expect(
     indexing.processHistoricalEvents({
       events: [event],
       db: indexingStore,

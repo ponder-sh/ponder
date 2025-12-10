@@ -13,7 +13,12 @@ import {
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { count, relations } from "drizzle-orm";
-import { type GraphQLType, execute, parse } from "graphql";
+import {
+  type ExecutionResult,
+  type GraphQLType,
+  execute,
+  parse,
+} from "graphql";
 import { toBytes } from "viem";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -1915,6 +1920,10 @@ test("limit", async () => {
   );
 });
 
+function clone(result: ExecutionResult): ExecutionResult {
+  return JSON.parse(JSON.stringify(result));
+}
+
 test("cursor pagination ascending", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
@@ -1927,7 +1936,11 @@ test("cursor pagination ascending", async () => {
   });
   const contextValue = buildContextValue(database);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await indexingStore.insert(schema.pet).values([
     { id: "id1", name: "Skip" },
@@ -1962,7 +1975,7 @@ test("cursor pagination ascending", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id1", name: "Skip" },
@@ -2003,7 +2016,7 @@ test("cursor pagination ascending", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id6", name: "Book" },
@@ -2043,7 +2056,7 @@ test("cursor pagination ascending", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id4", name: "Zarbar" },
@@ -2105,7 +2118,7 @@ test("cursor pagination descending", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id4", name: "Zarbar" },
@@ -2143,7 +2156,7 @@ test("cursor pagination descending", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id1", name: "Skip" },
@@ -2182,7 +2195,7 @@ test("cursor pagination descending", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [{ id: "id5", name: "Winston" }],
       pageInfo: {
@@ -2242,7 +2255,7 @@ test("cursor pagination start and end cursors", async () => {
 
   // Should return start and end cursors when returning full result
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id3", name: "Bar" },
@@ -2330,7 +2343,7 @@ test("cursor pagination has previous page", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [],
       pageInfo: {
@@ -2398,7 +2411,7 @@ test("cursor pagination composite primary key", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     allowances: {
       items: [
         { owner: "alice", spender: "bob", amount: "100" },
@@ -2439,7 +2452,7 @@ test("cursor pagination composite primary key", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     allowances: {
       items: [
         { owner: "bob", spender: "bill", amount: "500" },
@@ -2478,7 +2491,7 @@ test("cursor pagination composite primary key", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     allowances: {
       items: [
         { owner: "bill", spender: "jenny", amount: "700" },
@@ -2544,7 +2557,7 @@ test("cursor pagination with date order", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchInlineSnapshot(`
+  expect(clone(result).data).toMatchInlineSnapshot(`
     {
       "pets": {
         "items": [
@@ -2608,7 +2621,7 @@ test("cursor pagination with date order", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchInlineSnapshot(`
+  expect(clone(result).data).toMatchInlineSnapshot(`
     {
       "pets": {
         "items": [
