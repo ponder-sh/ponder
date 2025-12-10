@@ -966,18 +966,21 @@ test("sync() with partial cache", async () => {
     filters: eventCallbacks.map(({ filter }) => filter),
     cachedIntervals,
   });
+
   logs = await historicalSync.syncBlockRangeData({
     interval: [1, 2],
     requiredIntervals: requiredIntervals.intervals,
     requiredFactoryIntervals: requiredIntervals.factoryIntervals,
     syncStore,
   });
+
   await historicalSync.syncBlockData({
     interval: [1, 2],
     requiredIntervals: requiredIntervals.intervals,
     logs,
     syncStore,
   });
+
   await syncStore.insertIntervals({
     intervals: requiredIntervals.intervals,
     factoryIntervals: requiredIntervals.factoryIntervals,
@@ -1007,6 +1010,7 @@ test("sync() with partial cache", async () => {
   // re-instantiate `historicalSync` to reset the cached intervals
 
   spy = vi.spyOn(rpc, "request");
+  spy.mockClear();
 
   cachedIntervals = await getCachedIntervals({
     chain,

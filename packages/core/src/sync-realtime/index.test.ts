@@ -351,38 +351,44 @@ test("handleBlock() block event with log factory", async () => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[1]?.logs).toHaveLength(1);
 
-  expect(data[0]?.childAddresses).toMatchInlineSnapshot(`
-    Map {
-      {
-        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-        "chainId": 1,
-        "childAddressLocation": "topic1",
-        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-        "fromBlock": undefined,
-        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-        "sourceId": "Pair",
-        "toBlock": undefined,
-        "type": "log",
-      } => Set {
-        "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be",
-      },
-    }
-  `);
-  expect(data[1]?.childAddresses).toMatchInlineSnapshot(`
-    Map {
-      {
-        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-        "chainId": 1,
-        "childAddressLocation": "topic1",
-        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-        "fromBlock": undefined,
-        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-        "sourceId": "Pair",
-        "toBlock": undefined,
-        "type": "log",
-      } => Set {},
-    }
-  `);
+  expect(data[0]?.childAddresses).toMatchObject(
+    new Map([
+      [
+        {
+          address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          chainId: 1,
+          childAddressLocation: "topic1",
+          eventSelector:
+            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+          fromBlock: undefined,
+          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+          sourceId: "Pair",
+          toBlock: undefined,
+          type: "log",
+        },
+        new Set(["0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"]),
+      ],
+    ]),
+  );
+  expect(data[1]?.childAddresses).toMatchObject(
+    new Map([
+      [
+        {
+          address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          chainId: 1,
+          childAddressLocation: "topic1",
+          eventSelector:
+            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+          fromBlock: undefined,
+          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+          sourceId: "Pair",
+          toBlock: undefined,
+          type: "log",
+        },
+        new Set(),
+      ],
+    ]),
+  );
 
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[1]?.traces).toHaveLength(0);
@@ -478,38 +484,46 @@ test("handleBlock() block event with log factory and no address", async () => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[1]?.logs).toHaveLength(1);
 
-  expect(data[0]?.childAddresses).toMatchInlineSnapshot(`
-    Map {
-      {
-        "address": undefined,
-        "chainId": 1,
-        "childAddressLocation": "topic1",
-        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-        "fromBlock": undefined,
-        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-        "sourceId": "Pair",
-        "toBlock": undefined,
-        "type": "log",
-      } => Set {
-        "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be",
-      },
-    }
-  `);
-  expect(data[1]?.childAddresses).toMatchInlineSnapshot(`
-    Map {
-      {
-        "address": undefined,
-        "chainId": 1,
-        "childAddressLocation": "topic1",
-        "eventSelector": "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-        "fromBlock": undefined,
-        "id": "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-        "sourceId": "Pair",
-        "toBlock": undefined,
-        "type": "log",
-      } => Set {},
-    }
-  `);
+  expect(data[0]?.childAddresses.size).toBe(1);
+
+  expect(data[0]?.childAddresses).toMatchObject(
+    new Map([
+      [
+        {
+          address: undefined,
+          chainId: 1,
+          childAddressLocation: "topic1",
+          eventSelector:
+            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+          fromBlock: undefined,
+          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+          sourceId: "Pair",
+          toBlock: undefined,
+          type: "log",
+        },
+        new Set(["0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"]),
+      ],
+    ]),
+  );
+  expect(data[1]?.childAddresses).toMatchObject(
+    new Map([
+      [
+        {
+          address: undefined,
+          chainId: 1,
+          childAddressLocation: "topic1",
+          eventSelector:
+            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
+          fromBlock: undefined,
+          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
+          sourceId: "Pair",
+          toBlock: undefined,
+          type: "log",
+        },
+        new Set(),
+      ],
+    ]),
+  );
 
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[1]?.traces).toHaveLength(0);
