@@ -94,10 +94,10 @@ export async function setupIsolatedDatabase() {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
-    const databaseName =
-      "bun" in process.versions
-        ? `bun_${randomUUID().slice(0, 8)}`
-        : `vitest_${poolId}`;
+    const databaseName = `vitest_${poolId}`;
+    // "bun" in process.versions
+    //   ? `bun_${randomUUID().slice(0, 8)}`
+    //   : `vitest_${poolId}`;
 
     const client = new pg.Client({ connectionString });
     await client.connect();
