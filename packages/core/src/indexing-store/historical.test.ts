@@ -87,13 +87,10 @@ test("find", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     // force db query
 
@@ -142,25 +139,19 @@ test("insert", async () => {
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     // multiple
 
@@ -169,44 +160,34 @@ test("insert", async () => {
       { address: "0x0000000000000000000000000000000000000002", balance: 52n },
     ]);
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "address": "0x0000000000000000000000000000000000000001",
-          "balance": 12n,
-          Symbol(nodejs.util.inspect.custom): [Function],
-        },
-        {
-          "address": "0x0000000000000000000000000000000000000002",
-          "balance": 52n,
-          Symbol(nodejs.util.inspect.custom): [Function],
-        },
-      ]
-    `);
+    expect(result).toMatchObject([
+      {
+        address: "0x0000000000000000000000000000000000000001",
+        balance: 12n,
+      },
+      {
+        address: "0x0000000000000000000000000000000000000002",
+        balance: 52n,
+      },
+    ]);
 
     result = await indexingStore.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
     result = await indexingStore.find(schema.account, {
       address: "0x0000000000000000000000000000000000000002",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000002",
-        "balance": 52n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000002",
+      balance: 52n,
+    });
 
     // on conflict do nothing
 
@@ -224,13 +205,10 @@ test("insert", async () => {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
     result = await indexingStore
       .insert(schema.account)
@@ -240,28 +218,22 @@ test("insert", async () => {
       ])
       .onConflictDoNothing();
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        null,
-        {
-          "address": "0x0000000000000000000000000000000000000003",
-          "balance": 0n,
-          Symbol(nodejs.util.inspect.custom): [Function],
-        },
-      ]
-    `);
+    expect(result).toMatchObject([
+      null,
+      {
+        address: "0x0000000000000000000000000000000000000003",
+        balance: 0n,
+      },
+    ]);
 
     result = await indexingStore.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
     // on conflict do update
 
@@ -279,13 +251,10 @@ test("insert", async () => {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 16n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 16n,
+    });
 
     await indexingStore
       .insert(schema.account)
@@ -301,13 +270,10 @@ test("insert", async () => {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 32n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 32n,
+    });
   });
 });
 
@@ -351,25 +317,19 @@ test("update", async () => {
       .update(schema.account, { address: zeroAddress })
       .set({ balance: 12n });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
 
     // function
 
@@ -377,25 +337,19 @@ test("update", async () => {
       .update(schema.account, { address: zeroAddress })
       .set((row) => ({ balance: row.balance + 10n }));
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
 
     // undefined
 
@@ -403,25 +357,19 @@ test("update", async () => {
       .update(schema.account, { address: zeroAddress })
       .set({ balance: undefined });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
 
     result = await indexingStore.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
   });
 });
 
@@ -607,14 +555,12 @@ test("sql", async () => {
       .from(schema.account)
       .where(eq(schema.account.address, zeroAddress));
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "address": "0x0000000000000000000000000000000000000000",
-          "balance": 10n,
-        },
-      ]
-    `);
+    expect(result).toMatchObject([
+      {
+        address: "0x0000000000000000000000000000000000000000",
+        balance: 10n,
+      },
+    ]);
 
     // non-null constraint
 
@@ -686,13 +632,10 @@ test("sql followed by find", async () => {
       address: zeroAddress,
     });
 
-    expect(row).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(row).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
   });
 });
 
@@ -1011,13 +954,10 @@ test("default", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 0,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 0,
+    });
   });
 });
 
@@ -1055,13 +995,10 @@ test("$default", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
   });
 });
 
@@ -1104,13 +1041,10 @@ test("$onUpdateFn", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     // update
   });
@@ -1175,23 +1109,20 @@ test("basic columns", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 20n,
-        "boolean": true,
-        "char": "2",
-        "doublePrecision": 20,
-        "int2": 20,
-        "int8b": 20n,
-        "int8n": 20,
-        "numeric": "20",
-        "real": 20,
-        "text": "20",
-        "varchar": "20",
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 20n,
+      boolean: true,
+      char: "2",
+      doublePrecision: 20,
+      int2: 20,
+      int8b: 20n,
+      int8n: 20,
+      numeric: "20",
+      real: 20,
+      text: "20",
+      varchar: "20",
+    });
 
     await indexingCache.flush();
   });
@@ -1238,15 +1169,10 @@ test("array", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balances": [
-          20n,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balances: [20n],
+    });
 
     await indexingCache.flush();
 
@@ -1295,15 +1221,10 @@ test("text array", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "textArray": [
-          "//U_W_U\\\\",
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      textArray: ["//U_W_U\\\\"],
+    });
 
     await indexingCache.flush();
   });
@@ -1350,13 +1271,10 @@ test("enum", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "mood": "ok",
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      mood: "ok",
+    });
 
     await indexingCache.flush();
 
@@ -1444,34 +1362,10 @@ test("bytes", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "calldata": Uint8Array [
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      calldata: new Uint8Array(20),
+    });
 
     await indexingCache.flush();
   });
@@ -1609,13 +1503,10 @@ test("timestamp", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "timestamp": 2025-03-25T18:04:22.000Z,
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      timestamp: new Date(1742925862000),
+    });
 
     await indexingCache.flush();
   });
@@ -1750,16 +1641,10 @@ test("point", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "point": [
-          1,
-          2,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      point: [1, 2],
+    });
 
     await indexingCache.flush();
   });
@@ -1804,17 +1689,10 @@ test("line", async () => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "line": [
-          1,
-          2,
-          3,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      line: [1, 2, 3],
+    });
 
     await indexingCache.flush();
   });

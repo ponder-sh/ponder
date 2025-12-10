@@ -941,7 +941,6 @@ test("enum", async () => {
 });
 
 test("json bigint", async () => {
-  console.log("starting bigint");
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
