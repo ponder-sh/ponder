@@ -89,21 +89,23 @@ export const publicClient = createPublicClient({
 });
 
 export async function withStubbedEnv(
-  env: Record<string, string>,
+  env: Record<string, string | undefined>,
   testCase: () => void | Promise<void>,
 ) {
   const originalValues = {} as Record<string, string | undefined>;
 
   for (const [k, v] of Object.entries(env)) {
     originalValues[k] = process.env[k];
-    process.env[k] = v;
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
   }
 
   try {
     await testCase();
   } finally {
     for (const [k, v] of Object.entries(originalValues)) {
-      process.env[k] = v;
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
     }
   }
 }

@@ -41,6 +41,8 @@ export function buildPre({
         );
       }
 
+      console.log("connString", connectionString);
+
       const poolConfig = {
         connectionString,
         max: config.database.poolConfig?.max ?? 30,

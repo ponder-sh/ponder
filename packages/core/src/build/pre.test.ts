@@ -16,35 +16,34 @@ test("buildPre() database uses pglite by default", () => {
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  const prev = process.env.DATABASE_URL;
-  // biome-ignore lint/performance/noDelete: Required to test default behavior.
-  delete process.env.DATABASE_URL;
-
-  const { databaseConfig } = buildPre({
-    config,
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+  withStubbedEnv(
+    { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
+    () => {
+      const { databaseConfig } = buildPre({
+        config,
+        options,
+      });
+      expect(databaseConfig).toMatchObject({
+        kind: "pglite",
+        options: {
+          dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+        },
+      });
     },
-  });
+  );
 
-  process.env.DATABASE_URL = "";
-
-  const { databaseConfig: databaseConfig2 } = buildPre({
-    config,
-    options,
+  withStubbedEnv({ DATABASE_URL: "", PRIVATE_DATABASE_URL: "" }, () => {
+    const { databaseConfig: databaseConfig2 } = buildPre({
+      config,
+      options,
+    });
+    expect(databaseConfig2).toMatchObject({
+      kind: "pglite",
+      options: {
+        dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+      },
+    });
   });
-  expect(databaseConfig2).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
-    },
-  });
-
-  process.env.DATABASE_URL = prev;
 });
 
 test("buildPre() database respects custom pglite path", async () => {
@@ -137,15 +136,14 @@ test("buildPre() throws for postgres database with no connection string", async 
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  const prev = process.env.DATABASE_URL;
-  // biome-ignore lint/performance/noDelete: Required to test default behavior.
-  delete process.env.DATABASE_URL;
-
-  expect(() => buildPre({ config, options })).toThrow(
-    "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
+  withStubbedEnv(
+    { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
+    () => {
+      expect(() => buildPre({ config, options })).toThrow(
+        "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
+      );
+    },
   );
-
-  process.env.DATABASE_URL = prev;
 });
 
 test("buildPre() database with postgres uses pool config", async () => {
