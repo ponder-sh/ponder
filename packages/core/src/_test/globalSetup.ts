@@ -5,6 +5,7 @@ import { startProxy } from "@viem/anvil";
 import dotenv from "dotenv";
 import { execa } from "execa";
 import { Pool } from "pg";
+import { isBunTest } from "./utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -44,7 +45,7 @@ async function globalSetup() {
   }
 
   return async () => {
-    await shutdownProxy();
+    if (!isBunTest) await shutdownProxy();
     await cleanupDatabase?.();
   };
 }
@@ -52,11 +53,9 @@ async function globalSetup() {
 if ("bun" in process.versions) {
   // must be run outside of hook because missing the generated files causes test to fail with 'Cannot find module' error
   const cleanup = await globalSetup();
-  console.log("ran setup");
+
   require("bun:test").afterAll(async () => {
-    console.log("in global cleanup");
     await cleanup();
-    console.log("done global cleanup");
   });
 }
 
