@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { buildSchema } from "@/build/schema.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
