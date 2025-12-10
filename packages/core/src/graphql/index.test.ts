@@ -2863,14 +2863,14 @@ test("view with alias", async (context) => {
   );
   const schema = { pet, petView };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  await indexingStore.insert(schema.pet).values([
+  await database.userQB.raw.insert(schema.pet).values([
     { id: "id1", name: "Skip" },
     { id: "id2", name: "Foo" },
     { id: "id3", name: "Bar" },
