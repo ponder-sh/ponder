@@ -1360,11 +1360,10 @@ const onBuild = async (app: PonderApp) => {
   return app;
 };
 
-process.on("uncaughtException", () => {
-  console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
-});
-process.on("unhandledRejection", () => {
-  console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+process.on("exit", (code) => {
+  if (code !== 0) {
+    console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+  }
 });
 
 let kill = await start({

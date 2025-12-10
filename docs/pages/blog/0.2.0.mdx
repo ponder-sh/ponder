@@ -80,7 +80,7 @@ Ponder's build step uses static analysis to determine which tables an indexing f
 
 To check the indexing function dependency graph, enable debug logging (either run `ponder dev -v` or set the `PONDER_LOG_LEVEL` env var to `"debug"`) and you'll see logs like this for each of your indexing functions.
 
-```bash filename="shell"
+```bash [shell]
 DEBUG  Registered indexing function BasePaintBrush:Transfer (selfDependent=true, parents=[BasePaint:Painted])
 DEBUG  Registered indexing function BasePaint:Started (selfDependent=true, parents=[])
 DEBUG  Registered indexing function BasePaint:Painted (selfDependent=true, parents=[BasePaintBrush:Transfer, BasePaint:ArtistsEarned, BasePaint:TransferSingle, BasePaint:TransferBatch])
@@ -138,7 +138,7 @@ Take a look at the new [pagination docs](/docs/query/graphql#pagination) for mor
 
 In most TypeScript programming environments, it's common to use a hexadecimal string representation for byte arrays like Ethereum addresses. This release adds a new column type, `p.hex()`, which is a more efficient way to store hexadecimal strings in the database.
 
-```ts filename="ponder.schema.ts" {5,9,10,15}
+```ts [ponder.schema.ts] {5,9,10,15}
 import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
