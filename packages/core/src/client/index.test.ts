@@ -79,18 +79,18 @@ test("client.db error", async () => {
     databaseConfig: context.databaseConfig,
   };
 
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
+  globalThis.PONDER_DATABASE = database;
+
   const app = new Hono().use(
     client({
       db: database.readonlyQB.raw,
       schema: {},
     }),
   );
-
-  globalThis.PONDER_NAMESPACE_BUILD = {
-    schema: "public",
-    viewsSchema: undefined,
-  };
-  globalThis.PONDER_DATABASE = database;
 
   const query = {
     sql: "SELECT * FROM account",
