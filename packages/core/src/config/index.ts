@@ -1,3 +1,4 @@
+import type { ConnectionOptions } from "node:tls";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { PoolConfig } from "pg";
@@ -56,7 +57,12 @@ type DatabaseConfig =
       /** Postgres database connection string. Default: `DATABASE_PRIVATE_URL` > `DATABASE_URL` environment variable. */
       connectionString?: string;
       /** Postgres pool configuration passed to `node-postgres`. */
-      poolConfig?: Prettify<Omit<PoolConfig, "connectionString">>;
+      poolConfig?: {
+        /** Maximum number of clients in the pool. Default: `30`. */
+        max?: number;
+        /** Enable SSL, or provide a custom SSL configuration. Default: `undefined`. */
+        ssl?: boolean | Prettify<ConnectionOptions>;
+      } & Omit<PoolConfig, "max" | "ssl">;
     };
 
 // base
