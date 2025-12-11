@@ -48,9 +48,22 @@ async function globalSetup() {
   };
 }
 
+function resetPonderGlobals() {
+  for (const k of Object.keys(globalThis)) {
+    if (!k.startsWith("PONDER_")) {
+      continue;
+    }
+    // @ts-ignore
+    globalThis[k] = undefined;
+  }
+}
+
 if ("bun" in process.versions) {
   // must be run outside of hook because missing the generated files causes test to fail with 'Cannot find module' error
   await globalSetup();
+  const { beforeEach, afterEach } = require("bun:test");
+  beforeEach(resetPonderGlobals);
+  afterEach(resetPonderGlobals);
 }
 
 export default globalSetup;

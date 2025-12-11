@@ -6,16 +6,12 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
-import {
-  getFreePort,
-  resetPonderGlobals,
-  waitForIndexedBlock,
-} from "@/_test/utils.js";
+import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
 import { parseEther, zeroAddress } from "viem";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
@@ -35,9 +31,6 @@ const cliOptions = {
   logLevel: "error",
   logFormat: "pretty",
 };
-
-beforeEach(resetPonderGlobals);
-afterEach(resetPonderGlobals);
 
 test("erc20", { timeout: 15_000 }, async () => {
   const port = await getFreePort();

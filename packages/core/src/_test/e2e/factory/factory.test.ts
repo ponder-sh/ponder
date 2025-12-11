@@ -8,15 +8,11 @@ import {
 import { deployFactory } from "@/_test/simulate.js";
 import { createPair } from "@/_test/simulate.js";
 import { swapPair } from "@/_test/simulate.js";
-import {
-  getFreePort,
-  resetPonderGlobals,
-  waitForIndexedBlock,
-} from "@/_test/utils.js";
+import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "factory");
@@ -36,9 +32,6 @@ const cliOptions = {
   logLevel: "error",
   logFormat: "pretty",
 };
-
-beforeEach(resetPonderGlobals);
-afterEach(resetPonderGlobals);
 
 test(
   "factory",
