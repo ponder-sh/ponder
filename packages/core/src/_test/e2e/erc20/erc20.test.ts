@@ -32,7 +32,7 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test("erc20", { timeout: 15_000 }, async () => {
+test("erc20", async () => {
   const port = await getFreePort();
   const client = createClient(`http://localhost:${port}/sql`, { schema });
 

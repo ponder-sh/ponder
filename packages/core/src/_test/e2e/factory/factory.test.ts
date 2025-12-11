@@ -33,69 +33,65 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-test(
-  "factory",
-  async () => {
-    const port = await getFreePort();
-    const client = createClient(`http://localhost:${port}/sql`, { schema });
+test("factory", async () => {
+  const port = await getFreePort();
+  const client = createClient(`http://localhost:${port}/sql`, { schema });
 
-    const shutdown = await start({
-      cliOptions: {
-        ...cliOptions,
-        command: "start",
-        port,
-        version: "0.0.0",
-      },
-    });
-
-    const { address } = await deployFactory({ sender: ALICE });
-    const { address: pair } = await createPair({
-      factory: address,
-      sender: ALICE,
-    });
-    await swapPair({
-      pair,
-      amount0Out: 1n,
-      amount1Out: 1n,
-      to: ALICE,
-      sender: ALICE,
-    });
-
-    await waitForIndexedBlock({
+  const shutdown = await start({
+    cliOptions: {
+      ...cliOptions,
+      command: "start",
       port,
-      chainName: "mainnet",
-      block: { number: 3 },
-    });
+      version: "0.0.0",
+    },
+  });
 
-    let result = await client.db.select().from(schema.swapEvent);
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
 
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      id: expect.any(String),
-      from: ALICE.toLowerCase(),
-      to: ALICE.toLowerCase(),
-      pair,
-    });
+  await waitForIndexedBlock({
+    port,
+    chainName: "mainnet",
+    block: { number: 3 },
+  });
 
-    await swapPair({
-      pair,
-      amount0Out: 1n,
-      amount1Out: 1n,
-      to: ALICE,
-      sender: ALICE,
-    });
+  let result = await client.db.select().from(schema.swapEvent);
 
-    await waitForIndexedBlock({
-      port,
-      chainName: "mainnet",
-      block: { number: 4 },
-    });
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({
+    id: expect.any(String),
+    from: ALICE.toLowerCase(),
+    to: ALICE.toLowerCase(),
+    pair,
+  });
 
-    result = await client.db.select().from(schema.swapEvent);
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
 
-    expect(result).toHaveLength(2);
+  await waitForIndexedBlock({
+    port,
+    chainName: "mainnet",
+    block: { number: 4 },
+  });
 
-    await shutdown!();
-  },
-  { timeout: 15_000 },
-);
+  result = await client.db.select().from(schema.swapEvent);
+
+  expect(result).toHaveLength(2);
+
+  await shutdown!();
+});

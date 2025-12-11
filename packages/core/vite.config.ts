@@ -24,6 +24,6 @@ export default defineConfig({
       },
     },
     sequence: { hooks: "stack" },
-    testTimeout: 1200000,
+    testTimeout: 15000,
   },
 });
