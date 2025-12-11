@@ -42,6 +42,7 @@ export function buildPre({
       }
 
       const poolConfig = {
+        ...config.database.poolConfig,
         connectionString,
         max: config.database.poolConfig?.max ?? 30,
         ssl: config.database.poolConfig?.ssl ?? false,
