@@ -166,6 +166,7 @@ export const createBuild = async ({
     root: viteDevServer.config.root,
     fetchModule: (id) => viteNodeServer.fetchModule(id, "ssr"),
     resolveId: (id, importer) => viteNodeServer.resolveId(id, importer, "ssr"),
+    debug: (process.env.DEBUG ?? "").includes("vite-node"),
   });
 
   const executeFile = async ({
@@ -248,21 +249,31 @@ export const createBuild = async ({
         ignore: apiPattern,
       });
 
-      const executeResults = await Promise.all(
-        files.map((file) =>
-          Promise.race([
-            executeFile({ file }).then((res) => ({
-              ...res,
-              file,
-            })),
-            setTimeout(10_000).then(() => ({
-              error: new Error("File execution did not complete (waited 10s)"),
-              file,
-              status: "error" as const,
-            })),
-          ]),
-        ),
-      );
+      const executeResults: (Awaited<ReturnType<typeof executeFile>> & {
+        file: string;
+      })[] = [];
+      for (const file of files) {
+        const executeResult = await Promise.race([
+          executeFile({ file }).then((res) => ({
+            ...res,
+            file,
+          })),
+          setTimeout(10_000).then(() =>
+            Error("File execution did not complete (waited 10s)"),
+          ),
+        ]);
+        if (executeResult instanceof Error) {
+          common.logger.error({
+            msg: "Error while executing file",
+            file: path.relative(common.options.rootDir, file),
+            error: executeResult,
+          });
+
+          return { error: executeResult, status: "error" };
+        }
+
+        executeResults.push(executeResult);
+      }
 
       for (const executeResult of executeResults) {
         if (executeResult.status === "error") {
