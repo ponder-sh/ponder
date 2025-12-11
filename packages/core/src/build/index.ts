@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { setTimeout } from "node:timers/promises";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
@@ -248,10 +249,19 @@ export const createBuild = async ({
       });
 
       const executeResults = await Promise.all(
-        files.map(async (file) => ({
-          ...(await executeFile({ file })),
-          file,
-        })),
+        files.map((file) =>
+          Promise.race([
+            executeFile({ file }).then((res) => ({
+              ...res,
+              file,
+            })),
+            setTimeout(10_000).then(() => ({
+              error: new Error("File execution did not complete (waited 10s)"),
+              file,
+              status: "error" as const,
+            })),
+          ]),
+        ),
       );
 
       for (const executeResult of executeResults) {
