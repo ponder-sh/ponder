@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { context } from "@/_test/setup.js";
-import { isBunTest, stubGlobal } from "@/_test/utils.js";
+import { IS_BUN_TEST, stubGlobal } from "@/_test/utils.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import { rimrafSync } from "rimraf";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -17,7 +17,7 @@ let unstub: () => void;
 
 beforeEach(() => {
   fetchSpy.mockReset();
-  if (isBunTest) {
+  if (IS_BUN_TEST) {
     unstub = stubGlobal("fetch", fetchSpy);
   } else {
     vi.stubGlobal("fetch", fetchSpy);
@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (isBunTest) unstub();
+  if (IS_BUN_TEST) unstub();
   else vi.unstubAllGlobals();
 });
 

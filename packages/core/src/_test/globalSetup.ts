@@ -5,6 +5,7 @@ import { startProxy } from "@viem/anvil";
 import dotenv from "dotenv";
 import { execa } from "execa";
 import { Pool } from "pg";
+import { IS_BUN_TEST } from "./utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,7 +30,7 @@ async function globalSetup() {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
       const databaseRows = await pool.query(`
-        SELECT datname FROM pg_database WHERE datname LIKE 'vitest_%';
+        SELECT datname FROM pg_database WHERE datname LIKE 'test_%';
       `);
       const databases = databaseRows.rows.map((r) => r.datname) as string[];
 
@@ -49,6 +50,9 @@ async function globalSetup() {
 }
 
 function resetPonderGlobals() {
+  // Note: PONDER_COMMON is not reset because it is used for cleanup in between tests.
+  // @ts-ignore
+  globalThis.PONDER_PRE_BUILD = undefined;
   // @ts-ignore
   globalThis.PONDER_DATABASE = undefined;
   // @ts-ignore
@@ -57,8 +61,9 @@ function resetPonderGlobals() {
   globalThis.PONDER_INDEXING_BUILD = undefined;
 }
 
-if ("bun" in process.versions) {
-  // must be run outside of hook because missing the generated files causes test to fail with 'Cannot find module' error
+if (IS_BUN_TEST) {
+  // Note: Must be run outside of hook because missing the generated
+  // files causes test to fail with 'Cannot find module' error.
   await globalSetup();
   const { beforeEach, afterEach } = require("bun:test");
   beforeEach(resetPonderGlobals);
