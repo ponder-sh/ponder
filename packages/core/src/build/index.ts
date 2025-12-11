@@ -286,7 +286,7 @@ export const createBuild = async ({
           common.logger.error({
             msg: "Error while executing file",
             file: path.relative(common.options.rootDir, file),
-            error: executeResult,
+            error: executeResult.error,
           });
           return executeResult;
         }
