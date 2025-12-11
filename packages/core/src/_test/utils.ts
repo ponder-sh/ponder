@@ -671,7 +671,10 @@ export const getChain = (params?: {
     ws: undefined,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
-    disableCache: false,
+    cache: {
+      read: true as boolean,
+      write: true as boolean,
+    },
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,
   } satisfies Chain;

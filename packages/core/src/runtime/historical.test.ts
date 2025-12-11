@@ -216,6 +216,54 @@ test("getLocalSyncGenerator()", async () => {
   expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
+test("getLocalSyncGenerator() with cache write disabled", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
+  const chain = getChain();
+  chain.cache.write = false;
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  await testClient.mine({ blocks: 1 });
+
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    filters: eventCallbacks.map(({ filter }) => filter),
+  });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    filters: eventCallbacks.map(({ filter }) => filter),
+    chain,
+    rpc,
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x1", true]),
+    cachedIntervals,
+  });
+
+  const syncGenerator = getLocalSyncGenerator({
+    common: context.common,
+    chain,
+    rpc,
+    eventCallbacks,
+    childAddresses: new Map(),
+    cachedIntervals,
+    database,
+    syncProgress,
+    isCatchup: false,
+  });
+
+  await drainAsyncGenerator(syncGenerator);
+
+  const intervals = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.intervals).execute(),
+  );
+
+  expect(intervals).toHaveLength(0);
+});
+
 test("getLocalSyncGenerator() with partial cache", async () => {
   const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();

@@ -1319,7 +1319,7 @@ export async function* getLocalSyncGenerator(params: {
             logs,
             syncStore,
           });
-          if (params.chain.disableCache === false) {
+          if (params.chain.cache.write) {
             await syncStore.insertIntervals({
               intervals: requiredIntervals,
               factoryIntervals: requiredFactoryIntervals,

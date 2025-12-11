@@ -1,4 +1,5 @@
 import type { ConnectionOptions } from "node:tls";
+import type { CacheMode } from "@/internal/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { Narrow, Transport } from "viem";
@@ -101,8 +102,13 @@ type ChainConfig<chain> = {
    * @deprecated Handled automatically instead.
    */
   maxRequestsPerSecond?: number;
-  /** Disable RPC request caching. Default: `false`. */
-  disableCache?: boolean;
+  /** Configure cache behavior. Default: `read-write`. */
+  cacheMode?: CacheMode;
+  /**
+   * Configure cache behavior. Defualt: `false`
+   * @deprecated Use `cacheMode`
+   */
+  disableCache?: boolean; // preserved for backwards compat
   /**
    * Maximum block range for eth_getLogs. If undefined, Ponder will
    * attempt to determine the block range automatically based on error messages.

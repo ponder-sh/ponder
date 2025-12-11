@@ -5,6 +5,8 @@ import {
 } from "@/_test/constants.js";
 import {
   context,
+  setupCachedIntervals,
+  setupChildAddresses,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -27,6 +29,7 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
+import { createHistoricalSync } from "@/sync-historical/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
@@ -43,6 +46,7 @@ import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import {
   type CachedIntervals,
   getCachedBlock,
+  getCachedIntervals,
   getLocalSyncProgress,
   getRequiredIntervals,
   getRequiredIntervalsWithFilters,
@@ -52,6 +56,34 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+
+test("getCachedIntervals(), cache.read enabled", async () => {
+  const { syncStore, chain, eventCallbacks } = await setupSyncStoreWithCache();
+  chain.cache.read = true;
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    filters: eventCallbacks.map(({ filter }) => filter),
+  });
+
+  expect(cachedIntervals.size).toBe(1);
+  const intervals = cachedIntervals.values().next().value[0].intervals;
+  expect(intervals).not.toHaveLength(0);
+});
+
+test("getCachedIntervals(), cache.read disabled", async () => {
+  const { syncStore, chain, eventCallbacks } = await setupSyncStoreWithCache();
+  chain.cache.read = false;
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    filters: eventCallbacks.map(({ filter }) => filter),
+  });
+
+  expect(cachedIntervals.size).toBe(1);
+  const intervals = cachedIntervals.values().next().value[0].intervals;
+  expect(intervals).toHaveLength(0);
+});
 
 test("getLocalSyncProgress()", async () => {
   const chain = getChain();
@@ -984,3 +1016,55 @@ test("historical events match realtime events", async () => {
     ]
   `);
 });
+
+async function setupSyncStoreWithCache() {
+  const { syncStore } = await setupDatabaseServices();
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval: [1, 2],
+    requiredIntervals: requiredIntervals.intervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervals.intervals,
+    factoryIntervals: requiredIntervals.factoryIntervals,
+    chainId: chain.id,
+  });
+  return { chain, syncStore, eventCallbacks };
+}

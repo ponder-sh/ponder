@@ -1043,6 +1043,29 @@ export function buildConfig({
         );
       }
 
+      let cache: Chain["cache"];
+      if (chain.cacheMode !== undefined) {
+        const read =
+          chain.cacheMode === "read-only" || chain.cacheMode === "read-write";
+        const write =
+          chain.cacheMode === "write-only" || chain.cacheMode === "read-write";
+        cache = {
+          read,
+          write,
+        };
+      } else if (chain.disableCache !== undefined) {
+        const enabled = !chain.disableCache;
+        cache = {
+          read: enabled,
+          write: enabled,
+        };
+      } else {
+        cache = {
+          read: true,
+          write: true,
+        };
+      }
+
       return {
         id: chain.id,
         name: chainName,
@@ -1050,7 +1073,7 @@ export function buildConfig({
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
-        disableCache: chain.disableCache ?? false,
+        cache,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,
       } satisfies Chain;

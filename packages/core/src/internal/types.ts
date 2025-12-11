@@ -294,6 +294,8 @@ export type SetupCallback = {
   block: number | undefined;
 };
 
+export type CacheMode = "read-write" | "none" | "read-only" | "write-only";
+
 // Chain
 
 export type Chain = {
@@ -303,7 +305,11 @@ export type Chain = {
   ws: string | undefined;
   pollingInterval: number;
   finalityBlockCount: number;
-  disableCache: boolean;
+  cache: {
+    read: boolean;
+    write: boolean;
+  };
+
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
 };
