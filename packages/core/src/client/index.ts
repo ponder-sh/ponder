@@ -371,8 +371,10 @@ export const client = ({
       const query = superjson.parse(queryString) as QueryWithTypings;
 
       try {
+        console.log("validaating sql:", query.sql);
         await validateAllowableSQLQuery(query.sql);
       } catch (error) {
+        console.log("error while validating sql:", error);
         (error as Error).stack = undefined;
         return c.text((error as Error).message, 500);
       }

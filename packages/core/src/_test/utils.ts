@@ -749,3 +749,15 @@ export function getRejectionValue(func: () => Promise<any>): Promise<any> {
       return rejection;
     });
 }
+
+export function resetPonderGlobals() {
+  for (const k of Object.keys(globalThis)) {
+    if (!k.startsWith("PONDER")) {
+      continue;
+    }
+
+    console.log("resetting value for", k);
+    // @ts-ignore
+    globalThis[k] = undefined;
+  }
+}

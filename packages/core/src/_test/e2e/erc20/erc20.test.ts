@@ -6,7 +6,11 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
-import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
+import {
+  getFreePort,
+  resetPonderGlobals,
+  waitForIndexedBlock,
+} from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
@@ -32,14 +36,8 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-beforeEach(() => {
-  // @ts-ignore
-  globalThis.PONDER_NAMESPACE_BUILD = undefined;
-});
-afterEach(() => {
-  // @ts-ignore
-  globalThis.PONDER_NAMESPACE_BUILD = undefined;
-});
+beforeEach(resetPonderGlobals);
+afterEach(resetPonderGlobals);
 
 test("erc20", { timeout: 15_000 }, async () => {
   const port = await getFreePort();

@@ -8,7 +8,11 @@ import {
 import { deployFactory } from "@/_test/simulate.js";
 import { createPair } from "@/_test/simulate.js";
 import { swapPair } from "@/_test/simulate.js";
-import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
+import {
+  getFreePort,
+  resetPonderGlobals,
+  waitForIndexedBlock,
+} from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
@@ -33,14 +37,8 @@ const cliOptions = {
   logFormat: "pretty",
 };
 
-beforeEach(() => {
-  // @ts-ignore
-  globalThis.PONDER_NAMESPACE_BUILD = undefined;
-});
-afterEach(() => {
-  // @ts-ignore
-  globalThis.PONDER_NAMESPACE_BUILD = undefined;
-});
+beforeEach(resetPonderGlobals);
+afterEach(resetPonderGlobals);
 
 test(
   "factory",
