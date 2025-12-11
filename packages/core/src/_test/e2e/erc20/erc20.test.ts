@@ -11,7 +11,7 @@ import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
 import { parseEther, zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");
@@ -31,6 +31,15 @@ const cliOptions = {
   logLevel: "error",
   logFormat: "pretty",
 };
+
+beforeEach(() => {
+  // @ts-ignore
+  globalThis.PONDER_NAMESPACE_BUILD = undefined;
+});
+afterEach(() => {
+  // @ts-ignore
+  globalThis.PONDER_NAMESPACE_BUILD = undefined;
+});
 
 test("erc20", { timeout: 15_000 }, async () => {
   const port = await getFreePort();
@@ -58,6 +67,7 @@ test("erc20", { timeout: 15_000 }, async () => {
     chainName: "mainnet",
     block: { number: 2 },
   });
+
   const result = await client.db.select().from(schema.account);
 
   expect(result[0]).toMatchObject({

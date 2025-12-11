@@ -12,7 +12,7 @@ import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
 import { createClient } from "@ponder/client";
 import { rimrafSync } from "rimraf";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "factory");
@@ -32,6 +32,15 @@ const cliOptions = {
   logLevel: "error",
   logFormat: "pretty",
 };
+
+beforeEach(() => {
+  // @ts-ignore
+  globalThis.PONDER_NAMESPACE_BUILD = undefined;
+});
+afterEach(() => {
+  // @ts-ignore
+  globalThis.PONDER_NAMESPACE_BUILD = undefined;
+});
 
 test(
   "factory",
