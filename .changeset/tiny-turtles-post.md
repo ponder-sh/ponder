@@ -1,6 +1,6 @@
 ---
-"create-ponder": patch
-"ponder": patch
+"create-ponder": minor
+"ponder": minor
 ---
 
-Support bun
+Support bun runtime.
