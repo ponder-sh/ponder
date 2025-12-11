@@ -84,17 +84,12 @@ export type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: (params: { db: IndexingStore }) => Promise<void>;
+  processSetupEvents: () => Promise<void>;
   processHistoricalEvents: (params: {
     events: Event[];
-    db: IndexingStore;
-    cache: IndexingCache;
     updateIndexingSeconds: (event: Event, chain: Chain) => void;
   }) => Promise<void>;
-  processRealtimeEvents: (params: {
-    events: Event[];
-    db: IndexingStore;
-  }) => Promise<void>;
+  processRealtimeEvents: (params: { events: Event[] }) => Promise<void>;
 };
 
 export const getEventCount = (
@@ -148,6 +143,8 @@ export const createIndexing = ({
     contracts,
     indexingFunctions,
   },
+  indexingStore,
+  indexingCache,
   client,
   indexingErrorHandler,
   columnAccessPattern,
@@ -162,6 +159,8 @@ export const createIndexing = ({
     | "contracts"
     | "indexingFunctions"
   >;
+  indexingStore: IndexingStore;
+  indexingCache: IndexingCache;
   client: CachedViemClient;
   indexingErrorHandler: IndexingErrorHandler;
   columnAccessPattern: ColumnAccessPattern;
@@ -173,7 +172,7 @@ export const createIndexing = ({
       chain: { name: undefined!, id: undefined! },
       contracts: undefined!,
       client: undefined!,
-      db: undefined!,
+      db: indexingStore.db,
     } as Context,
   };
 
@@ -433,9 +432,7 @@ export const createIndexing = ({
   }
 
   return {
-    async processSetupEvents({ db }) {
-      indexingFunctionArg.context.db = db;
-
+    async processSetupEvents() {
       for (const setupCallback of setupCallbacks.flat()) {
         const event = {
           type: "setup",
@@ -454,21 +451,15 @@ export const createIndexing = ({
         await executeSetup(event);
       }
     },
-    async processHistoricalEvents({
-      events,
-      db,
-      cache,
-      updateIndexingSeconds,
-    }) {
+    async processHistoricalEvents({ events, updateIndexingSeconds }) {
       let lastEventLoopUpdate = performance.now();
       let lastMetricsUpdate = performance.now();
 
-      indexingFunctionArg.context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
-        cache.event = event;
+        indexingCache.event = event;
 
         // Note: Create a new event object instead of mutuating the original one because
         // the event object could be reused across multiple indexing functions.
@@ -716,8 +707,7 @@ export const createIndexing = ({
         );
       }
     },
-    async processRealtimeEvents({ events, db }) {
-      indexingFunctionArg.context.db = db;
+    async processRealtimeEvents({ events }) {
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
