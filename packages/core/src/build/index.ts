@@ -6,7 +6,11 @@ import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
 import { createQB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
-import { BuildError, RetryableError } from "@/internal/errors.js";
+import {
+  BuildError,
+  NonRetryableUserError,
+  RetryableError,
+} from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -165,6 +169,7 @@ export const createBuild = async ({
     root: viteDevServer.config.root,
     fetchModule: (id) => viteNodeServer.fetchModule(id, "ssr"),
     resolveId: (id, importer) => viteNodeServer.resolveId(id, importer, "ssr"),
+    debug: (process.env.DEBUG ?? "").includes("vite-node"),
   });
 
   const executeFile = async ({
@@ -180,6 +185,33 @@ export const createBuild = async ({
       const error = parseViteNodeError(relativePath, error_ as Error);
       return { status: "error", error } as const;
     }
+  };
+
+  const executeFileWithTimeout = async ({
+    file,
+  }: { file: string }): Promise<
+    { status: "success"; exports: any } | { status: "error"; error: Error }
+  > => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<NonRetryableUserError>((resolve) => {
+      timeoutId = setTimeout(
+        () =>
+          resolve(
+            new NonRetryableUserError(
+              "File execution did not complete (waited 10s)",
+            ),
+          ),
+        10_000,
+      );
+    });
+
+    const res = await Promise.race([executeFile({ file }), timeout]);
+    if (res instanceof NonRetryableUserError) {
+      return { status: "error", error: res };
+    }
+
+    clearTimeout(timeoutId!);
+    return res;
   };
 
   const build = {
@@ -247,21 +279,15 @@ export const createBuild = async ({
         ignore: apiPattern,
       });
 
-      const executeResults = await Promise.all(
-        files.map(async (file) => ({
-          ...(await executeFile({ file })),
-          file,
-        })),
-      );
+      for (const file of files) {
+        const executeResult = await executeFileWithTimeout({ file });
 
-      for (const executeResult of executeResults) {
         if (executeResult.status === "error") {
           common.logger.error({
             msg: "Error while executing file",
-            file: path.relative(common.options.rootDir, executeResult.file),
+            file: path.relative(common.options.rootDir, file),
             error: executeResult.error,
           });
-
           return executeResult;
         }
       }
