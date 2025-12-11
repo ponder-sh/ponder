@@ -136,8 +136,11 @@ export type PonderApp5 = Omit<PonderApp4, "version"> & {
   version: "5";
   view_names: string[];
 };
+export type PonderApp6 = Omit<PonderApp5, "version"> & {
+  version: "6";
+};
 
-const VERSION = "5";
+const VERSION = "6";
 
 type PGliteDriver = {
   dialect: "pglite";
@@ -156,13 +159,13 @@ export const getPonderMetaTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
     return pgTable(PONDER_META_TABLE_NAME, (t) => ({
       key: t.text().primaryKey().$type<"app">(),
-      value: t.jsonb().$type<PonderApp5>().notNull(),
+      value: t.jsonb().$type<PonderApp6>().notNull(),
     }));
   }
 
   return pgSchema(schema).table(PONDER_META_TABLE_NAME, (t) => ({
     key: t.text().primaryKey().$type<"app">(),
-    value: t.jsonb().$type<PonderApp5>().notNull(),
+    value: t.jsonb().$type<PonderApp6>().notNull(),
   }));
 };
 
@@ -681,7 +684,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
             is_locked: 1,
             is_ready: 0,
             heartbeat_at: Date.now(),
-          } satisfies PonderApp5;
+          } satisfies PonderApp6;
 
           if (previousApp === undefined) {
             endClock = startClock();

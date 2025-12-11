@@ -7,6 +7,7 @@ import {
   type PonderApp3,
   type PonderApp4,
   type PonderApp5,
+  type PonderApp6,
   VIEWS,
   createDatabase,
   getPonderMetaTable,
@@ -145,7 +146,8 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
       | PonderApp2
       | PonderApp3
       | PonderApp4
-      | PonderApp5;
+      | PonderApp5
+      | PonderApp6;
     schema: string;
   }[];
 
@@ -169,7 +171,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
     (
       row,
     ): row is {
-      value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5;
+      value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5 | PonderApp6;
       schema: string;
     } => "is_dev" in row.value && row.value.is_dev === 0,
   );

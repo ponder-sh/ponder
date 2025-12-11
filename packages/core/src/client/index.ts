@@ -1,4 +1,4 @@
-import type { PonderApp5 } from "@/database/index.js";
+import type { PonderApp6 } from "@/database/index.js";
 import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
@@ -42,13 +42,13 @@ const getPonderMetaTable = (schema?: string) => {
   if (schema === undefined || schema === "public") {
     return pgTable("_ponder_meta", (t) => ({
       key: t.text().primaryKey().$type<"app">(),
-      value: t.jsonb().$type<PonderApp5>().notNull(),
+      value: t.jsonb().$type<PonderApp6>().notNull(),
     }));
   }
 
   return pgSchema(schema).table("_ponder_meta", (t) => ({
     key: t.text().primaryKey().$type<"app">(),
-    value: t.jsonb().$type<PonderApp5>().notNull(),
+    value: t.jsonb().$type<PonderApp6>().notNull(),
   }));
 };
 

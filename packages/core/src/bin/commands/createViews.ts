@@ -8,6 +8,7 @@ import {
   type PonderApp3,
   type PonderApp4,
   type PonderApp5,
+  type PonderApp6,
   SCHEMATA,
   createDatabase,
   getPonderMetaTable,
@@ -170,7 +171,8 @@ export async function createViews({
             | PonderApp2
             | PonderApp3
             | PonderApp4
-            | PonderApp5;
+            | PonderApp5
+            | PonderApp6;
         },
       ]
     | [];
