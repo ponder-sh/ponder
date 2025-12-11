@@ -107,7 +107,7 @@ test.skip("create subgraph satsuma", async () => {
   );
 });
 
-test.skipIf(!process.env.ETHERSCAN_API_KEY)("create etherscan", async () => {
+test("create etherscan", async () => {
   const rootDir = path.join(tempDir, "etherscan");
 
   await run({

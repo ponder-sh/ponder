@@ -1,4 +1,4 @@
-import { type AddressInfo, Socket, createServer } from "node:net";
+import { type AddressInfo, createServer } from "node:net";
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Common } from "@/internal/common.js";
@@ -33,12 +33,15 @@ import {
 } from "@/runtime/filter.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
+  http,
   type Address,
   type Chain as ViemChain,
+  createPublicClient,
+  createTestClient,
+  getAbiItem,
   toEventSelector,
   toFunctionSelector,
 } from "viem";
-import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
 import { vi } from "vitest";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
@@ -55,10 +58,7 @@ import type {
 
 // ID of the current test worker. Used by the `@viem/anvil` proxy server.
 
-export const poolId = Number(
-  // process.env.VITEST_POOL_ID ?? Math.floor(Math.random() * 99999),
-  process.env.VITEST_POOL_ID ?? 1,
-);
+export const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 
 export const isBunTest = "bun" in process.versions;
 
@@ -130,30 +130,6 @@ export function stubGlobal<Key extends keyof typeof globalThis>(
     }
   };
 }
-
-export const isListening = (port: number, host = "127.0.0.1") =>
-  new Promise<boolean>((resolve) => {
-    const socket = new Socket();
-
-    // If it connects, something is listening
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-
-    // If it errors with ECONNREFUSED, nothing is listening
-    socket.once("error", () => {
-      resolve(false);
-    });
-
-    // Timeout = treat as closed
-    socket.setTimeout(500, () => {
-      socket.destroy();
-      resolve(false);
-    });
-
-    socket.connect(port, host);
-  });
 
 export const getErc20IndexingBuild = <
   includeCallTraces extends boolean = false,

@@ -69,9 +69,6 @@ export function setupCleanup() {
 }
 
 const pgliteInstances = new Map<number, PGlite>();
-// if (!isBunTest)
-// cleanup breaks bun tests
-// bun tests are single threaded anyway, so all tests share one pglite
 afterAll(async () => {
   await Promise.all(
     Array.from(pgliteInstances.values()).map(async (instance) => {
@@ -287,10 +284,6 @@ export async function setupAnvil() {
 
   return cleanup;
 }
-
-// if (isBunTest) {
-//   require("bun:test").afterEach(cleanupAnvil);
-// }
 
 export const setupChildAddresses = (
   eventCallbacks: EventCallback[],
