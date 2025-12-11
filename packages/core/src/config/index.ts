@@ -62,7 +62,7 @@ type DatabaseConfig =
         max?: number;
         /** Enable SSL, or provide a custom SSL configuration. Default: `undefined`. */
         ssl?: boolean | Prettify<ConnectionOptions>;
-      } & Omit<PoolConfig, "max" | "ssl">;
+      } & Omit<PoolConfig, "max" | "ssl" | "connectionString">;
     };
 
 // base
