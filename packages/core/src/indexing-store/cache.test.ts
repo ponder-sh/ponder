@@ -16,7 +16,7 @@ import type { IndexingErrorHandler } from "@/internal/types.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
-import { createHistoricalIndexingStore } from "./historical.js";
+import { createIndexingStore } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -55,7 +55,7 @@ test("flush() insert", async () => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -66,14 +66,14 @@ test("flush() insert", async () => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
     await indexingCache.flush();
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -103,7 +103,7 @@ test("flush() update", async () => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -118,11 +118,11 @@ test("flush() update", async () => {
 
     indexingCache.invalidate();
 
-    await indexingStore.find(schema.account, {
+    await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
@@ -130,14 +130,16 @@ test("flush() update", async () => {
     // first flush takes "insert" path
     await indexingCache.flush();
 
-    await indexingStore.update(schema.account, { address: zeroAddress }).set({
-      balance: 12n,
-    });
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set({
+        balance: 12n,
+      });
 
     // second flush takes "update" path
     await indexingCache.flush();
 
-    let result = await indexingStore.find(schema.account, {
+    let result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -148,13 +150,15 @@ test("flush() update", async () => {
 
     // flush again to make sure temp tables are cleaned up
 
-    await indexingStore.update(schema.account, { address: zeroAddress }).set({
-      balance: 12n,
-    });
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set({
+        balance: 12n,
+      });
 
     await indexingCache.flush();
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -188,7 +192,7 @@ test("flush() recovers error", async () => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -199,14 +203,14 @@ test("flush() recovers error", async () => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
     await indexingCache.flush();
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
@@ -242,7 +246,7 @@ test("flush() encoding", async () => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -253,7 +257,7 @@ test("flush() encoding", async () => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.test).values({
+    await indexingStore.db.insert(schema.test).values({
       hex: zeroAddress,
       bigint: 10n,
       e: "a",
@@ -265,7 +269,7 @@ test("flush() encoding", async () => {
     await indexingCache.flush();
 
     indexingCache.clear();
-    const result = await indexingStore.sql.select().from(schema.test);
+    const result = await indexingStore.db.sql.select().from(schema.test);
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -307,7 +311,7 @@ test("flush() encoding escape", async () => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -339,12 +343,12 @@ test("flush() encoding escape", async () => {
       // { backslash: "\x00" },
     ];
 
-    await indexingStore.insert(schema.test).values(values);
+    await indexingStore.db.insert(schema.test).values(values);
 
     await indexingCache.flush();
 
     indexingCache.clear();
-    const result = await indexingStore.sql.select().from(schema.test);
+    const result = await indexingStore.db.sql.select().from(schema.test);
 
     expect(result).toStrictEqual(values);
   });
@@ -386,7 +390,7 @@ test("prefetch() uses profile metadata", async () => {
     eventCount: getEventCount(indexingFunctions),
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -399,7 +403,7 @@ test("prefetch() uses profile metadata", async () => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({
         address: ALICE,
@@ -441,7 +445,7 @@ test("prefetch() evicts rows", async () => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -455,7 +459,7 @@ test("prefetch() evicts rows", async () => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });

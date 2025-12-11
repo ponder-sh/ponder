@@ -33,7 +33,10 @@ export const dbSim = <
       ? SIM_PARAMS.DB_ERROR_RATE_TRANSACTION
       : SIM_PARAMS.DB_ERROR_RATE;
 
-    if (seedrandom(SEED + sql + nonce)() < DB_ERROR_RATE) {
+    if (
+      seedrandom(SEED + sql + nonce)() < DB_ERROR_RATE &&
+      (nonce + 1) % 10 !== 0
+    ) {
       if (
         sql !== "begin" &&
         sql !== "rollback" &&

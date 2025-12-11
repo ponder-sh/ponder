@@ -26,13 +26,13 @@ test("middleware serves request", async () => {
     })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices({
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
   globalThis.PONDER_DATABASE = database;
 
-  await indexingStore.insert(schema.table).values({
+  await database.userQB.raw.insert(schema.table).values({
     id: "0",
     string: "0",
     int: 0,
@@ -91,13 +91,13 @@ test("middleware supports path other than /graphql using hono routing", async ()
     table: onchainTable("table", (t) => ({ id: t.text().primaryKey() })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices({
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
   globalThis.PONDER_DATABASE = database;
 
-  await indexingStore.insert(schema.table).values({
+  await database.userQB.raw.insert(schema.table).values({
     id: "0",
   });
 
