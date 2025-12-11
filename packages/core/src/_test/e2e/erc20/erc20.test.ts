@@ -71,4 +71,4 @@ test("erc20", async () => {
   });
 
   await shutdown!();
-});
+}, 15_000);

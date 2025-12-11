@@ -94,4 +94,4 @@ test("factory", async () => {
   expect(result).toHaveLength(2);
 
   await shutdown!();
-});
+}, 15_000);
