@@ -1,5 +1,11 @@
 # ponder
 
+## 0.15.17
+
+### Patch Changes
+
+- [#2231](https://github.com/ponder-sh/ponder/pull/2231) [`a5ffe23`](https://github.com/ponder-sh/ponder/commit/a5ffe23e3183f54bad7debe420a3b2616aae09e6) Thanks [@jaylmiller](https://github.com/jaylmiller)! - Fixed issue where executing the indexing files would hang indefinitely.
+
 ## 0.15.16
 
 ### Patch Changes
