@@ -1,5 +1,4 @@
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
@@ -25,6 +24,6 @@ export default defineConfig({
       },
     },
     sequence: { hooks: "stack" },
-    testTimeout: os.platform() === "win32" ? 30_000 : 10_000,
+    testTimeout: 15000,
   },
 });

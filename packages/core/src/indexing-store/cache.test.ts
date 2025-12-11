@@ -1,5 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  context,
   setupAnvil,
   setupCleanup,
   setupCommon,
@@ -35,7 +36,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("flush() insert", async (context) => {
+test("flush() insert", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -43,7 +44,7 @@ test("flush() insert", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -76,17 +77,14 @@ test("flush() insert", async (context) => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
   });
 });
 
-test("flush() update", async (context) => {
+test("flush() update", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -94,7 +92,7 @@ test("flush() update", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -145,13 +143,10 @@ test("flush() update", async (context) => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
 
     // flush again to make sure temp tables are cleaned up
 
@@ -167,17 +162,14 @@ test("flush() update", async (context) => {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
   });
 });
 
-test("flush() recovers error", async (context) => {
+test("flush() recovers error", async () => {
   if (context.databaseConfig.kind !== "postgres") {
     return;
   }
@@ -189,7 +181,7 @@ test("flush() recovers error", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -223,15 +215,13 @@ test("flush() recovers error", async (context) => {
       balance: 10n,
     });
 
-    await expect(() =>
-      indexingCache.flush(),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[DelayedInsertError: duplicate key value violates unique constraint "account_pkey"]`,
+    await expect(indexingCache.flush()).rejects.toThrowError(
+      `duplicate key value violates unique constraint "account_pkey"`,
     );
   });
 });
 
-test("flush() encoding", async (context) => {
+test("flush() encoding", async () => {
   const e = onchainEnum("e", ["a", "b", "c"]);
   const schema = {
     e,
@@ -245,7 +235,7 @@ test("flush() encoding", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -303,14 +293,14 @@ test("flush() encoding", async (context) => {
   });
 });
 
-test("flush() encoding escape", async (context) => {
+test("flush() encoding escape", async () => {
   const schema = {
     test: onchainTable("test", (p) => ({
       backslash: p.text().primaryKey(),
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -364,7 +354,7 @@ test("flush() encoding escape", async (context) => {
   });
 });
 
-test("prefetch() uses profile metadata", async (context) => {
+test("prefetch() uses profile metadata", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -372,7 +362,7 @@ test("prefetch() uses profile metadata", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -436,7 +426,7 @@ test("prefetch() uses profile metadata", async (context) => {
   });
 });
 
-test("prefetch() evicts rows", async (context) => {
+test("prefetch() evicts rows", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -444,7 +434,7 @@ test("prefetch() evicts rows", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 

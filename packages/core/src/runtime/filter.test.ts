@@ -1,5 +1,5 @@
 import { ALICE, BOB } from "@/_test/constants.js";
-import { setupAnvil, setupCommon } from "@/_test/setup.js";
+import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   createPair,
   deployErc20,
@@ -141,7 +141,7 @@ test("isLogFilterMatched()", async () => {
   expect(isMatched).toBe(false);
 });
 
-test("isBlockFilterMatched", async (context) => {
+test("isBlockFilterMatched", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -172,7 +172,7 @@ test("isBlockFilterMatched", async (context) => {
   expect(isMatched).toBe(false);
 });
 
-test("isTransactionFilterMatched()", async (context) => {
+test("isTransactionFilterMatched()", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -212,7 +212,7 @@ test("isTransactionFilterMatched()", async (context) => {
   expect(isMatched).toBe(false);
 });
 
-test("isTransactionFilterMatched() with null transaction.to", async (context) => {
+test("isTransactionFilterMatched() with null transaction.to", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,

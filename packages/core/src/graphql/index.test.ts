@@ -13,7 +13,12 @@ import {
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { count, relations } from "drizzle-orm";
-import { type GraphQLType, execute, parse } from "graphql";
+import {
+  type ExecutionResult,
+  type GraphQLType,
+  execute,
+  parse,
+} from "graphql";
 import { toBytes } from "viem";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -29,10 +34,10 @@ function buildContextValue(database: Database) {
   return { qb, getDataLoader };
 }
 
-test("metadata", async (context) => {
+test("metadata", async () => {
   const schema = {};
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -96,7 +101,7 @@ test("metadata", async (context) => {
   });
 });
 
-test("scalar, scalar not null, scalar array, scalar array not null", async (context) => {
+test("scalar, scalar not null, scalar array, scalar array not null", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -133,7 +138,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -253,7 +258,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async (cont
   });
 });
 
-test("enum, enum not null, enum array, enum array not null", async (context) => {
+test("enum, enum not null, enum array, enum array not null", async () => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable("table", (t) => ({
     id: t.text().primaryKey(),
@@ -264,7 +269,7 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
   }));
   const schema = { testEnum, table };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -305,7 +310,7 @@ test("enum, enum not null, enum array, enum array not null", async (context) => 
   });
 });
 
-test("enum primary key", async (context) => {
+test("enum primary key", async () => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable(
     "table",
@@ -319,7 +324,7 @@ test("enum primary key", async (context) => {
   );
   const schema = { testEnum, table };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -351,7 +356,7 @@ test("enum primary key", async (context) => {
   });
 });
 
-test("json, json not null", async (context) => {
+test("json, json not null", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -360,7 +365,7 @@ test("json, json not null", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -395,7 +400,7 @@ test("json, json not null", async (context) => {
   });
 });
 
-test("singular", async (context) => {
+test("singular", async () => {
   const transferEvents = onchainTable("transfer_events", (t) => ({
     id: t.text().primaryKey(),
     amount: t.bigint().notNull(),
@@ -414,7 +419,7 @@ test("singular", async (context) => {
   );
   const schema = { transferEvents, allowances };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -488,7 +493,7 @@ test("singular", async (context) => {
   });
 });
 
-test("singular with one relation", async (context) => {
+test("singular with one relation", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -512,7 +517,7 @@ test("singular with one relation", async (context) => {
 
   const schema = { person, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -555,7 +560,7 @@ test("singular with one relation", async (context) => {
   });
 });
 
-test("singular with one relation using camel case 'references' column name", async (context) => {
+test("singular with one relation using camel case 'references' column name", async () => {
   const person = onchainTable("person", (t) => ({
     camelCaseId: t.text().primaryKey(),
     name: t.text(),
@@ -575,7 +580,7 @@ test("singular with one relation using camel case 'references' column name", asy
 
   const schema = { person, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -610,7 +615,7 @@ test("singular with one relation using camel case 'references' column name", asy
   });
 });
 
-test("singular with many relation", async (context) => {
+test("singular with many relation", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -631,7 +636,7 @@ test("singular with many relation", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -669,7 +674,7 @@ test("singular with many relation", async (context) => {
   });
 });
 
-test("singular with many relation using camel case 'references' column name", async (context) => {
+test("singular with many relation using camel case 'references' column name", async () => {
   const person = onchainTable("person", (t) => ({
     camelCaseId: t.text().primaryKey(),
     name: t.text(),
@@ -693,7 +698,7 @@ test("singular with many relation using camel case 'references' column name", as
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -731,7 +736,7 @@ test("singular with many relation using camel case 'references' column name", as
   });
 });
 
-test("singular with many relation and extra one relation", async (context) => {
+test("singular with many relation and extra one relation", async () => {
   const extra = onchainTable("extra", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -770,7 +775,7 @@ test("singular with many relation and extra one relation", async (context) => {
     userRelations,
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -808,7 +813,7 @@ test("singular with many relation and extra one relation", async (context) => {
   });
 });
 
-test("multiple many relations", async (context) => {
+test("multiple many relations", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -840,7 +845,7 @@ test("multiple many relations", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -897,7 +902,7 @@ test("multiple many relations", async (context) => {
   `);
 });
 
-test("singular with many relation using filter", async (context) => {
+test("singular with many relation using filter", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -915,7 +920,7 @@ test("singular with many relation using filter", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -957,7 +962,7 @@ test("singular with many relation using filter", async (context) => {
   });
 });
 
-test("singular with many relation using order by", async (context) => {
+test("singular with many relation using order by", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -975,7 +980,7 @@ test("singular with many relation using order by", async (context) => {
   }));
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1015,7 +1020,7 @@ test("singular with many relation using order by", async (context) => {
   });
 });
 
-test("plural with one relation uses dataloader", async (context) => {
+test("plural with one relation uses dataloader", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),
@@ -1036,7 +1041,7 @@ test("plural with one relation uses dataloader", async (context) => {
 
   const schema = { person, personRelations, pet, petRelations };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1086,7 +1091,7 @@ test("plural with one relation uses dataloader", async (context) => {
   expect(petSelectSpy).toHaveBeenCalledTimes(1);
 });
 
-test("filter input type", async (context) => {
+test("filter input type", async () => {
   const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
     text: t.text().primaryKey(),
@@ -1107,7 +1112,7 @@ test("filter input type", async (context) => {
   }));
   const schema = { simpleEnum, table };
 
-  await setupDatabaseServices(context, {
+  await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1231,13 +1236,13 @@ test("filter input type", async (context) => {
   });
 });
 
-test("filter universal", async (context) => {
+test("filter universal", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.bigint().primaryKey(),
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1279,14 +1284,14 @@ test("filter universal", async (context) => {
   });
 });
 
-test("filter null equality", async (context) => {
+test("filter null equality", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.bigint().primaryKey(),
     nullable: t.text(),
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1337,13 +1342,13 @@ test("filter null equality", async (context) => {
   });
 });
 
-test("filter singular", async (context) => {
+test("filter singular", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.hex().primaryKey(),
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1387,14 +1392,14 @@ test("filter singular", async (context) => {
   });
 });
 
-test("filter plural", async (context) => {
+test("filter plural", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     number: t.integer().array().notNull(),
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1490,7 +1495,7 @@ test("filter plural", async (context) => {
   });
 });
 
-test("filter numeric", async (context) => {
+test("filter numeric", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     number: t.integer(),
@@ -1501,7 +1506,7 @@ test("filter numeric", async (context) => {
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1616,7 +1621,7 @@ test("filter numeric", async (context) => {
   });
 });
 
-test("filter string", async (context) => {
+test("filter string", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     text: t.text(),
@@ -1624,7 +1629,7 @@ test("filter string", async (context) => {
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1683,7 +1688,7 @@ test("filter string", async (context) => {
   });
 });
 
-test("filter and/or", async (context) => {
+test("filter and/or", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -1692,7 +1697,7 @@ test("filter and/or", async (context) => {
   }));
   const schema = { pet };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1730,7 +1735,7 @@ test("filter and/or", async (context) => {
   ]);
 });
 
-test("order by", async (context) => {
+test("order by", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     integer: t.integer(),
@@ -1741,7 +1746,7 @@ test("order by", async (context) => {
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1853,13 +1858,13 @@ test("order by", async (context) => {
   });
 });
 
-test("limit", async (context) => {
+test("limit", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
   }));
   const schema = { person };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -1917,19 +1922,27 @@ test("limit", async (context) => {
   );
 });
 
-test("cursor pagination ascending", async (context) => {
+function clone(result: ExecutionResult): ExecutionResult {
+  return JSON.parse(JSON.stringify(result));
+}
+
+test("cursor pagination ascending", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
   }));
   const schema = { pet };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
   const query = (source: string) =>
-    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+    execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(source),
+    });
 
   await database.userQB.raw.insert(schema.pet).values([
     { id: "id1", name: "Skip" },
@@ -1964,7 +1977,7 @@ test("cursor pagination ascending", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id1", name: "Skip" },
@@ -2005,7 +2018,7 @@ test("cursor pagination ascending", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id6", name: "Book" },
@@ -2045,7 +2058,7 @@ test("cursor pagination ascending", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id4", name: "Zarbar" },
@@ -2062,7 +2075,7 @@ test("cursor pagination ascending", async (context) => {
   });
 });
 
-test("cursor pagination descending", async (context) => {
+test("cursor pagination descending", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2071,7 +2084,7 @@ test("cursor pagination descending", async (context) => {
   }));
   const schema = { pet };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2107,7 +2120,7 @@ test("cursor pagination descending", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id4", name: "Zarbar" },
@@ -2145,7 +2158,7 @@ test("cursor pagination descending", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id1", name: "Skip" },
@@ -2184,7 +2197,7 @@ test("cursor pagination descending", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [{ id: "id5", name: "Winston" }],
       pageInfo: {
@@ -2198,7 +2211,7 @@ test("cursor pagination descending", async (context) => {
   });
 });
 
-test("cursor pagination start and end cursors", async (context) => {
+test("cursor pagination start and end cursors", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2207,7 +2220,7 @@ test("cursor pagination start and end cursors", async (context) => {
   }));
   const schema = { pet };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2244,7 +2257,7 @@ test("cursor pagination start and end cursors", async (context) => {
 
   // Should return start and end cursors when returning full result
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [
         { id: "id3", name: "Bar" },
@@ -2264,7 +2277,7 @@ test("cursor pagination start and end cursors", async (context) => {
   });
 });
 
-test("cursor pagination has previous page", async (context) => {
+test("cursor pagination has previous page", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2273,7 +2286,7 @@ test("cursor pagination has previous page", async (context) => {
   }));
   const schema = { pet };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2332,7 +2345,7 @@ test("cursor pagination has previous page", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     pets: {
       items: [],
       pageInfo: {
@@ -2347,7 +2360,7 @@ test("cursor pagination has previous page", async (context) => {
   });
 });
 
-test("cursor pagination composite primary key", async (context) => {
+test("cursor pagination composite primary key", async () => {
   const allowance = onchainTable(
     "allowance",
     (t) => ({
@@ -2362,7 +2375,7 @@ test("cursor pagination composite primary key", async (context) => {
 
   const schema = { allowance };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2400,7 +2413,7 @@ test("cursor pagination composite primary key", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     allowances: {
       items: [
         { owner: "alice", spender: "bob", amount: "100" },
@@ -2441,7 +2454,7 @@ test("cursor pagination composite primary key", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     allowances: {
       items: [
         { owner: "bob", spender: "bill", amount: "500" },
@@ -2480,7 +2493,7 @@ test("cursor pagination composite primary key", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
+  expect(clone(result).data).toMatchObject({
     allowances: {
       items: [
         { owner: "bill", spender: "jenny", amount: "700" },
@@ -2497,7 +2510,7 @@ test("cursor pagination composite primary key", async (context) => {
   });
 });
 
-test("cursor pagination with date order", async (context) => {
+test("cursor pagination with date order", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2505,7 +2518,7 @@ test("cursor pagination with date order", async (context) => {
   }));
   const schema = { pet };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2546,7 +2559,7 @@ test("cursor pagination with date order", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchInlineSnapshot(`
+  expect(clone(result).data).toMatchInlineSnapshot(`
     {
       "pets": {
         "items": [
@@ -2610,7 +2623,7 @@ test("cursor pagination with date order", async (context) => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchInlineSnapshot(`
+  expect(clone(result).data).toMatchInlineSnapshot(`
     {
       "pets": {
         "items": [
@@ -2647,7 +2660,7 @@ test("cursor pagination with date order", async (context) => {
   `);
 });
 
-test("column casing", async (context) => {
+test("column casing", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -2656,7 +2669,7 @@ test("column casing", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2691,7 +2704,7 @@ test("column casing", async (context) => {
   });
 });
 
-test("snake case table and column names with where clause", async (context) => {
+test("snake case table and column names with where clause", async () => {
   const schema = {
     deposited_token: onchainTable(
       "deposited_token",
@@ -2707,7 +2720,7 @@ test("snake case table and column names with where clause", async (context) => {
     ),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2739,14 +2752,14 @@ test("snake case table and column names with where clause", async (context) => {
   });
 });
 
-test("singular with hex primary key uses case insensitive where", async (context) => {
+test("singular with hex primary key uses case insensitive where", async () => {
   const account = onchainTable("account", (t) => ({
     address: t.hex().primaryKey(),
   }));
 
   const schema = { account };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2790,7 +2803,7 @@ test("singular with hex primary key uses case insensitive where", async (context
   });
 });
 
-test("view", async (context) => {
+test("view", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2798,7 +2811,7 @@ test("view", async (context) => {
   const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
   const schema = { pet, petView };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2846,7 +2859,7 @@ test("view", async (context) => {
   });
 });
 
-test("view with alias", async (context) => {
+test("view with alias", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2863,7 +2876,7 @@ test("view with alias", async (context) => {
   );
   const schema = { pet, petView };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);
@@ -2912,7 +2925,7 @@ test("view with alias", async (context) => {
   });
 });
 
-test("view limit/offset pagination", async (context) => {
+test("view limit/offset pagination", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -2920,7 +2933,7 @@ test("view limit/offset pagination", async (context) => {
   const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
   const schema = { pet, petView };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
   const contextValue = buildContextValue(database);

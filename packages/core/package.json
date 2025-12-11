@@ -37,6 +37,7 @@
   "scripts": {
     "build": "tsx build.ts",
     "test": "vitest",
+    "test:bun": "bun test",
     "test:typecheck": "vitest --typecheck.only",
     "typecheck": "tsc --noEmit"
   },

@@ -1,5 +1,5 @@
 import { type Abi, parseAbiItem } from "viem";
-import { assertType, test } from "vitest";
+import { expectTypeOf, test } from "vitest";
 import { factory } from "./address.js";
 import { createConfig } from "./index.js";
 
@@ -262,8 +262,8 @@ test("createConfig strict return type", () => {
     },
   });
 
-  assertType<{ mainnet: { id: 1; rpc: string } }>(config.chains);
-  assertType<{
+  expectTypeOf<{ mainnet: { id: 1; rpc: string } }>(config.chains);
+  expectTypeOf<{
     c2: {
       abi: readonly [typeof event0, typeof event1];
       chain: "mainnet";

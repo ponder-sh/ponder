@@ -1,6 +1,7 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
+  context,
   setupAnvil,
   setupCleanup,
   setupCommon,
@@ -36,6 +37,7 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+// if ("bun" in process.versions) afterEach(cleanupAnvil);
 
 const account = onchainTable("account", (p) => ({
   address: p.hex().primaryKey(),
@@ -57,9 +59,9 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("createIndexing()", async (context) => {
+test("createIndexing()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -117,9 +119,9 @@ test("createIndexing()", async (context) => {
   expect(indexing).toBeDefined();
 });
 
-test("processSetupEvents() empty", async (context) => {
+test("processSetupEvents() empty", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -176,9 +178,9 @@ test("processSetupEvents() empty", async (context) => {
   await indexing.processSetupEvents();
 });
 
-test("processSetupEvents()", async (context) => {
+test("processSetupEvents()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -254,9 +256,9 @@ test("processSetupEvents()", async (context) => {
   });
 });
 
-test("processEvent()", async (context) => {
+test("processEvent()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -353,9 +355,9 @@ test("processEvent()", async (context) => {
   });
 });
 
-test("processEvents eventCount", async (context) => {
+test("processEvents eventCount", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -439,9 +441,9 @@ test("processEvents eventCount", async (context) => {
   `);
 });
 
-test("executeSetup() context.client", async (context) => {
+test("executeSetup() context.client", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -515,9 +517,9 @@ test("executeSetup() context.client", async (context) => {
   );
 });
 
-test("executeSetup() context.db", async (context) => {
+test("executeSetup() context.db", async () => {
   const { common } = context;
-  const { database, syncStore } = await setupDatabaseServices(context, {
+  const { database, syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -595,9 +597,9 @@ test("executeSetup() context.db", async (context) => {
   });
 });
 
-test("executeSetup() metrics", async (context) => {
+test("executeSetup() metrics", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -659,9 +661,9 @@ test("executeSetup() metrics", async (context) => {
   expect(metrics.values).toBeDefined();
 });
 
-test("executeSetup() error", async (context) => {
+test("executeSetup() error", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -720,14 +722,16 @@ test("executeSetup() error", async (context) => {
   // @ts-ignore
   setupCallbacks[0]!.fn.mockRejectedValue(new Error());
 
-  await expect(() => indexing.processSetupEvents()).rejects.toThrowError();
+  await expect(indexing.processSetupEvents()).rejects.toThrowError();
 
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
 });
 
-test("processEvents() context.client", async (context) => {
+test("processEvents() context.client", async () => {
+  // console.log("pausing test...");
+  // await setTimeout(1200000);
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -813,9 +817,9 @@ test("processEvents() context.client", async (context) => {
   );
 });
 
-test("processEvents() context.db", async (context) => {
+test("processEvents() context.db", async () => {
   const { common } = context;
-  const { database, syncStore } = await setupDatabaseServices(context, {
+  const { database, syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -902,9 +906,9 @@ test("processEvents() context.db", async (context) => {
   expect(insertSpy).toHaveBeenCalledTimes(1);
 });
 
-test("processEvents() metrics", async (context) => {
+test("processEvents() metrics", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -979,9 +983,9 @@ test("processEvents() metrics", async (context) => {
   expect(metrics.values).toBeDefined();
 });
 
-test("processEvents() error", async (context) => {
+test("processEvents() error", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1052,16 +1056,16 @@ test("processEvents() error", async (context) => {
     eventCallback: eventCallbacks[0],
     blockData,
   });
-  await expect(() =>
+  await expect(
     indexing.processRealtimeEvents({ events: [event] }),
   ).rejects.toThrowError();
 
   expect(eventCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
 });
 
-test("processEvents() error with missing event object properties", async (context) => {
+test("processEvents() error with missing event object properties", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1137,14 +1141,14 @@ test("processEvents() error with missing event object properties", async (contex
     eventCallback: eventCallbacks[0],
     blockData,
   });
-  await expect(() =>
+  await expect(
     indexing.processRealtimeEvents({ events: [event] }),
   ).rejects.toThrowError();
 });
 
-test("processEvents() column selection", async (context) => {
+test("processEvents() column selection", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1257,7 +1261,7 @@ test("processEvents() column selection", async (context) => {
   // biome-ignore lint/performance/noDelete: <explanation>
   delete event.event.transaction.maxPriorityFeePerGas;
 
-  await expect(() =>
+  await expect(
     indexing.processHistoricalEvents({
       events: [event],
       updateIndexingSeconds: vi.fn(),
@@ -1267,9 +1271,9 @@ test("processEvents() column selection", async (context) => {
   );
 });
 
-test("ponderActions getBalance()", async (context) => {
+test("ponderActions getBalance()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1310,9 +1314,9 @@ test("ponderActions getBalance()", async (context) => {
   expect(balance).toBe(parseEther("10000"));
 });
 
-test("ponderActions getCode()", async (context) => {
+test("ponderActions getCode()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1354,9 +1358,9 @@ test("ponderActions getCode()", async (context) => {
   expect(bytecode).toBeTruthy();
 });
 
-test("ponderActions getStorageAt()", async (context) => {
+test("ponderActions getStorageAt()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1401,9 +1405,9 @@ test("ponderActions getStorageAt()", async (context) => {
   expect(BigInt(storage!)).toBe(parseEther("1"));
 });
 
-test("ponderActions readContract()", async (context) => {
+test("ponderActions readContract()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1449,9 +1453,9 @@ test("ponderActions readContract()", async (context) => {
   expect(totalSupply).toMatchInlineSnapshot("1000000000000000000n");
 });
 
-test("ponderActions readContract() blockNumber", async (context) => {
+test("ponderActions readContract() blockNumber", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1497,9 +1501,9 @@ test("ponderActions readContract() blockNumber", async (context) => {
   expect(totalSupply).toMatchInlineSnapshot("0n");
 });
 
-test("ponderActions readContract() ContractFunctionZeroDataError", async (context) => {
+test("ponderActions readContract() ContractFunctionZeroDataError", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1549,9 +1553,9 @@ test("ponderActions readContract() ContractFunctionZeroDataError", async (contex
   expect(requestSpy).toHaveBeenCalledTimes(2);
 });
 
-test("ponderActions multicall()", async (context) => {
+test("ponderActions multicall()", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1608,9 +1612,9 @@ test("ponderActions multicall()", async (context) => {
   expect(totalSupply).toMatchInlineSnapshot("1000000000000000000n");
 });
 
-test("ponderActions multicall() allowFailure", async (context) => {
+test("ponderActions multicall() allowFailure", async () => {
   const { common } = context;
-  const { syncStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 

@@ -433,6 +433,10 @@ export async function run({
   packageJson.dependencies.ponder = `^${rootPackageJson.version}`;
   packageJson.devDependencies["eslint-config-ponder"] =
     `^${rootPackageJson.version}`;
+  if ("bun" in process.versions) {
+    packageJson.scripts = addBunFlagToScripts(packageJson.scripts ?? {});
+  }
+
   await fs.writeFile(
     path.join(projectPath, "package.json"),
     JSON.stringify(packageJson, null, 2),
@@ -519,6 +523,15 @@ export async function run({
   log();
   log("―――――――――――――――――――――");
   log();
+}
+
+function addBunFlagToScripts(scripts: Record<string, string>) {
+  const ret: Record<string, string> = {};
+  for (const [k, v] of Object.entries(scripts)) {
+    if (v.startsWith("ponder")) ret[k] = `bun --bun ${v}`;
+    else ret[k] = v;
+  }
+  return ret;
 }
 
 (async () => {

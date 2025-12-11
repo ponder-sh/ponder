@@ -4,6 +4,7 @@ import {
   EMPTY_LOG_FILTER,
 } from "@/_test/constants.js";
 import {
+  context,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -52,7 +53,7 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("getLocalSyncProgress()", async (context) => {
+test("getLocalSyncProgress()", async () => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -85,7 +86,7 @@ test("getLocalSyncProgress()", async (context) => {
   expect(syncProgress.current).toBe(undefined);
 });
 
-test("getLocalSyncProgress() future end block", async (context) => {
+test("getLocalSyncProgress() future end block", async () => {
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -894,8 +895,8 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
   `);
 });
 
-test("historical events match realtime events", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("historical events match realtime events", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({

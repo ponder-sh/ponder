@@ -1,7 +1,9 @@
+import util from "node:util";
 import ansi from "ansi-escapes";
 import terminalSize from "terminal-size";
 
 export function patchWriteStreams({ getLines }: { getLines: () => string[] }) {
+  const isBun = "bun" in process.versions;
   const originalStdoutWrite = process.stdout.write;
   const originalStderrWrite = process.stderr.write;
 
@@ -109,22 +111,79 @@ export function patchWriteStreams({ getLines }: { getLines: () => string[] }) {
   };
   process.stdout.on("resize", resizeListener);
 
-  const shutdown = () => {
-    // Restore original write methods
-    process.stdout.write = originalStdoutWrite;
-    process.stderr.write = originalStderrWrite;
+  let shutdown: () => void;
 
-    // Clear the UI
-    if (previousLineCount > 0) {
-      originalStdoutWrite.call(
-        process.stdout,
-        ansi.cursorUp(previousLineCount) + ansi.eraseDown,
-      );
-    }
+  if (isBun) {
+    // bun has a custom impl of console.* methods that do not use process.stdout/process.stderr
+    // so need to patch them as well
+    const originalConsoleLog = console.log;
+    const originalConsoleInfo = console.info;
+    const originalConsoleWarn = console.warn;
+    const originalConsoleError = console.error;
+    const makeConsoleWriter =
+      (stream: NodeJS.WriteStream, _: typeof originalStdoutWrite) =>
+      (...args: unknown[]) => {
+        // biome-ignore lint/style/useTemplate:
+        const formatted = util.format(...args) + "\n";
 
-    // Remove resize listener
-    process.stdout.removeListener("resize", resizeListener);
-  };
+        // handleOutput so TUI is cleared + re-rendered
+        handleOutput.call(stream, formatted, "utf8", undefined);
+      };
+
+    console.log = makeConsoleWriter(
+      process.stdout,
+      originalStdoutWrite,
+    ) as typeof console.log;
+    console.info = makeConsoleWriter(
+      process.stdout,
+      originalStdoutWrite,
+    ) as typeof console.info;
+    console.warn = makeConsoleWriter(
+      process.stderr,
+      originalStderrWrite,
+    ) as typeof console.warn;
+    console.error = makeConsoleWriter(
+      process.stderr,
+      originalStderrWrite,
+    ) as typeof console.error;
+
+    shutdown = () => {
+      // Restore original write methods
+      process.stdout.write = originalStdoutWrite;
+      process.stderr.write = originalStderrWrite;
+      console.log = originalConsoleLog;
+      console.info = originalConsoleInfo;
+      console.warn = originalConsoleWarn;
+      console.error = originalConsoleError;
+
+      // Clear the UI
+      if (previousLineCount > 0) {
+        originalStdoutWrite.call(
+          process.stdout,
+          ansi.cursorUp(previousLineCount) + ansi.eraseDown,
+        );
+      }
+
+      process.stdout.removeListener("resize", resizeListener);
+    };
+  } else {
+    shutdown = () => {
+      // Restore original write methods
+      process.stdout.write = originalStdoutWrite;
+      process.stderr.write = originalStderrWrite;
+
+      // Clear the UI
+      if (previousLineCount > 0) {
+        originalStdoutWrite.call(
+          process.stdout,
+          ansi.cursorUp(previousLineCount) + ansi.eraseDown,
+        );
+      }
+
+      // Remove resize listener
+      process.stdout.removeListener("resize", resizeListener);
+    };
+  }
 
   return {
     refresh: () => {

@@ -1,6 +1,7 @@
 import path from "node:path";
+import { withStubbedEnv } from "@/_test/utils.js";
 import type { Options } from "@/internal/options.js";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { createConfig } from "../config/index.js";
 import { buildPre } from "./pre.js";
 
@@ -15,35 +16,34 @@ test("buildPre() database uses pglite by default", () => {
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  const prev = process.env.DATABASE_URL;
-  // biome-ignore lint/performance/noDelete: Required to test default behavior.
-  delete process.env.DATABASE_URL;
-
-  const { databaseConfig } = buildPre({
-    config,
-    options,
-  });
-  expect(databaseConfig).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+  withStubbedEnv(
+    { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
+    () => {
+      const { databaseConfig } = buildPre({
+        config,
+        options,
+      });
+      expect(databaseConfig).toMatchObject({
+        kind: "pglite",
+        options: {
+          dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+        },
+      });
     },
-  });
+  );
 
-  process.env.DATABASE_URL = "";
-
-  const { databaseConfig: databaseConfig2 } = buildPre({
-    config,
-    options,
+  withStubbedEnv({ DATABASE_URL: "", PRIVATE_DATABASE_URL: "" }, () => {
+    const { databaseConfig: databaseConfig2 } = buildPre({
+      config,
+      options,
+    });
+    expect(databaseConfig2).toMatchObject({
+      kind: "pglite",
+      options: {
+        dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+      },
+    });
   });
-  expect(databaseConfig2).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
-    },
-  });
-
-  process.env.DATABASE_URL = prev;
 });
 
 test("buildPre() database respects custom pglite path", async () => {
@@ -70,17 +70,18 @@ test("buildPre() database uses pglite if specified even if DATABASE_URL env var 
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-
-  const { databaseConfig } = buildPre({ config, options });
-  expect(databaseConfig).toMatchObject({
-    kind: "pglite",
-    options: {
-      dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+  withStubbedEnv(
+    { DATABASE_URL: "postgres://username@localhost:5432/database" },
+    () => {
+      const { databaseConfig } = buildPre({ config, options });
+      expect(databaseConfig).toMatchObject({
+        kind: "pglite",
+        options: {
+          dataDir: expect.stringContaining(path.join(".ponder", "pglite")),
+        },
+      });
     },
-  });
-
-  vi.unstubAllEnvs();
+  );
 });
 
 test("buildPre() database uses postgres if DATABASE_URL env var present", async () => {
@@ -89,17 +90,18 @@ test("buildPre() database uses postgres if DATABASE_URL env var present", async 
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-
-  const { databaseConfig } = buildPre({ config, options });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
+  withStubbedEnv(
+    { DATABASE_URL: "postgres://username@localhost:5432/database" },
+    () => {
+      const { databaseConfig } = buildPre({ config, options });
+      expect(databaseConfig).toMatchObject({
+        kind: "postgres",
+        poolConfig: {
+          connectionString: "postgres://username@localhost:5432/database",
+        },
+      });
     },
-  });
-
-  vi.unstubAllEnvs();
+  );
 });
 
 test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
@@ -108,21 +110,23 @@ test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present"
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  vi.stubEnv("DATABASE_URL", "postgres://username@localhost:5432/database");
-  vi.stubEnv(
-    "DATABASE_PRIVATE_URL",
-    "postgres://username@localhost:5432/better_database",
-  );
-
-  const { databaseConfig } = buildPre({ config, options });
-  expect(databaseConfig).toMatchObject({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/better_database",
+  withStubbedEnv(
+    {
+      DATABASE_URL: "postgres://username@localhost:5432/database",
+      DATABASE_PRIVATE_URL:
+        "postgres://username@localhost:5432/better_database",
     },
-  });
-
-  vi.unstubAllEnvs();
+    () => {
+      const { databaseConfig } = buildPre({ config, options });
+      expect(databaseConfig).toMatchObject({
+        kind: "postgres",
+        poolConfig: {
+          connectionString:
+            "postgres://username@localhost:5432/better_database",
+        },
+      });
+    },
+  );
 });
 
 test("buildPre() throws for postgres database with no connection string", async () => {
@@ -132,15 +136,14 @@ test("buildPre() throws for postgres database with no connection string", async 
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  const prev = process.env.DATABASE_URL;
-  // biome-ignore lint/performance/noDelete: Required to test default behavior.
-  delete process.env.DATABASE_URL;
-
-  expect(() => buildPre({ config, options })).toThrow(
-    "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
+  withStubbedEnv(
+    { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
+    () => {
+      expect(() => buildPre({ config, options })).toThrow(
+        "Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.",
+      );
+    },
   );
-
-  process.env.DATABASE_URL = prev;
 });
 
 test("buildPre() database with postgres uses pool config", async () => {

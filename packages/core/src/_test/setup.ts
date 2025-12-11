@@ -20,17 +20,15 @@ import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import { type TestContext, afterAll } from "vitest";
-import { poolId, testClient } from "./utils.js";
+import { afterAll } from "vitest";
+import { IS_BUN_TEST, TEST_POOL_ID, testClient } from "./utils.js";
 
-declare module "vitest" {
-  export interface TestContext {
-    common: Common;
-    databaseConfig: DatabaseConfig;
-  }
-}
+export const context = {} as {
+  common: Common;
+  databaseConfig: DatabaseConfig;
+};
 
-export function setupCommon(context: TestContext) {
+export function setupCommon() {
   const cliOptions = {
     command: "start",
     config: "",
@@ -55,7 +53,14 @@ export function setupCommon(context: TestContext) {
   };
 }
 
-export function setupCleanup(context: TestContext) {
+export function setupCleanup() {
+  if (IS_BUN_TEST) {
+    require("bun:test").afterEach(async () => {
+      await context.common.shutdown.kill();
+    });
+    return;
+  }
+
   return context.common.shutdown.kill;
 }
 
@@ -66,6 +71,7 @@ afterAll(async () => {
       await instance.close();
     }),
   );
+  pgliteInstances.clear();
 });
 
 /**
@@ -76,11 +82,11 @@ afterAll(async () => {
  * beforeEach(setupIsolatedDatabase)
  * ```
  */
-export async function setupIsolatedDatabase(context: TestContext) {
+export async function setupIsolatedDatabase() {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
-    const databaseName = `vitest_${poolId}`;
+    const databaseName = `vitest_${TEST_POOL_ID}`;
 
     const client = new pg.Client({ connectionString });
     await client.connect();
@@ -103,10 +109,10 @@ export async function setupIsolatedDatabase(context: TestContext) {
 
     context.databaseConfig = { kind: "postgres", poolConfig };
   } else {
-    let instance = pgliteInstances.get(poolId);
+    let instance = pgliteInstances.get(TEST_POOL_ID);
     if (instance === undefined) {
       instance = createPglite({ dataDir: "memory://" });
-      pgliteInstances.set(poolId, instance);
+      pgliteInstances.set(TEST_POOL_ID, instance);
     }
 
     // Because PGlite takes ~500ms to open a new connection, and it's not possible to drop the
@@ -181,7 +187,6 @@ export async function setupIsolatedDatabase(context: TestContext) {
 }
 
 export async function setupDatabaseServices(
-  context: TestContext,
   overrides: Partial<{
     namespaceBuild: NamespaceBuild;
     schemaBuild: Partial<SchemaBuild>;
@@ -245,10 +250,13 @@ export async function setupDatabaseServices(
  */
 export async function setupAnvil() {
   const emptySnapshotId = await testClient.snapshot();
-
-  return async () => {
+  const cleanup = async () => {
     await testClient.revert({ id: emptySnapshotId });
   };
+
+  if (IS_BUN_TEST) return require("bun:test").afterEach(cleanup);
+
+  return cleanup;
 }
 
 export const setupChildAddresses = (

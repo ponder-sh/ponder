@@ -1,4 +1,5 @@
 import {
+  context,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -32,8 +33,8 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("getLocalEventGenerator()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getLocalEventGenerator()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -77,8 +78,8 @@ test("getLocalEventGenerator()", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLocalEventGenerator() pagination", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getLocalEventGenerator() pagination", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -122,8 +123,8 @@ test("getLocalEventGenerator() pagination", async (context) => {
   expect(events.length).toBeGreaterThan(1);
 });
 
-test("getLocalEventGenerator() pagination with zero interval", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getLocalEventGenerator() pagination with zero interval", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -167,8 +168,8 @@ test("getLocalEventGenerator() pagination with zero interval", async (context) =
   expect(events.length).toBe(1);
 });
 
-test("getLocalSyncGenerator()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getLocalSyncGenerator()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -215,8 +216,8 @@ test("getLocalSyncGenerator()", async (context) => {
   expect(intervals[0]!.blocks).toBe("{[0,2]}");
 });
 
-test("getLocalSyncGenerator() with partial cache", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getLocalSyncGenerator() with partial cache", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -294,8 +295,8 @@ test("getLocalSyncGenerator() with partial cache", async (context) => {
   expect(intervals[0]!.blocks).toBe("{[0,3]}");
 });
 
-test("getLocalSyncGenerator() with full cache", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getLocalSyncGenerator() with full cache", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -374,8 +375,8 @@ test("getLocalSyncGenerator() with full cache", async (context) => {
   expect(requestSpy).toHaveBeenCalledTimes(0);
 });
 
-test("getHistoricalEventsMultichain()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getHistoricalEventsMultichain()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -436,8 +437,8 @@ test("getHistoricalEventsMultichain()", async (context) => {
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
 });
 
-test("getHistoricalEvents() omnichain", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getHistoricalEvents() omnichain", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
@@ -498,8 +499,8 @@ test("getHistoricalEvents() omnichain", async (context) => {
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
 });
 
-test("getHistoricalEvents() with crash recovery checkpoint", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("getHistoricalEvents() with crash recovery checkpoint", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
