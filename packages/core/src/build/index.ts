@@ -279,35 +279,15 @@ export const createBuild = async ({
         ignore: apiPattern,
       });
 
-      const executeResults: (Awaited<ReturnType<typeof executeFile>> & {
-        file: string;
-      })[] = [];
       for (const file of files) {
         const executeResult = await executeFileWithTimeout({ file });
 
-        if (
-          executeResult.status === "error" &&
-          executeResult.error instanceof NonRetryableUserError
-        ) {
+        if (executeResult.status === "error") {
           common.logger.error({
             msg: "Error while executing file",
             file: path.relative(common.options.rootDir, file),
             error: executeResult,
           });
-          return executeResult;
-        }
-
-        executeResults.push({ file, ...executeResult });
-      }
-
-      for (const executeResult of executeResults) {
-        if (executeResult.status === "error") {
-          common.logger.error({
-            msg: "Error while executing file",
-            file: path.relative(common.options.rootDir, executeResult.file),
-            error: executeResult.error,
-          });
-
           return executeResult;
         }
       }
