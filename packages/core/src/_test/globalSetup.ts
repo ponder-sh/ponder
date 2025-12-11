@@ -49,13 +49,12 @@ async function globalSetup() {
 }
 
 function resetPonderGlobals() {
-  for (const k of Object.keys(globalThis)) {
-    if (!k.startsWith("PONDER_")) {
-      continue;
-    }
-    // @ts-ignore
-    globalThis[k] = undefined;
-  }
+  // @ts-ignore
+  globalThis.PONDER_DATABASE = undefined;
+  // @ts-ignore
+  globalThis.PONDER_NAMESPACE_BUILD = undefined;
+  // @ts-ignore
+  globalThis.PONDER_INDEXING_BUILD = undefined;
 }
 
 if ("bun" in process.versions) {
