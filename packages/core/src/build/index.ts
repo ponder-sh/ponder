@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { setTimeout } from "node:timers/promises";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
 import { createQB } from "@/database/queryBuilder.js";
 import type { Common } from "@/internal/common.js";
-import { BuildError, RetryableError } from "@/internal/errors.js";
+import {
+  BuildError,
+  NonRetryableUserError,
+  RetryableError,
+} from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -184,6 +187,33 @@ export const createBuild = async ({
     }
   };
 
+  const executeFileWithTimeout = async ({
+    file,
+  }: { file: string }): Promise<
+    { status: "success"; exports: any } | { status: "error"; error: Error }
+  > => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<NonRetryableUserError>((resolve) => {
+      timeoutId = setTimeout(
+        () =>
+          resolve(
+            new NonRetryableUserError(
+              "File execution did not complete (waited 10s)",
+            ),
+          ),
+        10_000,
+      );
+    });
+
+    const res = await Promise.race([executeFile({ file }), timeout]);
+    if (res instanceof NonRetryableUserError) {
+      return { status: "error", error: res };
+    }
+
+    clearTimeout(timeoutId!);
+    return res;
+  };
+
   const build = {
     async executeConfig(): Promise<ConfigResult> {
       const executeResult = await executeFile({
@@ -253,26 +283,21 @@ export const createBuild = async ({
         file: string;
       })[] = [];
       for (const file of files) {
-        const executeResult = await Promise.race([
-          executeFile({ file }).then((res) => ({
-            ...res,
-            file,
-          })),
-          setTimeout(10_000).then(() =>
-            Error("File execution did not complete (waited 10s)"),
-          ),
-        ]);
-        if (executeResult instanceof Error) {
+        const executeResult = await executeFileWithTimeout({ file });
+
+        if (
+          executeResult.status === "error" &&
+          executeResult.error instanceof NonRetryableUserError
+        ) {
           common.logger.error({
             msg: "Error while executing file",
             file: path.relative(common.options.rootDir, file),
             error: executeResult,
           });
-
-          return { error: executeResult, status: "error" };
+          return executeResult;
         }
 
-        executeResults.push(executeResult);
+        executeResults.push({ file, ...executeResult });
       }
 
       for (const executeResult of executeResults) {
