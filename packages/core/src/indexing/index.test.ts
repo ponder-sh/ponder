@@ -36,6 +36,7 @@ beforeEach(setupCommon);
 beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
+// if ("bun" in process.versions) afterEach(cleanupAnvil);
 
 const account = onchainTable("account", (p) => ({
   address: p.hex().primaryKey(),

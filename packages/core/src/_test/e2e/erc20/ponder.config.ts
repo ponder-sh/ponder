@@ -6,7 +6,7 @@ const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 function getDatabase() {
   if (process.env.DATABASE_URL) {
     const databaseUrl = new URL(process.env.DATABASE_URL);
-    databaseUrl.pathname = `/test_${poolId}`;
+    databaseUrl.pathname = `/vitest_${poolId}`;
     const connectionString = databaseUrl.toString();
     return { kind: "postgres", connectionString } as const;
   } else {

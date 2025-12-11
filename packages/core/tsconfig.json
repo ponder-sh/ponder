@@ -5,8 +5,7 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"],
-      "@ponder/client": ["../client/src"],
-      "@ponder/utils": ["../utils/src"]
+      "@ponder/utils": ["../utils/src"] // Required for end-to-end tests
     }
   }
 }

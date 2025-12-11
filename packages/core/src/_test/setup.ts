@@ -25,7 +25,7 @@ import { createPglite } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 import { afterAll } from "vitest";
-import { IS_BUN_TEST, TEST_POOL_ID, testClient } from "./utils.js";
+import { isBunTest, poolId, testClient } from "./utils.js";
 
 export const context = {} as {
   common: Common;
@@ -58,7 +58,7 @@ export function setupCommon() {
 }
 
 export function setupCleanup() {
-  if (IS_BUN_TEST) {
+  if (isBunTest) {
     require("bun:test").afterEach(async () => {
       await context.common.shutdown.kill();
     });
@@ -90,7 +90,7 @@ export async function setupIsolatedDatabase() {
   const connectionString = process.env.DATABASE_URL;
 
   if (connectionString) {
-    const databaseName = `test_${TEST_POOL_ID}`;
+    const databaseName = `vitest_${poolId}`;
 
     const client = new pg.Client({ connectionString });
     await client.connect();
@@ -113,10 +113,10 @@ export async function setupIsolatedDatabase() {
 
     context.databaseConfig = { kind: "postgres", poolConfig };
   } else {
-    let instance = pgliteInstances.get(TEST_POOL_ID);
+    let instance = pgliteInstances.get(poolId);
     if (instance === undefined) {
       instance = createPglite({ dataDir: "memory://" });
-      pgliteInstances.set(TEST_POOL_ID, instance);
+      pgliteInstances.set(poolId, instance);
     }
 
     // Because PGlite takes ~500ms to open a new connection, and it's not possible to drop the
@@ -280,7 +280,7 @@ export async function setupAnvil() {
     await testClient.revert({ id: emptySnapshotId });
   };
 
-  if (IS_BUN_TEST) return require("bun:test").afterEach(cleanup);
+  if (isBunTest) return require("bun:test").afterEach(cleanup);
 
   return cleanup;
 }
