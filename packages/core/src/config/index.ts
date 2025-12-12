@@ -1,6 +1,7 @@
 import type { ConnectionOptions } from "node:tls";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
+import type { PoolConfig } from "pg";
 import type { Narrow, Transport } from "viem";
 import type { AddressConfig } from "./address.js";
 import type { GetEventFilter } from "./eventFilter.js";
@@ -61,7 +62,7 @@ type DatabaseConfig =
         max?: number;
         /** Enable SSL, or provide a custom SSL configuration. Default: `undefined`. */
         ssl?: boolean | Prettify<ConnectionOptions>;
-      };
+      } & Omit<PoolConfig, "max" | "ssl" | "connectionString">;
     };
 
 // base

@@ -158,8 +158,8 @@ test("buildPre() database with postgres uses pool config", async () => {
           cert: "cert",
           key: "key",
         },
-        // @ts-expect-error
-        unsupported: "unsupported",
+        idle_in_transaction_session_timeout: 10,
+        keepAlive: true,
       },
     },
     chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
@@ -167,6 +167,7 @@ test("buildPre() database with postgres uses pool config", async () => {
   });
 
   const { databaseConfig } = buildPre({ config, options });
+
   expect(databaseConfig).toStrictEqual({
     kind: "postgres",
     poolConfig: {
@@ -177,6 +178,8 @@ test("buildPre() database with postgres uses pool config", async () => {
         cert: "cert",
         key: "key",
       },
+      idle_in_transaction_session_timeout: 10,
+      keepAlive: true,
     },
   });
 });
