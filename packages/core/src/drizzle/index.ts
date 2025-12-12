@@ -1,28 +1,10 @@
-import { getTableColumns, getTableName } from "drizzle-orm";
+import { getTableColumns } from "drizzle-orm";
 import {
   type PgColumn,
   type PgTable,
   getTableConfig,
 } from "drizzle-orm/pg-core";
-import { getColumnCasing, sqlToReorgTableName } from "./kit/index.js";
-
-export const getPartitionName = (table: string | PgTable, chainId: number) => {
-  return `${typeof table === "string" ? table : getTableName(table)}_${chainId}`;
-};
-
-export const getReorgTableName = (table: string | PgTable) => {
-  return sqlToReorgTableName(
-    typeof table === "string" ? table : getTableName(table),
-  );
-};
-
-export const getReorgTriggerName = () => {
-  return "reorg_trigger";
-};
-
-export const getReorgProcedureName = (table: PgTable) => {
-  return `operation_reorg__${getTableName(table)}()`;
-};
+import { getColumnCasing } from "./kit/index.js";
 
 export const getPrimaryKeyColumns = (
   table: PgTable,

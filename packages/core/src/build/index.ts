@@ -354,6 +354,46 @@ export const createBuild = async ({
       const viewsSchema =
         cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
 
+      if (viewsSchema === schema) {
+        const error = new BuildError(
+          "Views schema cannot be the same as the schema.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (schema === "ponder_sync") {
+        const error = new BuildError(
+          `Invalid schema name. "ponder_sync" is a reserved schema name.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (viewsSchema === "ponder_sync") {
+        const error = new BuildError(
+          `Invalid views schema name. "ponder_sync" is a reserved schema name.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (schema.length > 63) {
+        const error = new BuildError(
+          "Schema name cannot be longer than 63 characters.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (viewsSchema && viewsSchema.length > 63) {
+        const error = new BuildError(
+          "Views schema name cannot be longer than 63 characters.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
       globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
 
       return {

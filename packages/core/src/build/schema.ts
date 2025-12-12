@@ -1,3 +1,7 @@
+import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
+} from "@/database/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { BuildError } from "@/internal/errors.js";
@@ -22,6 +26,11 @@ import {
   getViewConfig,
 } from "drizzle-orm/pg-core";
 
+/**
+ * @dev The maximum notify message size is 8KB (8000 / 63 > 100).
+ */
+const TABLE_LIMIT = 100;
+
 export const buildSchema = ({
   schema,
   preBuild,
@@ -36,6 +45,15 @@ export const buildSchema = ({
     if (is(s, PgTable)) {
       let hasPrimaryKey = false;
       let hasChainIdColumn = false;
+
+      if (
+        name === PONDER_META_TABLE_NAME ||
+        name === PONDER_CHECKPOINT_TABLE_NAME
+      ) {
+        throw new Error(
+          `Schema validation failed: '${name}' is a reserved table name.`,
+        );
+      }
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
@@ -101,6 +119,18 @@ export const buildSchema = ({
         if (columnName === "chainId" && column.name === "chain_id") {
           hasChainIdColumn = true;
         }
+
+        // Note: Ponder lets postgres handle the column name length limit and truncation.
+
+        if (
+          column.name === "operation_id" ||
+          column.name === "operation" ||
+          column.name === "checkpoint"
+        ) {
+          throw new Error(
+            `Schema validation failed: '${name}.${columnName}' is a reserved column name.`,
+          );
+        }
       }
 
       if (preBuild.ordering === "experimental_isolated") {
@@ -128,6 +158,8 @@ export const buildSchema = ({
           );
         }
       }
+
+      // Note: Ponder lets postgres handle the table name length limit and truncation.
 
       if (tableNames.has(getTableName(s))) {
         throw new Error(
@@ -177,6 +209,8 @@ export const buildSchema = ({
       }
 
       for (const index of getTableConfig(s).indexes) {
+        // Note: Ponder lets postgres handle the index name length limit and truncation.
+
         if (index.config.name && indexNames.has(index.config.name)) {
           throw new Error(
             `Schema validation failed: index name '${index.config.name}' is used multiple times.`,
@@ -194,6 +228,8 @@ export const buildSchema = ({
     }
 
     if (is(s, PgView)) {
+      // Note: Ponder lets postgres handle the view name length limit and truncation.
+
       if (viewNames.has(getViewName(s))) {
         throw new Error(
           `Schema validation failed: view name '${getViewName(s)}' is used multiple times.`,
@@ -267,6 +303,12 @@ export const buildSchema = ({
           }
         }
     }
+  }
+
+  if (tableNames.size > TABLE_LIMIT) {
+    throw new Error(
+      `Schema validation failed: the maximum number of tables is ${TABLE_LIMIT}.`,
+    );
   }
 
   return { statements };

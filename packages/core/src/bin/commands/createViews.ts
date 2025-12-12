@@ -1,11 +1,14 @@
 import { createBuild } from "@/build/index.js";
 import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
   type PonderApp0,
   type PonderApp1,
   type PonderApp2,
   type PonderApp3,
   type PonderApp4,
   type PonderApp5,
+  type PonderApp6,
   SCHEMATA,
   createDatabase,
   getPonderMetaTable,
@@ -13,6 +16,7 @@ import {
 import {
   getLiveQueryChannelName,
   getLiveQueryNotifyProcedureName,
+  getLiveQueryTempTableName,
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
 import { sql } from "@/index.js";
@@ -167,7 +171,8 @@ export async function createViews({
             | PonderApp2
             | PonderApp3
             | PonderApp4
-            | PonderApp5;
+            | PonderApp5
+            | PonderApp6;
         },
       ]
     | [];
@@ -234,14 +239,8 @@ export async function createViews({
 
   await database.adminQB.wrap((db) =>
     db.execute(
-      sql.raw(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_meta"`),
-    ),
-  );
-
-  await database.adminQB.wrap((db) =>
-    db.execute(
       sql.raw(
-        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."_ponder_checkpoint"`,
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
       ),
     ),
   );
@@ -249,7 +248,7 @@ export async function createViews({
   await database.adminQB.wrap((db) =>
     db.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_meta" AS SELECT * FROM "${cliOptions.schema!}"."_ponder_meta"`,
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
       ),
     ),
   );
@@ -257,7 +256,15 @@ export async function createViews({
   await database.adminQB.wrap((db) =>
     db.execute(
       sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."_ponder_checkpoint" AS SELECT * FROM "${cliOptions.schema!}"."_ponder_checkpoint"`,
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_META_TABLE_NAME}"`,
+      ),
+    ),
+  );
+
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql.raw(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
       ),
     ),
   );
@@ -277,13 +284,13 @@ AS $$
     SELECT EXISTS (
       SELECT 1
       FROM information_schema.tables
-      WHERE table_name = 'live_query_tables'
+      WHERE table_name = '${getLiveQueryTempTableName()}'
       AND table_type = 'LOCAL TEMPORARY'
     ) INTO table_exists;
 
     IF table_exists THEN
       SELECT json_agg(table_name) INTO table_names
-      FROM live_query_tables;
+      FROM ${getLiveQueryTempTableName()};
 
       table_names := COALESCE(table_names, '[]'::json);
       PERFORM pg_notify('${channel}', table_names::text);
@@ -301,7 +308,7 @@ $$;`),
       `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
-ON "${cliOptions.schema!}"._ponder_checkpoint
+ON "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notifyProcedure};`,
     ),
