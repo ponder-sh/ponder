@@ -1,6 +1,7 @@
 import { ALICE } from "@/_test/constants.js";
 import { erc20ABI, revertABI } from "@/_test/generated.js";
 import {
+  context,
   setupAnvil,
   setupCleanup,
   setupCommon,
@@ -39,7 +40,7 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("request() block dependent method", async (context) => {
+test("request() block dependent method", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -51,7 +52,7 @@ test("request() block dependent method", async (context) => {
     interval: 1,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const event = getSimulatedEvent({
     eventCallback: eventCallbacks[0],
@@ -90,7 +91,7 @@ test("request() block dependent method", async (context) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("request() non-block dependent method", async (context) => {
+test("request() non-block dependent method", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -109,7 +110,7 @@ test("request() non-block dependent method", async (context) => {
     address,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
   const blockNumber = await publicClient.getBlockNumber();
   const block = await publicClient.getBlock({ blockNumber: blockNumber });
 
@@ -150,7 +151,7 @@ test("request() non-block dependent method", async (context) => {
   expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
-test("request() non-cached method", async (context) => {
+test("request() non-cached method", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -162,7 +163,7 @@ test("request() non-cached method", async (context) => {
     interval: 1,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const event = getSimulatedEvent({
     eventCallback: eventCallbacks[0],
@@ -189,7 +190,7 @@ test("request() non-cached method", async (context) => {
   expect(getSpy).toHaveBeenCalledTimes(0);
 });
 
-test("request() multicall", async (context) => {
+test("request() multicall", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -201,7 +202,7 @@ test("request() multicall", async (context) => {
     interval: 1,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const event = getSimulatedEvent({
     eventCallback: eventCallbacks[0],
@@ -333,7 +334,7 @@ test("request() multicall", async (context) => {
   expect(requestSpy).toHaveBeenCalledTimes(1);
 });
 
-test("request() multicall empty", async (context) => {
+test("request() multicall empty", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -345,7 +346,7 @@ test("request() multicall empty", async (context) => {
     interval: 1,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const event = getSimulatedEvent({
     eventCallback: eventCallbacks[0],
@@ -391,14 +392,14 @@ test("request() multicall empty", async (context) => {
   expect(result).toMatchInlineSnapshot("[]");
 });
 
-test("prefetch() uses profile metadata", async (context) => {
+test("prefetch() uses profile metadata", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
     common: context.common,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -461,7 +462,7 @@ test("prefetch() uses profile metadata", async (context) => {
   expect(getSpy).toHaveBeenCalledTimes(0);
 });
 
-test("request() revert", async (context) => {
+test("request() revert", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -477,7 +478,7 @@ test("request() revert", async (context) => {
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address: erc20,
@@ -515,7 +516,7 @@ test("request() revert", async (context) => {
   expect(response1).toBeInstanceOf(Error);
 });
 
-test("readContract() action retry", async (context) => {
+test("readContract() action retry", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -530,7 +531,7 @@ test("readContract() action retry", async (context) => {
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
@@ -563,7 +564,7 @@ test("readContract() action retry", async (context) => {
   expect(requestSpy).toHaveBeenCalledTimes(2);
 });
 
-test("readContract() with immutable cache", async (context) => {
+test("readContract() with immutable cache", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -578,7 +579,7 @@ test("readContract() with immutable cache", async (context) => {
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
@@ -618,7 +619,7 @@ test("readContract() with immutable cache", async (context) => {
   );
 });
 
-test("readContract() with no retry empty response", async (context) => {
+test("readContract() with no retry empty response", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -633,7 +634,7 @@ test("readContract() with no retry empty response", async (context) => {
     sender: ALICE,
   });
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const { eventCallbacks, indexingFunctions } = getErc20IndexingBuild({
     address,
@@ -657,7 +658,7 @@ test("readContract() with no retry empty response", async (context) => {
 
   cachedViemClient.event = event;
 
-  await expect(() =>
+  await expect(
     cachedViemClient.getClient(chain).readContract({
       abi: erc20ABI,
       functionName: "totalSupply",
@@ -667,7 +668,7 @@ test("readContract() with no retry empty response", async (context) => {
   ).rejects.toThrow();
 });
 
-test("getBlock() action retry", async (context) => {
+test("getBlock() action retry", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -676,7 +677,7 @@ test("getBlock() action retry", async (context) => {
 
   const blockData = await simulateBlock();
 
-  const { syncStore } = await setupDatabaseServices(context);
+  const { syncStore } = await setupDatabaseServices();
 
   const { eventCallbacks, indexingFunctions } = getBlocksIndexingBuild({
     interval: 1,

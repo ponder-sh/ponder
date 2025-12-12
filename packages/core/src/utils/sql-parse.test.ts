@@ -62,34 +62,34 @@ test("validateAllowableSQLQuery() cache", async () => {
   await validateAllowableSQLQuery("SELECT * FROM users;");
   await validateAllowableSQLQuery("SELECT * FROM users;");
 
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery(`SET statement_timeout = '1s';`),
   ).rejects.toThrow();
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery(`SET statement_timeout = '1s';`),
   ).rejects.toThrow();
 });
 
 test("validateAllowableSQLQuery() select into", async () => {
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery("SELECT * INTO users;"),
   ).rejects.toThrow();
 });
 
 test("validateAllowableSQLQuery() schema name", async () => {
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery("SELECT * FROM offchain.metadata;"),
   ).rejects.toThrow();
 });
 
 test("validateAllowableSQLQuery() system tables", async () => {
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery("SELECT * FROM pg_stat_activity;"),
   ).rejects.toThrow();
 });
 
 test("validateAllowableSQLQuery() recursive cte", async () => {
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery(
       "WITH RECURSIVE infinite_cte AS (SELECT 1 AS num UNION ALL SELECT num + 1 FROM infinite_cte) SELECT * FROM infinite_cte;",
     ),
@@ -98,7 +98,7 @@ test("validateAllowableSQLQuery() recursive cte", async () => {
 
 test("validateAllowableSQLQuery() function call", async () => {
   await validateAllowableSQLQuery("SELECT count(*) from users;");
-  await expect(() =>
+  await expect(
     validateAllowableSQLQuery("SELECT blow_up();"),
   ).rejects.toThrow();
 });
@@ -157,7 +157,7 @@ test("validateAllowableSQLQuery() window def", async () => {
 });
 
 test("parseSQLQuery() handles large query", async () => {
-  await expect(() => parseSQLQuery(query)).rejects.toThrow();
+  await expect(parseSQLQuery(query)).rejects.toThrow();
 });
 
 test("validateAllowableSQLQuery() relational query", async () => {

@@ -1,5 +1,5 @@
-import { setupAnvil, setupCommon } from "@/_test/setup.js";
-import { poolId } from "@/_test/utils.js";
+import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
+import { TEST_POOL_ID } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
@@ -40,10 +40,10 @@ const bytes2 =
 
 beforeEach(setupAnvil);
 
-test("buildIndexingFunctions() builds topics for multiple events", async (context) => {
+test("buildIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -71,18 +71,18 @@ test("buildIndexingFunctions() builds topics for multiple events", async (contex
     configBuild,
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1),
   );
 });
 
-test("buildIndexingFunctions() handles overloaded event signatures and combines topics", async (context) => {
+test("buildIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -109,18 +109,18 @@ test("buildIndexingFunctions() handles overloaded event signatures and combines 
     configBuild,
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
 });
 
-test("buildIndexingFunctions() handles multiple addresses", async (context) => {
+test("buildIndexingFunctions() handles multiple addresses", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -150,19 +150,19 @@ test("buildIndexingFunctions() handles multiple addresses", async (context) => {
     configBuild,
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
 });
 
-test("buildIndexingFunctions() creates a source for each chain for multi-chain contracts", async (context) => {
+test("buildIndexingFunctions() creates a source for each chain for multi-chain contracts", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -186,13 +186,13 @@ test("buildIndexingFunctions() creates a source for each chain for multi-chain c
   expect(eventCallbacks.length).toBe(2);
 });
 
-test("buildIndexingFunctions() throw useful error for common 0.11 migration mistakes", async (context) => {
+test("buildIndexingFunctions() throw useful error for common 0.11 migration mistakes", async () => {
   const indexingFunctions = [{ name: "a:Event0", fn: () => {} }];
 
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -223,10 +223,10 @@ test("buildIndexingFunctions() throw useful error for common 0.11 migration mist
   );
 });
 
-test("buildIndexingFunctions() builds topics for event filter", async (context) => {
+test("buildIndexingFunctions() builds topics for event filter", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -257,18 +257,16 @@ test("buildIndexingFunctions() builds topics for event filter", async (context) 
   });
 
   expect(eventCallbacks).toHaveLength(1);
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toMatchObject(
-    bytes1,
-  );
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
-test("buildIndexingFunctions() builds topics for multiple event filters", async (context) => {
+test("buildIndexingFunctions() builds topics for multiple event filters", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -308,25 +306,23 @@ test("buildIndexingFunctions() builds topics for multiple event filters", async 
   });
 
   expect(eventCallbacks[0]).toHaveLength(2);
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event1Overloaded),
   );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic1).toMatchObject([
+  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic1).toEqual([
     bytes1,
     bytes2,
   ]);
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toMatchObject(
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
     toEventSelector(event0),
   );
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toMatchObject(
-    bytes1,
-  );
+  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
-test("buildIndexingFunctions() overrides default values with chain-specific values", async (context) => {
+test("buildIndexingFunctions() overrides default values with chain-specific values", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -357,10 +353,10 @@ test("buildIndexingFunctions() overrides default values with chain-specific valu
   expect((eventCallbacks[0]![0]!.filter as LogFilter).address).toBe(address2);
 });
 
-test("buildIndexingFunctions() handles chain name shortcut", async (context) => {
+test("buildIndexingFunctions() handles chain name shortcut", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -387,10 +383,10 @@ test("buildIndexingFunctions() handles chain name shortcut", async (context) => 
   expect(eventCallbacks[0]![0]!.chain.name).toBe("mainnet");
 });
 
-test("buildIndexingFunctions() validates chain name", async (context) => {
+test("buildIndexingFunctions() validates chain name", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -420,7 +416,7 @@ test("buildIndexingFunctions() validates chain name", async (context) => {
 });
 
 // Note: Not possible to find an rpc url that returns a finalized block and is public.
-test.skip("buildConfig() warns for public RPC URL", (context) => {
+test.skip("buildConfig() warns for public RPC URL", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
@@ -440,7 +436,7 @@ test.skip("buildConfig() warns for public RPC URL", (context) => {
   });
 
   expect(result.status).toBe("success");
-  expect(result.logs!.filter((l) => l.level === "warn")).toMatchObject([
+  expect(result.logs!.filter((l) => l.level === "warn")).toEqual([
     {
       level: "warn",
       msg: "Chain 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
@@ -448,10 +444,10 @@ test.skip("buildConfig() warns for public RPC URL", (context) => {
   ]);
 });
 
-test("buildConfig() handles chains not found in viem", (context) => {
+test("buildConfig() handles chains not found in viem", () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1909023431, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1909023431, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -470,10 +466,10 @@ test("buildConfig() handles chains not found in viem", (context) => {
   expect(result.status).toBe("success");
 });
 
-test("buildIndexingFunctions() validates event filter event name must be present in ABI", async (context) => {
+test("buildIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -507,10 +503,10 @@ test("buildIndexingFunctions() validates event filter event name must be present
   );
 });
 
-test("buildIndexingFunctions() validates address empty string", async (context) => {
+test("buildIndexingFunctions() validates address empty string", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -539,10 +535,10 @@ test("buildIndexingFunctions() validates address empty string", async (context) 
   );
 });
 
-test("buildIndexingFunctions() validates address prefix", async (context) => {
+test("buildIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -568,10 +564,10 @@ test("buildIndexingFunctions() validates address prefix", async (context) => {
   );
 });
 
-test("buildIndexingFunctions() validates address length", async (context) => {
+test("buildIndexingFunctions() validates address length", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -596,10 +592,10 @@ test("buildIndexingFunctions() validates address length", async (context) => {
   );
 });
 
-test("buildIndexingFunctions() coerces NaN startBlock to undefined", async (context) => {
+test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -621,12 +617,12 @@ test("buildIndexingFunctions() coerces NaN startBlock to undefined", async (cont
   expect(eventCallbacks[0]![0]?.filter.fromBlock).toBe(undefined);
 });
 
-test("buildIndexingFunctions() coerces `latest` to number", async (context) => {
+test("buildIndexingFunctions() coerces `latest` to number", async () => {
   const config = createConfig({
     chains: {
       mainnet: {
         id: 1,
-        rpc: `http://127.0.0.1:8545/${poolId}`,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
       },
     },
     contracts: {
@@ -649,11 +645,11 @@ test("buildIndexingFunctions() coerces `latest` to number", async (context) => {
   expect(eventCallbacks[0]![0]?.filter.fromBlock).toBeTypeOf("number");
 });
 
-test("buildIndexingFunctions() includeTransactionReceipts", async (context) => {
+test("buildIndexingFunctions() includeTransactionReceipts", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -678,11 +674,11 @@ test("buildIndexingFunctions() includeTransactionReceipts", async (context) => {
   expect(eventCallbacks[1]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
-test("buildIndexingFunctions() includeCallTraces", async (context) => {
+test("buildIndexingFunctions() includeCallTraces", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -710,20 +706,20 @@ test("buildIndexingFunctions() includeCallTraces", async (context) => {
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).fromAddress,
   ).toBeUndefined();
-  expect(
-    (eventCallbacks[0]![0]!.filter as TraceFilter).toAddress,
-  ).toMatchObject(zeroAddress);
+  expect((eventCallbacks[0]![0]!.filter as TraceFilter).toAddress).toEqual(
+    zeroAddress,
+  );
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toMatchObject(toFunctionSelector(func0));
+  ).toEqual(toFunctionSelector(func0));
   expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
-test("buildIndexingFunctions() includeCallTraces with factory", async (context) => {
+test("buildIndexingFunctions() includeCallTraces with factory", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -758,17 +754,17 @@ test("buildIndexingFunctions() includeCallTraces with factory", async (context) 
   expect(
     ((eventCallbacks[0]![0]!.filter as TraceFilter).toAddress as LogFactory)
       .address,
-  ).toMatchObject(address2);
+  ).toEqual(address2);
   expect(
     (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toMatchObject(toFunctionSelector(func0));
+  ).toEqual(toFunctionSelector(func0));
   expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
 });
 
-test("buildIndexingFunctions() coerces NaN endBlock to undefined", async (context) => {
+test("buildIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -790,10 +786,10 @@ test("buildIndexingFunctions() coerces NaN endBlock to undefined", async (contex
   expect(eventCallbacks[0]![0]!.filter.toBlock).toBe(undefined);
 });
 
-test("buildIndexingFunctions() account source", async (context) => {
+test("buildIndexingFunctions() account source", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     accounts: {
       a: {
@@ -834,10 +830,10 @@ test("buildIndexingFunctions() account source", async (context) => {
   expect(eventCallbacks[0]![1]?.filter.toBlock).toBe(16370020);
 });
 
-test("buildIndexingFunctions() block source", async (context) => {
+test("buildIndexingFunctions() block source", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     blocks: {
       a: {
@@ -867,10 +863,10 @@ test("buildIndexingFunctions() block source", async (context) => {
   expect(eventCallbacks[0]![0]?.filter.toBlock).toBe(16370020);
 });
 
-test("buildIndexingFunctions() coerces undefined factory interval to source interval", async (context) => {
+test("buildIndexingFunctions() coerces undefined factory interval to source interval", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -905,10 +901,10 @@ test("buildIndexingFunctions() coerces undefined factory interval to source inte
   );
 });
 
-test("buildIndexingFunctions() validates factory interval", async (context) => {
+test("buildIndexingFunctions() validates factory interval", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -940,10 +936,10 @@ test("buildIndexingFunctions() validates factory interval", async (context) => {
   );
 });
 
-test("buildIndexingFunctions() validates start and end block", async (context) => {
+test("buildIndexingFunctions() validates start and end block", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     contracts: {
       a: {
@@ -975,10 +971,10 @@ test("buildIndexingFunctions() validates start and end block", async (context) =
   `);
 });
 
-test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (context) => {
+test("buildIndexingFunctions() returns chain, rpc, and finalized block", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${poolId}` },
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     blocks: {
       b: {
@@ -1004,10 +1000,10 @@ test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (
   expect(finalizedBlocks[0]!.number).toBe("0x0");
 });
 
-test("buildIndexingFunctions() hyperliquid evm", async (context) => {
+test("buildIndexingFunctions() hyperliquid evm", async () => {
   const config = createConfig({
     chains: {
-      hyperliquid: { id: 999, rpc: `http://127.0.0.1:8545/${poolId}` },
+      hyperliquid: { id: 999, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
     },
     blocks: {
       b: {

@@ -13,7 +13,7 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("middleware serves request", async (context) => {
+test("middleware serves request", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -26,13 +26,13 @@ test("middleware serves request", async (context) => {
     })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
   globalThis.PONDER_DATABASE = database;
 
-  await indexingStore.insert(schema.table).values({
+  await database.userQB.raw.insert(schema.table).values({
     id: "0",
     string: "0",
     int: 0,
@@ -71,7 +71,7 @@ test("middleware serves request", async (context) => {
 
   expect(response.status).toBe(200);
 
-  expect(await response.json()).toMatchObject({
+  expect(JSON.parse(await response.text())).toMatchObject({
     data: {
       table: {
         id: "0",
@@ -86,18 +86,18 @@ test("middleware serves request", async (context) => {
   });
 });
 
-test("middleware supports path other than /graphql using hono routing", async (context) => {
+test("middleware supports path other than /graphql using hono routing", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({ id: t.text().primaryKey() })),
   };
 
-  const { database, indexingStore } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
   globalThis.PONDER_DATABASE = database;
 
-  await indexingStore.insert(schema.table).values({
+  await database.userQB.raw.insert(schema.table).values({
     id: "0",
   });
 
@@ -123,7 +123,7 @@ test("middleware supports path other than /graphql using hono routing", async (c
   });
 });
 
-test("middleware throws error when extra filter is applied", async (context) => {
+test("middleware throws error when extra filter is applied", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
@@ -136,7 +136,7 @@ test("middleware throws error when extra filter is applied", async (context) => 
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -174,14 +174,14 @@ test("middleware throws error when extra filter is applied", async (context) => 
   );
 });
 
-test("graphQLMiddleware throws error for token limit", async (context) => {
+test("graphQLMiddleware throws error for token limit", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -223,14 +223,14 @@ test("graphQLMiddleware throws error for token limit", async (context) => {
   );
 });
 
-test("graphQLMiddleware throws error for depth limit", async (context) => {
+test("graphQLMiddleware throws error for depth limit", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -272,14 +272,14 @@ test("graphQLMiddleware throws error for depth limit", async (context) => {
   );
 });
 
-test("graphQLMiddleware throws error for max aliases", async (context) => {
+test("graphQLMiddleware throws error for max aliases", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -334,10 +334,10 @@ test("graphQLMiddleware throws error for max aliases", async (context) => {
   );
 });
 
-test("graphQLMiddleware interactive", async (context) => {
+test("graphQLMiddleware interactive", async () => {
   const schema = {};
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 

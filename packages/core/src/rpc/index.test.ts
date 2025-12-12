@@ -1,4 +1,4 @@
-import { setupAnvil, setupCommon } from "@/_test/setup.js";
+import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import { simulateBlock } from "@/_test/simulate.js";
 import { getChain } from "@/_test/utils.js";
 import { wait } from "@/utils/wait.js";
@@ -8,7 +8,7 @@ import { createRpc } from "./index.js";
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
 
-test("createRpc()", async (context) => {
+test("createRpc()", async () => {
   const chain = getChain();
   const rpc = createRpc({
     common: context.common,
@@ -18,7 +18,7 @@ test("createRpc()", async (context) => {
   await rpc.request({ method: "eth_blockNumber" });
 });
 
-test("createRpc() handles rate limiting", async (context) => {
+test("createRpc() handles rate limiting", async () => {
   const chain = getChain();
   const rpc = createRpc({
     common: context.common,
@@ -36,7 +36,7 @@ test("createRpc() handles rate limiting", async (context) => {
   await rpc.request({ method: "eth_blockNumber" });
 });
 
-test("createRpc() retry BlockNotFoundError", async (context) => {
+test("createRpc() retry BlockNotFoundError", async () => {
   const chain = getChain();
   const rpc = createRpc({
     common: context.common,
@@ -59,7 +59,7 @@ test("createRpc() retry BlockNotFoundError", async (context) => {
   expect(block).not.toBeNull();
 });
 
-test("https://github.com/ponder-sh/ponder/pull/2143", async (context) => {
+test("https://github.com/ponder-sh/ponder/pull/2143", async () => {
   const chain = getChain();
   const rpc = createRpc({
     common: context.common,

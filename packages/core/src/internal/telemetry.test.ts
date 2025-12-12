@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { context } from "@/_test/setup.js";
+import { IS_BUN_TEST, stubGlobal } from "@/_test/utils.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import { rimrafSync } from "rimraf";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -11,16 +13,23 @@ import { createShutdown } from "./shutdown.js";
 
 const fetchSpy = vi.fn();
 
+let unstub: () => void;
+
 beforeEach(() => {
   fetchSpy.mockReset();
-  vi.stubGlobal("fetch", fetchSpy);
+  if (IS_BUN_TEST) {
+    unstub = stubGlobal("fetch", fetchSpy);
+  } else {
+    vi.stubGlobal("fetch", fetchSpy);
+  }
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  if (IS_BUN_TEST) unstub();
+  else vi.unstubAllGlobals();
 });
 
-beforeEach((context) => {
+beforeEach(() => {
   const tempDir = path.join(os.tmpdir(), randomUUID());
   mkdirSync(tempDir, { recursive: true });
 
@@ -38,7 +47,7 @@ beforeEach((context) => {
   };
 });
 
-test("telemetry calls fetch with event body", async (context) => {
+test("telemetry calls fetch with event body", async () => {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({
     options: context.common.options,
@@ -67,7 +76,7 @@ test("telemetry calls fetch with event body", async (context) => {
   });
 });
 
-test("telemetry does not submit events if telemetry is disabled", async (context) => {
+test("telemetry does not submit events if telemetry is disabled", async () => {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({
     options: { ...context.common.options, telemetryDisabled: true },
@@ -90,7 +99,7 @@ test("telemetry does not submit events if telemetry is disabled", async (context
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
-test("telemetry throws if event is submitted after kill", async (context) => {
+test("telemetry throws if event is submitted after kill", async () => {
   const shutdown = createShutdown();
   const telemetry = createTelemetry({
     options: context.common.options,

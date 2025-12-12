@@ -33,12 +33,15 @@ import {
 } from "@/runtime/filter.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
+  http,
   type Address,
   type Chain as ViemChain,
+  createPublicClient,
+  createTestClient,
+  getAbiItem,
   toEventSelector,
   toFunctionSelector,
 } from "viem";
-import { http, createPublicClient, createTestClient, getAbiItem } from "viem";
 import { mainnet } from "viem/chains";
 import { vi } from "vitest";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
@@ -54,19 +57,22 @@ import type {
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
 
 // ID of the current test worker. Used by the `@viem/anvil` proxy server.
-export const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
+
+export const TEST_POOL_ID = Number(process.env.VITEST_POOL_ID ?? 1);
+
+export const IS_BUN_TEST = "bun" in process.versions;
 
 export const anvil = {
   ...mainnet, // We are using a mainnet fork for testing.
   id: 1, // We configured our anvil instance to use `1` as the chain id (see `globalSetup.ts`);
   rpcUrls: {
     default: {
-      http: [`http://127.0.0.1:8545/${poolId}`],
-      webSocket: [`ws://127.0.0.1:8545/${poolId}`],
+      http: [`http://127.0.0.1:8545/${TEST_POOL_ID}`],
+      webSocket: [`ws://127.0.0.1:8545/${TEST_POOL_ID}`],
     },
     public: {
-      http: [`http://127.0.0.1:8545/${poolId}`],
-      webSocket: [`ws://127.0.0.1:8545/${poolId}`],
+      http: [`http://127.0.0.1:8545/${TEST_POOL_ID}`],
+      webSocket: [`ws://127.0.0.1:8545/${TEST_POOL_ID}`],
     },
   },
 } as const satisfies ViemChain;
@@ -81,6 +87,49 @@ export const publicClient = createPublicClient({
   chain: anvil,
   transport: http(),
 });
+
+export async function withStubbedEnv(
+  env: Record<string, string | undefined>,
+  testCase: () => void | Promise<void>,
+) {
+  const originalValues = {} as Record<string, string | undefined>;
+
+  for (const [k, v] of Object.entries(env)) {
+    originalValues[k] = process.env[k];
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+
+  try {
+    await testCase();
+  } finally {
+    for (const [k, v] of Object.entries(originalValues)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
+export function stubGlobal<Key extends keyof typeof globalThis>(
+  key: Key,
+  value: (typeof globalThis)[Key],
+): () => void {
+  const g = globalThis as any;
+
+  const hadOwnProperty = Object.prototype.hasOwnProperty.call(g, key);
+  const original = g[key];
+
+  g[key] = value;
+
+  return () => {
+    if (hadOwnProperty) {
+      g[key] = original;
+    } else {
+      // If it didn't exist before, remove it entirely
+      delete g[key];
+    }
+  };
+}
 
 export const getErc20IndexingBuild = <
   includeCallTraces extends boolean = false,
@@ -618,7 +667,7 @@ export const getChain = (params?: {
   return {
     name: "mainnet",
     id: 1,
-    rpc: `http://127.0.0.1:8545/${poolId}`,
+    rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
     ws: undefined,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
@@ -665,4 +714,14 @@ export async function waitForIndexedBlock({
       }
     }, 20);
   });
+}
+
+export function getRejectionValue(func: () => Promise<any>): Promise<any> {
+  return func()
+    .then(() => {
+      throw Error("expected promise to reject");
+    })
+    .catch((rejection) => {
+      return rejection;
+    });
 }

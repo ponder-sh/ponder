@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
+    "test:bun": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

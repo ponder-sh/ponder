@@ -8,7 +8,7 @@ import { Pool } from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export default async function () {
+async function globalSetup() {
   dotenv.config({ path: ".env.local" });
 
   const generatedFilePath = join(__dirname, "generated.ts");
@@ -16,7 +16,7 @@ export default async function () {
     await execa("pnpm", ["wagmi", "generate"]);
   }
 
-  const shutdownProxy = await startProxy({
+  await startProxy({
     options: {
       chainId: 1,
       noMining: true,
@@ -44,7 +44,25 @@ export default async function () {
   }
 
   return async () => {
-    await shutdownProxy();
     await cleanupDatabase?.();
   };
 }
+
+function resetPonderGlobals() {
+  // @ts-ignore
+  globalThis.PONDER_DATABASE = undefined;
+  // @ts-ignore
+  globalThis.PONDER_NAMESPACE_BUILD = undefined;
+  // @ts-ignore
+  globalThis.PONDER_INDEXING_BUILD = undefined;
+}
+
+if ("bun" in process.versions) {
+  // must be run outside of hook because missing the generated files causes test to fail with 'Cannot find module' error
+  await globalSetup();
+  const { beforeEach, afterEach } = require("bun:test");
+  beforeEach(resetPonderGlobals);
+  afterEach(resetPonderGlobals);
+}
+
+export default globalSetup;

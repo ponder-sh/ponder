@@ -68,6 +68,7 @@ export const sidebar = {
         { text: "Time-series data", link: "/docs/guides/time-series" },
         { text: "Offchain data", link: "/docs/guides/offchain-data" },
         { text: "Foundry", link: "/docs/guides/foundry" },
+        { text: "Bun", link: "/docs/guides/bun" },
       ],
     },
     {

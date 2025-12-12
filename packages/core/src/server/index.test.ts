@@ -1,4 +1,5 @@
 import {
+  context,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -14,8 +15,8 @@ beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("listens on ipv4", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("listens on ipv4", async () => {
+  const { database } = await setupDatabaseServices();
 
   await createServer({
     common: context.common,
@@ -33,8 +34,8 @@ test("listens on ipv4", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("listens on ipv6", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("listens on ipv6", async () => {
+  const { database } = await setupDatabaseServices();
 
   await createServer({
     common: context.common,
@@ -52,8 +53,8 @@ test("listens on ipv6", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("not ready", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("not ready", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -70,8 +71,8 @@ test("not ready", async (context) => {
   expect(response.status).toBe(503);
 });
 
-test("ready", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("ready", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -94,8 +95,8 @@ test("ready", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("health", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("health", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -112,8 +113,8 @@ test("health", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("healthy PUT", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("healthy PUT", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -132,8 +133,8 @@ test("healthy PUT", async (context) => {
   expect(response.status).toBe(404);
 });
 
-test("metrics", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("metrics", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -150,8 +151,8 @@ test("metrics", async (context) => {
   expect(response.status).toBe(200);
 });
 
-test("metrics error", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("metrics error", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -171,8 +172,8 @@ test("metrics error", async (context) => {
   expect(response.status).toBe(500);
 });
 
-test("metrics PUT", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("metrics PUT", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -191,8 +192,8 @@ test("metrics PUT", async (context) => {
   expect(response.status).toBe(404);
 });
 
-test("metrics unmatched route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("metrics unmatched route", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -213,8 +214,8 @@ test("metrics unmatched route", async (context) => {
   expect(text).not.toContain('path="/unmatched"');
 });
 
-test("missing route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("missing route", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -231,8 +232,8 @@ test("missing route", async (context) => {
   expect(response.status).toBe(404);
 });
 
-test("custom api route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("custom api route", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,
@@ -249,8 +250,8 @@ test("custom api route", async (context) => {
   expect(await response.text()).toBe("hi");
 });
 
-test("custom hono route", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("custom hono route", async () => {
+  const { database } = await setupDatabaseServices();
 
   const app = new Hono().get("/hi", (c) => c.text("hi"));
 
@@ -268,8 +269,8 @@ test("custom hono route", async (context) => {
 
 // Note that this test doesn't work because the `hono.request` method doesn't actually
 // create a socket connection, it just calls the request handler function directly.
-test.skip("kill", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test.skip("kill", async () => {
+  const { database } = await setupDatabaseServices();
 
   const server = await createServer({
     common: context.common,

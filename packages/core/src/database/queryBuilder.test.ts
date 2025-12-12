@@ -1,4 +1,4 @@
-import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { NotNullConstraintError } from "@/internal/errors.js";
 import { createPool } from "@/utils/pg.js";
 import { sql } from "drizzle-orm";
@@ -11,7 +11,7 @@ import { createQB } from "./queryBuilder.js";
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
 
-test("QB query", async (context) => {
+test("QB query", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -28,7 +28,7 @@ test("QB query", async (context) => {
   await qb.wrap({ label: "test" }, (db) => db.select().from(SCHEMATA));
 });
 
-test("QB transaction", async (context) => {
+test("QB transaction", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -49,7 +49,7 @@ test("QB transaction", async (context) => {
   });
 });
 
-test("QB wrap retries error", async (context) => {
+test("QB wrap retries error", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -70,7 +70,7 @@ test("QB wrap retries error", async (context) => {
   expect(querySpy).toHaveBeenCalledTimes(2);
 });
 
-test("QB transaction retries error", async (context) => {
+test("QB transaction retries error", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -104,7 +104,7 @@ test("QB transaction retries error", async (context) => {
   connection.release();
 });
 
-test("QB parses error", async (context) => {
+test("QB parses error", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -126,7 +126,7 @@ test("QB parses error", async (context) => {
   expect(error).toBeInstanceOf(NotNullConstraintError);
 });
 
-test("QB client", async (context) => {
+test("QB client", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(

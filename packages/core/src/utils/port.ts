@@ -15,7 +15,6 @@ export const getNextAvailablePort = async ({ common }: { common: Common }) => {
         });
         port += 1;
         setTimeout(() => {
-          server.close();
           server.listen(port, common.options.hostname);
         }, 5);
       } else {
@@ -25,10 +24,11 @@ export const getNextAvailablePort = async ({ common }: { common: Common }) => {
 
     server.once("listening", () => {
       // Port is available
-      server.close();
       resolve(port);
     });
 
     server.listen(port, common.options.hostname);
+  }).finally(() => {
+    server.close();
   });
 };

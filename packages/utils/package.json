@@ -32,6 +32,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest",
+    "test:bun": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {

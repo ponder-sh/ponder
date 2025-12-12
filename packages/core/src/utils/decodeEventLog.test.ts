@@ -298,11 +298,9 @@ test("named: topics + event params mismatch", () => {
         "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(`
-    [DecodeLogTopicsMismatch: Expected a topic for indexed event parameter "id" on event "Transfer(address from, address to, uint256 id)".
-
-    Version: viem@2.30.1]
-  `);
+  ).toThrowError(
+    `Expected a topic for indexed event parameter "id" on event "Transfer(address from, address to, uint256 id)".`,
+  );
 });
 
 test("unnamed: topics + event params mismatch", () => {
@@ -332,11 +330,9 @@ test("unnamed: topics + event params mismatch", () => {
         "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(`
-    [DecodeLogTopicsMismatch: Expected a topic for indexed event parameter on event "Transfer(address, address, uint256)".
-
-    Version: viem@2.30.1]
-  `);
+  ).toThrowError(
+    `Expected a topic for indexed event parameter on event "Transfer(address, address, uint256)".`,
+  );
 });
 
 test("data + event params mismatch", () => {
@@ -374,7 +370,7 @@ test("data + event params mismatch", () => {
         "0x00000000000000000000000070e8a65d014918798ba424110d5df658cde1cc58",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot("[Error: Invalid data length.]");
+  ).toThrowError("Invalid data length");
 
   expect(() =>
     decodeEventLog({
@@ -406,14 +402,9 @@ test("data + event params mismatch", () => {
         "0x0000000000000000000000000000000000000000000000000000000000000001",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(`
-    [DecodeLogDataMismatch: Data size of 0 bytes is too small for non-indexed event parameters.
-
-    Params: (address to)
-    Data:   0x (0 bytes)
-
-    Version: viem@2.30.1]
-  `);
+  ).toThrowError(
+    "Data size of 0 bytes is too small for non-indexed event parameters.",
+  );
 
   expect(() =>
     decodeEventLog({
@@ -445,15 +436,8 @@ test("data + event params mismatch", () => {
         "0x0000000000000000000000000000000000000000000000000000000000000001",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(
-    `
-    [DecodeLogDataMismatch: Data size of 0 bytes is too small for non-indexed event parameters.
-
-    Params: (address to)
-    Data:   0x (0 bytes)
-
-    Version: viem@2.30.1]
-  `,
+  ).toThrowError(
+    "Data size of 0 bytes is too small for non-indexed event parameters.",
   );
 });
 
@@ -552,12 +536,8 @@ describe("GitHub repros", () => {
             "0x00000000000000000000000070e8a65d014918798ba424110d5df658cde1cc58",
           ],
         }),
-      ).toThrowErrorMatchingInlineSnapshot(
-        `
-        [DecodeLogTopicsMismatch: Expected a topic for indexed event parameter "id" on event "Transfer(address from, address to, uint256 id)".
-
-        Version: viem@2.30.1]
-      `,
+      ).toThrowError(
+        `Expected a topic for indexed event parameter "id" on event "Transfer(address from, address to, uint256 id)".`,
       );
     });
   });
@@ -598,7 +578,7 @@ describe("GitHub repros", () => {
             "0x00000000000000000000000070e8a65d014918798ba424110d5df658cde1cc58",
           ],
         }),
-      ).toThrowErrorMatchingInlineSnapshot("[Error: Invalid data length.]");
+      ).toThrowError("Invalid data length.");
     });
   });
 
@@ -636,12 +616,8 @@ describe("GitHub repros", () => {
             "0xd6eddd1118d71820909c1197aa966dbc15ed6f508554252169cc3d5ccac756ca",
           ],
         }),
-      ).toThrowErrorMatchingInlineSnapshot(
-        `
-        [DecodeLogTopicsMismatch: Expected a topic for indexed event parameter "nounId" on event "AuctionCreated(uint256 nounId, uint256 startTime, uint256 endTime)".
-
-        Version: viem@2.30.1]
-      `,
+      ).toThrowError(
+        `Expected a topic for indexed event parameter "nounId" on event "AuctionCreated(uint256 nounId, uint256 startTime, uint256 endTime)".`,
       );
     });
   });
@@ -664,11 +640,9 @@ test("errors: no topics", () => {
       data: "0x",
       topics: [],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(`
-    [DecodeLogTopicsMismatch: Expected a topic for indexed event parameter "message" on event "Bar(string message)".
-
-    Version: viem@2.30.1]
-  `);
+  ).toThrowError(
+    `Expected a topic for indexed event parameter "message" on event "Bar(string message)".`,
+  );
 });
 
 test("errors: invalid data size", () => {
@@ -703,14 +677,7 @@ test("errors: invalid data size", () => {
         "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(`
-    [AbiDecodingDataSizeTooSmallError: Data size of 0.5 bytes is too small for given parameters.
-
-    Params: (uint256 tokenId)
-    Data:   0x1 (0.5 bytes)
-
-    Version: viem@2.30.1]
-  `);
+  ).toThrowError("Data size of 0.5 bytes is too small for given parameters.");
 });
 
 test("errors: invalid bool", () => {
@@ -745,11 +712,9 @@ test("errors: invalid bool", () => {
         "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
       ],
     }),
-  ).toThrowErrorMatchingInlineSnapshot(`
-    [InvalidHexBooleanError: Hex value "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" is not a valid boolean. The hex value must be "0x0" (false) or "0x1" (true).
-
-    Version: viem@2.30.1]
-  `);
+  ).toThrowError(
+    `Hex value "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" is not a valid boolean. The hex value must be "0x0" (false) or "0x1" (true).`,
+  );
 });
 
 test("errors: namehash", () => {

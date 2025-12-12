@@ -82,13 +82,17 @@ export const graphql = (
     }
 
     const response = await yoga.handle(c.req.raw);
-    // TODO: Figure out why Yoga is returning 500 status codes for GraphQL errors.
-    // @ts-expect-error
-    response.status = 200;
-    // @ts-expect-error
-    response.statusText = "OK";
+    if (response.status === 200) return response;
+    // set response status to 200, must construct a new response object because Response.status is readonly
 
-    return response;
+    // TODO: Figure out why Yoga is returning 500 status codes for GraphQL errors.
+    const body = response.body;
+    const headers = new Headers(response.headers);
+    return new Response(body, {
+      status: 200,
+      statusText: "OK",
+      headers,
+    });
   });
 };
 
