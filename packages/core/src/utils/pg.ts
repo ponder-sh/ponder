@@ -31,7 +31,7 @@ export function getDatabaseName(conf: PoolConfig) {
   const database = config.database || envVars.database || defaults.database;
   const port = config.port || envVars.port || defaults.port;
 
-  return `${hostname}${port}/${database}`;
+  return `${hostname}:${port}/${database ?? ""}`;
 }
 
 const parseBaseConfig = (
