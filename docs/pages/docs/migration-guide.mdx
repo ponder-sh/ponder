@@ -1,5 +1,55 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.16
+
+### Breaking changes
+
+#### Live indexing uses in-memory database
+
+Live indexing now uses the same in-memory database as backfill indexing.
+
+#### Deprecated Subgraph and Etherscan in `create-ponder`
+
+Subgraph and Etherscan templates are deprecated in `create-ponder`.
+
+### New features
+
+#### Bun support
+
+Ponder now supports the [Bun](https://bun.sh) runtime. Update the scripts in `package.json` to use Bun.
+
+```json [package.json]
+"scripts": {
+  "dev": "ponder dev", // [!code --]
+  "start": "ponder start", // [!code --]
+  "codegen": "ponder codegen", // [!code --]
+  "dev": "bun --bun ponder dev", // [!code ++]
+  "start": "bun --bun start", // [!code ++]
+  "codegen": "bun --bun ponder codegen", // [!code ++]
+  "lint": "eslint .",
+  "typecheck": "tsc"
+},
+```
+
+Visit the [documentation](/docs/guides/bun) for more details.
+
+#### Full node-postgres `poolConfig` support
+
+Ponder now supports the full range of [node-postgres](https://node-postgres.com/apis/pool) `poolConfig` options.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  database: {
+    kind: "postgres",
+    poolConfig: {// [!code focus]
+      // ... config options // [!code focus]
+    }, // [!code focus]
+  },
+});
+```
+
 ## 0.15
 
 ### Breaking changes
