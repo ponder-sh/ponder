@@ -39,32 +39,33 @@ import {
 } from "./json.js";
 import { PgTextBuilder, type PgTextBuilderInitial } from "./text.js";
 
+// 16 digits for chain ID.
+export const MAX_DATABASE_OBJECT_NAME_LENGTH = 45;
+
 // Note: All of these database object names should be less than 63 characters, otherwise they will
 // be truncated by postgres.
 
 export const getLiveQueryTriggerName = () => {
-  return "live_query_trigger";
+  return "live_query";
 };
 export const getLiveQueryProcedureName = () => {
-  return "live_query_procedure()";
+  return "live_query()";
 };
 export const getLiveQueryChannelName = (schema: string) => {
-  // Note: No appendments are allowed because the name must be less than 63 characters.
-  return schema;
+  return `${schema}_live_query`;
 };
 export const getLiveQueryNotifyTriggerName = () => {
-  return "live_query_notify_trigger";
+  return "live_query_notify";
 };
 /**
  * Returns the name of the trigger used to notify live queries for the views pattern.
  * @dev The trigger is placed in the base schema, but used to notify in the views schema.
  */
 export const getViewsLiveQueryNotifyTriggerName = (viewsSchema: string) => {
-  // Note: No appendments are allowed because the name must be less than 63 characters.
-  return viewsSchema;
+  return `${viewsSchema}_live_query_notify`;
 };
 export const getLiveQueryNotifyProcedureName = () => {
-  return "live_query_notify_procedure()";
+  return "live_query_notify()";
 };
 export const getLiveQueryTempTableName = () => {
   return "live_query_tables";
@@ -76,13 +77,13 @@ export const getReorgTableName = (table: string | PgTable) => {
   return `_reorg__${typeof table === "string" ? table : getTableName(table)}`;
 };
 export const getReorgTriggerName = () => {
-  return "reorg_trigger";
+  return "reorg";
 };
 export const getReorgProcedureName = (table: string | PgTable) => {
   return `operation_reorg__${typeof table === "string" ? table : getTableName(table)}()`;
 };
 export const getReorgSequenceName = () => {
-  return "operation_id_seq";
+  return "operation_id";
 };
 
 /** @internal */

@@ -4,6 +4,7 @@ import {
 } from "@/database/index.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
+import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
 import { BuildError } from "@/internal/errors.js";
 import type { PreBuild, Schema } from "@/internal/types.js";
 import {
@@ -54,6 +55,14 @@ export const buildSchema = ({
           `Schema validation failed: '${name}' is a reserved table name.`,
         );
       }
+
+      if (name.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
+        throw new Error(
+          `Schema validation failed: '${name}' table name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
+        );
+      }
+
+      const columnNames = new Set<string>();
 
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
@@ -130,6 +139,14 @@ export const buildSchema = ({
           throw new Error(
             `Schema validation failed: '${name}.${columnName}' is a reserved column name.`,
           );
+        }
+
+        if (columnNames.has(column.name)) {
+          throw new Error(
+            `Schema validation failed: '${name}.${column.name}' column name is used multiple times.`,
+          );
+        } else {
+          columnNames.add(column.name);
         }
       }
 
@@ -258,6 +275,8 @@ export const buildSchema = ({
         );
       }
 
+      const columnNames = new Set<string>();
+
       if (viewConfig)
         for (const [columnName, column] of Object.entries(
           viewConfig.selectedFields,
@@ -295,6 +314,14 @@ export const buildSchema = ({
             throw new Error(
               `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
             );
+          }
+
+          if (columnNames.has((column as PgColumn).name)) {
+            throw new Error(
+              `Schema validation failed: '${name}.${(column as PgColumn).name}' column name is used multiple times.`,
+            );
+          } else {
+            columnNames.add((column as PgColumn).name);
           }
         }
     }

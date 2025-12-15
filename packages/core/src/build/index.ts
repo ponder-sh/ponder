@@ -5,6 +5,7 @@ import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
 import { createQB } from "@/database/queryBuilder.js";
+import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import { BuildError, RetryableError } from "@/internal/errors.js";
 import type {
@@ -378,17 +379,17 @@ export const createBuild = async ({
         return { status: "error", error } as const;
       }
 
-      if (schema.length > 63) {
+      if (schema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
         const error = new BuildError(
-          "Schema name cannot be longer than 63 characters.",
+          `Schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
         );
         error.stack = undefined;
         return { status: "error", error } as const;
       }
 
-      if (viewsSchema && viewsSchema.length > 63) {
+      if (viewsSchema && viewsSchema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
         const error = new BuildError(
-          "Views schema name cannot be longer than 63 characters.",
+          `Views schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
         );
         error.stack = undefined;
         return { status: "error", error } as const;
