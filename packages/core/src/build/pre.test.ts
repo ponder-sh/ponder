@@ -144,7 +144,7 @@ test("buildPre() throws for postgres database with no connection string", async 
     { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
     () => {
       expect(() => buildPre({ config, options, logger })).toThrow(
-        "Invalid database configuration: atleast one of connectionString or poolConfig must be set",
+        "Invalid database configuration: Either 'connectionString' or 'poolConfig' must be defined.",
       );
     },
   );

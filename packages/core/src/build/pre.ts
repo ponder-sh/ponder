@@ -43,18 +43,18 @@ export function buildPre({
       if (connectionString === undefined) {
         if (config.database.poolConfig === undefined) {
           throw new Error(
-            "Invalid database configuration: atleast one of connectionString or poolConfig must be set",
+            "Invalid database configuration: Either 'connectionString' or 'poolConfig' must be defined.",
           );
         }
-        //
         logger.warn({
-          msg: "No database connection string set. Using poolConfig for connection authentication",
+          msg: "No database connection string set. Using 'poolConfig' for connection authentication.",
         });
       }
 
       const poolConfig = {
-        ...(config.database.poolConfig ?? {}),
+        // Note: Override `connectionString` with `poolConfig` if available.
         connectionString,
+        ...(config.database.poolConfig ?? {}),
         max: config.database.poolConfig?.max ?? 30,
         ssl: config.database.poolConfig?.ssl ?? false,
       } satisfies (DatabaseConfig & { kind: "postgres" })["poolConfig"];
