@@ -362,7 +362,11 @@ export const createBuild = async ({
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
-      const preBuild = safeBuildPre({ config, options: common.options });
+      const preBuild = safeBuildPre({
+        config,
+        options: common.options,
+        logger: common.logger,
+      });
       if (preBuild.status === "error") {
         return preBuild;
       }
@@ -703,12 +707,10 @@ export const createBuild = async ({
           await pool.end();
         }
 
-        const connectionString =
-          preBuild.databaseConfig.poolConfig.connectionString!;
         common.logger.info({
           msg: "Connected to database",
           type: dialect,
-          database: getDatabaseName(connectionString),
+          database: getDatabaseName(preBuild.databaseConfig.poolConfig),
           duration: endClock(),
         });
       }
