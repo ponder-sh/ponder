@@ -1,15 +1,18 @@
 import path from "node:path";
 import type { Config } from "@/config/index.js";
 import { BuildError } from "@/internal/errors.js";
+import type { Logger } from "@/internal/logger.js";
 import type { Options } from "@/internal/options.js";
 import type { DatabaseConfig } from "@/internal/types.js";
 
 export function buildPre({
   config,
   options,
+  logger,
 }: {
   config: Config;
   options: Pick<Options, "rootDir" | "ponderDir">;
+  logger: Logger;
 }): {
   databaseConfig: DatabaseConfig;
   ordering: NonNullable<Config["ordering"]>;
@@ -35,18 +38,26 @@ export function buildPre({
         connectionString = process.env.DATABASE_PRIVATE_URL;
       } else if (process.env.DATABASE_URL) {
         connectionString = process.env.DATABASE_URL;
-      } else {
-        throw new Error(
-          `Invalid database configuration: 'kind' is set to 'postgres' but no connection string was provided.`,
-        );
+      }
+
+      if (connectionString === undefined) {
+        if (config.database.poolConfig === undefined) {
+          throw new Error(
+            "Invalid database configuration: atleast one of connectionString or poolConfig must be set",
+          );
+        }
+        //
+        logger.warn({
+          msg: "No database connection string set. Using poolConfig for connection authentication",
+        });
       }
 
       const poolConfig = {
-        ...config.database.poolConfig,
+        ...(config.database.poolConfig ?? {}),
         connectionString,
         max: config.database.poolConfig?.max ?? 30,
         ssl: config.database.poolConfig?.ssl ?? false,
-      };
+      } satisfies (DatabaseConfig & { kind: "postgres" })["poolConfig"];
 
       databaseConfig = { kind: "postgres", poolConfig };
     } else {
@@ -81,12 +92,14 @@ export function buildPre({
 export function safeBuildPre({
   config,
   options,
+  logger,
 }: {
   config: Config;
   options: Pick<Options, "rootDir" | "ponderDir">;
+  logger: Logger;
 }) {
   try {
-    const result = buildPre({ config, options });
+    const result = buildPre({ config, options, logger });
 
     return {
       status: "success",

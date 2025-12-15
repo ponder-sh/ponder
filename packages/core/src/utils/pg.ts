@@ -11,20 +11,53 @@ pg.types.setTypeParser(1231, bigIntArrayParser);
 export const PG_BIGINT_MAX = 9223372036854775807n;
 export const PG_INTEGER_MAX = 2147483647;
 
-export function getDatabaseName(connectionString: string) {
-  try {
-    const parsed = (parse as unknown as typeof parse.parse)(connectionString);
-    const port = parsed.port ? `:${parsed.port}` : "";
-    return `${parsed.host}${port}/${parsed.database}`;
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+export function getDatabaseName(conf: PoolConfig) {
+  const config = parseBaseConfig(conf);
+  // https://github.com/brianc/node-postgres/blob/ecff60dc8aa0bd1ad5ea8f4623af0756a86dc110/packages/pg/lib/defaults.js#L3-L73
+  const defaults = {
+    hostname: "localhost",
+    port: "5432",
+    database: undefined,
+  };
+  const envVars = {
+    hostname: process.env.PGHOST,
+    database: process.env.PGDATABASE,
+    port: process.env.PGPORT,
+  };
 
-    throw new Error(
-      `Failed to parse database connection string: ${errorMessage}.`,
-    );
-  }
+  // https://github.com/brianc/node-postgres/blob/ecff60dc8aa0bd1ad5ea8f4623af0756a86dc110/packages/pg/lib/connection-parameters.js#L18
+  // precedence is config > env vars > default
+  const hostname = config.hostname || envVars.hostname || defaults.hostname;
+  const database = config.database || envVars.database || defaults.database;
+  const port = config.port || envVars.port || defaults.port;
+
+  return `${hostname}${port}/${database}`;
 }
+
+const parseBaseConfig = (
+  config: PoolConfig,
+): {
+  hostname?: string;
+  port?: string;
+  database?: string;
+} => {
+  const conf = {
+    hostname: config.host,
+    port: config.port?.toString(),
+    database: config.database,
+  };
+  if (!config.connectionString) return conf;
+  // https://github.com/brianc/node-postgres/blob/ecff60dc8aa0bd1ad5ea8f4623af0756a86dc110/packages/pg/lib/connection-parameters.js#L53-L57
+  // connString values override other values, even if a value from connstring is missing
+  const parsed = (parse as unknown as typeof parse.parse)(
+    config.connectionString,
+  );
+  return {
+    hostname: parsed.host ?? undefined,
+    database: parsed.database ?? undefined,
+    port: parsed.port ?? undefined,
+  };
+};
 
 export function createPool(config: PoolConfig, logger: Logger) {
   class Client extends pg.Client {
