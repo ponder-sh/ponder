@@ -1,5 +1,29 @@
 # ponder
 
+## 0.15.16
+
+### Patch Changes
+
+- [#2214](https://github.com/ponder-sh/ponder/pull/2214) [`1cc01d8`](https://github.com/ponder-sh/ponder/commit/1cc01d82d660543982f868a465a13ad8f1b0b7c3) Thanks [@yvesfracari](https://github.com/yvesfracari)! - Added support for alias column in `onchainView`.
+
+## 0.15.15
+
+### Patch Changes
+
+- [#2217](https://github.com/ponder-sh/ponder/pull/2217) [`8f2e557`](https://github.com/ponder-sh/ponder/commit/8f2e557cd08d3573bd5b0cfcd1e813dc55f5f9a5) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug in JSON-RPC response validation logic that caused `RpcProviderError: Inconsistent RPC response data. The logs array contains two objects with 'logIndex' 0x39d (925)`.
+
+## 0.15.14
+
+### Patch Changes
+
+- [#2212](https://github.com/ponder-sh/ponder/pull/2212) [`ef7b50b`](https://github.com/ponder-sh/ponder/commit/ef7b50be335fb0f2b4519a8dcbe1c130acc31dbd) Thanks [@typedarray](https://github.com/typedarray)! - Updated `vite`, `glob`, `graphql`, and `graphql-yoga` dependencies for security patches.
+
+## 0.15.13
+
+### Patch Changes
+
+- [#2210](https://github.com/ponder-sh/ponder/pull/2210) [`6617af4`](https://github.com/ponder-sh/ponder/commit/6617af49a21ec27c5c96704fca50559a9f3cd289) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused Ponder to crash when `disable_cache: true`.
+
 ## 0.15.12
 
 ### Patch Changes

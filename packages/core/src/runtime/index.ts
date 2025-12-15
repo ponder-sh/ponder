@@ -16,7 +16,11 @@ import {
   getFilterToBlock,
   isAddressFactory,
 } from "@/runtime/filter.js";
-import { getFragments, recoverFilter } from "@/runtime/fragments.js";
+import {
+  getFactoryFragments,
+  getFragments,
+  recoverFilter,
+} from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
@@ -226,6 +230,12 @@ export async function getCachedIntervals(params: {
       cachedIntervals.set(filter, []);
       for (const { fragment } of getFragments(filter)) {
         cachedIntervals.get(filter)!.push({ fragment, intervals: [] });
+      }
+      for (const factory of getFilterFactories(filter)) {
+        cachedIntervals.set(factory, []);
+        for (const fragment of getFactoryFragments(factory)) {
+          cachedIntervals.get(factory)!.push({ fragment, intervals: [] });
+        }
       }
     }
   } else {

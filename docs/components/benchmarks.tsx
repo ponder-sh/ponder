@@ -87,7 +87,7 @@ export function Benchmarks({
             950MB/s network connection.
           </p>
           <a
-            href="https://github.com/ponder-sh/ponder/tree/main/benchmarks#readme"
+            href="https://github.com/ponder-sh/ponder/tree/main/benchmark#readme"
             target="_blank"
             rel="noreferrer"
             className="text-sm text-ponder-400 hover:text-ponder-50/90"

@@ -14,7 +14,8 @@ import {
   getSimulatedEvent,
 } from "@/_test/utils.js";
 import { onchainTable } from "@/drizzle/onchain.js";
-import type { IndexingCache } from "@/indexing-store/cache.js";
+import { createIndexingCache } from "@/indexing-store/cache.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   InvalidEventAccessError,
@@ -82,6 +83,20 @@ test("createIndexing()", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -89,7 +104,10 @@ test("createIndexing()", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -101,7 +119,7 @@ test("createIndexing()", async (context) => {
 
 test("processSetupEvents() empty", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -124,6 +142,20 @@ test("processSetupEvents() empty", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -131,19 +163,22 @@ test("processSetupEvents() empty", async (context) => {
       setupCallbacks: [[]],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
     eventCount,
   });
 
-  await indexing.processSetupEvents({ db: indexingStore });
+  await indexing.processSetupEvents();
 });
 
 test("processSetupEvents()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -167,6 +202,20 @@ test("processSetupEvents()", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -174,17 +223,21 @@ test("processSetupEvents()", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
     eventCount,
   });
 
-  await indexing.processSetupEvents({ db: indexingStore });
+  await indexing.processSetupEvents();
 
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledOnce();
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledWith({
+    event: undefined,
     context: {
       chain: { id: 1, name: "mainnet" },
       contracts: {
@@ -203,7 +256,7 @@ test("processSetupEvents()", async (context) => {
 
 test("processEvent()", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -235,6 +288,20 @@ test("processEvent()", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -242,7 +309,10 @@ test("processEvent()", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -254,7 +324,7 @@ test("processEvent()", async (context) => {
     blockData,
   });
 
-  await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
+  await indexing.processRealtimeEvents({ events: [event] });
 
   expect(eventCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
   expect(eventCallbacks[0]!.fn).toHaveBeenCalledWith({
@@ -285,7 +355,7 @@ test("processEvent()", async (context) => {
 
 test("processEvents eventCount", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -317,6 +387,20 @@ test("processEvents eventCount", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -324,7 +408,10 @@ test("processEvents eventCount", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -336,7 +423,7 @@ test("processEvents eventCount", async (context) => {
     blockData,
   });
 
-  await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
+  await indexing.processRealtimeEvents({ events: [event] });
 
   const metrics = await common.metrics.ponder_indexing_completed_events.get();
 
@@ -354,7 +441,7 @@ test("processEvents eventCount", async (context) => {
 
 test("executeSetup() context.client", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -383,6 +470,20 @@ test("executeSetup() context.client", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -390,7 +491,10 @@ test("executeSetup() context.client", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -399,7 +503,7 @@ test("executeSetup() context.client", async (context) => {
 
   const getBalanceSpy = vi.spyOn(rpc, "request");
 
-  await indexing.processSetupEvents({ db: indexingStore });
+  await indexing.processSetupEvents();
 
   expect(getBalanceSpy).toHaveBeenCalledOnce();
   expect(getBalanceSpy).toHaveBeenCalledWith(
@@ -413,7 +517,7 @@ test("executeSetup() context.client", async (context) => {
 
 test("executeSetup() context.db", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { database, syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -444,6 +548,23 @@ test("executeSetup() context.db", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  indexingStore.qb = database.userQB;
+  indexingCache.qb = database.userQB;
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -451,20 +572,23 @@ test("executeSetup() context.db", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
     eventCount,
   });
 
-  const insertSpy = vi.spyOn(indexingStore, "insert");
+  const insertSpy = vi.spyOn(indexingStore.db, "insert");
 
-  await indexing.processSetupEvents({ db: indexingStore });
+  await indexing.processSetupEvents();
 
   expect(insertSpy).toHaveBeenCalledOnce();
 
-  const supply = await indexingStore.find(account, { address: zeroAddress });
+  const supply = await indexingStore.db.find(account, { address: zeroAddress });
   expect(supply).toMatchObject({
     address: zeroAddress,
     balance: 10n,
@@ -473,7 +597,7 @@ test("executeSetup() context.db", async (context) => {
 
 test("executeSetup() metrics", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -498,6 +622,20 @@ test("executeSetup() metrics", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -505,14 +643,17 @@ test("executeSetup() metrics", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
     eventCount,
   });
 
-  await indexing.processSetupEvents({ db: indexingStore });
+  await indexing.processSetupEvents();
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
   expect(metrics.values).toBeDefined();
@@ -520,7 +661,7 @@ test("executeSetup() metrics", async (context) => {
 
 test("executeSetup() error", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -545,6 +686,20 @@ test("executeSetup() error", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -552,7 +707,10 @@ test("executeSetup() error", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -562,16 +720,14 @@ test("executeSetup() error", async (context) => {
   // @ts-ignore
   setupCallbacks[0]!.fn.mockRejectedValue(new Error());
 
-  await expect(() =>
-    indexing.processSetupEvents({ db: indexingStore }),
-  ).rejects.toThrowError();
+  await expect(() => indexing.processSetupEvents()).rejects.toThrowError();
 
   expect(setupCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
 });
 
 test("processEvents() context.client", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -608,6 +764,20 @@ test("processEvents() context.client", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -615,7 +785,10 @@ test("processEvents() context.client", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -628,7 +801,7 @@ test("processEvents() context.client", async (context) => {
     eventCallback: eventCallbacks[0],
     blockData,
   });
-  await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
+  await indexing.processRealtimeEvents({ events: [event] });
 
   expect(getBalanceSpy).toHaveBeenCalledTimes(1);
   expect(getBalanceSpy).toHaveBeenCalledWith(
@@ -642,7 +815,7 @@ test("processEvents() context.client", async (context) => {
 
 test("processEvents() context.db", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { database, syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -684,6 +857,23 @@ test("processEvents() context.db", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  indexingStore.qb = database.userQB;
+  indexingCache.qb = database.userQB;
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -691,31 +881,30 @@ test("processEvents() context.db", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
     eventCount,
   });
 
-  const insertSpy = vi.spyOn(indexingStore, "insert");
+  const insertSpy = vi.spyOn(indexingStore.db, "insert");
 
   const event = getSimulatedEvent({
     eventCallback: eventCallbacks[0],
     blockData,
   });
-  await indexing.processRealtimeEvents({ db: indexingStore, events: [event] });
+  await indexing.processRealtimeEvents({ events: [event] });
 
   expect(insertSpy).toHaveBeenCalledTimes(1);
-
-  const transferEvents = await indexingStore.sql.select().from(account);
-
-  expect(transferEvents).toHaveLength(1);
 });
 
 test("processEvents() metrics", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -748,6 +937,20 @@ test("processEvents() metrics", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -755,7 +958,10 @@ test("processEvents() metrics", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -767,7 +973,7 @@ test("processEvents() metrics", async (context) => {
     blockData,
   });
 
-  await indexing.processRealtimeEvents({ events: [event], db: indexingStore });
+  await indexing.processRealtimeEvents({ events: [event] });
 
   const metrics = await common.metrics.ponder_indexing_function_duration.get();
   expect(metrics.values).toBeDefined();
@@ -775,7 +981,7 @@ test("processEvents() metrics", async (context) => {
 
 test("processEvents() error", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -808,6 +1014,20 @@ test("processEvents() error", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -815,7 +1035,10 @@ test("processEvents() error", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -830,7 +1053,7 @@ test("processEvents() error", async (context) => {
     blockData,
   });
   await expect(() =>
-    indexing.processRealtimeEvents({ db: indexingStore, events: [event] }),
+    indexing.processRealtimeEvents({ events: [event] }),
   ).rejects.toThrowError();
 
   expect(eventCallbacks[0]!.fn).toHaveBeenCalledTimes(1);
@@ -838,7 +1061,7 @@ test("processEvents() error", async (context) => {
 
 test("processEvents() error with missing event object properties", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -879,6 +1102,20 @@ test("processEvents() error with missing event object properties", async (contex
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -886,7 +1123,10 @@ test("processEvents() error with missing event object properties", async (contex
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -898,13 +1138,13 @@ test("processEvents() error with missing event object properties", async (contex
     blockData,
   });
   await expect(() =>
-    indexing.processRealtimeEvents({ events: [event], db: indexingStore }),
+    indexing.processRealtimeEvents({ events: [event] }),
   ).rejects.toThrowError();
 });
 
 test("processEvents() column selection", async (context) => {
   const { common } = context;
-  const { syncStore, indexingStore } = await setupDatabaseServices(context, {
+  const { syncStore } = await setupDatabaseServices(context, {
     schemaBuild: { schema },
   });
 
@@ -949,6 +1189,20 @@ test("processEvents() column selection", async (context) => {
     eventCount,
   });
 
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
   const indexing = createIndexing({
     common,
     indexingBuild: {
@@ -956,7 +1210,10 @@ test("processEvents() column selection", async (context) => {
       setupCallbacks: [setupCallbacks],
       chains: [chain],
       contracts: [contracts],
+      indexingFunctions,
     },
+    indexingStore,
+    indexingCache,
     client: cachedViemClient,
     indexingErrorHandler,
     columnAccessPattern,
@@ -971,9 +1228,7 @@ test("processEvents() column selection", async (context) => {
   const events = Array.from({ length: 1001 }).map(() => event);
 
   await indexing.processHistoricalEvents({
-    db: indexingStore,
     events,
-    cache: {} as IndexingCache,
     updateIndexingSeconds: vi.fn(),
   });
 
@@ -1005,8 +1260,6 @@ test("processEvents() column selection", async (context) => {
   await expect(() =>
     indexing.processHistoricalEvents({
       events: [event],
-      db: indexingStore,
-      cache: {} as IndexingCache,
       updateIndexingSeconds: vi.fn(),
     }),
   ).rejects.toThrowError(

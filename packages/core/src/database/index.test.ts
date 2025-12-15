@@ -7,7 +7,6 @@ import {
   onchainView,
   primaryKey,
 } from "@/drizzle/onchain.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { RetryableError } from "@/internal/errors.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
@@ -519,14 +518,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     }),
   );
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -538,7 +530,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 

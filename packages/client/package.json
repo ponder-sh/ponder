@@ -1,6 +1,6 @@
 {
   "name": "@ponder/client",
-  "version": "0.15.12",
+  "version": "0.15.16",
   "description": "",
   "license": "MIT",
   "type": "module",
@@ -47,6 +47,6 @@
   },
   "devDependencies": {
     "tsup": "^8.0.1",
-    "vitest": "^1.0.2"
+    "vitest": "1.6.1"
   }
 }

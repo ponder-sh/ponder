@@ -312,30 +312,30 @@ export const createSyncStore = ({
                   .as("unnested"),
               ),
           );
+        }
 
-          for (const factory of getFilterFactories(filter)) {
-            for (const fragment of getFactoryFragments(factory)) {
-              queries.push(
-                qb.raw
-                  .select({
-                    mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
-                      "merged_blocks",
-                    ),
-                    fragment: sql.raw(`'${index++}'`).as("fragment"),
-                  })
-                  .from(
-                    qb.raw
-                      .select({
-                        blocks: sql.raw("unnest(blocks)").as("blocks"),
-                      })
-                      .from(PONDER_SYNC.intervals)
-                      .where(
-                        sql.raw(`fragment_id = '${encodeFragment(fragment)}'`),
-                      )
-                      .as("unnested"),
+        for (const factory of getFilterFactories(filter)) {
+          for (const fragment of getFactoryFragments(factory)) {
+            queries.push(
+              qb.raw
+                .select({
+                  mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
+                    "merged_blocks",
                   ),
-              );
-            }
+                  fragment: sql.raw(`'${index++}'`).as("fragment"),
+                })
+                .from(
+                  qb.raw
+                    .select({
+                      blocks: sql.raw("unnest(blocks)").as("blocks"),
+                    })
+                    .from(PONDER_SYNC.intervals)
+                    .where(
+                      sql.raw(`fragment_id = '${encodeFragment(fragment)}'`),
+                    )
+                    .as("unnested"),
+                ),
+            );
           }
         }
       }
@@ -400,51 +400,49 @@ export const createSyncStore = ({
           index += 1;
 
           result.get(filter)!.push({ fragment: fragment.fragment, intervals });
+        }
 
-          for (const factory of getFilterFactories(filter)) {
-            result.set(factory, []);
-            for (const fragment of getFactoryFragments(factory)) {
-              const intervals = rows
-                .filter((row) => row.fragment === `${index}`)
-                .map((row) =>
-                  (row.mergedBlocks
-                    ? (JSON.parse(
-                        `[${row.mergedBlocks.slice(1, -1)}]`,
-                      ) as Interval[])
-                    : []
-                  ).map(
-                    (interval) => [interval[0], interval[1] - 1] as Interval,
-                  ),
-                )[0]!;
+        for (const factory of getFilterFactories(filter)) {
+          result.set(factory, []);
+          for (const fragment of getFactoryFragments(factory)) {
+            const intervals = rows
+              .filter((row) => row.fragment === `${index}`)
+              .map((row) =>
+                (row.mergedBlocks
+                  ? (JSON.parse(
+                      `[${row.mergedBlocks.slice(1, -1)}]`,
+                    ) as Interval[])
+                  : []
+                ).map((interval) => [interval[0], interval[1] - 1] as Interval),
+              )[0]!;
 
-              index += 1;
+            index += 1;
 
-              result.get(factory)!.push({ fragment, intervals });
-            }
+            result.get(factory)!.push({ fragment, intervals });
+          }
 
-            // Note: This is a stand-in for a migration to the `intervals` table
-            // required in `v0.15`. It is an invariant that filter with factories
-            // have a row in the intervals table for both the filter and the factory.
-            // If this invariant is broken, it must be because of the migration from
-            // `v0.14` to `v0.15`. In this case, we can assume that the factory interval
-            // is the same as the filter interval.
+          // Note: This is a stand-in for a migration to the `intervals` table
+          // required in `v0.15`. It is an invariant that filter with factories
+          // have a row in the intervals table for both the filter and the factory.
+          // If this invariant is broken, it must be because of the migration from
+          // `v0.14` to `v0.15`. In this case, we can assume that the factory interval
+          // is the same as the filter interval.
 
-            const filterIntervals = intervalUnion(
-              result.get(filter)!.flatMap(({ intervals }) => intervals),
-            );
-            const factoryIntervals = intervalUnion(
-              result.get(factory)!.flatMap(({ intervals }) => intervals),
-            );
+          const filterIntervals = intervalUnion(
+            result.get(filter)!.flatMap(({ intervals }) => intervals),
+          );
+          const factoryIntervals = intervalUnion(
+            result.get(factory)!.flatMap(({ intervals }) => intervals),
+          );
 
-            if (
-              filterIntervals.length > 0 &&
-              factoryIntervals.length === 0 &&
-              filter.fromBlock === factory.fromBlock &&
-              filter.toBlock === factory.toBlock
-            ) {
-              for (const factoryInterval of result.get(factory)!) {
-                factoryInterval.intervals = filterIntervals;
-              }
+          if (
+            filterIntervals.length > 0 &&
+            factoryIntervals.length === 0 &&
+            filter.fromBlock === factory.fromBlock &&
+            filter.toBlock === factory.toBlock
+          ) {
+            for (const factoryInterval of result.get(factory)!) {
+              factoryInterval.intervals = filterIntervals;
             }
           }
         }
