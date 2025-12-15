@@ -319,14 +319,14 @@ export const buildSchema = ({
                 `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
               );
             }
-          }
 
-          if (columnNames.has((column as PgColumn).name)) {
-            throw new Error(
-              `Schema validation failed: '${name}.${(column as PgColumn).name}' column name is used multiple times.`,
-            );
-          } else {
-            columnNames.add((column as PgColumn).name);
+            if (columnNames.has((column as PgColumn).name)) {
+              throw new Error(
+                `Schema validation failed: '${name}.${(column as PgColumn).name}' column name is used multiple times.`,
+              );
+            } else {
+              columnNames.add((column as PgColumn).name);
+            }
           }
         }
     }
