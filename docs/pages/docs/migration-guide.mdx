@@ -4,34 +4,25 @@
 
 ### Breaking changes
 
-#### Live indexing uses in-memory database
+#### Table and schema name length limits
 
-Live indexing now uses the same in-memory database as backfill indexing.
+The `onchainTable` name, `--schema` CLI option, and `--views-schema` CLI option now enforce a maximum length of 45 characters. This eliminates an issue where names could conflict undetected and cause undefined behavior.
 
-#### Deprecated Subgraph and Etherscan in `create-ponder`
+Other values like column names, `onchainView` name, and index names are unaffected and will continue to use the default Postgres behavior (maximum of 63 characters with truncation).
 
-Subgraph and Etherscan templates are deprecated in `create-ponder`.
+#### Removed Etherscan and subgraph templates
+
+The `create-ponder` CLI tool no longer supports bootstrapping a project from an Etherscan or subgraph link. Both options have been broken for some time due to breaking changes to upstream APIs.
 
 ### New features
 
 #### Bun support
 
-Ponder now supports the [Bun](https://bun.sh) runtime. Update the scripts in `package.json` to use Bun.
+Ponder now officially supports the [Bun](https://bun.sh) runtime. [Read more](/docs/guides/bun) in the new guide.
 
-```json [package.json]
-"scripts": {
-  "dev": "ponder dev", // [!code --]
-  "start": "ponder start", // [!code --]
-  "codegen": "ponder codegen", // [!code --]
-  "dev": "bun --bun ponder dev", // [!code ++]
-  "start": "bun --bun start", // [!code ++]
-  "codegen": "bun --bun ponder codegen", // [!code ++]
-  "lint": "eslint .",
-  "typecheck": "tsc"
-},
-```
+#### Live indexing performance improvement
 
-Visit the [documentation](/docs/guides/bun) for more details.
+During live indexing, the Store API now uses the same in-memory database as it uses during backfill indexing. This dramatically improves live indexing performance for high-throughput projects (~50+ database operations per second). If your project was struggling to keep up with tip during live indexing, this release may solve your problem.
 
 #### Full node-postgres `poolConfig` support
 
