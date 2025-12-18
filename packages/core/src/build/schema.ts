@@ -176,8 +176,6 @@ export const buildSchema = ({
         }
       }
 
-      // Note: Ponder lets postgres handle the table name length limit and truncation.
-
       if (tableNames.has(getTableName(s))) {
         throw new Error(
           `Schema validation failed: table name '${getTableName(s)}' is used multiple times.`,
