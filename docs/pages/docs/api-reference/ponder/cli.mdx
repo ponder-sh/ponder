@@ -36,10 +36,10 @@ Usage: ponder dev [options]
 Start the development server with hot reloading
 
 Options:
-  --schema <SCHEMA>          Database schema
+  --schema <SCHEMA>          Database schema (max: 45 characters)
+  --disable-ui               Disable the terminal UI
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
-  --disable-ui               Disable the terminal UI
   -h, --help                 display help for command
 ```
 
@@ -56,7 +56,8 @@ Usage: ponder start [options]
 Start the production server
 
 Options:
-  --schema <SCHEMA>          Database schema
+  --schema <SCHEMA>          Database schema (max: 45 characters)
+  --views-schema <SCHEMA>    Views database schema (max: 45 characters)
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
@@ -77,7 +78,7 @@ Usage: ponder serve [options]
 Start the production HTTP server without the indexer
 
 Options:
-  --schema <SCHEMA>          Database schema
+  --schema <SCHEMA>          Database schema (max: 45 characters)
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
@@ -99,6 +100,22 @@ Options:
 ## db
 
 Database management commands.
+
+### create-views
+
+Creates views for the views pattern. [Read more](/docs/production/self-hosting#views-pattern).
+
+```bash
+Usage: ponder create-views [options]
+
+Create database views for the views pattern
+
+Options:
+  --schema <SCHEMA>          Database schema (max: 45 characters)
+  --views-schema <SCHEMA>    Views database schema (max: 45 characters)
+  -h, --help                 display help for command
+```
+
 
 ### list
 

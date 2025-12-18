@@ -26,7 +26,7 @@ The `onchainTable` function accepts three positional arguments.
 
 | field           |                      type                      | description                                                                               |
 | :-------------- | :--------------------------------------------: | :---------------------------------------------------------------------------------------- |
-| **name**        |                    `string`                    | The SQL table name. Use `snake_case`.                                                     |
+| **name**        |                    `string`                    | The SQL table name. Use `snake_case`. Maximum of 45 characters.                           |
 | **columns**     | `(t: TableBuilder) => Record<string, Column>`  | A function that returns column definitions.                                               |
 | **constraints** | `(table: Table) => Record<string, Constraint>` | Optional function that returns table constraints like composite primary keys and indexes. |
 
