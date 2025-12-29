@@ -33,7 +33,8 @@ export const getEmptyValue = (column: Column, isUpdate: boolean) => {
   if (column.defaultFn !== undefined) return column.defaultFn();
   if (column.onUpdateFn !== undefined) return column.onUpdateFn();
 
-  // TODO(kyle) is it an invariant that it doesn't get here
+// NOTE(kyle): This code path should be unreachable.
+// Neither defaultFn nor onUpdateFn is defined for the column.
 
   return undefined;
 };
