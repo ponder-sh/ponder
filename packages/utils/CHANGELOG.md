@@ -1,5 +1,11 @@
 # @ponder/utils
 
+## 0.2.17
+
+### Patch Changes
+
+- [#2239](https://github.com/ponder-sh/ponder/pull/2239) [`9c36e5e`](https://github.com/ponder-sh/ponder/commit/9c36e5ef3c39f9d8ec2debf10fa2a04aacc7841f) Thanks [@kyscott18](https://github.com/kyscott18)! - Add support for retrying drpc eth_getLogs errors.
+
 ## 0.2.16
 
 ### Patch Changes
