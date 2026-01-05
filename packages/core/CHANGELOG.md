@@ -1,5 +1,14 @@
 # ponder
 
+## 0.15.18
+
+### Patch Changes
+
+- [#2241](https://github.com/ponder-sh/ponder/pull/2241) [`d3839fb`](https://github.com/ponder-sh/ponder/commit/d3839fbeb2270bc27de864055e6026e9fc581e63) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `ponder db list` that caused `TypeError: leftSelect.getSelectedFields is not a function`.
+
+- Updated dependencies [[`9c36e5e`](https://github.com/ponder-sh/ponder/commit/9c36e5ef3c39f9d8ec2debf10fa2a04aacc7841f)]:
+  - @ponder/utils@0.2.17
+
 ## 0.15.17
 
 ### Patch Changes
