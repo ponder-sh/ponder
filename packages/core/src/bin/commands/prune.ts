@@ -160,10 +160,10 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
   }[];
 
   if (queries.length === 1) {
-    result = await queries[0]!;
+    result = await database.adminQB.wrap(() => queries[0]!);
   } else {
     // @ts-ignore
-    result = await unionAll(...queries);
+    result = await database.adminQB.wrap(() => unionAll(...queries));
   }
 
   const tablesToDrop: string[] = [];
