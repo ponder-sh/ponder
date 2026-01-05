@@ -118,15 +118,13 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   );
 
   const queries = ponderSchemas.map((row) =>
-    database.adminQB.wrap((db) =>
-      db
-        .select({
-          value: getPonderMetaTable(row.schema).value,
-          schema: sql<string>`${row.schema}`.as("schema"),
-        })
-        .from(getPonderMetaTable(row.schema))
-        .where(eq(getPonderMetaTable(row.schema).key, "app")),
-    ),
+    database.adminQB.raw
+      .select({
+        value: getPonderMetaTable(row.schema).value,
+        schema: sql<string>`${row.schema}`.as("schema"),
+      })
+      .from(getPonderMetaTable(row.schema))
+      .where(eq(getPonderMetaTable(row.schema).key, "app")),
   );
 
   if (queries.length === 0) {
@@ -149,10 +147,10 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   }[];
 
   if (queries.length === 1) {
-    result = await queries[0]!;
+    result = await database.adminQB.wrap(() => queries[0]!);
   } else {
     // @ts-ignore
-    result = await unionAll(...queries);
+    result = await database.adminQB.wrap(() => unionAll(...queries));
   }
 
   const columns = [
