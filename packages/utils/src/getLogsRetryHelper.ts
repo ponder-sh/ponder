@@ -435,7 +435,9 @@ export const getLogsRetryHelper = ({
     // zkevm
     /query returned more than \d+ results/.test(sError) ||
     // 1rpc
-    /response size should not greater than \d+ bytes/.test(sError)
+    /response size should not greater than \d+ bytes/.test(sError) ||
+    // drpc
+    /ranges over \d+ blocks are not supported on freetier/.test(sError)
   ) {
     const ranges = chunk({
       params,
