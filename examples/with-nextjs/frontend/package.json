@@ -11,7 +11,7 @@
     "@ponder/react": "workspace:*",
     "@tanstack/react-query": "5.12.2",
     "@tanstack/react-query-devtools": "5.12.2",
-    "next": "14.2.33",
+    "next": "14.2.35",
     "react": "^18.2.0",
     "react-countup": "^6.5.0",
     "react-dom": "^18",
