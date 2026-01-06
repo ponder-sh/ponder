@@ -1,0 +1,85 @@
+# `create-ponder` [API reference]
+
+The `create-ponder` CLI tool is the easiest way to get started with Ponder.
+
+It asks a few questions, then creates a new Ponder project in the specified directory including all required files (`package.json`, `ponder.config.ts`, ABIs, etc).
+
+:::code-group
+
+```bash [pnpm]
+pnpm create ponder {...options}
+```
+
+```bash [yarn]
+yarn create ponder {...options}
+```
+
+```bash [npm]
+npm init ponder@latest {...options}
+```
+
+```bash [bun]
+bun --bun create ponder {...options}
+```
+
+:::
+
+## Options
+
+```sh
+Usage:
+  $ create-ponder <directory> [options]
+
+Options:
+  -t, --template [id]             Use a template
+  --npm                           Use npm as your package manager
+  --pnpm                          Use pnpm as your package manager
+  --yarn                          Use yarn as your package manager
+  --skip-git                      Skip initializing a git repository
+  --skip-install                  Skip installing packages
+  -h, --help                      Display this message
+  -v, --version                   Display version number
+```
+
+## Templates
+
+Templates help get you started faster by copying contract addresses, ABIs, and deployment blocks from an existing source.
+
+### Example projects
+
+The `-t, --template [id]` option creates a new project from one of the [example projects](https://github.com/ponder-sh/ponder/tree/main/examples).
+For example, this command creates a project using the `feature-factory` example project.
+
+:::code-group
+
+```bash [pnpm]
+pnpm create ponder --template feature-factory
+```
+
+```bash [yarn]
+yarn create ponder --template feature-factory
+```
+
+```bash [npm]
+npm init ponder@latest --template feature-factory
+```
+
+```bash [bun]
+bun --bun create ponder --template feature-factory
+```
+
+:::
+
+Here are the available projects:
+
+| Name                   | Template ID              | Link                                                                                      |
+| :--------------------- | :----------------------- | :---------------------------------------------------------------------------------------- |
+| Factory contract       | feature-factory          | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/feature-factory)          |
+| Custom event filter    | feature-filter           | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/feature-filter)           |
+| Multiple chains        | feature-multichain       | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/feature-multichain)       |
+| Proxy contract         | feature-proxy            | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/feature-proxy)            |
+| Contract calls         | feature-read-contract    | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/feature-read-contract)    |
+| Friendtech project     | project-friendtech       | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/project-friendtech)       |
+| Uniswap V3 flash loans | project-uniswap-v3-flash | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/project-uniswap-v3-flash) |
+| Basic ERC20 token      | reference-erc20          | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/reference-erc20)          |
+| Basic ERC721 token     | reference-erc721         | [GitHub](https://github.com/ponder-sh/ponder/tree/main/examples/reference-erc721)         |

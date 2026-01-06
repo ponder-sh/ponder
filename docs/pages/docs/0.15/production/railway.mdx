@@ -1,0 +1,61 @@
+import { Callout } from "vocs/components";
+
+# Deploy on Railway [Host a Ponder app on Railway]
+
+[Railway](https://railway.app)'s general-purpose cloud platform is a great starting point for most Ponder apps.
+
+## Guide
+
+::::steps
+
+### Log in to Railway
+
+Connect your GitHub account, and make sure that your Ponder app has been pushed to remote.
+
+### Create a Ponder app service
+
+From the Railway console:
+
+1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list.
+2. Click **Add variables**, then add RPC URLs (e.g. `PONDER_RPC_URL_1`) and other environment variables.
+3. Create a public domain. In **Settings** → **Networking**, click **Generate Domain**.
+4. Update the start command. In **Settings** → **Deploy**, set the **Custom Start Command** to include the `--schema` option. This is required to enable zero-downtime deployments. [Read more](/docs/database#database-schema).
+
+:::code-group
+
+```bash [pnpm]
+pnpm start --schema $RAILWAY_DEPLOYMENT_ID
+```
+
+```bash [yarn]
+yarn start --schema $RAILWAY_DEPLOYMENT_ID
+```
+
+```bash [npm]
+npm run start -- --schema $RAILWAY_DEPLOYMENT_ID
+```
+
+```bash [bun]
+bun start --schema $RAILWAY_DEPLOYMENT_ID
+```
+
+:::
+
+5. Set the healthcheck path and timeout. In **Settings** → **Deploy**, set the **Healthcheck Path** to `/ready` and the **Healthcheck Timeout** to `3600` seconds (1 hour, the maximum allowed).
+
+:::info
+_Monorepo users:_ Use the **Root Directory** and **Start Command** options
+to run `ponder start` at the Ponder project root. For example, set the root directory
+to `packages/ponder` or set the start command to `cd packages/ponder && pnpm start`.
+:::
+
+### Create a Postgres database
+
+From the new project dashboard:
+
+1. Click **Create** → **Database** → **Add PostgreSQL**
+2. Open the **Variables** tab for the Ponder app service, click **New Variable** → **Add Reference** → select `DATABASE_URL` and click **Add**
+
+::::
+
+After a moment, the service running `ponder start` should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
