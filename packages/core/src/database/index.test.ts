@@ -1,4 +1,4 @@
-import { setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getChain } from "@/_test/utils.js";
 import { buildSchema } from "@/build/schema.js";
 import {
@@ -7,7 +7,6 @@ import {
   onchainView,
   primaryKey,
 } from "@/drizzle/onchain.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { RetryableError } from "@/internal/errors.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
@@ -68,7 +67,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("migrate() succeeds with empty schema", async (context) => {
+test("migrate() succeeds with empty schema", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -108,7 +107,7 @@ test("migrate() succeeds with empty schema", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("migrate() with empty schema creates tables, views, and enums", async (context) => {
+test("migrate() with empty schema creates tables, views, and enums", async () => {
   const mood = onchainEnum("mood", ["sad", "happy"]);
 
   const kyle = onchainTable("kyle", (p) => ({
@@ -171,7 +170,7 @@ test("migrate() with empty schema creates tables, views, and enums", async (cont
   await context.common.shutdown.kill();
 });
 
-test("migrate() throws with schema used", async (context) => {
+test("migrate() throws with schema used", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -233,7 +232,7 @@ test("migrate() throws with schema used", async (context) => {
 
 // PGlite not being able to concurrently connect to the same database from two different clients
 // makes this test impossible.
-test("migrate() throws with schema used after waiting for lock", async (context) => {
+test("migrate() throws with schema used after waiting for lock", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   context.common.options.databaseHeartbeatInterval = 250;
@@ -295,7 +294,7 @@ test("migrate() throws with schema used after waiting for lock", async (context)
   await context.common.shutdown.kill();
 });
 
-test("migrate() succeeds with crash recovery", async (context) => {
+test("migrate() succeeds with crash recovery", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -363,7 +362,7 @@ test("migrate() succeeds with crash recovery", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("migrate() succeeds with crash recovery after waiting for lock", async (context) => {
+test("migrate() succeeds with crash recovery after waiting for lock", async () => {
   context.common.options.databaseHeartbeatInterval = 750;
   context.common.options.databaseHeartbeatTimeout = 500;
 
@@ -419,7 +418,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async (con
   await context.common.shutdown.kill();
 });
 
-test("migrateSync()", async (context) => {
+test("migrateSync()", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -449,7 +448,7 @@ test("migrateSync()", async (context) => {
 
 // Note: this test doesn't do anything because we don't have a migration using the
 // new design yet.
-test.skip("migrateSync() handles concurrent migrations", async (context) => {
+test.skip("migrateSync() handles concurrent migrations", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const database = createDatabase({
@@ -485,7 +484,7 @@ test.skip("migrateSync() handles concurrent migrations", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("migrate() with crash recovery reverts rows", async (context) => {
+test("migrate() with crash recovery reverts rows", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -519,14 +518,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
     }),
   );
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -538,7 +530,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
@@ -619,7 +611,7 @@ test("migrate() with crash recovery reverts rows", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("migrate() with crash recovery drops indexes and triggers", async (context) => {
+test("migrate() with crash recovery drops indexes and triggers", async () => {
   const account = onchainTable(
     "account",
     (p) => ({
@@ -722,7 +714,7 @@ test("migrate() with crash recovery drops indexes and triggers", async (context)
   await context.common.shutdown.kill();
 });
 
-test("heartbeat updates the heartbeat_at value", async (context) => {
+test("heartbeat updates the heartbeat_at value", async () => {
   context.common.options.databaseHeartbeatInterval = 250;
   context.common.options.databaseHeartbeatTimeout = 625;
 
@@ -774,7 +766,7 @@ test("heartbeat updates the heartbeat_at value", async (context) => {
   await context.common.shutdown.kill();
 });
 
-test("camelCase", async (context) => {
+test("camelCase", async () => {
   const accountCC = onchainTable("accountCc", (p) => ({
     address: p.hex("addressCc").primaryKey(),
     balance: p.bigint(),

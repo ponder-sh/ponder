@@ -1,5 +1,5 @@
 import { parseAbi, parseAbiItem } from "abitype";
-import { assertType, expect, test } from "vitest";
+import { expect, expectTypeOf, test } from "vitest";
 
 import { mergeAbis } from "./mergeAbis.js";
 
@@ -16,7 +16,7 @@ test("mergeAbis() removes constructors, receive, fallback", () => {
   const out = [] as const;
   expect(merged.length).toBe(0);
   expect(merged).toMatchObject(out);
-  assertType<typeof out>(merged);
+  expectTypeOf<typeof out>(merged);
 });
 
 test("mergeAbis() duplicate items", () => {
@@ -28,7 +28,7 @@ test("mergeAbis() duplicate items", () => {
   const out = [abi] as const;
   expect(merged.length).toBe(1);
   expect(merged).toMatchObject(out);
-  assertType<typeof out>(merged);
+  expectTypeOf<typeof out>(merged);
 });
 
 test("mergeAbis() overloaded items", () => {
@@ -41,7 +41,7 @@ test("mergeAbis() overloaded items", () => {
   const out = [one, two] as const;
   expect(merged.length).toBe(2);
   expect(merged).toMatchObject(out);
-  assertType<typeof out>(merged);
+  expectTypeOf<typeof out>(merged);
 });
 
 test("mergeAbis() empty abi", () => {
@@ -50,5 +50,5 @@ test("mergeAbis() empty abi", () => {
   const a = mergeAbis([[abi], []]);
 
   expect(a).toMatchObject([abi] as const);
-  assertType<readonly [typeof abi]>(a);
+  expectTypeOf<readonly [typeof abi]>(a);
 });

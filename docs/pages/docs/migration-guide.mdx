@@ -1,5 +1,46 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.16
+
+### Breaking changes
+
+#### Table and schema name length limits
+
+The `onchainTable` name, `--schema` CLI option, and `--views-schema` CLI option now enforce a maximum length of 45 characters. This eliminates an issue where names could conflict undetected and cause undefined behavior.
+
+Other values like column names, `onchainView` name, and index names are unaffected and will continue to use the default Postgres behavior (maximum of 63 characters with truncation).
+
+#### Removed Etherscan and subgraph templates
+
+The `create-ponder` CLI tool no longer supports bootstrapping a project from an Etherscan or subgraph link. Both options have been broken for some time due to breaking changes to upstream APIs.
+
+### New features
+
+#### Bun support
+
+Ponder now officially supports the [Bun](https://bun.sh) runtime. [Read more](/docs/guides/bun) in the new guide.
+
+#### Live indexing performance improvement
+
+During live indexing, the Store API now uses the same in-memory database as it uses during backfill indexing. This dramatically improves live indexing performance for high-throughput projects (~50+ database operations per second). If your project was struggling to keep up with tip during live indexing, this release may solve your problem.
+
+#### Full node-postgres `poolConfig` support
+
+Ponder now supports the full range of [node-postgres](https://node-postgres.com/apis/pool) `poolConfig` options.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  database: {
+    kind: "postgres",
+    poolConfig: {// [!code focus]
+      // ... config options // [!code focus]
+    }, // [!code focus]
+  },
+});
+```
+
 ## 0.15
 
 ### Breaking changes
@@ -405,6 +446,10 @@ yarn start --schema $RAILWAY_DEPLOYMENT_ID
 ```bash [npm]
 npm run start -- --schema $RAILWAY_DEPLOYMENT_ID
 ```
+
+```bash [bun]
+bun start -- --schema $RAILWAY_DEPLOYMENT_ID
+```
 ::::
 
 #### `@ponder/core` → `ponder`
@@ -425,6 +470,11 @@ yarn add ponder
 ```bash [npm]
 npm remove @ponder/core
 npm add ponder
+```
+
+```bash [bun]
+bun remove @ponder/core
+bun add ponder
 ```
 :::
 
@@ -492,6 +542,10 @@ yarn codegen
 
 ```bash [npm]
 npm run codegen
+```
+
+```bash [bun]
+bun codegen
 ```
 :::
 
@@ -578,6 +632,10 @@ yarn add @ponder/core@0.7
 ```bash [npm]
 npm add @ponder/core@0.7
 ```
+
+```bash [bun]
+bun add @ponder/core@0.7
+```
 :::
 
 To ensure strong type safety during the migration, regenerate `ponder-env.d.ts`.
@@ -593,6 +651,10 @@ yarn codegen
 
 ```bash [npm]
 npm run codegen
+```
+
+```bash [bun]
+bun codegen
 ```
 :::
 
@@ -881,6 +943,10 @@ yarn add viem@latest
 ```bash [npm]
 npm install viem@latest
 ```
+
+```bash [bun]
+bun add viem@latest
+```
 :::
 
 #### Simplified Postgres schema pattern
@@ -919,6 +985,10 @@ yarn add hono@latest
 
 ```bash [npm]
 npm install hono@latest
+```
+
+```bash [bun]
+bun add hono@latest
 ```
 :::
 

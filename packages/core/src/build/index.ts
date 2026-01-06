@@ -5,6 +5,7 @@ import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
 import { createQB } from "@/database/queryBuilder.js";
+import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
   BuildError,
@@ -380,6 +381,46 @@ export const createBuild = async ({
       const viewsSchema =
         cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
 
+      if (viewsSchema === schema) {
+        const error = new BuildError(
+          "Views schema cannot be the same as the schema.",
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (schema === "ponder_sync") {
+        const error = new BuildError(
+          `Invalid schema name. "ponder_sync" is a reserved schema name.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (viewsSchema === "ponder_sync") {
+        const error = new BuildError(
+          `Invalid views schema name. "ponder_sync" is a reserved schema name.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (schema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
+        const error = new BuildError(
+          `Schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
+      if (viewsSchema && viewsSchema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
+        const error = new BuildError(
+          `Views schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
+        );
+        error.stack = undefined;
+        return { status: "error", error } as const;
+      }
+
       globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
 
       return {
@@ -388,7 +429,11 @@ export const createBuild = async ({
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
-      const preBuild = safeBuildPre({ config, options: common.options });
+      const preBuild = safeBuildPre({
+        config,
+        options: common.options,
+        logger: common.logger,
+      });
       if (preBuild.status === "error") {
         return preBuild;
       }
@@ -729,12 +774,10 @@ export const createBuild = async ({
           await pool.end();
         }
 
-        const connectionString =
-          preBuild.databaseConfig.poolConfig.connectionString!;
         common.logger.info({
           msg: "Connected to database",
           type: dialect,
-          database: getDatabaseName(connectionString),
+          database: getDatabaseName(preBuild.databaseConfig.poolConfig),
           duration: endClock(),
         });
       }

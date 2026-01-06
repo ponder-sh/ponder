@@ -14,9 +14,9 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
+import { getLiveQueryTempTableName } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createHistoricalIndexingStore } from "@/indexing-store/historical.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
@@ -117,15 +117,6 @@ export async function runMultichain({
     error: undefined as RetryableError | undefined,
   };
 
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
-    client: cachedViemClient,
-    indexingErrorHandler,
-    columnAccessPattern,
-    eventCount,
-  });
-
   const indexingCache = createIndexingCache({
     common,
     schemaBuild,
@@ -133,11 +124,22 @@ export async function runMultichain({
     eventCount,
   });
 
-  const historicalIndexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common,
     schemaBuild,
     indexingCache,
     indexingErrorHandler,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild,
+    indexingStore,
+    indexingCache,
+    client: cachedViemClient,
+    indexingErrorHandler,
+    columnAccessPattern,
+    eventCount,
   });
 
   const perChainSync = new Map<
@@ -248,16 +250,14 @@ export async function runMultichain({
   // If the initial checkpoint is zero, we need to run setup events.
   if (crashRecoveryCheckpoint === undefined) {
     await database.userQB.transaction(async (tx) => {
-      historicalIndexingStore.qb = tx;
-      historicalIndexingStore.isProcessingEvents = true;
+      indexingStore.qb = tx;
+      indexingStore.isProcessingEvents = true;
 
       indexingCache.qb = tx;
 
-      await indexing.processSetupEvents({
-        db: historicalIndexingStore,
-      });
+      await indexing.processSetupEvents();
 
-      historicalIndexingStore.isProcessingEvents = false;
+      indexingStore.isProcessingEvents = false;
 
       await indexingCache.flush();
 
@@ -367,8 +367,8 @@ export async function runMultichain({
         );
 
         try {
-          historicalIndexingStore.qb = tx;
-          historicalIndexingStore.isProcessingEvents = true;
+          indexingStore.qb = tx;
+          indexingStore.isProcessingEvents = true;
           indexingCache.qb = tx;
 
           common.metrics.ponder_historical_transform_duration.inc(
@@ -380,8 +380,6 @@ export async function runMultichain({
 
           await indexing.processHistoricalEvents({
             events,
-            db: historicalIndexingStore,
-            cache: indexingCache,
             updateIndexingSeconds(event, chain) {
               const checkpoint = decodeCheckpoint(event!.checkpoint);
 
@@ -403,7 +401,7 @@ export async function runMultichain({
             },
           });
 
-          historicalIndexingStore.isProcessingEvents = false;
+          indexingStore.isProcessingEvents = false;
 
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "index" },
@@ -515,6 +513,8 @@ export async function runMultichain({
   }
 
   indexingCache.clear();
+  // Note: Invalidating the cache means that only predicted rows will be in memory after this point.
+  indexingCache.invalidate();
 
   // Manually update metrics to fix a UI bug that occurs when the end
   // checkpoint is between the last processed event and the finalized
@@ -602,12 +602,6 @@ export async function runMultichain({
     endpoint: "/ready",
   });
 
-  const realtimeIndexingStore = createRealtimeIndexingStore({
-    common,
-    schemaBuild,
-    indexingErrorHandler,
-  });
-
   const bufferCallback = (bufferSize: number) => {
     // Note: Only log when the buffer size is greater than 1 because
     // a buffer size of 1 is not backpressure.
@@ -636,13 +630,19 @@ export async function runMultichain({
         };
         const endClock = startClock();
 
+        indexingCache.qb = database.userQB;
+        await Promise.all([
+          indexingCache.prefetch({ events: event.events }),
+          cachedViemClient.prefetch({ events: event.events }),
+        ]);
+
         await database.userQB.transaction(
           async (tx) => {
             if (database.userQB.$dialect === "postgres") {
               await tx.wrap(
                 (tx) =>
                   tx.execute(
-                    "CREATE TEMP TABLE live_query_tables (table_name TEXT PRIMARY KEY) ON COMMIT DROP",
+                    `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
                   ),
                 context,
               );
@@ -650,7 +650,7 @@ export async function runMultichain({
               await tx.wrap(
                 (tx) =>
                   tx.execute(
-                    "CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)",
+                    `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
                   ),
                 context,
               );
@@ -665,8 +665,9 @@ export async function runMultichain({
               )!;
 
               try {
-                realtimeIndexingStore.qb = tx;
-                realtimeIndexingStore.isProcessingEvents = true;
+                indexingStore.qb = tx;
+                indexingStore.isProcessingEvents = true;
+                indexingCache.qb = tx;
 
                 common.logger.trace({
                   msg: "Processing block events",
@@ -676,10 +677,7 @@ export async function runMultichain({
                   event_count: events.length,
                 });
 
-                await indexing.processRealtimeEvents({
-                  events,
-                  db: realtimeIndexingStore,
-                });
+                await indexing.processRealtimeEvents({ events });
 
                 common.logger.trace({
                   msg: "Processed block events",
@@ -689,13 +687,17 @@ export async function runMultichain({
                   event_count: events.length,
                 });
 
-                realtimeIndexingStore.isProcessingEvents = false;
+                indexingStore.isProcessingEvents = false;
+
+                await indexingCache.flush();
 
                 await Promise.all(
                   tables.map((table) =>
                     commitBlock(tx, { table, checkpoint, preBuild }, context),
                   ),
                 );
+
+                cachedViemClient.clear();
 
                 common.logger.trace({
                   msg: "Committed reorg data for block",
@@ -706,6 +708,8 @@ export async function runMultichain({
                   checkpoint,
                 });
               } catch (error) {
+                indexingCache.clear();
+
                 if (error instanceof NonRetryableUserError === false) {
                   common.logger.warn({
                     msg: "Failed to index block",
@@ -737,7 +741,8 @@ export async function runMultichain({
 
             if (database.userQB.$dialect === "pglite") {
               await tx.wrap(
-                (tx) => tx.execute("TRUNCATE TABLE live_query_tables"),
+                (tx) =>
+                  tx.execute(`TRUNCATE TABLE ${getLiveQueryTempTableName()}`),
                 context,
               );
             }
@@ -804,6 +809,8 @@ export async function runMultichain({
           undefined,
           context,
         );
+
+        indexingCache.clear();
 
         common.logger.info({
           msg: "Reorged block",

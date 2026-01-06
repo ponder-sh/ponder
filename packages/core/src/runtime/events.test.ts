@@ -1,6 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
-import { setupCommon } from "@/_test/setup.js";
+import { context, setupCommon } from "@/_test/setup.js";
 import {
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
@@ -102,7 +102,7 @@ test("splitEvents()", async () => {
   `);
 });
 
-test("decodeEvents() log", async (context) => {
+test("decodeEvents() log", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getErc20IndexingBuild({
@@ -141,7 +141,7 @@ test("decodeEvents() log", async (context) => {
   });
 });
 
-test("decodeEvents() log error", async (context) => {
+test("decodeEvents() log error", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getErc20IndexingBuild({
@@ -177,7 +177,7 @@ test("decodeEvents() log error", async (context) => {
   expect(events).toHaveLength(0);
 });
 
-test("decodeEvents() block", async (context) => {
+test("decodeEvents() block", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -205,7 +205,7 @@ test("decodeEvents() block", async (context) => {
   });
 });
 
-test("decodeEvents() transfer", async (context) => {
+test("decodeEvents() transfer", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getAccountsIndexingBuild({
@@ -247,7 +247,7 @@ test("decodeEvents() transfer", async (context) => {
   });
 });
 
-test("decodeEvents() transaction", async (context) => {
+test("decodeEvents() transaction", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getAccountsIndexingBuild({
@@ -271,7 +271,7 @@ test("decodeEvents() transaction", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("decodeEvents() trace", async (context) => {
+test("decodeEvents() trace", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getErc20IndexingBuild({
@@ -319,7 +319,7 @@ test("decodeEvents() trace", async (context) => {
   expect(events[0].event.result).toBe(true);
 });
 
-test("decodeEvents() trace w/o output", async (context) => {
+test("decodeEvents() trace w/o output", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getErc20IndexingBuild({
@@ -367,7 +367,7 @@ test("decodeEvents() trace w/o output", async (context) => {
   expect(events[0].event.result).toBe(undefined);
 });
 
-test("decodeEvents() trace error", async (context) => {
+test("decodeEvents() trace error", async () => {
   const { common } = context;
 
   const { eventCallbacks } = getErc20IndexingBuild({

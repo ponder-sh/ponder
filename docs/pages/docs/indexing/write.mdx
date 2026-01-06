@@ -7,11 +7,7 @@ There are two ways to write to the database in a Ponder app.
 
 ## Store API
 
-The Store API is a SQL-like query builder optimized for common indexing workloads.
-
-:::info
-  During the backfill, Store API operations run **in-memory** and rows are flushed to the database periodically using efficient `COPY` statements.
-:::
+The Store API is a SQL-like query builder optimized for common indexing workloads. All operations run **in-memory** and rows are flushed to the database periodically using efficient `COPY` statements.
 
 The examples below use this `ponder.schema.ts` to demonstrate the core concepts.
 

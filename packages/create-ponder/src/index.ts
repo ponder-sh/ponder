@@ -14,7 +14,6 @@ import { default as prompts } from "prompts";
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // @ts-ignore
 import rootPackageJson from "../package.json" assert { type: "json" };
-import { fromEtherscan } from "./etherscan.js";
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { mergeAbis } from "./helpers/mergeAbis.js";
 import { notifyUpdate } from "./helpers/notifyUpdate.js";
@@ -24,11 +23,6 @@ import {
   validateProjectPath,
   validateTemplateName,
 } from "./helpers/validate.js";
-import {
-  type SubgraphProviderId,
-  fromSubgraphId,
-  subgraphProviders,
-} from "./subgraph.js";
 
 const log = console.log;
 
@@ -64,16 +58,6 @@ export type CLIOptions = {
 
 const templates = [
   { id: "empty", title: "Default", description: "A blank-slate Ponder app" },
-  {
-    id: "etherscan",
-    title: "Etherscan contract link",
-    description: "Create from an Etherscan contract link",
-  },
-  {
-    id: "subgraph",
-    title: "Subgraph ID",
-    description: "Create from a deployed subgraph",
-  },
   {
     id: "feature-factory",
     title: "Feature - Factory contract",
@@ -254,87 +238,7 @@ export async function run({
 
   let config: SerializableConfig | undefined;
 
-  let url: string | undefined = options.etherscan;
-  if (templateMeta.id === "etherscan") {
-    if (!url) {
-      const result = await prompts({
-        type: "text",
-        name: "url",
-        message: "Enter a block explorer contract url",
-        initial: "https://etherscan.io/address/0x97...",
-      });
-      url = result.url;
-    }
-  }
-
-  let subgraph: string | undefined = options.subgraph;
-  let subgraphProvider: SubgraphProviderId | undefined =
-    options.subgraphProvider;
-  if (templateMeta.id === "subgraph") {
-    if (subgraphProvider === undefined) {
-      const result = await prompts({
-        name: "subgraphProvider",
-        message: "Which provider is the subgraph deployed to?",
-        type: "select",
-        choices: subgraphProviders.map(({ id, name }) => ({
-          title: name,
-          value: id,
-        })),
-      });
-      subgraphProvider = result.subgraphProvider;
-    }
-
-    if (!subgraph) {
-      const result = await prompts({
-        type: "text",
-        name: "id",
-        message: "Enter a subgraph Deployment ID",
-        initial: "Qmb3hd2hYd2nWFgcmRswykF1dUBSrDUrinYCgN1dmE1tNy",
-      });
-      subgraph = result.id;
-    }
-    if (!subgraph) {
-      log(pico.red("No subgraph Deployment ID provided."));
-      process.exit(0);
-    }
-  }
-
   log();
-
-  if (templateMeta.id === "etherscan") {
-    const host = new URL(url!).host;
-    const result = await oraPromise(
-      fromEtherscan({
-        rootDir: projectPath,
-        etherscanLink: url!,
-        etherscanApiKey: options.etherscanApiKey,
-      }),
-      {
-        text: `Fetching contract metadata from ${pico.bold(host)}. This may take a few seconds.`,
-        failText: "Failed to fetch contract metadata.",
-        successText: `Fetched contract metadata from ${pico.bold(host)}.`,
-      },
-    );
-    config = result.config;
-    warnings.push(...result.warnings);
-  }
-
-  if (templateMeta.id === "subgraph") {
-    const result = await oraPromise(
-      fromSubgraphId({
-        rootDir: projectPath,
-        subgraphId: subgraph!,
-        subgraphProvider: subgraphProvider!,
-      }),
-      {
-        text: "Fetching subgraph metadata. This may take a few seconds.",
-        failText: "Failed to fetch subgraph metadata.",
-        successText: `Fetched subgraph metadata for ${pico.bold(subgraph)}.`,
-      },
-    );
-    config = result.config;
-    warnings.push(...result.warnings);
-  }
 
   // Copy template contents into the target path
   const templatePath = path.join(templatesPath, templateMeta.id);
@@ -433,6 +337,10 @@ export async function run({
   packageJson.dependencies.ponder = `^${rootPackageJson.version}`;
   packageJson.devDependencies["eslint-config-ponder"] =
     `^${rootPackageJson.version}`;
+  if ("bun" in process.versions) {
+    packageJson.scripts = addBunFlagToScripts(packageJson.scripts ?? {});
+  }
+
   await fs.writeFile(
     path.join(projectPath, "package.json"),
     JSON.stringify(packageJson, null, 2),
@@ -521,6 +429,15 @@ export async function run({
   log();
 }
 
+function addBunFlagToScripts(scripts: Record<string, string>) {
+  const ret: Record<string, string> = {};
+  for (const [k, v] of Object.entries(scripts)) {
+    if (v.startsWith("ponder")) ret[k] = `bun --bun ${v}`;
+    else ret[k] = v;
+  }
+  return ret;
+}
+
 (async () => {
   const cli = cac(rootPackageJson.name)
     .version(rootPackageJson.version)
@@ -528,16 +445,6 @@ export async function run({
     .option(
       "-t, --template [id]",
       `Use a template. Options: ${templates.map(({ id }) => id).join(", ")}`,
-    )
-    .option("--etherscan [url]", "Use the Etherscan template")
-    .option(
-      "--etherscan-api-key [key]",
-      "Etherscan API key for Etherscan template",
-    )
-    .option("--subgraph [id]", "Use the subgraph template")
-    .option(
-      "--subgraph-provider [provider]",
-      `Specify the subgraph provider. Options: ${subgraphProviders.map(({ id }) => id).join(", ")}`,
     )
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")

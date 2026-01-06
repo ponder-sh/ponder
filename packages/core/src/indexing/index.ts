@@ -84,17 +84,12 @@ export type Context = {
 };
 
 export type Indexing = {
-  processSetupEvents: (params: { db: IndexingStore }) => Promise<void>;
+  processSetupEvents: () => Promise<void>;
   processHistoricalEvents: (params: {
     events: Event[];
-    db: IndexingStore;
-    cache: IndexingCache;
     updateIndexingSeconds: (event: Event, chain: Chain) => void;
   }) => Promise<void>;
-  processRealtimeEvents: (params: {
-    events: Event[];
-    db: IndexingStore;
-  }) => Promise<void>;
+  processRealtimeEvents: (params: { events: Event[] }) => Promise<void>;
 };
 
 export const getEventCount = (
@@ -141,7 +136,15 @@ export const createColumnAccessPattern = ({
 
 export const createIndexing = ({
   common,
-  indexingBuild: { eventCallbacks, setupCallbacks, chains, contracts },
+  indexingBuild: {
+    eventCallbacks,
+    setupCallbacks,
+    chains,
+    contracts,
+    indexingFunctions,
+  },
+  indexingStore,
+  indexingCache,
   client,
   indexingErrorHandler,
   columnAccessPattern,
@@ -150,26 +153,35 @@ export const createIndexing = ({
   common: Common;
   indexingBuild: Pick<
     IndexingBuild,
-    "eventCallbacks" | "setupCallbacks" | "chains" | "contracts"
+    | "eventCallbacks"
+    | "setupCallbacks"
+    | "chains"
+    | "contracts"
+    | "indexingFunctions"
   >;
+  indexingStore: IndexingStore;
+  indexingCache: IndexingCache;
   client: CachedViemClient;
   indexingErrorHandler: IndexingErrorHandler;
   columnAccessPattern: ColumnAccessPattern;
   eventCount: { [eventName: string]: number };
 }): Indexing => {
-  const context: Context = {
-    chain: { name: undefined!, id: undefined! },
-    contracts: undefined!,
-    client: undefined!,
-    db: undefined!,
+  const indexingFunctionArg = {
+    event: undefined as Event | SetupEvent | undefined,
+    context: {
+      chain: { name: undefined!, id: undefined! },
+      contracts: undefined!,
+      client: undefined!,
+      db: indexingStore.db,
+    } as Context,
   };
 
+  let lastChainId: number | undefined;
   const clientByChainId: { [chainId: number]: ReadonlyClient } = {};
   const contractsByChainId: {
     [chainId: number]: { [name: string]: Contract };
   } = {};
 
-  // build clientByChainId
   for (const chain of chains) {
     clientByChainId[chain.id] = client.getClient(chain);
   }
@@ -179,17 +191,26 @@ export const createIndexing = ({
     contractsByChainId[chain.id] = contracts[i]!;
   }
 
-  const executeSetup = async (event: SetupEvent): Promise<void> => {
-    const metricLabel = { event: event.setupCallback.name };
+  const metricLabels: { [event: string]: { event: string } } = {};
+  for (const { name } of indexingFunctions) {
+    metricLabels[name] = { event: name };
+  }
 
+  const executeSetup = async (event: SetupEvent): Promise<void> => {
     try {
-      context.chain.id = event.chain.id;
-      context.chain.name = event.chain.name;
-      context.contracts = contractsByChainId[event.chain.id]!;
+      if (event.chain.id !== lastChainId) {
+        indexingFunctionArg.context.chain.id = event.chain.id;
+        indexingFunctionArg.context.chain.name = event.chain.name;
+        indexingFunctionArg.context.contracts =
+          contractsByChainId[event.chain.id]!;
+        indexingFunctionArg.context.client = clientByChainId[event.chain.id]!;
+
+        lastChainId = event.chain.id;
+      }
 
       const endClock = startClock();
 
-      await event.setupCallback.fn({ context });
+      await event.setupCallback.fn(indexingFunctionArg);
 
       // Note: Check `getRetryableError` to handle user-code catching errors
       // from the indexing store.
@@ -201,7 +222,7 @@ export const createIndexing = ({
       }
 
       common.metrics.ponder_indexing_function_duration.observe(
-        metricLabel,
+        metricLabels[event.setupCallback.name]!,
         endClock(),
       );
     } catch (_error) {
@@ -245,19 +266,25 @@ export const createIndexing = ({
 
   // metric label for "ponder_indexing_function_duration"
   const executeEvent = async (event: Event): Promise<void> => {
-    const metricLabel: { event: string } = { event: event.eventCallback.name };
-
     try {
-      context.chain.id = event.chain.id;
-      context.chain.name = event.chain.name;
-      context.contracts = contractsByChainId[event.chain.id]!;
+      if (event.chain.id !== lastChainId) {
+        indexingFunctionArg.context.chain.id = event.chain.id;
+        indexingFunctionArg.context.chain.name = event.chain.name;
+        indexingFunctionArg.context.contracts =
+          contractsByChainId[event.chain.id]!;
+        indexingFunctionArg.context.client = clientByChainId[event.chain.id]!;
+
+        lastChainId = event.chain.id;
+      }
+      // @ts-ignore
+      indexingFunctionArg.event = event.event;
 
       const endClock = startClock();
 
-      await event.eventCallback.fn({ event: event.event, context });
+      await event.eventCallback.fn(indexingFunctionArg);
 
       common.metrics.ponder_indexing_function_duration.observe(
-        metricLabel,
+        metricLabels[event.eventCallback.name]!,
         endClock(),
       );
 
@@ -405,9 +432,7 @@ export const createIndexing = ({
   }
 
   return {
-    async processSetupEvents({ db }) {
-      context.db = db;
-
+    async processSetupEvents() {
       for (const setupCallback of setupCallbacks.flat()) {
         const event = {
           type: "setup",
@@ -422,27 +447,19 @@ export const createIndexing = ({
         } satisfies SetupEvent;
 
         client.event = event;
-        context.client = clientByChainId[setupCallback.chain.id]!;
 
         await executeSetup(event);
       }
     },
-    async processHistoricalEvents({
-      events,
-      db,
-      cache,
-      updateIndexingSeconds,
-    }) {
+    async processHistoricalEvents({ events, updateIndexingSeconds }) {
       let lastEventLoopUpdate = performance.now();
       let lastMetricsUpdate = performance.now();
 
-      context.db = db;
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
-        context.client = clientByChainId[event.chain.id]!;
-        cache.event = event;
+        indexingCache.event = event;
 
         // Note: Create a new event object instead of mutuating the original one because
         // the event object could be reused across multiple indexing functions.
@@ -690,13 +707,11 @@ export const createIndexing = ({
         );
       }
     },
-    async processRealtimeEvents({ events, db }) {
-      context.db = db;
+    async processRealtimeEvents({ events }) {
       for (let i = 0; i < events.length; i++) {
         const event = events[i]!;
 
         client.event = event;
-        context.client = clientByChainId[event.chain.id]!;
 
         await executeEvent(event);
 

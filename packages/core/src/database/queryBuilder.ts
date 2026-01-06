@@ -101,7 +101,10 @@ export const parseDbError = (error: any): Error => {
   } else if (error?.message?.includes("violates check constraint")) {
     error = new CheckConstraintError(error.message);
   } else if (
-    error?.message?.includes("Do not know how to serialize a BigInt")
+    // nodejs error message
+    error?.message?.includes("Do not know how to serialize a BigInt") ||
+    // bun error message
+    error?.message?.includes("cannot serialize BigInt")
   ) {
     error = new BigIntSerializationError(error.message);
     error.meta.push(

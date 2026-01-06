@@ -1,5 +1,6 @@
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
+  context,
   setupAnvil,
   setupCleanup,
   setupCommon,
@@ -15,7 +16,7 @@ import type { IndexingErrorHandler } from "@/internal/types.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
-import { createHistoricalIndexingStore } from "./historical.js";
+import { createIndexingStore } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -35,7 +36,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("flush() insert", async (context) => {
+test("flush() insert", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -43,7 +44,7 @@ test("flush() insert", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -54,7 +55,7 @@ test("flush() insert", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -65,28 +66,25 @@ test("flush() insert", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
     await indexingCache.flush();
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
   });
 });
 
-test("flush() update", async (context) => {
+test("flush() update", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -94,7 +92,7 @@ test("flush() update", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -105,7 +103,7 @@ test("flush() update", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -120,11 +118,11 @@ test("flush() update", async (context) => {
 
     indexingCache.invalidate();
 
-    await indexingStore.find(schema.account, {
+    await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
@@ -132,48 +130,46 @@ test("flush() update", async (context) => {
     // first flush takes "insert" path
     await indexingCache.flush();
 
-    await indexingStore.update(schema.account, { address: zeroAddress }).set({
-      balance: 12n,
-    });
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set({
+        balance: 12n,
+      });
 
     // second flush takes "update" path
     await indexingCache.flush();
 
-    let result = await indexingStore.find(schema.account, {
+    let result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
-
-    // flush again to make sure temp tables are cleaned up
-
-    await indexingStore.update(schema.account, { address: zeroAddress }).set({
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
       balance: 12n,
     });
 
+    // flush again to make sure temp tables are cleaned up
+
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set({
+        balance: 12n,
+      });
+
     await indexingCache.flush();
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
   });
 });
 
-test("flush() recovers error", async (context) => {
+test("flush() recovers error", async () => {
   if (context.databaseConfig.kind !== "postgres") {
     return;
   }
@@ -185,7 +181,7 @@ test("flush() recovers error", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -196,7 +192,7 @@ test("flush() recovers error", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -207,27 +203,25 @@ test("flush() recovers error", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
     await indexingCache.flush();
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
-    await expect(() =>
-      indexingCache.flush(),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[DelayedInsertError: duplicate key value violates unique constraint "account_pkey"]`,
+    await expect(indexingCache.flush()).rejects.toThrowError(
+      `duplicate key value violates unique constraint "account_pkey"`,
     );
   });
 });
 
-test("flush() encoding", async (context) => {
+test("flush() encoding", async () => {
   const e = onchainEnum("e", ["a", "b", "c"]);
   const schema = {
     e,
@@ -241,7 +235,7 @@ test("flush() encoding", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -252,7 +246,7 @@ test("flush() encoding", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -263,7 +257,7 @@ test("flush() encoding", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.test).values({
+    await indexingStore.db.insert(schema.test).values({
       hex: zeroAddress,
       bigint: 10n,
       e: "a",
@@ -275,7 +269,7 @@ test("flush() encoding", async (context) => {
     await indexingCache.flush();
 
     indexingCache.clear();
-    const result = await indexingStore.sql.select().from(schema.test);
+    const result = await indexingStore.db.sql.select().from(schema.test);
 
     expect(result).toMatchInlineSnapshot(`
       [
@@ -299,14 +293,14 @@ test("flush() encoding", async (context) => {
   });
 });
 
-test("flush() encoding escape", async (context) => {
+test("flush() encoding escape", async () => {
   const schema = {
     test: onchainTable("test", (p) => ({
       backslash: p.text().primaryKey(),
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -317,7 +311,7 @@ test("flush() encoding escape", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -349,18 +343,18 @@ test("flush() encoding escape", async (context) => {
       // { backslash: "\x00" },
     ];
 
-    await indexingStore.insert(schema.test).values(values);
+    await indexingStore.db.insert(schema.test).values(values);
 
     await indexingCache.flush();
 
     indexingCache.clear();
-    const result = await indexingStore.sql.select().from(schema.test);
+    const result = await indexingStore.db.sql.select().from(schema.test);
 
     expect(result).toStrictEqual(values);
   });
 });
 
-test("prefetch() uses profile metadata", async (context) => {
+test("prefetch() uses profile metadata", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -368,7 +362,7 @@ test("prefetch() uses profile metadata", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -396,7 +390,7 @@ test("prefetch() uses profile metadata", async (context) => {
     eventCount: getEventCount(indexingFunctions),
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -409,7 +403,7 @@ test("prefetch() uses profile metadata", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({
         address: ALICE,
@@ -432,7 +426,7 @@ test("prefetch() uses profile metadata", async (context) => {
   });
 });
 
-test("prefetch() evicts rows", async (context) => {
+test("prefetch() evicts rows", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -440,7 +434,7 @@ test("prefetch() evicts rows", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -451,7 +445,7 @@ test("prefetch() evicts rows", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -465,7 +459,7 @@ test("prefetch() evicts rows", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });

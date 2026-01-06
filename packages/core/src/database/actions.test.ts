@@ -7,7 +7,6 @@ import {
 import { buildSchema } from "@/build/schema.js";
 import { getReorgTable } from "@/drizzle/kit/index.js";
 import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
-import { createRealtimeIndexingStore } from "@/indexing-store/realtime.js";
 import type { RetryableError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
@@ -57,8 +56,8 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("finalize()", async (context) => {
-  const { database } = await setupDatabaseServices(context, {
+test("finalize()", async () => {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -75,14 +74,7 @@ test("finalize()", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -92,11 +84,12 @@ test("finalize()", async (context) => {
     preBuild: { ordering: "multichain" },
   });
 
-  await indexingStore
-    .update(account, { address: zeroAddress })
-    .set({ balance: 88n });
+  await database.userQB.raw
+    .update(account)
+    .set({ balance: 88n })
+    .where(eq(account.address, zeroAddress));
 
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
@@ -121,7 +114,7 @@ test("finalize()", async (context) => {
   expect(rows).toHaveLength(2);
 });
 
-test("createIndexes()", async (context) => {
+test("createIndexes()", async () => {
   const account = onchainTable(
     "account",
     (p) => ({
@@ -133,7 +126,7 @@ test("createIndexes()", async (context) => {
     }),
   );
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -148,21 +141,14 @@ test("createIndexes()", async (context) => {
   expect(indexNames).toContain("balance_index");
 });
 
-test("createTriggers()", async (context) => {
-  const { database } = await setupDatabaseServices(context, {
+test("createTriggers()", async () => {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -181,8 +167,8 @@ test("createTriggers()", async (context) => {
   ]);
 });
 
-test("createTriggers() duplicate", async (context) => {
-  const { database } = await setupDatabaseServices(context, {
+test("createTriggers() duplicate", async () => {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -190,21 +176,14 @@ test("createTriggers() duplicate", async (context) => {
   await createTriggers(database.userQB, { tables: [account] });
 });
 
-test("commitBlock()", async (context) => {
-  const { database } = await setupDatabaseServices(context, {
+test("commitBlock()", async () => {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -229,7 +208,7 @@ test("commitBlock()", async (context) => {
   ]);
 });
 
-test("commitBlock() isolated", async (context) => {
+test("commitBlock() isolated", async () => {
   const account = onchainTable(
     "account",
     (p) => ({
@@ -242,20 +221,13 @@ test("commitBlock() isolated", async (context) => {
     }),
   );
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ chainId: 1, address: zeroAddress, balance: 10n });
 
@@ -306,8 +278,8 @@ test("commitBlock() isolated", async (context) => {
   `);
 });
 
-test("revert()", async (context) => {
-  const { database } = await setupDatabaseServices(context, {
+test("revert()", async () => {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { account } },
   });
 
@@ -315,14 +287,7 @@ test("revert()", async (context) => {
 
   await createTriggers(database.userQB, { tables: [account] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { account } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: zeroAddress, balance: 10n });
 
@@ -332,11 +297,12 @@ test("revert()", async (context) => {
     preBuild: { ordering: "multichain" },
   });
 
-  await indexingStore
-    .update(account, { address: zeroAddress })
-    .set({ balance: 88n });
+  await database.userQB.raw
+    .update(account)
+    .set({ balance: 88n })
+    .where(eq(account.address, zeroAddress));
 
-  await indexingStore
+  await database.userQB.raw
     .insert(account)
     .values({ address: "0x0000000000000000000000000000000000000001" });
 
@@ -346,7 +312,9 @@ test("revert()", async (context) => {
     preBuild: { ordering: "multichain" },
   });
 
-  await indexingStore.delete(account, { address: zeroAddress });
+  await database.userQB.raw
+    .delete(account)
+    .where(eq(account.address, zeroAddress));
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
@@ -367,7 +335,7 @@ test("revert()", async (context) => {
   expect(rows[0]).toStrictEqual({ address: zeroAddress, balance: 10n });
 });
 
-test("revert() with composite primary key", async (context) => {
+test("revert() with composite primary key", async () => {
   const test = onchainTable(
     "Test",
     (p) => ({
@@ -380,7 +348,7 @@ test("revert() with composite primary key", async (context) => {
     }),
   );
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: { test } },
   });
 
@@ -388,21 +356,17 @@ test("revert() with composite primary key", async (context) => {
 
   await createTriggers(database.userQB, { tables: [test] });
 
-  const indexingStore = createRealtimeIndexingStore({
-    common: context.common,
-    schemaBuild: { schema: { test } },
-    indexingErrorHandler,
-  });
-  indexingStore.qb = database.userQB;
-
-  await indexingStore.insert(test).values({ a: 1, b: 1 });
+  await database.userQB.raw.insert(test).values({ a: 1, b: 1 });
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 11n }),
     table: test,
     preBuild: { ordering: "multichain" },
   });
-  await indexingStore.update(test, { a: 1, b: 1 }).set({ c: 1 });
+  await database.userQB.raw
+    .update(test)
+    .set({ c: 1 })
+    .where(and(eq(test.a, 1), eq(test.b, 1)));
 
   await commitBlock(database.userQB, {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 12n }),
@@ -423,8 +387,8 @@ test("revert() with composite primary key", async (context) => {
   expect(rows[0]).toStrictEqual({ a: 1, b: 1, c: null });
 });
 
-test("empty schema", async (context) => {
-  const { database } = await setupDatabaseServices(context, {
+test("empty schema", async () => {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema: {} },
   });
   await createTriggers(database.userQB, { tables: [] });

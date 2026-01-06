@@ -1,10 +1,12 @@
 import { ALICE } from "@/_test/constants.js";
 import {
+  context,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
+import { getRejectionValue } from "@/_test/utils.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
@@ -18,7 +20,7 @@ import { pgTable } from "drizzle-orm/pg-core";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
-import { createHistoricalIndexingStore } from "./historical.js";
+import { createIndexingStore } from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -37,7 +39,7 @@ const indexingErrorHandler: IndexingErrorHandler = {
   error: undefined as RetryableError | undefined,
 };
 
-test("find", async (context) => {
+test("find", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -45,7 +47,7 @@ test("find", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -56,7 +58,7 @@ test("find", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -69,7 +71,7 @@ test("find", async (context) => {
 
     // empty
 
-    let result = await indexingStore.find(schema.account, {
+    let result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -77,28 +79,25 @@ test("find", async (context) => {
 
     // with entry
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     // force db query
 
     indexingCache.clear();
     indexingCache.invalidate();
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -106,8 +105,8 @@ test("find", async (context) => {
   });
 });
 
-test("insert", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("insert", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -123,7 +122,7 @@ test("insert", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -136,79 +135,63 @@ test("insert", async (context) => {
 
     // single
 
-    let result: any = await indexingStore
+    let result: any = await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     // multiple
 
-    result = await indexingStore.insert(schema.account).values([
+    result = await indexingStore.db.insert(schema.account).values([
       { address: "0x0000000000000000000000000000000000000001", balance: 12n },
       { address: "0x0000000000000000000000000000000000000002", balance: 52n },
     ]);
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "address": "0x0000000000000000000000000000000000000001",
-          "balance": 12n,
-          Symbol(nodejs.util.inspect.custom): [Function],
-        },
-        {
-          "address": "0x0000000000000000000000000000000000000002",
-          "balance": 52n,
-          Symbol(nodejs.util.inspect.custom): [Function],
-        },
-      ]
-    `);
+    expect(result).toMatchObject([
+      {
+        address: "0x0000000000000000000000000000000000000001",
+        balance: 12n,
+      },
+      {
+        address: "0x0000000000000000000000000000000000000002",
+        balance: 52n,
+      },
+    ]);
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000002",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000002",
-        "balance": 52n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000002",
+      balance: 52n,
+    });
 
     // on conflict do nothing
 
-    result = await indexingStore
+    result = await indexingStore.db
       .insert(schema.account)
       .values({
         address: "0x0000000000000000000000000000000000000001",
@@ -218,19 +201,16 @@ test("insert", async (context) => {
 
     expect(result).toBe(null);
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
-    result = await indexingStore
+    result = await indexingStore.db
       .insert(schema.account)
       .values([
         { address: "0x0000000000000000000000000000000000000001", balance: 44n },
@@ -238,32 +218,26 @@ test("insert", async (context) => {
       ])
       .onConflictDoNothing();
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        null,
-        {
-          "address": "0x0000000000000000000000000000000000000003",
-          "balance": 0n,
-          Symbol(nodejs.util.inspect.custom): [Function],
-        },
-      ]
-    `);
+    expect(result).toMatchObject([
+      null,
+      {
+        address: "0x0000000000000000000000000000000000000003",
+        balance: 0n,
+      },
+    ]);
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 12n,
+    });
 
     // on conflict do update
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({
         address: "0x0000000000000000000000000000000000000001",
@@ -273,19 +247,16 @@ test("insert", async (context) => {
         balance: 16n,
       });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 16n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 16n,
+    });
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values([
         { address: "0x0000000000000000000000000000000000000001", balance: 44n },
@@ -295,22 +266,19 @@ test("insert", async (context) => {
         balance: row.balance + 16n,
       }));
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000001",
-        "balance": 32n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000001",
+      balance: 32n,
+    });
   });
 });
 
-test("update", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("update", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -326,7 +294,7 @@ test("update", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -339,92 +307,74 @@ test("update", async (context) => {
 
     // setup
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
     // no function
 
-    let result: any = await indexingStore
+    let result: any = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set({ balance: 12n });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 12n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 12n,
+    });
 
     // function
 
-    result = await indexingStore
+    result = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set((row) => ({ balance: row.balance + 10n }));
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
 
     // undefined
 
-    result = await indexingStore
+    result = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set({ balance: undefined });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
 
-    result = await indexingStore.find(schema.account, {
+    result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 22n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 22n,
+    });
   });
 });
 
-test("update throw error when primary key is updated", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("update throw error when primary key is updated", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -440,7 +390,7 @@ test("update throw error when primary key is updated", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -453,13 +403,13 @@ test("update throw error when primary key is updated", async (context) => {
 
     // setup
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
     // no function
 
-    let error: any = await indexingStore
+    let error: any = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       // @ts-expect-error
       .set({ address: ALICE })
@@ -469,7 +419,7 @@ test("update throw error when primary key is updated", async (context) => {
 
     // function
 
-    error = await indexingStore
+    error = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set(() => ({ address: ALICE }))
       .catch((error) => error);
@@ -477,7 +427,7 @@ test("update throw error when primary key is updated", async (context) => {
     expect(error).toBeInstanceOf(NonRetryableUserError);
 
     // update same primary key no function
-    let row: any = await indexingStore
+    let row: any = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       // @ts-expect-error
       .set({ address: zeroAddress, balance: 20n })
@@ -487,7 +437,7 @@ test("update throw error when primary key is updated", async (context) => {
     expect(row.balance).toBe(20n);
 
     // update same primary key function
-    row = await indexingStore
+    row = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set(() => ({ address: zeroAddress, balance: 30n }))
       .catch((error) => error);
@@ -497,14 +447,14 @@ test("update throw error when primary key is updated", async (context) => {
   });
 });
 
-test("delete", async (context) => {
+test("delete", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
       balance: p.bigint().notNull(),
     })),
   };
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -515,7 +465,7 @@ test("delete", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -528,7 +478,7 @@ test("delete", async (context) => {
 
     // no entry
 
-    let deleted = await indexingStore.delete(schema.account, {
+    let deleted = await indexingStore.db.delete(schema.account, {
       address: zeroAddress,
     });
 
@@ -536,20 +486,20 @@ test("delete", async (context) => {
 
     // entry
 
-    await indexingStore
+    await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 12n });
-    await indexingStore
+    await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set({ balance: 12n });
 
-    deleted = await indexingStore.delete(schema.account, {
+    deleted = await indexingStore.db.delete(schema.account, {
       address: zeroAddress,
     });
 
     expect(deleted).toBe(true);
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -557,7 +507,7 @@ test("delete", async (context) => {
   });
 });
 
-test("sql", async (context) => {
+test("sql", async () => {
   if (context.databaseConfig.kind === "pglite_test") {
     return;
   }
@@ -569,7 +519,7 @@ test("sql", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -580,7 +530,7 @@ test("sql", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -593,39 +543,39 @@ test("sql", async (context) => {
 
     // setup
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 10n,
     });
 
     // select
 
-    const result = await indexingStore.sql
+    const result = await indexingStore.db.sql
       .select()
       .from(schema.account)
       .where(eq(schema.account.address, zeroAddress));
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "address": "0x0000000000000000000000000000000000000000",
-          "balance": 10n,
-        },
-      ]
-    `);
+    expect(result).toMatchObject([
+      {
+        address: "0x0000000000000000000000000000000000000000",
+        balance: 10n,
+      },
+    ]);
 
     // non-null constraint
 
     await tx.wrap((db) => db.execute("SAVEPOINT test"));
 
-    await expect(
-      async () =>
-        // @ts-ignore
-        await indexingStore.sql.insert(schema.account).values({
-          address: "0x0000000000000000000000000000000000000001",
-          balance: undefined,
-        }),
-    ).rejects.toThrowError(RawSqlError);
+    expect(
+      await getRejectionValue(
+        async () =>
+          // @ts-ignore
+          await indexingStore.db.sql.insert(schema.account).values({
+            address: "0x0000000000000000000000000000000000000001",
+            balance: undefined,
+          }),
+      ),
+    ).toBeInstanceOf(RawSqlError);
 
     // TODO(kyle) check constraint
 
@@ -633,16 +583,18 @@ test("sql", async (context) => {
 
     await tx.wrap((db) => db.execute("ROLLBACK TO test"));
 
-    await expect(
-      async () =>
-        await indexingStore.sql
-          .insert(schema.account)
-          .values({ address: zeroAddress, balance: 10n }),
-    ).rejects.toThrowError(RawSqlError);
+    expect(
+      await getRejectionValue(
+        async () =>
+          await indexingStore.db.sql
+            .insert(schema.account)
+            .values({ address: zeroAddress, balance: 10n }),
+      ),
+    ).toBeInstanceOf(RawSqlError);
   });
 });
 
-test("sql followed by find", async (context) => {
+test("sql followed by find", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -650,7 +602,7 @@ test("sql followed by find", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -661,7 +613,7 @@ test("sql followed by find", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -672,25 +624,22 @@ test("sql followed by find", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.sql
+    await indexingStore.db.sql
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
-    const row = await indexingStore.find(schema.account, {
+    const row = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(row).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(row).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
   });
 });
 
-test("sql with error", async (context) => {
+test("sql with error", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -698,7 +647,7 @@ test("sql with error", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -709,7 +658,7 @@ test("sql with error", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -722,7 +671,7 @@ test("sql with error", async (context) => {
 
     // error
 
-    const error = await indexingStore.sql
+    const error = await indexingStore.db.sql
       .execute("SELECT * FROM does_not_exist")
       .catch((error) => error);
 
@@ -730,15 +679,15 @@ test("sql with error", async (context) => {
 
     // next query doesn't error
 
-    await indexingStore.sql
+    await indexingStore.db.sql
       .select()
       .from(schema.account)
       .where(eq(schema.account.address, zeroAddress));
   });
 });
 
-test("onchain table", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("onchain table", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: pgTable("account", (p) => ({
@@ -754,7 +703,7 @@ test("onchain table", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -767,16 +716,19 @@ test("onchain table", async (context) => {
 
     // check error
 
-    await expect(() =>
-      indexingStore
-        // @ts-ignore
-        .find(schema.account, { address: zeroAddress }),
-    ).rejects.toThrow();
+    expect(
+      await getRejectionValue(
+        async () =>
+          await indexingStore.db
+            // @ts-ignore
+            .find(schema.account, { address: zeroAddress }),
+      ),
+    ).toBeTruthy();
   });
 });
 
-test("missing rows", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("missing rows", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -792,7 +744,7 @@ test("missing rows", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -805,18 +757,21 @@ test("missing rows", async (context) => {
 
     // error
 
-    await expect(
-      async () =>
-        await indexingStore
-          .insert(schema.account)
-          // @ts-ignore
-          .values({ address: zeroAddress }),
-    ).rejects.toThrow();
+    expect(
+      await getRejectionValue(
+        // @ts-ignore
+        async () =>
+          await indexingStore.db
+            .insert(schema.account)
+            // @ts-ignore
+            .values({ address: zeroAddress }),
+      ),
+    ).toBeTruthy();
   });
 });
 
-test("unawaited promise", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("unawaited promise", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -832,7 +787,7 @@ test("unawaited promise", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -844,7 +799,7 @@ test("unawaited promise", async (context) => {
 
   indexingStore.isProcessingEvents = false;
 
-  const promise = indexingStore
+  const promise = indexingStore.db
     .insert(schema.account)
     .values({
       address: "0x0000000000000000000000000000000000000001",
@@ -854,11 +809,11 @@ test("unawaited promise", async (context) => {
       balance: 16n,
     });
 
-  await expect(promise!).rejects.toThrowError();
+  expect(await getRejectionValue(async () => await promise)).toBeTruthy();
 });
 
-test("notNull", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("notNull", async () => {
+  const { database } = await setupDatabaseServices();
 
   let schema = {
     account: onchainTable("account", (p) => ({
@@ -874,7 +829,7 @@ test("notNull", async (context) => {
     eventCount: {},
   });
 
-  let indexingStore = createHistoricalIndexingStore({
+  let indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -887,45 +842,36 @@ test("notNull", async (context) => {
 
     // insert
 
-    let result = await indexingStore
+    let result = await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": null,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: null,
+    });
 
-    result = await indexingStore
+    result = await indexingStore.db
       .find(schema.account, {
         address: zeroAddress,
       })
       .then((result) => result!);
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": null,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: null,
+    });
 
     // update
 
-    result = await indexingStore
+    result = await indexingStore.db
       .update(schema.account, { address: zeroAddress })
       .set({});
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": null,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: null,
+    });
 
     // error
 
@@ -944,7 +890,7 @@ test("notNull", async (context) => {
       eventCount: {},
     });
 
-    indexingStore = createHistoricalIndexingStore({
+    indexingStore = createIndexingStore({
       common: context.common,
       schemaBuild: { schema },
       indexingCache,
@@ -954,24 +900,28 @@ test("notNull", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await expect(
-      async () =>
-        await indexingStore
-          .insert(schema.account)
-          .values({ address: zeroAddress }),
-    ).rejects.toThrow();
+    expect(
+      await getRejectionValue(
+        async () =>
+          await indexingStore.db
+            .insert(schema.account)
+            .values({ address: zeroAddress }),
+      ),
+    ).toBeTruthy();
 
-    await expect(
-      async () =>
-        await indexingStore
-          .insert(schema.account)
-          .values({ address: zeroAddress, balance: null }),
-    ).rejects.toThrow();
+    expect(
+      await getRejectionValue(
+        async () =>
+          await indexingStore.db
+            .insert(schema.account)
+            .values({ address: zeroAddress, balance: null }),
+      ),
+    ).toBeTruthy();
   });
 });
 
-test("default", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("default", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -987,7 +937,7 @@ test("default", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -998,24 +948,23 @@ test("default", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({ address: zeroAddress });
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 0,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 0,
+    });
   });
 });
 
-test("$default", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("$default", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -1031,7 +980,7 @@ test("$default", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1042,24 +991,23 @@ test("$default", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({ address: zeroAddress });
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
   });
 });
 
-test("$onUpdateFn", async (context) => {
-  const { database } = await setupDatabaseServices(context);
+test("$onUpdateFn", async () => {
+  const { database } = await setupDatabaseServices();
 
   const schema = {
     account: onchainTable("account", (p) => ({
@@ -1078,7 +1026,7 @@ test("$onUpdateFn", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1091,25 +1039,24 @@ test("$onUpdateFn", async (context) => {
 
     // insert
 
-    await indexingStore.insert(schema.account).values({ address: zeroAddress });
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 10n,
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 10n,
+    });
 
     // update
   });
 });
 
-test("basic columns", async (context) => {
+test("basic columns", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -1127,7 +1074,7 @@ test("basic columns", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1138,7 +1085,7 @@ test("basic columns", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1149,7 +1096,7 @@ test("basic columns", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balance: 20n,
       int2: 20,
@@ -1164,33 +1111,30 @@ test("basic columns", async (context) => {
       doublePrecision: 20,
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balance": 20n,
-        "boolean": true,
-        "char": "2",
-        "doublePrecision": 20,
-        "int2": 20,
-        "int8b": 20n,
-        "int8n": 20,
-        "numeric": "20",
-        "real": 20,
-        "text": "20",
-        "varchar": "20",
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balance: 20n,
+      boolean: true,
+      char: "2",
+      doublePrecision: 20,
+      int2: 20,
+      int8b: 20n,
+      int8n: 20,
+      numeric: "20",
+      real: 20,
+      text: "20",
+      varchar: "20",
+    });
 
     await indexingCache.flush();
   });
 });
 
-test("array", async (context) => {
+test("array", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -1198,7 +1142,7 @@ test("array", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1211,7 +1155,7 @@ test("array", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1222,24 +1166,19 @@ test("array", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       balances: [20n],
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "balances": [
-          20n,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      balances: [20n],
+    });
 
     await indexingCache.flush();
 
@@ -1247,7 +1186,7 @@ test("array", async (context) => {
   });
 });
 
-test("text array", async (context) => {
+test("text array", async () => {
   const schema = {
     test: onchainTable("test", (p) => ({
       address: p.hex().primaryKey(),
@@ -1255,7 +1194,7 @@ test("text array", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1266,7 +1205,7 @@ test("text array", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1279,30 +1218,25 @@ test("text array", async (context) => {
 
     const STRING_ARRAY_VALUE = "//U_W_U\\\\";
 
-    await indexingStore.insert(schema.test).values({
+    await indexingStore.db.insert(schema.test).values({
       address: zeroAddress,
       textArray: [STRING_ARRAY_VALUE],
     });
 
-    const result = await indexingStore.find(schema.test, {
+    const result = await indexingStore.db.find(schema.test, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "textArray": [
-          "//U_W_U\\\\",
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      textArray: ["//U_W_U\\\\"],
+    });
 
     await indexingCache.flush();
   });
 });
 
-test("enum", async (context) => {
+test("enum", async () => {
   const moodEnum = onchainEnum("mood", ["sad", "ok", "happy"]);
   const schema = {
     moodEnum,
@@ -1312,7 +1246,7 @@ test("enum", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1323,7 +1257,7 @@ test("enum", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1334,22 +1268,19 @@ test("enum", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       mood: "ok",
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "mood": "ok",
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      mood: "ok",
+    });
 
     await indexingCache.flush();
 
@@ -1357,7 +1288,7 @@ test("enum", async (context) => {
   });
 });
 
-test("json bigint", async (context) => {
+test("json bigint", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.hex().primaryKey(),
@@ -1365,7 +1296,7 @@ test("json bigint", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1376,7 +1307,7 @@ test("json bigint", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1387,16 +1318,18 @@ test("json bigint", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await expect(
-      async () =>
-        await indexingStore
-          .insert(schema.account)
-          .values({ address: zeroAddress, metadata: { balance: 10n } }),
-    ).rejects.toThrowError(BigIntSerializationError);
+    expect(
+      await getRejectionValue(
+        async () =>
+          await indexingStore.db
+            .insert(schema.account)
+            .values({ address: zeroAddress, metadata: { balance: 10n } }),
+      ),
+    ).toBeInstanceOf(BigIntSerializationError);
   });
 });
 
-test("bytes", async (context) => {
+test("bytes", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1404,7 +1337,7 @@ test("bytes", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1415,7 +1348,7 @@ test("bytes", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1426,49 +1359,25 @@ test("bytes", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       calldata: toBytes(zeroAddress),
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "calldata": Uint8Array [
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      calldata: new Uint8Array(20),
+    });
 
     await indexingCache.flush();
   });
 });
 
-test("text with null bytes", async (context) => {
+test("text with null bytes", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1476,7 +1385,7 @@ test("text with null bytes", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1487,7 +1396,7 @@ test("text with null bytes", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1498,28 +1407,25 @@ test("text with null bytes", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       name: "tencentclub\x00\x00\x00\x00\x00\x00",
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "name": "tencentclub",
-        Symbol(nodejs.util.inspect.custom): [Function],
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      name: "tencentclub",
+    });
 
     await indexingCache.flush();
   });
 });
 
-test.skip("time", async (context) => {
+test.skip("time", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1527,7 +1433,7 @@ test.skip("time", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1538,7 +1444,7 @@ test.skip("time", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1549,12 +1455,12 @@ test.skip("time", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       time: "04:05:06",
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -1564,7 +1470,7 @@ test.skip("time", async (context) => {
   });
 });
 
-test("timestamp", async (context) => {
+test("timestamp", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1572,7 +1478,7 @@ test("timestamp", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1583,7 +1489,7 @@ test("timestamp", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1594,28 +1500,25 @@ test("timestamp", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       timestamp: new Date(1742925862000),
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "timestamp": 2025-03-25T18:04:22.000Z,
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      timestamp: new Date(1742925862000),
+    });
 
     await indexingCache.flush();
   });
 });
 
-test.skip("date", async (context) => {
+test.skip("date", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1623,7 +1526,7 @@ test.skip("date", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1634,7 +1537,7 @@ test.skip("date", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1645,12 +1548,12 @@ test.skip("date", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       date: new Date(1742925862000),
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -1660,7 +1563,7 @@ test.skip("date", async (context) => {
   });
 });
 
-test.skip("interval", async (context) => {
+test.skip("interval", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1668,7 +1571,7 @@ test.skip("interval", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1679,7 +1582,7 @@ test.skip("interval", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1690,12 +1593,12 @@ test.skip("interval", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       interval: "1 day",
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
@@ -1705,7 +1608,7 @@ test.skip("interval", async (context) => {
   });
 });
 
-test("point", async (context) => {
+test("point", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1713,7 +1616,7 @@ test("point", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1724,7 +1627,7 @@ test("point", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1735,31 +1638,25 @@ test("point", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       point: [1, 2],
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "point": [
-          1,
-          2,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      point: [1, 2],
+    });
 
     await indexingCache.flush();
   });
 });
 
-test("line", async (context) => {
+test("line", async () => {
   const schema = {
     account: onchainTable("account", (t) => ({
       address: t.hex().primaryKey(),
@@ -1767,7 +1664,7 @@ test("line", async (context) => {
     })),
   };
 
-  const { database } = await setupDatabaseServices(context, {
+  const { database } = await setupDatabaseServices({
     schemaBuild: { schema },
   });
 
@@ -1778,7 +1675,7 @@ test("line", async (context) => {
     eventCount: {},
   });
 
-  const indexingStore = createHistoricalIndexingStore({
+  const indexingStore = createIndexingStore({
     common: context.common,
     schemaBuild: { schema },
     indexingCache,
@@ -1789,26 +1686,19 @@ test("line", async (context) => {
     indexingCache.qb = tx;
     indexingStore.qb = tx;
 
-    await indexingStore.insert(schema.account).values({
+    await indexingStore.db.insert(schema.account).values({
       address: zeroAddress,
       line: [1, 2, 3],
     });
 
-    const result = await indexingStore.find(schema.account, {
+    const result = await indexingStore.db.find(schema.account, {
       address: zeroAddress,
     });
 
-    expect(result).toMatchInlineSnapshot(`
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "line": [
-          1,
-          2,
-          3,
-        ],
-        Symbol(nodejs.util.inspect.custom): undefined,
-      }
-    `);
+    expect(result).toMatchObject({
+      address: "0x0000000000000000000000000000000000000000",
+      line: [1, 2, 3],
+    });
 
     await indexingCache.flush();
   });

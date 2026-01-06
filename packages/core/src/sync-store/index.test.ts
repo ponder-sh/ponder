@@ -37,8 +37,8 @@ beforeEach(setupAnvil);
 beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
-test("getIntervals() empty", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getIntervals() empty", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = EMPTY_BLOCK_FILTER;
 
@@ -73,8 +73,8 @@ test("getIntervals() empty", async (context) => {
   `);
 });
 
-test("getIntervals() returns intervals", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getIntervals() returns intervals", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = EMPTY_BLOCK_FILTER;
 
@@ -125,8 +125,8 @@ test("getIntervals() returns intervals", async (context) => {
   `);
 });
 
-test("getIntervals() merges intervals", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getIntervals() merges intervals", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = EMPTY_BLOCK_FILTER;
 
@@ -187,8 +187,8 @@ test("getIntervals() merges intervals", async (context) => {
   `);
 });
 
-test("getIntervals() adjacent intervals", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getIntervals() adjacent intervals", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = {
     ...EMPTY_LOG_FILTER,
@@ -262,8 +262,8 @@ test("getIntervals() adjacent intervals", async (context) => {
   `);
 });
 
-test("getIntervals() 0.15 migration", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getIntervals() 0.15 migration", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = {
     ...EMPTY_LOG_FILTER,
@@ -380,8 +380,8 @@ test("getIntervals() 0.15 migration", async (context) => {
   `);
 });
 
-test("insertIntervals() merges duplicates", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("insertIntervals() merges duplicates", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = EMPTY_BLOCK_FILTER;
 
@@ -447,8 +447,8 @@ test("insertIntervals() merges duplicates", async (context) => {
   `);
 });
 
-test("insertIntervals() preserves fragments", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("insertIntervals() preserves fragments", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const filter = {
     ...EMPTY_LOG_FILTER,
@@ -530,8 +530,8 @@ test("insertIntervals() preserves fragments", async (context) => {
   `);
 });
 
-test("getChildAddresses()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getChildAddresses()", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployFactory({ sender: ALICE });
   const { address: pair } = await createPair({
@@ -560,8 +560,8 @@ test("getChildAddresses()", async (context) => {
   `);
 });
 
-test("getChildAddresses() empty", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getChildAddresses() empty", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployFactory({ sender: ALICE });
 
@@ -576,8 +576,8 @@ test("getChildAddresses() empty", async (context) => {
   expect(addresses).toMatchInlineSnapshot("Map {}");
 });
 
-test("getChildAddresses() distinct", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getChildAddresses() distinct", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployFactory({ sender: ALICE });
   const { address: pair } = await createPair({
@@ -611,8 +611,8 @@ test("getChildAddresses() distinct", async (context) => {
   `);
 });
 
-test("getCrashRecoveryBlock()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getCrashRecoveryBlock()", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const chain = getChain();
 
@@ -647,8 +647,8 @@ test("getCrashRecoveryBlock()", async (context) => {
   });
 });
 
-test("insertChildAddresses()", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("insertChildAddresses()", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const { address } = await deployFactory({ sender: ALICE });
   const { address: pair } = await createPair({
@@ -682,8 +682,8 @@ test("insertChildAddresses()", async (context) => {
   expect(factoryAddresses).toHaveLength(2);
 });
 
-test("insertLogs()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertLogs()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -701,8 +701,8 @@ test("insertLogs()", async (context) => {
   expect(logs).toHaveLength(1);
 });
 
-test("insertLogs() with duplicates", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertLogs() with duplicates", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -721,8 +721,8 @@ test("insertLogs() with duplicates", async (context) => {
   expect(logs).toHaveLength(1);
 });
 
-test("insertBlocks()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertBlocks()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const blockData = await simulateBlock();
 
@@ -734,8 +734,8 @@ test("insertBlocks()", async (context) => {
   expect(blocks).toHaveLength(1);
 });
 
-test("insertBlocks() with duplicates", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertBlocks() with duplicates", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const blockData = await simulateBlock();
 
@@ -748,8 +748,8 @@ test("insertBlocks() with duplicates", async (context) => {
   expect(blocks).toHaveLength(1);
 });
 
-test("insertTransactions()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertTransactions()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -770,8 +770,8 @@ test("insertTransactions()", async (context) => {
   expect(transactions).toHaveLength(1);
 });
 
-test("insertTransactions() with duplicates", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertTransactions() with duplicates", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -796,8 +796,8 @@ test("insertTransactions() with duplicates", async (context) => {
   expect(transactions).toHaveLength(1);
 });
 
-test("insertTransactionReceipts()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertTransactionReceipts()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -818,8 +818,8 @@ test("insertTransactionReceipts()", async (context) => {
   expect(transactionReceipts).toHaveLength(1);
 });
 
-test("insertTransactionReceipts() with duplicates", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertTransactionReceipts() with duplicates", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -844,8 +844,8 @@ test("insertTransactionReceipts() with duplicates", async (context) => {
   expect(transactionReceipts).toHaveLength(1);
 });
 
-test("insertTraces()", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertTraces()", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -878,8 +878,8 @@ test("insertTraces()", async (context) => {
   expect(traces).toHaveLength(1);
 });
 
-test("insertTraces() with duplicates", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertTraces() with duplicates", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   await mintErc20({
@@ -922,8 +922,8 @@ test("insertTraces() with duplicates", async (context) => {
   expect(traces).toHaveLength(1);
 });
 
-test("getEventBlockData() returns events", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getEventBlockData() returns events", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData = await mintErc20({
@@ -956,8 +956,8 @@ test("getEventBlockData() returns events", async (context) => {
   expect(blocks).toHaveLength(1);
 });
 
-test("getEventBlockData() pagination", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getEventBlockData() pagination", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const blockData1 = await simulateBlock();
   const blockData2 = await simulateBlock();
@@ -990,8 +990,8 @@ test("getEventBlockData() pagination", async (context) => {
   expect(blocks2).toHaveLength(1);
 });
 
-test("insertRpcRequestResults() ", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertRpcRequestResults() ", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   await syncStore.insertRpcRequestResults({
     requests: [
@@ -1014,8 +1014,8 @@ test("insertRpcRequestResults() ", async (context) => {
   expect(result[0]!.result).toBe("0x1");
 });
 
-test("insertRpcRequestResults() hash matches postgres", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("insertRpcRequestResults() hash matches postgres", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   await syncStore.insertRpcRequestResults({
     requests: [
@@ -1044,8 +1044,8 @@ test("insertRpcRequestResults() hash matches postgres", async (context) => {
   expect(jsHash).toBe(psqlHash.rows[0]!.request_hash);
 });
 
-test("getRpcRequestResults()", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getRpcRequestResults()", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   await syncStore.insertRpcRequestResults({
     requests: [
@@ -1076,8 +1076,8 @@ test("getRpcRequestResults()", async (context) => {
   `);
 });
 
-test("getEventBlockData() pagination with multiple filters", async (context) => {
-  const { syncStore } = await setupDatabaseServices(context);
+test("getEventBlockData() pagination with multiple filters", async () => {
+  const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData2 = await mintErc20({
@@ -1123,8 +1123,8 @@ test("getEventBlockData() pagination with multiple filters", async (context) => 
   expect(cursor).toBe(10);
 });
 
-test("pruneRpcRequestResult", async (context) => {
-  const { database, syncStore } = await setupDatabaseServices(context);
+test("pruneRpcRequestResult", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
 
   await syncStore.insertRpcRequestResults({
     requests: [
@@ -1167,8 +1167,8 @@ test("pruneRpcRequestResult", async (context) => {
   expect(requestResults).toHaveLength(2);
 });
 
-test("pruneByChain deletes blocks, logs, traces, transactions", async (context) => {
-  const { syncStore, database } = await setupDatabaseServices(context);
+test("pruneByChain deletes blocks, logs, traces, transactions", async () => {
+  const { syncStore, database } = await setupDatabaseServices();
 
   const { address } = await deployErc20({ sender: ALICE });
   const blockData2 = await mintErc20({

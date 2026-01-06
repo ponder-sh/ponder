@@ -1,6 +1,7 @@
 import type { QB } from "@/database/queryBuilder.js";
-import { getPartitionName, getPrimaryKeyColumns } from "@/drizzle/index.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
+import { getPartitionName } from "@/drizzle/onchain.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {

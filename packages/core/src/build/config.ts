@@ -981,6 +981,12 @@ export function buildConfig({
 
   const chains: Chain[] = Object.entries(config.chains).map(
     ([chainName, chain]) => {
+      if (chain.id > Number.MAX_SAFE_INTEGER) {
+        throw new Error(
+          `Chain "${chainName}" with id ${chain.id} has a chain_id that is too large.`,
+        );
+      }
+
       let matchedChain = Object.values(viemChains).find((c) =>
         "id" in c ? c.id === chain.id : false,
       );

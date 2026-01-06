@@ -64,7 +64,7 @@ type GlobalOptions = {
 
 const devCommand = new Command("dev")
   .description("Start the development server with hot reloading")
-  .option("--schema <SCHEMA>", "Database schema", String)
+  .option("--schema <SCHEMA>", "Database schema (max: 45 characters)", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   // NOTE: Do not set a default for hostname. We currently rely on the Node.js
   // default behavior when passing undefined to http.Server.listen(), which
@@ -87,8 +87,12 @@ const devCommand = new Command("dev")
 
 const startCommand = new Command("start")
   .description("Start the production server")
-  .option("--schema <SCHEMA>", "Database schema", String)
-  .option("--views-schema <SCHEMA>", "Views database schema", String)
+  .option("--schema <SCHEMA>", "Database schema (max: 45 characters)", String)
+  .option(
+    "--views-schema <SCHEMA>",
+    "Views database schema (max: 45 characters)",
+    String,
+  )
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
@@ -106,7 +110,7 @@ const startCommand = new Command("start")
 
 const serveCommand = new Command("serve")
   .description("Start the production HTTP server without the indexer")
-  .option("--schema <SCHEMA>", "Database schema", String)
+  .option("--schema <SCHEMA>", "Database schema (max: 45 characters)", String)
   .option("-p, --port <PORT>", "Port for the web server", Number, 42069)
   .option(
     "-H, --hostname <HOSTNAME>",
@@ -123,9 +127,13 @@ const serveCommand = new Command("serve")
   });
 
 const createViewsCommand = new Command("create-views")
-  .description("Create database views")
-  .option("--schema <SCHEMA>", "Source database schema", String)
-  .option("--views-schema <SCHEMA>", "Target database schema", String)
+  .description("Create database views for the views pattern")
+  .option("--schema <SCHEMA>", "Database schema (max: 45 characters)", String)
+  .option(
+    "--views-schema <SCHEMA>",
+    "Views database schema (max: 45 characters)",
+    String,
+  )
   .showHelpAfterError()
   .action(async (_, command) => {
     const cliOptions = {
