@@ -1,0 +1,81 @@
+# Custom views [Define custom database views over onchain data]
+
+Ponder supports custom [PostgreSQL views](https://www.postgresql.org/docs/current/tutorial-views.html) defined using Drizzle.
+
+:::info
+Custom views are not to be confused with the **views schema** pattern, an advanced feature that enables direct SQL queries. [Read more](/docs/production/self-hosting#views-pattern) about the views schema pattern in the self-hosting guide.
+:::
+
+## Usage
+
+To define a view, use the `onchainView` function and write a query using Drizzle that references other tables or views in `ponder.schema.ts`.
+
+```ts [ponder.schema.ts]
+import { onchainTable, onchainView, count } from "ponder";
+
+export const pets = onchainTable("pets", (t) => ({
+  id: t.text().primaryKey(),
+  name: t.text().notNull(),
+  owner: t.text().notNull(),
+}));
+
+export const petLeaderboard = onchainView("pet_leaderboard").as((qb) =>
+  qb
+    .select({
+      ownerName: pets.owner,
+      petCount: count().as("pet_count"),
+    })
+    .from(pets)
+    .groupBy(pets.owner)
+);
+```
+
+Each view _must_ be a named export from the `ponder.schema.ts` file. The build step ignores views that are not exported.
+
+## When to use custom views
+
+Custom views are particularly useful in two common scenarios.
+
+1. **Customize the GraphQL API**. With views, you can add custom fields to the GraphQL API without adding and populating an entire table.
+2. **Move data processing from indexing-time to query-time**. By moving transformation logic to the query layer, views can simplify the project as a whole and help speed up lengthy backfills.
+
+## Limitations
+
+Custom views do not have a primary key constraint, which leads to several important limitations.
+
+1. **Store API disabled**. The indexing function store API cannot access custom views. However, you can query custom views within indexing functions using raw SQL.
+2. **No GraphQL singular query fields**. The GraphQL API does not include singular query fields for custom views.
+3. **No GraphQL cursor pagination**. The GraphQL API includes plural query fields for custom views that support offset pagination, but do not support cursor pagination.
+
+## Performance
+
+Custom views are a useful tool to simplify indexing logic and provide a richer schema, but they are not magic. Each query against a custom view re-executes the stored `SELECT` statement.
+
+To avoid performance issues, be sure to check the query plan for each custom view query and add database indexes on the underlying tables as appropriate.
+
+## Examples
+
+Here's an example of an `hourlyBucket` view from an ERC20 indexer which uses a `GROUP BY` query to aggregate transfer volumes over a time interval.
+
+```ts [ponder.schema.ts]
+import { onchainTable, onchainView, index, sql, sum, count } from "ponder";
+
+export const transferEvent = onchainTable("transfer_event", (t) => ({
+  id: t.text().primaryKey(),
+  amount: t.bigint().notNull(),
+  timestamp: t.integer().notNull(),
+  from: t.hex().notNull(),
+  to: t.hex().notNull(),
+}));
+
+export const hourlyBucket = onchainView("hourly_bucket").as((qb) =>
+  qb
+    .select({
+      hour: sql`FLOOR(${transferEvent.timestamp} / 3600) * 3600`.as("hour"),
+      totalVolume: sum(transferEvent.amount).as("total_volume"),
+      transferCount: count().as("transfer_count"),
+    })
+    .from(transferEvent)
+    .groupBy(sql`FLOOR(${transferEvent.timestamp} / 3600)`)
+);
+```
