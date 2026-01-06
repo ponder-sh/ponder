@@ -3,4 +3,4 @@
 "ponder": minor
 ---
 
-Added support for the bun runtime. [Read more](https://ponder.sh/docs/guides/bun).
+Released `0.16`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#016) for details.
