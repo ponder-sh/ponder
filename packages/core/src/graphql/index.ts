@@ -38,6 +38,7 @@ import {
   or,
 } from "drizzle-orm";
 import {
+  PgBigInt53,
   type PgColumn,
   type PgEnum,
   PgEnumColumn,
@@ -178,7 +179,7 @@ export function buildGraphQLSchema({
               });
             }
 
-            if (["Int", "Float", "BigInt"].includes(type.name)) {
+            if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
               conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
@@ -258,7 +259,7 @@ export function buildGraphQLSchema({
               });
             }
 
-            if (["Int", "Float", "BigInt"].includes(type.name)) {
+            if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
               conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
@@ -677,6 +678,21 @@ const GraphQLBigInt = new GraphQLScalarType({
   },
 });
 
+const GraphQLNumeric = new GraphQLScalarType({
+  name: "Numeric",
+  serialize: (value) => String(value),
+  parseValue: (value) => String(value as any),
+  parseLiteral: (value) => {
+    if (value.kind === "StringValue") {
+      return String(value.value);
+    } else {
+      throw new Error(
+        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
+      );
+    }
+  },
+});
+
 const GraphQLMeta = new GraphQLObjectType({
   name: "Meta",
   fields: { status: { type: GraphQLJSON } },
@@ -688,6 +704,10 @@ const columnToGraphQLCore = (
 ): GraphQLOutputType => {
   if (column.columnType === "PgEvmBigint") {
     return GraphQLBigInt;
+  }
+
+  if (column.columnType === "PgNumeric") {
+    return GraphQLNumeric;
   }
 
   if (column instanceof PgEnumColumn) {
@@ -716,9 +736,11 @@ const columnToGraphQLCore = (
     case "string":
       return GraphQLString;
     case "bigint":
-      return GraphQLString;
+      return GraphQLBigInt;
     case "number":
-      return is(column, PgInteger) || is(column, PgSerial)
+      return is(column, PgInteger) ||
+        is(column, PgSerial) ||
+        is(column, PgBigInt53)
         ? GraphQLInt
         : GraphQLFloat;
     case "buffer":
