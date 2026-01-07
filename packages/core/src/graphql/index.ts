@@ -633,6 +633,7 @@ export function buildGraphQLSchema({
     types: [
       GraphQLJSON,
       GraphQLBigInt,
+      GraphQLNumeric,
       GraphQLPageInfo,
       GraphQLViewPageInfo,
       GraphQLMeta,
@@ -680,10 +681,12 @@ const GraphQLBigInt = new GraphQLScalarType({
 const GraphQLNumeric = new GraphQLScalarType({
   name: "Numeric",
   serialize: (value) => String(value),
-  parseValue: (value) => Number(value),
+  parseValue: (value) => {
+    return BigInt(value as any);
+  },
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
-      return Number(value.value);
+      return BigInt(value.value);
     }
     throw new Error(
       `Invalid value kind provided for field of type Numeric: ${value.kind}. Expected: StringValue`,
