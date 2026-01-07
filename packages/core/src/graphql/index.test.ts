@@ -112,6 +112,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       boolean: t.boolean(),
       hex: t.hex(),
       bigint: t.bigint(),
+      numeric: t.numeric(),
       bytes: t.bytes(),
 
       stringNotNull: t.text().notNull(),
@@ -120,6 +121,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       booleanNotNull: t.boolean().notNull(),
       hexNotNull: t.hex().notNull(),
       bigintNotNull: t.bigint().notNull(),
+      numericNotNull: t.numeric().notNull(),
       bytesNotNull: t.bytes().notNull(),
 
       stringArray: t.text().array(),
@@ -128,6 +130,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       booleanArray: t.boolean().array(),
       hexArray: t.hex().array(),
       bigintArray: t.bigint().array(),
+      numericArray: t.numeric().array(),
 
       stringArrayNotNull: t.text().array().notNull(),
       intArrayNotNull: t.integer().array().notNull(),
@@ -135,6 +138,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       booleanArrayNotNull: t.boolean().array().notNull(),
       hexArrayNotNull: t.hex().array().notNull(),
       bigintArrayNotNull: t.bigint().array().notNull(),
+      numericArrayNotNull: t.numeric().array().notNull(),
     })),
   };
 
@@ -153,6 +157,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
     boolean: false,
     hex: "0x0",
     bigint: 0n,
+    numeric: "0",
     bytes: toBytes(zeroAddress),
 
     stringNotNull: "0",
@@ -161,6 +166,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
     booleanNotNull: false,
     hexNotNull: "0x0",
     bigintNotNull: 0n,
+    numericNotNull: "0",
     bytesNotNull: toBytes(zeroAddress),
 
     stringArray: ["0"],
@@ -169,6 +175,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
     booleanArray: [false],
     hexArray: ["0x0"],
     bigintArray: [0n],
+    numericArray: ["0"],
 
     stringArrayNotNull: ["0"],
     intArrayNotNull: [0],
@@ -176,6 +183,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
     booleanArrayNotNull: [false],
     hexArrayNotNull: ["0x0"],
     bigintArrayNotNull: [0n],
+    numericArrayNotNull: ["0"],
   });
 
   const graphqlSchema = buildGraphQLSchema({ schema });
@@ -191,6 +199,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
         boolean
         hex
         bigint
+        numeric
         bytes
 
         stringNotNull
@@ -199,6 +208,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
         booleanNotNull
         hexNotNull
         bigintNotNull
+        numericNotNull
         bytesNotNull
 
         stringArray
@@ -207,6 +217,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
         booleanArray
         hexArray
         bigintArray
+        numericArray
 
         stringArrayNotNull
         intArrayNotNull
@@ -214,6 +225,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
         booleanArrayNotNull
         hexArrayNotNull
         bigintArrayNotNull
+        numericArrayNotNull
       }
     }
   `);
@@ -229,6 +241,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       boolean: false,
       hex: "0x00",
       bigint: "0",
+      numeric: "0",
       bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 
       stringNotNull: "0",
@@ -237,6 +250,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       booleanNotNull: false,
       hexNotNull: "0x00",
       bigintNotNull: "0",
+      numericNotNull: "0",
       bytesNotNull: [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       ],
@@ -247,6 +261,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       booleanArray: [false],
       hexArray: ["0x00"],
       bigintArray: ["0"],
+      numericArray: ["0"],
 
       stringArrayNotNull: ["0"],
       intArrayNotNull: [0],
@@ -254,6 +269,7 @@ test("scalar, scalar not null, scalar array, scalar array not null", async () =>
       booleanArrayNotNull: [false],
       hexArrayNotNull: ["0x00"],
       bigintArrayNotNull: ["0"],
+      numericArrayNotNull: ["0"],
     },
   });
 });
@@ -1107,6 +1123,9 @@ test("filter input type", async () => {
     bigint: t.bigint(),
     bigintArray: t.bigint().array(),
 
+    numeric: t.numeric(),
+    numericArray: t.numeric().array(),
+
     enum: simpleEnum(),
     enumArray: simpleEnum().array(),
   }));
@@ -1171,27 +1190,23 @@ test("filter input type", async () => {
     int_gte: "Int",
     int_lte: "Int",
 
-    // NOTE: Not ideal that int8 number uses GraphQLFloat.
-    int8Number: "Float",
-    int8Number_not: "Float",
-    int8Number_in: "[Float]",
-    int8Number_not_in: "[Float]",
-    int8Number_gt: "Float",
-    int8Number_lt: "Float",
-    int8Number_gte: "Float",
-    int8Number_lte: "Float",
+    int8Number: "Int",
+    int8Number_not: "Int",
+    int8Number_in: "[Int]",
+    int8Number_not_in: "[Int]",
+    int8Number_gt: "Int",
+    int8Number_lt: "Int",
+    int8Number_gte: "Int",
+    int8Number_lte: "Int",
 
-    // NOTE: Not ideal that int8 bigint uses GraphQLString.
-    int8Bigint: "String",
-    int8Bigint_not: "String",
-    int8Bigint_in: "[String]",
-    int8Bigint_not_in: "[String]",
-    int8Bigint_contains: "String",
-    int8Bigint_not_contains: "String",
-    int8Bigint_starts_with: "String",
-    int8Bigint_ends_with: "String",
-    int8Bigint_not_starts_with: "String",
-    int8Bigint_not_ends_with: "String",
+    int8Bigint: "BigInt",
+    int8Bigint_not: "BigInt",
+    int8Bigint_in: "[BigInt]",
+    int8Bigint_not_in: "[BigInt]",
+    int8Bigint_gt: "BigInt",
+    int8Bigint_lt: "BigInt",
+    int8Bigint_gte: "BigInt",
+    int8Bigint_lte: "BigInt",
 
     real: "Float",
     real_not: "Float",
@@ -1224,6 +1239,20 @@ test("filter input type", async () => {
     bigintArray_not: "[BigInt]",
     bigintArray_has: "BigInt",
     bigintArray_not_has: "BigInt",
+
+    numeric: "BigInt",
+    numeric_not: "BigInt",
+    numeric_in: "[BigInt]",
+    numeric_not_in: "[BigInt]",
+    numeric_gt: "BigInt",
+    numeric_lt: "BigInt",
+    numeric_gte: "BigInt",
+    numeric_lte: "BigInt",
+
+    numericArray: "[BigInt]",
+    numericArray_not: "[BigInt]",
+    numericArray_has: "BigInt",
+    numericArray_not_has: "BigInt",
 
     enum: "simpleEnum",
     enum_not: "simpleEnum",
@@ -1503,6 +1532,7 @@ test("filter numeric", async () => {
     bigintBigint: t.int8({ mode: "bigint" }),
     float: t.doublePrecision(),
     bigint: t.bigint(),
+    numeric: t.numeric(),
   }));
   const schema = { person };
 
@@ -1521,6 +1551,7 @@ test("filter numeric", async () => {
       bigintBigint: 1n,
       float: 1.5,
       bigint: 1n,
+      numeric: "1",
     },
     {
       id: "2",
@@ -1529,6 +1560,7 @@ test("filter numeric", async () => {
       bigintBigint: 2n,
       float: 2.5,
       bigint: 2n,
+      numeric: "2",
     },
     {
       id: "3",
@@ -1537,6 +1569,7 @@ test("filter numeric", async () => {
       bigintBigint: 3n,
       float: 3.5,
       bigint: 3n,
+      numeric: "3",
     },
   ]);
 
@@ -1573,22 +1606,20 @@ test("filter numeric", async () => {
     persons: { items: [{ id: "1" }] },
   });
 
-  // NOTE: bigintBigint gets interpreted as a string, so the numeric filter
-  // operators are not available. Not sure how to proceed here.
-  // result = await query(`
-  //   query {
-  //     persons(where: { bigintBigint_lte: 1 }) {
-  //       items {
-  //         id
-  //       }
-  //     }
-  //   }
-  // `);
+  result = await query(`
+    query {
+      persons(where: { bigintBigint_lte: "1" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   persons: { items: [{ id: "1" }, { id: "2" }] },
-  // });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }] },
+  });
 
   result = await query(`
     query {
@@ -1608,6 +1639,21 @@ test("filter numeric", async () => {
   result = await query(`
     query {
       persons(where: { bigint_gte: "2" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }, { id: "3" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { numeric_gte: "2" }) {
         items {
           id
         }
@@ -1742,6 +1788,7 @@ test("order by", async () => {
     bigintBigint: t.int8({ mode: "bigint" }),
     float: t.doublePrecision(),
     bigint: t.bigint(),
+    numeric: t.numeric(),
     hex: t.hex(),
   }));
   const schema = { person };
@@ -1760,6 +1807,7 @@ test("order by", async () => {
       bigintBigint: 1n,
       float: 1.5,
       bigint: 1n,
+      numeric: "1",
       hex: "0xa",
     },
     {
@@ -1768,6 +1816,7 @@ test("order by", async () => {
       bigintBigint: 2n,
       float: 2.5,
       bigint: 3n,
+      numeric: "2",
       hex: "0xc",
     },
     {
@@ -1776,6 +1825,7 @@ test("order by", async () => {
       bigintBigint: 3n,
       float: 3.5,
       bigint: 2n,
+      numeric: "3",
       hex: "0xb",
     },
   ]);
@@ -1855,6 +1905,21 @@ test("order by", async () => {
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }, { id: "1" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(orderBy: "numeric", orderDirection: "desc") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "3" }, { id: "2" }, { id: "1" }] },
   });
 });
 
