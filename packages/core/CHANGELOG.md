@@ -1,5 +1,11 @@
 # ponder
 
+## 0.16.1
+
+### Patch Changes
+
+- [#2248](https://github.com/ponder-sh/ponder/pull/2248) [`ff29984`](https://github.com/ponder-sh/ponder/commit/ff2998452aead6f0accc039aae9aa24903935064) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed GraphQL filtering for `int8()` and `numeric()` column types. Previously these column types were using string filter conditions (contains, starts_with, ends_with), now they use numeric filter conditions (gt, gte, lt, lte).
+
 ## 0.16.0
 
 ### Minor Changes
