@@ -1104,6 +1104,9 @@ test("filter input type", async () => {
     real: t.real(),
     doublePrecision: t.doublePrecision(),
 
+    numeric: t.numeric(),
+    numericArray: t.numeric().array(),
+
     bigint: t.bigint(),
     bigintArray: t.bigint().array(),
 
@@ -1171,27 +1174,23 @@ test("filter input type", async () => {
     int_gte: "Int",
     int_lte: "Int",
 
-    // NOTE: Not ideal that int8 number uses GraphQLFloat.
-    int8Number: "Float",
-    int8Number_not: "Float",
-    int8Number_in: "[Float]",
-    int8Number_not_in: "[Float]",
-    int8Number_gt: "Float",
-    int8Number_lt: "Float",
-    int8Number_gte: "Float",
-    int8Number_lte: "Float",
+    int8Number: "Int",
+    int8Number_not: "Int",
+    int8Number_in: "[Int]",
+    int8Number_not_in: "[Int]",
+    int8Number_gt: "Int",
+    int8Number_lt: "Int",
+    int8Number_gte: "Int",
+    int8Number_lte: "Int",
 
-    // NOTE: Not ideal that int8 bigint uses GraphQLString.
-    int8Bigint: "String",
-    int8Bigint_not: "String",
-    int8Bigint_in: "[String]",
-    int8Bigint_not_in: "[String]",
-    int8Bigint_contains: "String",
-    int8Bigint_not_contains: "String",
-    int8Bigint_starts_with: "String",
-    int8Bigint_ends_with: "String",
-    int8Bigint_not_starts_with: "String",
-    int8Bigint_not_ends_with: "String",
+    int8Bigint: "BigInt",
+    int8Bigint_not: "BigInt",
+    int8Bigint_in: "[BigInt]",
+    int8Bigint_not_in: "[BigInt]",
+    int8Bigint_gt: "BigInt",
+    int8Bigint_lt: "BigInt",
+    int8Bigint_gte: "BigInt",
+    int8Bigint_lte: "BigInt",
 
     real: "Float",
     real_not: "Float",
@@ -1210,6 +1209,20 @@ test("filter input type", async () => {
     doublePrecision_lt: "Float",
     doublePrecision_gte: "Float",
     doublePrecision_lte: "Float",
+
+    numeric: "Numeric",
+    numeric_not: "Numeric",
+    numeric_in: "[Numeric]",
+    numeric_not_in: "[Numeric]",
+    numeric_gt: "Numeric",
+    numeric_lt: "Numeric",
+    numeric_gte: "Numeric",
+    numeric_lte: "Numeric",
+
+    numericArray: "[Numeric]",
+    numericArray_not: "[Numeric]",
+    numericArray_has: "Numeric",
+    numericArray_not_has: "Numeric",
 
     bigint: "BigInt",
     bigint_not: "BigInt",
@@ -1503,6 +1516,7 @@ test("filter numeric", async () => {
     bigintBigint: t.int8({ mode: "bigint" }),
     float: t.doublePrecision(),
     bigint: t.bigint(),
+    numeric: t.numeric(),
   }));
   const schema = { person };
 
@@ -1521,6 +1535,7 @@ test("filter numeric", async () => {
       bigintBigint: 1n,
       float: 1.5,
       bigint: 1n,
+      numeric: "1",
     },
     {
       id: "2",
@@ -1529,6 +1544,7 @@ test("filter numeric", async () => {
       bigintBigint: 2n,
       float: 2.5,
       bigint: 2n,
+      numeric: "2",
     },
     {
       id: "3",
@@ -1537,6 +1553,7 @@ test("filter numeric", async () => {
       bigintBigint: 3n,
       float: 3.5,
       bigint: 3n,
+      numeric: "3",
     },
   ]);
 
@@ -1573,22 +1590,20 @@ test("filter numeric", async () => {
     persons: { items: [{ id: "1" }] },
   });
 
-  // NOTE: bigintBigint gets interpreted as a string, so the numeric filter
-  // operators are not available. Not sure how to proceed here.
-  // result = await query(`
-  //   query {
-  //     persons(where: { bigintBigint_lte: 1 }) {
-  //       items {
-  //         id
-  //       }
-  //     }
-  //   }
-  // `);
+  result = await query(`
+    query {
+      persons(where: { bigintBigint_lte: "1" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   persons: { items: [{ id: "1" }, { id: "2" }] },
-  // });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }] },
+  });
 
   result = await query(`
     query {
@@ -1618,6 +1633,21 @@ test("filter numeric", async () => {
   expect(result.errors?.[0]?.message).toBeUndefined();
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { numeric_gte: "2.1" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "3" }] },
   });
 });
 
