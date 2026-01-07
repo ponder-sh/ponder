@@ -178,7 +178,7 @@ export function buildGraphQLSchema({
               });
             }
 
-            if (["Int", "Float", "BigInt"].includes(type.name)) {
+            if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
               conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
@@ -258,7 +258,7 @@ export function buildGraphQLSchema({
               });
             }
 
-            if (["Int", "Float", "BigInt"].includes(type.name)) {
+            if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
               conditionSuffixes.numeric.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
@@ -677,6 +677,20 @@ const GraphQLBigInt = new GraphQLScalarType({
   },
 });
 
+const GraphQLNumeric = new GraphQLScalarType({
+  name: "Numeric",
+  serialize: (value) => String(value),
+  parseValue: (value) => Number(value),
+  parseLiteral: (value) => {
+    if (value.kind === "StringValue") {
+      return Number(value.value);
+    }
+    throw new Error(
+      `Invalid value kind provided for field of type Numeric: ${value.kind}. Expected: StringValue`,
+    );
+  },
+});
+
 const GraphQLMeta = new GraphQLObjectType({
   name: "Meta",
   fields: { status: { type: GraphQLJSON } },
@@ -688,6 +702,10 @@ const columnToGraphQLCore = (
 ): GraphQLOutputType => {
   if (column.columnType === "PgEvmBigint") {
     return GraphQLBigInt;
+  }
+
+  if (column.columnType === "PgNumeric") {
+    return GraphQLNumeric;
   }
 
   if (column instanceof PgEnumColumn) {
