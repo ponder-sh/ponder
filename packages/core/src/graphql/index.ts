@@ -38,7 +38,6 @@ import {
   or,
 } from "drizzle-orm";
 import {
-  PgBigInt53,
   type PgColumn,
   type PgEnum,
   PgEnumColumn,
@@ -687,10 +686,7 @@ const columnToGraphQLCore = (
   column: Column,
   enumTypes: Record<string, GraphQLEnumType>,
 ): GraphQLOutputType => {
-  if (
-    column.columnType === "PgEvmBigint" ||
-    column.columnType === "PgNumeric"
-  ) {
+  if (column.columnType === "PgEvmBigint") {
     return GraphQLBigInt;
   }
 
@@ -720,11 +716,9 @@ const columnToGraphQLCore = (
     case "string":
       return GraphQLString;
     case "bigint":
-      return GraphQLBigInt;
+      return GraphQLString;
     case "number":
-      return is(column, PgInteger) ||
-        is(column, PgSerial) ||
-        is(column, PgBigInt53)
+      return is(column, PgInteger) || is(column, PgSerial)
         ? GraphQLInt
         : GraphQLFloat;
     case "buffer":
