@@ -1183,27 +1183,23 @@ test("filter input type", async (context) => {
     int_gte: "Int",
     int_lte: "Int",
 
-    // NOTE: Not ideal that int8 number uses GraphQLFloat.
-    int8Number: "Float",
-    int8Number_not: "Float",
-    int8Number_in: "[Float]",
-    int8Number_not_in: "[Float]",
-    int8Number_gt: "Float",
-    int8Number_lt: "Float",
-    int8Number_gte: "Float",
-    int8Number_lte: "Float",
+    int8Number: "Int",
+    int8Number_not: "Int",
+    int8Number_in: "[Int]",
+    int8Number_not_in: "[Int]",
+    int8Number_gt: "Int",
+    int8Number_lt: "Int",
+    int8Number_gte: "Int",
+    int8Number_lte: "Int",
 
-    // NOTE: Not ideal that int8 bigint uses GraphQLString.
-    int8Bigint: "String",
-    int8Bigint_not: "String",
-    int8Bigint_in: "[String]",
-    int8Bigint_not_in: "[String]",
-    int8Bigint_contains: "String",
-    int8Bigint_not_contains: "String",
-    int8Bigint_starts_with: "String",
-    int8Bigint_ends_with: "String",
-    int8Bigint_not_starts_with: "String",
-    int8Bigint_not_ends_with: "String",
+    int8Bigint: "BigInt",
+    int8Bigint_not: "BigInt",
+    int8Bigint_in: "[BigInt]",
+    int8Bigint_not_in: "[BigInt]",
+    int8Bigint_gt: "BigInt",
+    int8Bigint_lt: "BigInt",
+    int8Bigint_gte: "BigInt",
+    int8Bigint_lte: "BigInt",
 
     real: "Float",
     real_not: "Float",
@@ -1237,19 +1233,19 @@ test("filter input type", async (context) => {
     bigintArray_has: "BigInt",
     bigintArray_not_has: "BigInt",
 
-    numeric: "Numeric",
-    numeric_not: "Numeric",
-    numeric_in: "[Numeric]",
-    numeric_not_in: "[Numeric]",
-    numeric_gt: "Numeric",
-    numeric_lt: "Numeric",
-    numeric_gte: "Numeric",
-    numeric_lte: "Numeric",
+    numeric: "BigInt",
+    numeric_not: "BigInt",
+    numeric_in: "[BigInt]",
+    numeric_not_in: "[BigInt]",
+    numeric_gt: "BigInt",
+    numeric_lt: "BigInt",
+    numeric_gte: "BigInt",
+    numeric_lte: "BigInt",
 
-    numericArray: "[Numeric]",
-    numericArray_not: "[Numeric]",
-    numericArray_has: "Numeric",
-    numericArray_not_has: "Numeric",
+    numericArray: "[BigInt]",
+    numericArray_not: "[BigInt]",
+    numericArray_has: "BigInt",
+    numericArray_not_has: "BigInt",
 
     enum: "simpleEnum",
     enum_not: "simpleEnum",
@@ -1603,22 +1599,20 @@ test("filter numeric", async (context) => {
     persons: { items: [{ id: "1" }] },
   });
 
-  // NOTE: bigintBigint gets interpreted as a string, so the numeric filter
-  // operators are not available. Not sure how to proceed here.
-  // result = await query(`
-  //   query {
-  //     persons(where: { bigintBigint_lte: 1 }) {
-  //       items {
-  //         id
-  //       }
-  //     }
-  //   }
-  // `);
+  result = await query(`
+    query {
+      persons(where: { bigintBigint_lte: "1" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
 
-  // expect(result.errors?.[0]?.message).toBeUndefined();
-  // expect(result.data).toMatchObject({
-  //   persons: { items: [{ id: "1" }, { id: "2" }] },
-  // });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }] },
+  });
 
   result = await query(`
     query {
