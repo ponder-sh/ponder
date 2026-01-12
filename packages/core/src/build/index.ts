@@ -183,6 +183,7 @@ export const createBuild = async ({
       return { status: "success", exports } as const;
     } catch (error_) {
       const relativePath = path.relative(common.options.rootDir, file);
+      // TODO(kyle) error should be a `BuildError`
       const error = parseViteNodeError(relativePath, error_ as Error);
       return { status: "error", error } as const;
     }
@@ -206,13 +207,13 @@ export const createBuild = async ({
       );
     });
 
-    const res = await Promise.race([executeFile({ file }), timeout]);
-    if (res instanceof NonRetryableUserError) {
-      return { status: "error", error: res };
+    const result = await Promise.race([executeFile({ file }), timeout]);
+    if (result instanceof NonRetryableUserError) {
+      return { status: "error", error: result };
     }
 
     clearTimeout(timeoutId!);
-    return res;
+    return result;
   };
 
   const build = {
@@ -222,12 +223,6 @@ export const createBuild = async ({
       });
 
       if (executeResult.status === "error") {
-        common.logger.error({
-          msg: "Error while executing file",
-          file: "ponder.config.ts",
-          error: executeResult.error,
-        });
-
         return executeResult;
       }
 
@@ -255,12 +250,6 @@ export const createBuild = async ({
       });
 
       if (executeResult.status === "error") {
-        common.logger.error({
-          msg: "Error while executing file",
-          file: "ponder.schema.ts",
-          error: executeResult.error,
-        });
-
         return executeResult;
       }
 
@@ -284,11 +273,6 @@ export const createBuild = async ({
         const executeResult = await executeFileWithTimeout({ file });
 
         if (executeResult.status === "error") {
-          common.logger.error({
-            msg: "Error while executing file",
-            file: path.relative(common.options.rootDir, file),
-            error: executeResult.error,
-          });
           return executeResult;
         }
       }
@@ -301,10 +285,7 @@ export const createBuild = async ({
           const contents = fs.readFileSync(file, "utf-8");
           hash.update(contents);
         } catch (e) {
-          common.logger.warn({
-            msg: "Unable to read file",
-            file,
-          });
+          common.logger.warn({ msg: "Unable to read file", file });
           hash.update(file);
         }
       }
@@ -325,26 +306,17 @@ export const createBuild = async ({
       globalThis.PONDER_INDEXING_BUILD = configBuild;
       globalThis.PONDER_DATABASE = database;
 
-      if (!fs.existsSync(common.options.apiFile)) {
+      if (fs.existsSync(common.options.apiFile) === false) {
         const error = new BuildError(
           `API endpoint file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
         );
-        error.stack = undefined;
 
         return { status: "error", error };
       }
 
-      const executeResult = await executeFile({
-        file: common.options.apiFile,
-      });
+      const executeResult = await executeFile({ file: common.options.apiFile });
 
       if (executeResult.status === "error") {
-        common.logger.error({
-          msg: "Error while executing file",
-          file: path.relative(common.options.rootDir, common.options.apiFile),
-          error: executeResult.error,
-        });
-
         return executeResult;
       }
 
@@ -354,7 +326,6 @@ export const createBuild = async ({
         const error = new BuildError(
           "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
         );
-        error.stack = undefined;
 
         return { status: "error", error };
       }
@@ -372,7 +343,6 @@ export const createBuild = async ({
         const error = new BuildError(
           `Database schema required. Specify with "DATABASE_SCHEMA" env var or "--schema" CLI flag. Read more: https://ponder.sh/docs/database#database-schema`,
         );
-        error.stack = undefined;
 
         return { status: "error", error } as const;
       }
@@ -385,7 +355,6 @@ export const createBuild = async ({
         const error = new BuildError(
           "Views schema cannot be the same as the schema.",
         );
-        error.stack = undefined;
         return { status: "error", error } as const;
       }
 
@@ -393,7 +362,6 @@ export const createBuild = async ({
         const error = new BuildError(
           `Invalid schema name. "ponder_sync" is a reserved schema name.`,
         );
-        error.stack = undefined;
         return { status: "error", error } as const;
       }
 
@@ -401,7 +369,6 @@ export const createBuild = async ({
         const error = new BuildError(
           `Invalid views schema name. "ponder_sync" is a reserved schema name.`,
         );
-        error.stack = undefined;
         return { status: "error", error } as const;
       }
 
@@ -409,7 +376,6 @@ export const createBuild = async ({
         const error = new BuildError(
           `Schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
         );
-        error.stack = undefined;
         return { status: "error", error } as const;
       }
 
@@ -417,7 +383,6 @@ export const createBuild = async ({
         const error = new BuildError(
           `Views schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
         );
-        error.stack = undefined;
         return { status: "error", error } as const;
       }
 
@@ -535,13 +500,11 @@ export const createBuild = async ({
             route.path === "/ready" ||
             route.path === "/status" ||
             route.path === "/metrics" ||
-            route.path === "/health" ||
-            route.path === "/client"
+            route.path === "/health"
           ) {
             const error = new BuildError(
               `Validation failed: API route "${route.path}" is reserved for internal use.`,
             );
-            error.stack = undefined;
             return { status: "error", error } as const;
           }
         }
@@ -691,9 +654,10 @@ export const createBuild = async ({
                 rpc_chain_id: hexToNumber(chainId),
               });
             }
-          } catch (e) {
-            const error = new RetryableError("Failed to connect to JSON-RPC");
-            error.stack = undefined;
+          } catch (_error) {
+            const error = new BuildError("Failed to connect to JSON-RPC", {
+              cause: _error as Error,
+            });
             return { status: "error", error } as const;
           }
 
@@ -733,7 +697,6 @@ export const createBuild = async ({
           const error = new RetryableError(
             `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
-          error.stack = undefined;
           return { status: "error", error };
         } finally {
           await driver.close();
@@ -768,7 +731,6 @@ export const createBuild = async ({
           const error = new RetryableError(
             `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
           );
-          error.stack = undefined;
           return { status: "error", error };
         } finally {
           await pool.end();

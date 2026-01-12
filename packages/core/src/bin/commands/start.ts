@@ -225,6 +225,9 @@ export async function start({
     preBuild: preCompileResult.result,
     schemaBuild: compileSchemaResult.result,
   });
+
+  // TODO(kyle) database diagnostic
+
   const crashRecoveryCheckpoint = await database.migrate({
     buildId: indexingBuildResult.result.buildId,
     chains: indexingBuildResult.result.chains,
