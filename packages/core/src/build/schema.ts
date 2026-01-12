@@ -51,13 +51,13 @@ export const buildSchema = ({
         name === PONDER_META_TABLE_NAME ||
         name === PONDER_CHECKPOINT_TABLE_NAME
       ) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' is a reserved table name.`,
         );
       }
 
       if (name.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' table name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
         );
       }
@@ -67,7 +67,7 @@ export const buildSchema = ({
       for (const [columnName, column] of Object.entries(getTableColumns(s))) {
         if (column.primary) {
           if (hasPrimaryKey) {
-            throw new Error(
+            throw new BuildError(
               `Schema validation failed: '${name}' has multiple primary keys.`,
             );
           } else {
@@ -81,44 +81,44 @@ export const buildSchema = ({
           column instanceof PgBigSerial53 ||
           column instanceof PgBigSerial64
         ) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
           );
         }
 
         if (column.isUnique) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,
           );
         }
 
         if (column.generated !== undefined) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
           );
         }
 
         if (column.generatedIdentity !== undefined) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
           );
         }
 
         if (column.hasDefault) {
           if (column.default && column.default instanceof SQL) {
-            throw new Error(
+            throw new BuildError(
               `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
             );
           }
 
           if (column.defaultFn && column.defaultFn() instanceof SQL) {
-            throw new Error(
+            throw new BuildError(
               `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
             );
           }
 
           if (column.onUpdateFn && column.onUpdateFn() instanceof SQL) {
-            throw new Error(
+            throw new BuildError(
               `Schema validation failed: '${name}.${columnName}' is a default column and default columns with raw sql are unsupported.`,
             );
           }
@@ -136,13 +136,13 @@ export const buildSchema = ({
           column.name === "operation" ||
           column.name === "checkpoint"
         ) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.${columnName}' is a reserved column name.`,
           );
         }
 
         if (columnNames.has(column.name)) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.${column.name}' column name is used multiple times.`,
           );
         } else {
@@ -152,7 +152,7 @@ export const buildSchema = ({
 
       if (preBuild.ordering === "experimental_isolated") {
         if (hasChainIdColumn === false) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}' does not have required 'chainId' column.`,
           );
         }
@@ -161,7 +161,7 @@ export const buildSchema = ({
           getTableColumns(s).chainId!.dataType !== "number" &&
           getTableColumns(s).chainId!.dataType !== "bigint"
         ) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}'.chainId column must be an integer or numeric.`,
           );
         }
@@ -170,14 +170,14 @@ export const buildSchema = ({
           getPrimaryKeyColumns(s).some(({ sql }) => sql === "chain_id") ===
           false
         ) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: '${name}.chain_id' column is required to be in the primary key when ordering is 'isolated'.`,
           );
         }
       }
 
       if (tableNames.has(getTableName(s))) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: table name '${getTableName(s)}' is used multiple times.`,
         );
       } else {
@@ -185,13 +185,13 @@ export const buildSchema = ({
       }
 
       if (getTableConfig(s).primaryKeys.length > 1) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' has multiple primary keys.`,
         );
       }
 
       if (getTableConfig(s).primaryKeys.length === 1 && hasPrimaryKey) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' has multiple primary keys.`,
         );
       }
@@ -200,25 +200,25 @@ export const buildSchema = ({
         getTableConfig(s).primaryKeys.length === 0 &&
         hasPrimaryKey === false
       ) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' has no primary key. Declare one with ".primaryKey()".`,
         );
       }
 
       if (getTableConfig(s).foreignKeys.length > 0) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' has a foreign key constraint and foreign key constraints are unsupported.`,
         );
       }
 
       if (getTableConfig(s).checks.length > 0) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' has a check constraint and check constraints are unsupported.`,
         );
       }
 
       if (getTableConfig(s).uniqueConstraints.length > 0) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: '${name}' has a unique constraint and unique constraints are unsupported.`,
         );
       }
@@ -227,7 +227,7 @@ export const buildSchema = ({
         // Note: Ponder lets postgres handle the index name length limit and truncation.
 
         if (index.config.name && indexNames.has(index.config.name)) {
-          throw new Error(
+          throw new BuildError(
             `Schema validation failed: index name '${index.config.name}' is used multiple times.`,
           );
         } else if (index.config.name) {
@@ -237,7 +237,7 @@ export const buildSchema = ({
     }
 
     if (is(s, PgSequence)) {
-      throw new Error(
+      throw new BuildError(
         `Schema validation failed: '${name}' is a sequence and sequences are unsupported.`,
       );
     }
@@ -246,7 +246,7 @@ export const buildSchema = ({
       // Note: Ponder lets postgres handle the view name length limit and truncation.
 
       if (viewNames.has(getViewName(s))) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: view name '${getViewName(s)}' is used multiple times.`,
         );
       } else {
@@ -256,19 +256,19 @@ export const buildSchema = ({
       const viewConfig = getViewConfig(s);
 
       if (viewConfig.selectedFields.length === 0) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: view '${getViewName(s)}' has no selected fields.`,
         );
       }
 
       if (viewConfig.isExisting) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: view '${getViewName(s)}' is an existing view and existing views are unsupported.`,
         );
       }
 
       if (viewConfig.query === undefined) {
-        throw new Error(
+        throw new BuildError(
           `Schema validation failed: view '${getViewName(s)}' has no underlying query.`,
         );
       }
@@ -283,7 +283,7 @@ export const buildSchema = ({
             is(column, PgColumn) === false &&
             is(column, SQL.Aliased) === false
           ) {
-            throw new Error(
+            throw new BuildError(
               `Schema validation failed: view '${getViewName(s)}.${columnName}' is a non-column selected field.`,
             );
           }
@@ -295,31 +295,31 @@ export const buildSchema = ({
               column instanceof PgBigSerial53 ||
               column instanceof PgBigSerial64
             ) {
-              throw new Error(
+              throw new BuildError(
                 `Schema validation failed: '${name}.${columnName}' has a serial column and serial columns are unsupported.`,
               );
             }
 
             if (column.isUnique) {
-              throw new Error(
+              throw new BuildError(
                 `Schema validation failed: '${name}.${columnName}' has a unique constraint and unique constraints are unsupported.`,
               );
             }
 
             if (column.generated !== undefined) {
-              throw new Error(
+              throw new BuildError(
                 `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
               );
             }
 
             if (column.generatedIdentity !== undefined) {
-              throw new Error(
+              throw new BuildError(
                 `Schema validation failed: '${name}.${columnName}' is a generated column and generated columns are unsupported.`,
               );
             }
 
             if (columnNames.has((column as PgColumn).name)) {
-              throw new Error(
+              throw new BuildError(
                 `Schema validation failed: '${name}.${(column as PgColumn).name}' column name is used multiple times.`,
               );
             } else {
@@ -331,28 +331,10 @@ export const buildSchema = ({
   }
 
   if (tableNames.size > TABLE_LIMIT) {
-    throw new Error(
+    throw new BuildError(
       `Schema validation failed: the maximum number of tables is ${TABLE_LIMIT}.`,
     );
   }
 
   return { statements };
-};
-
-export const safeBuildSchema = ({
-  schema,
-  preBuild,
-}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
-  try {
-    const result = buildSchema({ schema, preBuild });
-
-    return {
-      status: "success",
-      ...result,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
 };

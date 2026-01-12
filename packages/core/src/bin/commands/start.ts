@@ -137,19 +137,6 @@ export async function start({
     return;
   }
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: preCompileResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
-
   const compileSchemaResult = build.compileSchema({
     ...schemaResult.result,
     preBuild: preCompileResult.result,
@@ -226,7 +213,19 @@ export async function start({
     schemaBuild: compileSchemaResult.result,
   });
 
-  // TODO(kyle) database diagnostic
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: preCompileResult.result,
+    database,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
 
   const crashRecoveryCheckpoint = await database.migrate({
     buildId: indexingBuildResult.result.buildId,

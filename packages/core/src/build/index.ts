@@ -4,14 +4,9 @@ import path from "node:path";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
-import { createQB } from "@/database/queryBuilder.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
-import {
-  BuildError,
-  NonRetryableUserError,
-  RetryableError,
-} from "@/internal/errors.js";
+import { BuildError } from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -21,13 +16,10 @@ import type {
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
-import { createPool, getDatabaseName } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
+import { getDatabaseName } from "@/utils/pg.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import type { Result } from "@/utils/result.js";
 import { startClock } from "@/utils/timer.js";
-import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { glob } from "glob";
 import { Hono } from "hono";
 import superjson from "superjson";
@@ -38,10 +30,10 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import { safeBuildConfig, safeBuildIndexingFunctions } from "./config.js";
+import { buildConfig, buildIndexingFunctions } from "./config.js";
 import { vitePluginPonder } from "./plugin.js";
-import { safeBuildPre } from "./pre.js";
-import { safeBuildSchema } from "./schema.js";
+import { buildPre } from "./pre.js";
+import { buildSchema } from "./schema.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 declare global {
@@ -93,7 +85,10 @@ export type Build = {
   rpcDiagnostic: (params: {
     configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
   }) => Promise<Result<void>>;
-  databaseDiagnostic: (params: { preBuild: PreBuild }) => Promise<Result<void>>;
+  databaseDiagnostic: (params: {
+    preBuild: Pick<PreBuild, "databaseConfig">;
+    database: Database;
+  }) => Promise<Result<void>>;
 };
 
 export const createBuild = async ({
@@ -189,18 +184,19 @@ export const createBuild = async ({
     }
   };
 
+  // TODO(kyle) all files should use this function
   const executeFileWithTimeout = async ({
     file,
   }: { file: string }): Promise<
     { status: "success"; exports: any } | { status: "error"; error: Error }
   > => {
     let timeoutId: ReturnType<typeof setTimeout>;
-    const timeout = new Promise<NonRetryableUserError>((resolve) => {
+    const timeout = new Promise<BuildError>((resolve) => {
       timeoutId = setTimeout(
         () =>
           resolve(
-            new NonRetryableUserError(
-              "File execution did not complete (waited 10s)",
+            new BuildError(
+              `Executing file "${path.relative(common.options.rootDir, file)}" took longer than 10 seconds`,
             ),
           ),
         10_000,
@@ -208,7 +204,7 @@ export const createBuild = async ({
     });
 
     const result = await Promise.race([executeFile({ file }), timeout]);
-    if (result instanceof NonRetryableUserError) {
+    if (result instanceof BuildError) {
       return { status: "error", error: result };
     }
 
@@ -218,7 +214,7 @@ export const createBuild = async ({
 
   const build = {
     async executeConfig(): Promise<ConfigResult> {
-      const executeResult = await executeFile({
+      const executeResult = await executeFileWithTimeout({
         file: common.options.configFile,
       });
 
@@ -245,7 +241,7 @@ export const createBuild = async ({
       } as const;
     },
     async executeSchema(): Promise<SchemaResult> {
-      const executeResult = await executeFile({
+      const executeResult = await executeFileWithTimeout({
         file: common.options.schemaFile,
       });
 
@@ -314,7 +310,9 @@ export const createBuild = async ({
         return { status: "error", error };
       }
 
-      const executeResult = await executeFile({ file: common.options.apiFile });
+      const executeResult = await executeFileWithTimeout({
+        file: common.options.apiFile,
+      });
 
       if (executeResult.status === "error") {
         return executeResult;
@@ -394,14 +392,11 @@ export const createBuild = async ({
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
-      const preBuild = safeBuildPre({
+      const preBuild = buildPre({
         config,
         options: common.options,
         logger: common.logger,
       });
-      if (preBuild.status === "error") {
-        return preBuild;
-      }
 
       return {
         status: "success",
@@ -412,29 +407,18 @@ export const createBuild = async ({
       } as const;
     },
     compileSchema({ schema, preBuild }) {
-      const buildSchemaResult = safeBuildSchema({ schema, preBuild });
-
-      if (buildSchemaResult.status === "error") {
-        return buildSchemaResult;
-      }
+      const { statements } = buildSchema({ schema, preBuild });
 
       return {
         status: "success",
-        result: {
-          schema,
-          statements: buildSchemaResult.statements,
-        },
+        result: { schema, statements },
       } as const;
     },
     compileConfig({ configResult }) {
-      // Validates and builds the config
-      const buildConfigResult = safeBuildConfig({
+      const buildConfigResult = buildConfig({
         common,
         config: configResult.config,
       });
-      if (buildConfigResult.status === "error") {
-        return buildConfigResult;
-      }
 
       for (const log of buildConfigResult.logs) {
         const { level, ...rest } = log;
@@ -455,16 +439,12 @@ export const createBuild = async ({
       indexingResult,
       configBuild,
     }) {
-      // Validates and builds the config
-      const buildIndexingFunctionsResult = await safeBuildIndexingFunctions({
+      const buildIndexingFunctionsResult = await buildIndexingFunctions({
         common,
         config: configResult.config,
         indexingFunctions: indexingResult.indexingFunctions,
         configBuild,
       });
-      if (buildIndexingFunctionsResult.status === "error") {
-        return buildIndexingFunctionsResult;
-      }
 
       for (const log of buildIndexingFunctionsResult.logs) {
         const { level, ...rest } = log;
@@ -681,65 +661,43 @@ export const createBuild = async ({
 
       return { status: "success", result: undefined };
     },
-    async databaseDiagnostic({ preBuild }) {
+    async databaseDiagnostic({ preBuild, database }) {
       const context = {
         logger: common.logger.child({ action: "database_diagnostic" }),
       };
       const endClock = startClock();
 
-      const dialect = preBuild.databaseConfig.kind;
-      if (dialect === "pglite") {
-        const driver = createPglite(preBuild.databaseConfig.options);
-        const qb = createQB(drizzlePglite(driver), { common });
-        try {
-          await qb.wrap((db) => db.execute("SELECT version()"), context);
-        } catch (e) {
-          const error = new RetryableError(
-            `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          return { status: "error", error };
-        } finally {
-          await driver.close();
-        }
+      try {
+        await database.adminQB.wrap(
+          (db) => db.execute("SELECT version()"),
+          context,
+        );
+      } catch (_error) {
+        const error = new BuildError("Failed to connect to database", {
+          cause: _error as Error,
+        });
+        return { status: "error", error } as const;
+      }
 
+      if (preBuild.databaseConfig.kind === "postgres") {
+        common.logger.info({
+          msg: "Connected to database",
+          type: database.driver.dialect,
+          database: getDatabaseName(preBuild.databaseConfig.poolConfig),
+          duration: endClock(),
+        });
+      } else if (preBuild.databaseConfig.kind === "pglite") {
         const pgliteDir = preBuild.databaseConfig.options.dataDir;
 
         const pglitePath =
           pgliteDir === "memory://"
             ? "memory://"
             : path.relative(common.options.rootDir, pgliteDir);
-        common.logger.info({
-          msg: "Connected to database",
-          type: dialect,
-          database: pglitePath,
-          duration: endClock(),
-        });
-      } else if (dialect === "postgres") {
-        const pool = createPool(
-          {
-            ...preBuild.databaseConfig.poolConfig,
-            application_name: "test",
-            max: 1,
-            statement_timeout: 10_000,
-          },
-          common.logger,
-        );
-        const qb = createQB(drizzleNodePostgres(pool), { common });
-        try {
-          await qb.wrap((db) => db.execute("SELECT version()"), context);
-        } catch (e) {
-          const error = new RetryableError(
-            `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          return { status: "error", error };
-        } finally {
-          await pool.end();
-        }
 
         common.logger.info({
           msg: "Connected to database",
-          type: dialect,
-          database: getDatabaseName(preBuild.databaseConfig.poolConfig),
+          type: database.driver.dialect,
+          database: pglitePath,
           duration: endClock(),
         });
       }

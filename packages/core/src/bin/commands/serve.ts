@@ -113,19 +113,6 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: preCompileResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
-
   const compileSchemaResult = build.compileSchema({
     ...schemaResult.result,
     preBuild: preCompileResult.result,
@@ -163,6 +150,20 @@ export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
     preBuild: preCompileResult.result,
     schemaBuild: compileSchemaResult.result,
   });
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: preCompileResult.result,
+    database,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
 
   const schemaExists = await database.adminQB
     .wrap((db) =>

@@ -162,23 +162,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        const databaseDiagnostic = await build.databaseDiagnostic({
-          preBuild: preCompileResult.result,
-        });
-        if (databaseDiagnostic.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "diagnostic",
-            error: databaseDiagnostic.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: databaseDiagnostic.error,
-          });
-          return;
-        }
-
         const compileSchemaResult = build.compileSchema({
           ...schemaResult.result,
           preBuild: preCompileResult.result,
@@ -276,6 +259,25 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           preBuild: preCompileResult.result,
           schemaBuild: compileSchemaResult.result,
         });
+
+        const databaseDiagnostic = await build.databaseDiagnostic({
+          preBuild: preCompileResult.result,
+          database,
+        });
+        if (databaseDiagnostic.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "diagnostic",
+            error: databaseDiagnostic.error,
+          });
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: databaseDiagnostic.error,
+          });
+          return;
+        }
+
         crashRecoveryCheckpoint = await database.migrate({
           buildId: indexingBuildResult.result.buildId,
           chains: indexingBuildResult.result.chains,
