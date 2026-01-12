@@ -327,7 +327,6 @@ export const validateTransactionsAndBlock = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -339,7 +338,6 @@ export const validateTransactionsAndBlock = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
   }
@@ -369,7 +367,6 @@ export const validateLogsAndBlock = (
       requestText(blockRequest),
       requestText(logsRequest),
     ];
-    error.stack = undefined;
     throw error;
   }
 
@@ -390,7 +387,6 @@ export const validateLogsAndBlock = (
         requestText(blockRequest),
         requestText(logsRequest),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -403,7 +399,6 @@ export const validateLogsAndBlock = (
         requestText(blockRequest),
         requestText(logsRequest),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -418,7 +413,6 @@ export const validateLogsAndBlock = (
           requestText(blockRequest),
           requestText(logsRequest),
         ];
-        error.stack = undefined;
         throw error;
       } else if (transaction.hash !== log.transactionHash) {
         const error = new RpcProviderError(
@@ -429,7 +423,6 @@ export const validateLogsAndBlock = (
           requestText(blockRequest),
           requestText(logsRequest),
         ];
-        error.stack = undefined;
         throw error;
       }
     }
@@ -462,7 +455,6 @@ export const validateTracesAndBlock = (
         requestText(blockRequest),
         requestText(tracesRequest),
       ];
-      error.stack = undefined;
       throw error;
     }
   }
@@ -477,7 +469,6 @@ export const validateTracesAndBlock = (
       requestText(blockRequest),
       requestText(tracesRequest),
     ];
-    error.stack = undefined;
     throw error;
   }
 };
@@ -514,7 +505,6 @@ export const validateReceiptsAndBlock = (
         requestText(blockRequest),
         requestText(receiptsRequest),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -527,7 +517,6 @@ export const validateReceiptsAndBlock = (
         requestText(blockRequest),
         requestText(receiptsRequest),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -541,7 +530,6 @@ export const validateReceiptsAndBlock = (
         requestText(blockRequest),
         requestText(receiptsRequest),
       ];
-      error.stack = undefined;
       throw error;
     } else if (transaction.hash !== receipt.transactionHash) {
       const error = new RpcProviderError(
@@ -552,7 +540,6 @@ export const validateReceiptsAndBlock = (
         requestText(blockRequest),
         requestText(receiptsRequest),
       ];
-      error.stack = undefined;
       throw error;
     }
   }
@@ -569,7 +556,6 @@ export const validateReceiptsAndBlock = (
       requestText(blockRequest),
       requestText(receiptsRequest),
     ];
-    error.stack = undefined;
     throw error;
   }
 };
@@ -624,7 +610,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (block.number === undefined) {
@@ -635,7 +620,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (block.timestamp === undefined) {
@@ -646,7 +630,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (block.logsBloom === undefined) {
@@ -657,7 +640,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (block.parentHash === undefined) {
@@ -668,7 +650,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
 
@@ -721,7 +702,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
@@ -732,7 +712,6 @@ export const standardizeBlock = <
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
 
@@ -798,7 +777,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     } else {
       transactionIds.add(transaction.transactionIndex);
@@ -813,7 +791,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (transaction.transactionIndex === undefined) {
@@ -824,7 +801,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (transaction.blockNumber === undefined) {
@@ -835,7 +811,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (transaction.blockHash === undefined) {
@@ -846,7 +821,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (transaction.from === undefined) {
@@ -857,7 +831,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -901,7 +874,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
@@ -912,7 +884,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
@@ -923,7 +894,6 @@ export const standardizeTransactions = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
   }
@@ -962,7 +932,6 @@ export const standardizeLogs = (
       ];
 
       console.log(logs);
-      error.stack = undefined;
       throw error;
     } else {
       logIds.add(`${log.blockNumber}_${log.logIndex}`);
@@ -977,7 +946,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (log.logIndex === undefined) {
@@ -988,7 +956,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (log.blockHash === undefined) {
@@ -999,7 +966,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (log.address === undefined) {
@@ -1010,7 +976,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (log.topics === undefined) {
@@ -1021,7 +986,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (log.data === undefined) {
@@ -1032,7 +996,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (log.transactionHash === undefined) {
@@ -1055,7 +1018,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (hexToBigInt(log.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
@@ -1066,7 +1028,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (hexToBigInt(log.logIndex) > BigInt(PG_INTEGER_MAX)) {
@@ -1077,7 +1038,6 @@ export const standardizeLogs = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
   }
@@ -1114,7 +1074,6 @@ export const standardizeTrace = (
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (trace.trace.type === undefined) {
@@ -1125,7 +1084,6 @@ export const standardizeTrace = (
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (trace.trace.from === undefined) {
@@ -1136,7 +1094,6 @@ export const standardizeTrace = (
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
   if (trace.trace.input === undefined) {
@@ -1147,7 +1104,6 @@ export const standardizeTrace = (
       "Please report this error to the RPC operator.",
       requestText(request),
     ];
-    error.stack = undefined;
     throw error;
   }
 
@@ -1203,7 +1159,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     } else {
       receiptIds.add(receipt.transactionHash);
@@ -1218,7 +1173,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (receipt.blockNumber === undefined) {
@@ -1229,7 +1183,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (receipt.transactionHash === undefined) {
@@ -1240,7 +1193,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (receipt.transactionIndex === undefined) {
@@ -1251,7 +1203,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (receipt.from === undefined) {
@@ -1262,7 +1213,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (receipt.status === undefined) {
@@ -1273,7 +1223,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
 
@@ -1314,7 +1263,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
     if (hexToBigInt(receipt.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
@@ -1325,7 +1273,6 @@ export const standardizeTransactionReceipts = (
         "Please report this error to the RPC operator.",
         requestText(request),
       ];
-      error.stack = undefined;
       throw error;
     }
   }
