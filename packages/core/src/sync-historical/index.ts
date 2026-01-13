@@ -28,6 +28,7 @@ import {
 import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
+  getChildStartBlock,
   isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
@@ -399,7 +400,9 @@ export const createHistoricalSync = (
           }
         }
         const existingBlockNumber = childAddressesRecord.get(address);
-        const newBlockNumber = hexToNumber(log.blockNumber);
+        // Use childStartBlock from event field or static config, fall back to log's block number
+        const childStartBlock = getChildStartBlock({ log, factory });
+        const newBlockNumber = childStartBlock ?? hexToNumber(log.blockNumber);
 
         if (
           existingBlockNumber === undefined ||

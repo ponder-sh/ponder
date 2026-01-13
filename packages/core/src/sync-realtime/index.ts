@@ -34,6 +34,7 @@ import {
 import type { Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
+  getChildStartBlock,
   getFilterFactories,
   isAddressFactory,
   isAddressMatched,
@@ -78,7 +79,8 @@ export type BlockWithEventData = {
   transactionReceipts: SyncTransactionReceipt[];
   logs: SyncLog[];
   traces: SyncTrace[];
-  childAddresses: Map<Factory, Set<Address>>;
+  /** Map from factory to child addresses with their start block numbers */
+  childAddresses: Map<Factory, Map<Address, number>>;
 };
 
 export type RealtimeSyncEvent =
@@ -464,15 +466,15 @@ export const createRealtimeSync = (
     // Get Matched
     ////////
 
-    // Record `blockChildAddresses` that contain factory child addresses
-    const blockChildAddresses = new Map<Factory, Set<Address>>();
+    // Record `blockChildAddresses` that contain factory child addresses with their start blocks
+    const blockChildAddresses = new Map<Factory, Map<Address, number>>();
 
     const childAddressDecodeFailureIds = new Set<string>();
     let childAddressDecodeFailureCount = 0;
     let childAddressDecodeSuccessCount = 0;
 
     for (const factory of factories) {
-      blockChildAddresses.set(factory, new Set<Address>());
+      blockChildAddresses.set(factory, new Map<Address, number>());
       for (const log of logs) {
         if (isLogFactoryMatched({ factory, log })) {
           let address: Address;
@@ -500,7 +502,11 @@ export const createRealtimeSync = (
               throw error;
             }
           }
-          blockChildAddresses.get(factory)!.add(address);
+          // Use childStartBlock from event field or static config, fall back to log's block number
+          const childStartBlock = getChildStartBlock({ log, factory });
+          const startBlockNumber =
+            childStartBlock ?? hexToNumber(log.blockNumber);
+          blockChildAddresses.get(factory)!.set(address, startBlockNumber);
         }
       }
     }
@@ -704,11 +710,11 @@ export const createRealtimeSync = (
     // Update `childAddresses`
     for (const factory of factories) {
       const factoryId = factory.id;
-      for (const address of blockChildAddresses.get(factory)!) {
+      for (const [address, startBlockNumber] of blockChildAddresses.get(
+        factory,
+      )!) {
         if (childAddresses.get(factoryId)!.has(address) === false) {
-          childAddresses
-            .get(factoryId)!
-            .set(address, hexToNumber(block.number));
+          childAddresses.get(factoryId)!.set(address, startBlockNumber);
         } else {
           blockChildAddresses.get(factory)!.delete(address);
         }
@@ -955,10 +961,10 @@ export const createRealtimeSync = (
     // remove reorged blocks from `childAddresses`
     for (const block of reorgedBlocks) {
       for (const factory of factories) {
-        const addresses = childAddressesPerBlock
+        const addressMap = childAddressesPerBlock
           .get(hexToNumber(block.number))!
           .get(factory)!;
-        for (const address of addresses) {
+        for (const address of addressMap.keys()) {
           childAddresses.get(factory.id)!.delete(address);
         }
       }
