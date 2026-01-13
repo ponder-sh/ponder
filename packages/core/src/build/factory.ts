@@ -9,60 +9,26 @@ import {
 import type { AbiEvent } from "abitype";
 import { type Address, toEventSelector } from "viem";
 
-export function buildLogFactory({
-  address: _address,
-  event,
-  parameter,
-  chainId,
-  sourceId,
-  fromBlock,
-  toBlock,
-}: {
-  address?: Address | readonly Address[];
-  event: AbiEvent;
-  parameter: string;
-  chainId: number;
-  sourceId: string;
-  fromBlock: number | undefined;
-  toBlock: number | undefined;
-}): LogFactory {
-  let address: Address | Address[] | undefined;
-  if (_address === undefined) {
-    // noop
-  } else if (Array.isArray(_address)) {
-    address = dedupe(_address)
-      .map(toLowerCase)
-      .sort((a, b) => (a < b ? -1 : 1));
-  } else {
-    address = toLowerCase(_address);
-  }
+type ParameterLocation = "topic1" | "topic2" | "topic3" | `offset${number}`;
 
-  const eventSelector = toEventSelector(event);
-
+/**
+ * Computes the location of a parameter in the event log data.
+ * Returns the topic index (for indexed params) or byte offset (for non-indexed params).
+ */
+function getParameterLocation(
+  event: AbiEvent,
+  parameter: string,
+  expectedType?: string,
+): ParameterLocation {
   const params = parameter.split(".");
 
-  if (params.length === 1) {
-    // Check if the provided parameter is present in the list of indexed inputs.
-    const indexedInputPosition = event.inputs
-      .filter((x) => "indexed" in x && x.indexed)
-      .findIndex((input) => {
-        return input.name === params[0];
-      });
+  // Check if the provided parameter is present in the list of indexed inputs.
+  const indexedInputPosition = event.inputs
+    .filter((x) => "indexed" in x && x.indexed)
+    .findIndex((input) => input.name === params[0]);
 
-    if (indexedInputPosition > -1) {
-      return {
-        id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_topic${(indexedInputPosition + 1) as 1 | 2 | 3}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
-        type: "log",
-        chainId,
-        sourceId,
-        address,
-        eventSelector,
-        // Add 1 because inputs will not contain an element for topic0 (the signature).
-        childAddressLocation: `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`,
-        fromBlock,
-        toBlock,
-      };
-    }
+  if (indexedInputPosition > -1 && params.length === 1) {
+    return `topic${(indexedInputPosition + 1) as 1 | 2 | 3}`;
   }
 
   const nonIndexedInputs = event.inputs.filter(
@@ -82,9 +48,13 @@ export function buildLogFactory({
 
   const nonIndexedParameter = nonIndexedInputs[nonIndexedInputPosition]!;
 
-  if (nonIndexedParameter.type !== "address" && params.length === 1) {
+  if (
+    expectedType &&
+    nonIndexedParameter.type !== expectedType &&
+    params.length === 1
+  ) {
     throw new Error(
-      `Factory event parameter type is not valid. Got '${nonIndexedParameter.type}', expected 'address'.`,
+      `Factory event parameter type is not valid. Got '${nonIndexedParameter.type}', expected '${expectedType}'.`,
     );
   }
 
@@ -104,19 +74,74 @@ export function buildLogFactory({
       nonIndexedInputs[nonIndexedInputPosition]! as TupleAbiParameter,
       params.slice(1),
     );
-
     offset += nestedOffset;
   }
 
+  return `offset${offset}`;
+}
+
+export function buildLogFactory({
+  address: _address,
+  event,
+  parameter,
+  chainId,
+  sourceId,
+  fromBlock,
+  toBlock,
+  childStartBlock,
+  startBlockParameter,
+}: {
+  address?: Address | readonly Address[];
+  event: AbiEvent;
+  parameter: string;
+  chainId: number;
+  sourceId: string;
+  fromBlock: number | undefined;
+  toBlock: number | undefined;
+  childStartBlock?: number;
+  startBlockParameter?: string;
+}): LogFactory {
+  let address: Address | Address[] | undefined;
+  if (_address === undefined) {
+    // noop
+  } else if (Array.isArray(_address)) {
+    address = dedupe(_address)
+      .map(toLowerCase)
+      .sort((a, b) => (a < b ? -1 : 1));
+  } else {
+    address = toLowerCase(_address);
+  }
+
+  const eventSelector = toEventSelector(event);
+
+  // Get the location of the child address parameter
+  const childAddressLocation = getParameterLocation(
+    event,
+    parameter,
+    "address",
+  );
+
+  // Get the location of the start block parameter if specified
+  let childStartBlockLocation: ParameterLocation | undefined;
+  if (startBlockParameter) {
+    // For start block, we accept uint256 or similar numeric types
+    // We don't enforce a specific type since it could be uint256, uint64, etc.
+    childStartBlockLocation = getParameterLocation(event, startBlockParameter);
+  }
+
+  const id = `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_${childAddressLocation}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`;
+
   return {
-    id: `log_${Array.isArray(address) ? address.join("_") : address}_${chainId}_offset${offset}_${eventSelector}_${fromBlock ?? "undefined"}_${toBlock ?? "undefined"}`,
+    id,
     type: "log",
     chainId,
     sourceId,
     address,
     eventSelector,
-    childAddressLocation: `offset${offset}`,
+    childAddressLocation,
     fromBlock,
     toBlock,
+    childStartBlock,
+    childStartBlockLocation,
   };
 }

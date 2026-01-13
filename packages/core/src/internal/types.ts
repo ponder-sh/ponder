@@ -180,6 +180,21 @@ export type LogFactory = {
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
   fromBlock: number | undefined;
   toBlock: number | undefined;
+  /**
+   * Static block number to use as the start block for all child contracts.
+   * If set, overrides the factory event's block number.
+   */
+  childStartBlock?: number | undefined;
+  /**
+   * Location of the start block parameter in the factory event.
+   * Similar to childAddressLocation but for extracting the start block.
+   */
+  childStartBlockLocation?:
+    | "topic1"
+    | "topic2"
+    | "topic3"
+    | `offset${number}`
+    | undefined;
 };
 
 // Fragments

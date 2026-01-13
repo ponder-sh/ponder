@@ -944,15 +944,13 @@ export async function handleRealtimeSyncEvent(
       const childAddresses = new Map<Factory, Map<Address, number>>();
 
       for (const block of finalizedBlocks) {
-        for (const [factory, addresses] of block.childAddresses) {
+        for (const [factory, addressMap] of block.childAddresses) {
           if (childAddresses.has(factory) === false) {
             childAddresses.set(factory, new Map());
           }
-          for (const address of addresses) {
+          for (const [address, startBlockNumber] of addressMap) {
             if (childAddresses.get(factory)!.has(address) === false) {
-              childAddresses
-                .get(factory)!
-                .set(address, hexToNumber(block.block.number));
+              childAddresses.get(factory)!.set(address, startBlockNumber);
             }
           }
         }

@@ -22,6 +22,19 @@ export type Factory<event extends AbiEvent = AbiEvent> = {
   startBlock?: number | "latest";
   /** To block */
   endBlock?: number | "latest";
+  /**
+   * Static block number to start indexing child contract events from.
+   * If specified, all child contracts will be indexed from this block.
+   */
+  childStartBlock?: number;
+  /**
+   * Name of the factory event parameter that contains the block number
+   * to start indexing the child contract from.
+   */
+  startBlockParameter?: Exclude<
+    ParameterNames<event["inputs"][number]>,
+    undefined
+  >;
 };
 
 export const factory = <event extends AbiEvent>(factory: Factory<event>) =>
