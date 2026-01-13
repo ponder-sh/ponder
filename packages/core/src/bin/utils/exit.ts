@@ -1,7 +1,11 @@
 import os from "node:os";
 import readline from "node:readline";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
+import {
+  BaseError,
+  NonRetryableUserError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type { Options } from "@/internal/options.js";
 
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
@@ -84,10 +88,16 @@ export const createExit = ({
   if (options.command !== "dev") {
     process.on("uncaughtException", (error: Error) => {
       if (error instanceof ShutdownError) return;
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
+      if (error instanceof BaseError) {
+        common.logger.error({
+          msg: `unhandledRejection: ${error.name}`,
+        });
+      } else {
+        common.logger.error({
+          msg: "unhandledRejection",
+          error,
+        });
+      }
       if (error instanceof NonRetryableUserError) {
         exit({ code: 1 });
       } else {
@@ -96,10 +106,16 @@ export const createExit = ({
     });
     process.on("unhandledRejection", (error: Error) => {
       if (error instanceof ShutdownError) return;
-      common.logger.error({
-        msg: "unhandledRejection",
-        error,
-      });
+      if (error instanceof BaseError) {
+        common.logger.error({
+          msg: `unhandledRejection: ${error.name}`,
+        });
+      } else {
+        common.logger.error({
+          msg: "unhandledRejection",
+          error,
+        });
+      }
       if (error instanceof NonRetryableUserError) {
         exit({ code: 1 });
       } else {

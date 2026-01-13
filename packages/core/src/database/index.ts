@@ -48,7 +48,7 @@ import {
   dropLiveQueryTriggers,
   dropTriggers,
 } from "./actions.js";
-import { type QB, createQB, parseDbError } from "./queryBuilder.js";
+import { type QB, createQB, parseQBError } from "./queryBuilder.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
@@ -454,7 +454,7 @@ export const createDatabase = ({
 
           return;
         } catch (_error) {
-          const error = parseDbError(_error);
+          const error = parseQBError(_error as Error);
 
           if (common.shutdown.isKilled) {
             throw new ShutdownError();

@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
-import { BaseError } from "@/internal/errors.js";
+import {
+  BaseError,
+  TransactionCallbackError,
+  TransactionControlError,
+  TransactionStatementError,
+} from "@/internal/errors.js";
 import {
   BigIntSerializationError,
   CheckConstraintError,
@@ -59,6 +64,8 @@ type TransactionQB<
   ): Promise<T>;
 };
 
+// TODO(kyle) handle malformed queries
+
 /**
  * Query builder with built-in retry logic, logging, and metrics.
  */
@@ -87,33 +94,35 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-export const parseDbError = (error: any): Error => {
-  const stack = error.stack;
+export const parseQBError = (error: Error): Error => {
+  // TODO(kyle) how to know if the error is a query builder error?
 
-  if (error instanceof BaseError) {
-    return error;
-  }
+  // TODO(kyle) do we need this?
+  if (error instanceof BaseError) return error;
 
   if (error?.message?.includes("violates not-null constraint")) {
-    error = new NotNullConstraintError(error.message);
+    return new NotNullConstraintError(undefined, { cause: error });
   } else if (error?.message?.includes("violates unique constraint")) {
-    error = new UniqueConstraintError(error.message);
+    return new UniqueConstraintError(undefined, { cause: error });
   } else if (error?.message?.includes("violates check constraint")) {
-    error = new CheckConstraintError(error.message);
+    return new CheckConstraintError(undefined, { cause: error });
   } else if (
     // nodejs error message
     error?.message?.includes("Do not know how to serialize a BigInt") ||
     // bun error message
     error?.message?.includes("cannot serialize BigInt")
   ) {
-    error = new BigIntSerializationError(error.message);
-    error.meta.push(
+    const bigIntSerializationError = new BigIntSerializationError(undefined, {
+      cause: error,
+    });
+    bigIntSerializationError.meta.push(
       "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
     );
+    return bigIntSerializationError;
   } else if (error?.message?.includes("does not exist")) {
-    error = new NonRetryableUserError(error.message);
+    return new NonRetryableUserError(error.message);
   } else if (error?.message?.includes("already exists")) {
-    error = new NonRetryableUserError(error.message);
+    return new NonRetryableUserError(error.message);
   } else if (
     error?.message?.includes(
       "terminating connection due to administrator command",
@@ -125,10 +134,8 @@ export const parseDbError = (error: any): Error => {
     error?.message?.includes("ETIMEDOUT") ||
     error?.message?.includes("timeout exceeded when trying to connect")
   ) {
-    error = new DbConnectionError(error.message);
+    return new DbConnectionError(error.message);
   }
-
-  error.stack = stack;
 
   return error;
 };
@@ -209,8 +216,8 @@ export const createQB = <
         }
 
         return result;
-      } catch (e) {
-        const error = parseDbError(e);
+      } catch (_error) {
+        let error = parseQBError(_error as Error);
 
         if (common.shutdown.isKilled) {
           throw new ShutdownError();
@@ -231,17 +238,14 @@ export const createQB = <
           firstError = error;
         }
 
-        // Two types of transaction environments
-        // 1. Inside callback (running user statements or control flow statements): Throw error, retry
-        // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
-        // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
+        // Three types of query environments
+        // 1. Query outside of a transaction: Retry immediately.
+        // 2. Query inside of a transaction: Throw error, retry later.
+        // We want the error bubbled up out of the transaction callback scope, so the
+        // so the control flow can rollback the transaction.
+        // 3. Transaction callback: Retry immediately if the error was from #2 or from control statements, else throw error.
 
-        if (isTransaction) {
-          if (error instanceof NonRetryableUserError) {
-            throw error;
-          }
-        } else if (isTransactionStatement) {
-          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
+        if (isTransaction === false && isTransactionStatement) {
           logger.warn({
             msg: "Failed database query",
             query: label,
@@ -249,7 +253,10 @@ export const createQB = <
             duration: endClock(),
             error,
           });
-          throw error;
+          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
+          throw new TransactionStatementError(undefined, { cause: error });
+        } else if (error instanceof TransactionCallbackError) {
+          throw error.cause;
         } else if (error instanceof NonRetryableUserError) {
           logger.warn({
             msg: "Failed database query",
@@ -259,6 +266,14 @@ export const createQB = <
             error,
           });
           throw error;
+        }
+
+        if (
+          isTransaction &&
+          error instanceof TransactionStatementError === false &&
+          error instanceof TransactionCallbackError === false
+        ) {
+          error = new TransactionControlError(undefined, { cause: error });
         }
 
         if (i === RETRY_COUNT) {
@@ -365,8 +380,16 @@ export const createQB = <
                 }
               };
 
-              const result = await callback(tx);
-              return result;
+              try {
+                const result = await callback(tx);
+                return result;
+              } catch (error) {
+                if (error instanceof TransactionStatementError) {
+                  throw error;
+                } else {
+                  throw new TransactionCallbackError({ cause: error as Error });
+                }
+              }
             }, config),
           {
             isTransaction: true,
@@ -447,8 +470,16 @@ export const createQB = <
                 }
               };
 
-              const result = await callback(tx);
-              return result;
+              try {
+                const result = await callback(tx);
+                return result;
+              } catch (error) {
+                if (error instanceof TransactionStatementError) {
+                  throw error;
+                } else {
+                  throw new TransactionCallbackError({ cause: error as Error });
+                }
+              }
             }, config),
           {
             label,
@@ -478,11 +509,26 @@ export const createQB = <
           { logger?: Logger } | undefined,
         ];
 
-        // @ts-expect-error
-        return retryLogMetricErrorWrap(() => callback(db), {
-          isTransactionStatement: true,
-          logger: context?.logger ?? common.logger,
-        });
+        return retryLogMetricErrorWrap(
+          async () => {
+            try {
+              // @ts-expect-error
+              const result = await callback(db);
+              return result;
+            } catch (error) {
+              if (error instanceof TransactionStatementError) {
+                throw error;
+              } else {
+                throw new TransactionCallbackError({ cause: error as Error });
+              }
+            }
+          },
+          {
+            isTransaction: false,
+            isTransactionStatement: true,
+            logger: context?.logger ?? common.logger,
+          },
+        );
       } else {
         const [{ label }, callback, context] = args as [
           { label: string },
@@ -496,12 +542,27 @@ export const createQB = <
           { logger?: Logger } | undefined,
         ];
 
-        // @ts-expect-error
-        return retryLogMetricErrorWrap(() => callback(db), {
-          label,
-          isTransactionStatement: true,
-          logger: context?.logger ?? common.logger,
-        });
+        return retryLogMetricErrorWrap(
+          async () => {
+            try {
+              // @ts-expect-error
+              const result = await callback(db);
+              return result;
+            } catch (error) {
+              if (error instanceof TransactionStatementError) {
+                throw error;
+              } else {
+                throw new TransactionCallbackError({ cause: error as Error });
+              }
+            }
+          },
+          {
+            label,
+            isTransaction: false,
+            isTransactionStatement: true,
+            logger: context?.logger ?? common.logger,
+          },
+        );
       }
     };
   }

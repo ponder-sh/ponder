@@ -101,6 +101,13 @@ test("QB transaction retries error", async () => {
   // BEGIN, BEGIN, SELECT, ROLLBACK, BEGIN, SELECT, COMMIT
   expect(querySpy).toHaveBeenCalledTimes(7);
 
+  // unrecognized errors are propagated
+  await expect(
+    qb.transaction({ label: "test1" }, async () => {
+      throw new Error("i'm an error");
+    }),
+  ).rejects.toThrow("i'm an error");
+
   connection.release();
 });
 

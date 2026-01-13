@@ -2,7 +2,6 @@ import type { QB } from "@/database/queryBuilder.js";
 import { onchain } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
-  DbConnectionError,
   InvalidStoreAccessError,
   InvalidStoreMethodError,
   NonRetryableUserError,
@@ -604,11 +603,7 @@ export const createIndexingStore = ({
               return result;
             });
           } catch (error) {
-            if (error instanceof DbConnectionError) {
-              throw error;
-            }
-
-            throw new RawSqlError((error as Error).message);
+            throw new RawSqlError(undefined, { cause: error as Error });
           } finally {
             common.metrics.ponder_indexing_store_raw_sql_duration.observe(
               endClock(),

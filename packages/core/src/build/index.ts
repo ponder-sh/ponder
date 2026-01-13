@@ -280,7 +280,7 @@ export const createBuild = async ({
         try {
           const contents = fs.readFileSync(file, "utf-8");
           hash.update(contents);
-        } catch (e) {
+        } catch {
           common.logger.warn({ msg: "Unable to read file", file });
           hash.update(file);
         }

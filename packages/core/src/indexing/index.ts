@@ -4,7 +4,6 @@ import type { IndexingStore } from "@/indexing-store/index.js";
 import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import {
-  BaseError,
   IndexingFunctionError,
   InvalidEventAccessError,
   ShutdownError,
@@ -256,11 +255,7 @@ export const createIndexing = ({
 
       common.metrics.hasError = true;
 
-      if (error instanceof BaseError === false) {
-        error = new IndexingFunctionError(error.message);
-      }
-
-      throw error;
+      throw new IndexingFunctionError(undefined, { cause: error as Error });
     }
   };
 
@@ -332,11 +327,7 @@ export const createIndexing = ({
 
       common.metrics.hasError = true;
 
-      if (error instanceof BaseError === false) {
-        error = new IndexingFunctionError(error.message);
-      }
-
-      throw error;
+      throw new IndexingFunctionError(undefined, { cause: error as Error });
     }
   };
 

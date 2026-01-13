@@ -131,7 +131,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
   // This can throw with "Cannot set property message of [object Object] which has only a getter"
   try {
     resolvedError.message = `Error while ${verb} ${file}: ${resolvedError.message}`;
-  } catch (e) {}
+  } catch {}
 
   return resolvedError;
 }

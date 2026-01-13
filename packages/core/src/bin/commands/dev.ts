@@ -3,7 +3,11 @@ import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
+import {
+  BaseError,
+  NonRetryableUserError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -457,19 +461,20 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
   });
   process.on("unhandledRejection", (error: Error) => {
     if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
+    if (error instanceof BaseError) {
       common.logger.error({
-        msg: "unhandledRejection",
-        error,
+        msg: `unhandledRejection: ${error.name}`,
       });
-
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
     } else {
       common.logger.error({
         msg: "unhandledRejection",
         error,
       });
+    }
+    if (error instanceof NonRetryableUserError) {
+      buildQueue.clear();
+      buildQueue.add({ status: "error", kind: "indexing", error });
+    } else {
       exit({ code: 75 });
     }
   });

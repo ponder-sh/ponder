@@ -1,4 +1,4 @@
-import { RpcProviderError } from "@/internal/errors.js";
+import { RpcRequestError } from "@/internal/errors.js";
 import type {
   LightBlock,
   SyncBlock,
@@ -320,7 +320,7 @@ export const validateTransactionsAndBlock = (
 ) => {
   for (const [index, transaction] of block.transactions.entries()) {
     if (block.hash !== transaction.blockHash) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockHash' of ${transaction.blockHash}, but the block itself has a 'block.hash' of ${block.hash}.`,
       );
       error.meta = [
@@ -331,7 +331,7 @@ export const validateTransactionsAndBlock = (
     }
 
     if (block.number !== transaction.blockNumber) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockNumber' of ${transaction.blockNumber} (${hexToNumber(transaction.blockNumber)}), but the block itself has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
       error.meta = [
@@ -359,7 +359,7 @@ export const validateLogsAndBlock = (
   >,
 ) => {
   if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       `Inconsistent RPC response data. The logs array has length 0, but the associated block has a non-empty 'block.logsBloom'.`,
     );
     error.meta = [
@@ -379,7 +379,7 @@ export const validateLogsAndBlock = (
 
   for (const log of logs) {
     if (block.hash !== log.blockHash) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockHash' of ${log.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
       );
       error.meta = [
@@ -391,7 +391,7 @@ export const validateLogsAndBlock = (
     }
 
     if (block.number !== log.blockNumber) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockNumber' of ${log.blockNumber} (${hexToNumber(log.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
       error.meta = [
@@ -405,7 +405,7 @@ export const validateLogsAndBlock = (
     if (log.transactionHash !== zeroHash) {
       const transaction = transactionByIndex.get(log.transactionIndex);
       if (transaction === undefined) {
-        const error = new RpcProviderError(
+        const error = new RpcRequestError(
           `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.transactionIndex' of ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
         );
         error.meta = [
@@ -415,7 +415,7 @@ export const validateLogsAndBlock = (
         ];
         throw error;
       } else if (transaction.hash !== log.transactionHash) {
-        const error = new RpcProviderError(
+        const error = new RpcRequestError(
           `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the log has a 'log.transactionHash' of ${log.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
         );
         error.meta = [
@@ -447,7 +447,7 @@ export const validateTracesAndBlock = (
   const transactionHashes = new Set(block.transactions.map((t) => t.hash));
   for (const [index, trace] of traces.entries()) {
     if (transactionHashes.has(trace.transactionHash) === false) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The top-level trace at array index ${index} has a 'transactionHash' of ${trace.transactionHash}, but the associated 'block.transactions' array does not contain a transaction matching that hash.`,
       );
       error.meta = [
@@ -461,7 +461,7 @@ export const validateTracesAndBlock = (
 
   // Use the fact that any transaction produces a trace to validate.
   if (block.transactions.length !== 0 && traces.length === 0) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       `Inconsistent RPC response data. The traces array has length 0, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
     );
     error.meta = [
@@ -497,7 +497,7 @@ export const validateReceiptsAndBlock = (
 
   for (const [index, receipt] of receipts.entries()) {
     if (block.hash !== receipt.blockHash) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockHash' of ${receipt.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
       );
       error.meta = [
@@ -509,7 +509,7 @@ export const validateReceiptsAndBlock = (
     }
 
     if (block.number !== receipt.blockNumber) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockNumber' of ${receipt.blockNumber} (${hexToNumber(receipt.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
       );
       error.meta = [
@@ -522,7 +522,7 @@ export const validateReceiptsAndBlock = (
 
     const transaction = transactionByIndex.get(receipt.transactionIndex);
     if (transaction === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.transactionIndex' of ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
       );
       error.meta = [
@@ -532,7 +532,7 @@ export const validateReceiptsAndBlock = (
       ];
       throw error;
     } else if (transaction.hash !== receipt.transactionHash) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The receipt at array index ${index} matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the receipt has a 'receipt.transactionHash' of ${receipt.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
       );
       error.meta = [
@@ -548,7 +548,7 @@ export const validateReceiptsAndBlock = (
     receiptsRequest.method === "eth_getBlockReceipts" &&
     block.transactions.length !== receipts.length
   ) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       `Inconsistent RPC response data. The receipts array has length ${receipts.length}, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
     );
     error.meta = [
@@ -603,7 +603,7 @@ export const standardizeBlock = <
 ): block extends SyncBlock ? SyncBlock : SyncBlockHeader => {
   // required properties
   if (block.hash === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'block.hash' is a required property",
     );
     error.meta = [
@@ -613,7 +613,7 @@ export const standardizeBlock = <
     throw error;
   }
   if (block.number === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'block.number' is a required property",
     );
     error.meta = [
@@ -623,7 +623,7 @@ export const standardizeBlock = <
     throw error;
   }
   if (block.timestamp === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'block.timestamp' is a required property",
     );
     error.meta = [
@@ -633,7 +633,7 @@ export const standardizeBlock = <
     throw error;
   }
   if (block.logsBloom === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'block.logsBloom' is a required property",
     );
     error.meta = [
@@ -643,7 +643,7 @@ export const standardizeBlock = <
     throw error;
   }
   if (block.parentHash === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'block.parentHash' is a required property",
     );
     error.meta = [
@@ -695,7 +695,7 @@ export const standardizeBlock = <
   }
 
   if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       `Invalid RPC response: 'block.number' (${hexToBigInt(block.number)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
@@ -705,7 +705,7 @@ export const standardizeBlock = <
     throw error;
   }
   if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       `Invalid RPC response: 'block.timestamp' (${hexToBigInt(block.timestamp)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
     );
     error.meta = [
@@ -770,7 +770,7 @@ export const standardizeTransactions = (
 
   for (const transaction of transactions) {
     if (transactionIds.has(transaction.transactionIndex)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The 'block.transactions' array contains two objects with a 'transactionIndex' of ${transaction.transactionIndex} (${hexToNumber(transaction.transactionIndex)}).`,
       );
       error.meta = [
@@ -784,7 +784,7 @@ export const standardizeTransactions = (
 
     // required properties
     if (transaction.hash === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'transaction.hash' is a required property",
       );
       error.meta = [
@@ -794,7 +794,7 @@ export const standardizeTransactions = (
       throw error;
     }
     if (transaction.transactionIndex === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'transaction.transactionIndex' is a required property",
       );
       error.meta = [
@@ -804,7 +804,7 @@ export const standardizeTransactions = (
       throw error;
     }
     if (transaction.blockNumber === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'transaction.blockNumber' is a required property",
       );
       error.meta = [
@@ -814,7 +814,7 @@ export const standardizeTransactions = (
       throw error;
     }
     if (transaction.blockHash === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'transaction.blockHash' is a required property",
       );
       error.meta = [
@@ -824,7 +824,7 @@ export const standardizeTransactions = (
       throw error;
     }
     if (transaction.from === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'transaction.from' is a required property",
       );
       error.meta = [
@@ -867,7 +867,7 @@ export const standardizeTransactions = (
     }
 
     if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'transaction.blockNumber' (${hexToBigInt(transaction.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
       );
       error.meta = [
@@ -877,7 +877,7 @@ export const standardizeTransactions = (
       throw error;
     }
     if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'transaction.transactionIndex' (${hexToBigInt(transaction.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
       );
       error.meta = [
@@ -887,7 +887,7 @@ export const standardizeTransactions = (
       throw error;
     }
     if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'transaction.nonce' (${hexToBigInt(transaction.nonce)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
       );
       error.meta = [
@@ -923,7 +923,7 @@ export const standardizeLogs = (
   const logIds = new Set<string>();
   for (const log of logs) {
     if (logIds.has(`${log.blockNumber}_${log.logIndex}`)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The logs array contains two objects with 'blockNumber' ${log.blockNumber} (${hexToNumber(log.blockNumber)}) and 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}).`,
       );
       error.meta = [
@@ -939,7 +939,7 @@ export const standardizeLogs = (
 
     // required properties
     if (log.blockNumber === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'log.blockNumber' is a required property",
       );
       error.meta = [
@@ -949,7 +949,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (log.logIndex === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'log.logIndex' is a required property",
       );
       error.meta = [
@@ -959,7 +959,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (log.blockHash === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'log.blockHash' is a required property",
       );
       error.meta = [
@@ -969,7 +969,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (log.address === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'log.address' is a required property",
       );
       error.meta = [
@@ -979,7 +979,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (log.topics === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'log.topics' is a required property",
       );
       error.meta = [
@@ -989,7 +989,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (log.data === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'log.data' is a required property",
       );
       error.meta = [
@@ -1011,7 +1011,7 @@ export const standardizeLogs = (
     }
 
     if (hexToBigInt(log.blockNumber) > PG_BIGINT_MAX) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'log.blockNumber' (${hexToBigInt(log.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
       );
       error.meta = [
@@ -1021,7 +1021,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (hexToBigInt(log.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'log.transactionIndex' (${hexToBigInt(log.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
       );
       error.meta = [
@@ -1031,7 +1031,7 @@ export const standardizeLogs = (
       throw error;
     }
     if (hexToBigInt(log.logIndex) > BigInt(PG_INTEGER_MAX)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'log.logIndex' (${hexToBigInt(log.logIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
       );
       error.meta = [
@@ -1067,7 +1067,7 @@ export const standardizeTrace = (
 ): SyncTrace => {
   // required properties
   if (trace.transactionHash === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'trace.transactionHash' is a required property",
     );
     error.meta = [
@@ -1077,7 +1077,7 @@ export const standardizeTrace = (
     throw error;
   }
   if (trace.trace.type === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'trace.type' is a required property",
     );
     error.meta = [
@@ -1087,7 +1087,7 @@ export const standardizeTrace = (
     throw error;
   }
   if (trace.trace.from === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'trace.from' is a required property",
     );
     error.meta = [
@@ -1097,7 +1097,7 @@ export const standardizeTrace = (
     throw error;
   }
   if (trace.trace.input === undefined) {
-    const error = new RpcProviderError(
+    const error = new RpcRequestError(
       "Invalid RPC response: 'trace.input' is a required property",
     );
     error.meta = [
@@ -1152,7 +1152,7 @@ export const standardizeTransactionReceipts = (
   const receiptIds = new Set<string>();
   for (const receipt of receipts) {
     if (receiptIds.has(receipt.transactionHash)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Inconsistent RPC response data. The receipts array contains two objects with a 'transactionHash' of ${receipt.transactionHash}.`,
       );
       error.meta = [
@@ -1166,7 +1166,7 @@ export const standardizeTransactionReceipts = (
 
     // required properties
     if (receipt.blockHash === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'receipt.blockHash' is a required property",
       );
       error.meta = [
@@ -1176,7 +1176,7 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
     if (receipt.blockNumber === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'receipt.blockNumber' is a required property",
       );
       error.meta = [
@@ -1186,7 +1186,7 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
     if (receipt.transactionHash === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'receipt.transactionHash' is a required property",
       );
       error.meta = [
@@ -1196,7 +1196,7 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
     if (receipt.transactionIndex === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'receipt.transactionIndex' is a required property",
       );
       error.meta = [
@@ -1206,7 +1206,7 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
     if (receipt.from === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'receipt.from' is a required property",
       );
       error.meta = [
@@ -1216,7 +1216,7 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
     if (receipt.status === undefined) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         "Invalid RPC response: 'receipt.status' is a required property",
       );
       error.meta = [
@@ -1256,7 +1256,7 @@ export const standardizeTransactionReceipts = (
     }
 
     if (hexToBigInt(receipt.blockNumber) > PG_BIGINT_MAX) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'receipt.blockNumber' (${hexToBigInt(receipt.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
       );
       error.meta = [
@@ -1266,7 +1266,7 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
     if (hexToBigInt(receipt.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
-      const error = new RpcProviderError(
+      const error = new RpcRequestError(
         `Invalid RPC response: 'receipt.transactionIndex' (${hexToBigInt(receipt.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
       );
       error.meta = [

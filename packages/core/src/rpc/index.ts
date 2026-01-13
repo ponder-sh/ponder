@@ -1,6 +1,7 @@
 import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
+import { RpcRequestError } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
@@ -22,7 +23,6 @@ import {
   MethodNotSupportedRpcError,
   ParseRpcError,
   type PublicRpcSchema,
-  type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
   custom,
@@ -542,8 +542,10 @@ export const createRpc = ({
           bucket.reactivationDelay = INITIAL_REACTIVATION_DELAY;
 
           return response as RequestReturnType<typeof body.method>;
-        } catch (e) {
-          const error = e as Error;
+        } catch (_error) {
+          const error = new RpcRequestError(undefined, {
+            cause: _error as Error,
+          });
 
           common.metrics.ponder_rpc_request_error_total.inc(
             { method: body.method, chain: chain.name },
@@ -558,7 +560,7 @@ export const createRpc = ({
           ) {
             const getLogsErrorResponse = getLogsRetryHelper({
               params: body.params as GetLogsRetryHelperParameters["params"],
-              error: error as RpcError,
+              error,
             });
 
             if (getLogsErrorResponse.shouldRetry) {
@@ -571,12 +573,11 @@ export const createRpc = ({
                 method: body.method,
                 request: JSON.stringify(body),
                 retry_ranges: JSON.stringify(getLogsErrorResponse.ranges),
-                error: error as Error,
+                error,
               });
 
               throw error;
             } else {
-              // @ts-ignore
               error.meta = [
                 "Tip: Use the ethGetLogsBlockRange option to override the default behavior for this chain",
               ];
@@ -585,52 +586,44 @@ export const createRpc = ({
 
           addLatency(bucket, endClock(), false);
 
-          if (
-            // @ts-ignore
-            error.code === 429 ||
-            // @ts-ignore
-            error.status === 429 ||
-            error instanceof TimeoutError
-          ) {
-            if (bucket.isActive) {
-              bucket.isActive = false;
-              bucket.isWarmingUp = false;
+          if (shouldRateLimit(error.cause) && bucket.isActive) {
+            bucket.isActive = false;
+            bucket.isWarmingUp = false;
 
-              bucket.rpsLimit = Math.max(
-                bucket.rpsLimit * RPS_DECREASE_FACTOR,
-                MIN_RPS,
-              );
-              bucket.consecutiveSuccessfulRequests = 0;
+            bucket.rpsLimit = Math.max(
+              bucket.rpsLimit * RPS_DECREASE_FACTOR,
+              MIN_RPS,
+            );
+            bucket.consecutiveSuccessfulRequests = 0;
 
-              common.logger.debug({
-                msg: "JSON-RPC provider rate limited",
+            common.logger.debug({
+              msg: "JSON-RPC provider rate limited",
+              chain: chain.name,
+              chain_id: chain.id,
+              hostname: bucket.hostname,
+              rps_limit: Math.floor(bucket.rpsLimit),
+            });
+
+            scheduleBucketActivation(bucket);
+
+            if (buckets.every((b) => b.isActive === false)) {
+              logger.warn({
+                msg: "All JSON-RPC providers are inactive",
                 chain: chain.name,
                 chain_id: chain.id,
-                hostname: bucket.hostname,
-                rps_limit: Math.floor(bucket.rpsLimit),
               });
-
-              scheduleBucketActivation(bucket);
-
-              if (buckets.every((b) => b.isActive === false)) {
-                logger.warn({
-                  msg: "All JSON-RPC providers are inactive",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                });
-              }
-
-              bucket.reactivationDelay =
-                error instanceof TimeoutError
-                  ? INITIAL_REACTIVATION_DELAY
-                  : Math.min(
-                      bucket.reactivationDelay * BACKOFF_FACTOR,
-                      MAX_REACTIVATION_DELAY,
-                    );
             }
+
+            bucket.reactivationDelay =
+              error.cause instanceof TimeoutError
+                ? INITIAL_REACTIVATION_DELAY
+                : Math.min(
+                    bucket.reactivationDelay * BACKOFF_FACTOR,
+                    MAX_REACTIVATION_DELAY,
+                  );
           }
 
-          if (shouldRetry(error) === false) {
+          if (shouldRetry(error.cause) === false) {
             logger.warn({
               msg: "Received JSON-RPC error",
               chain: chain.name,
@@ -956,4 +949,14 @@ function shouldRetry(error: Error) {
     if (error.status === 505) return false;
   }
   return true;
+}
+
+function shouldRateLimit(error: Error) {
+  return (
+    // @ts-ignore
+    error.code === 429 ||
+    // @ts-ignore
+    error.status === 429 ||
+    error instanceof TimeoutError
+  );
 }

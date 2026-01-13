@@ -115,14 +115,14 @@ export class DbConnectionError extends RetryableError {
   }
 }
 
-export class TransactionStatementError extends RetryableError {
-  override name = "TransactionStatementError";
+// export class TransactionStatementError extends RetryableError {
+//   override name = "TransactionStatementError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, TransactionStatementError.prototype);
-  }
-}
+//   constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+//     super(message, { cause });
+//     Object.setPrototypeOf(this, TransactionStatementError.prototype);
+//   }
+// }
 
 export class CopyFlushError extends RetryableError {
   override name = "CopyFlushError";
@@ -201,12 +201,67 @@ export class IndexingFunctionError extends NonRetryableUserError {
   }
 }
 
-export class RpcProviderError extends BaseError {
-  override name = "RpcProviderError";
+/**
+ * @dev All JSON-RPC request errors are retryable.
+ */
+export class RpcRequestError<
+  cause extends Error | undefined = undefined,
+> extends RetryableError {
+  override name = "RpcRequestError";
+  override cause: cause;
+
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
+    // @ts-ignore
+    this.cause = cause;
+    Object.setPrototypeOf(this, RpcRequestError.prototype);
+  }
+}
+
+export class QueryBuilderRetryableError extends RetryableError {
+  override name = "QueryBuilderRetryableError";
 
   constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
     super(message, { cause });
-    Object.setPrototypeOf(this, RpcProviderError.prototype);
+    Object.setPrototypeOf(this, QueryBuilderRetryableError.prototype);
+  }
+}
+
+export class QueryBuilderNonRetryableError extends NonRetryableUserError {
+  override name = "QueryBuilderNonRetryableError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, QueryBuilderNonRetryableError.prototype);
+  }
+}
+
+export class TransactionControlError extends QueryBuilderRetryableError {
+  override name = "TransactionControlError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, TransactionControlError.prototype);
+  }
+}
+
+export class TransactionStatementError extends QueryBuilderRetryableError {
+  override name = "TransactionStatementError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, TransactionStatementError.prototype);
+  }
+}
+
+export class TransactionCallbackError extends QueryBuilderRetryableError {
+  override name = "TransactionCallbackError";
+  override cause: Error;
+
+  constructor({ cause }: { cause: Error }) {
+    super(undefined, { cause });
+    this.cause = cause;
+    Object.setPrototypeOf(this, TransactionCallbackError.prototype);
   }
 }
 

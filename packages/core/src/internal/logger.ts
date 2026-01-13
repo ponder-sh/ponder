@@ -2,6 +2,7 @@ import type { Prettify } from "@/types/utils.js";
 import { formatEta } from "@/utils/format.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
+import { NonRetryableUserError } from "./errors.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
@@ -235,7 +236,7 @@ const format = (log: Log) => {
   }
 
   if (log.error) {
-    if (log.error.stack) {
+    if (log.error.stack && log.error instanceof NonRetryableUserError) {
       prettyLog.push(log.error.stack);
     } else {
       prettyLog.push(`${log.error.name}: ${log.error.message}`);
