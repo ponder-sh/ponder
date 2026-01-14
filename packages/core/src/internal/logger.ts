@@ -7,7 +7,12 @@ import type { Prettify } from "@/types/utils.js";
 import { formatEta } from "@/utils/format.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
-import { BaseError, IndexingFunctionError, ServerError } from "./errors.js";
+import {
+  BaseError,
+  ExecuteFileError,
+  IndexingFunctionError,
+  ServerError,
+} from "./errors.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
@@ -304,6 +309,7 @@ function populateErrorMessageAndStack(error: Error): void {
 function shouldPrintErrorStack(error: Error): boolean {
   if (error instanceof ServerError) return true;
   if (error instanceof IndexingFunctionError) return true;
+  if (error instanceof ExecuteFileError) return true;
   if (error instanceof ESBuildTransformError) return true;
   if (error instanceof ESBuildBuildError) return true;
   if (error instanceof ESBuildContextError) return true;

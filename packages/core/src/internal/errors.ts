@@ -36,6 +36,17 @@ export class BuildError<
   }
 }
 
+export class ExecuteFileError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "ExecuteFileError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, ExecuteFileError.prototype);
+  }
+}
+
 export class RpcRequestError<
   cause extends Error | undefined = undefined,
 > extends BaseError<cause> {
@@ -247,6 +258,7 @@ export class MigrationError<
  */
 export function isUserDerivedError(error: BaseError): boolean {
   if (error instanceof BuildError) return true;
+  if (error instanceof ExecuteFileError) return true;
   if (error instanceof IndexingDBError) return true;
   if (error instanceof DelayedInsertError) return true;
   if (

@@ -6,7 +6,7 @@ import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
-import { BuildError } from "@/internal/errors.js";
+import { BuildError, ExecuteFileError } from "@/internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -178,9 +178,11 @@ export const createBuild = async ({
       return { status: "success", exports } as const;
     } catch (error_) {
       const relativePath = path.relative(common.options.rootDir, file);
-      const error = new BuildError(undefined, {
-        cause: parseViteNodeError(relativePath, error_ as Error),
+      const viteError = parseViteNodeError(relativePath, error_ as Error);
+      const error = new ExecuteFileError(undefined, {
+        cause: viteError,
       });
+      error.stack = viteError.stack;
       return { status: "error", error } as const;
     }
   };
@@ -392,46 +394,58 @@ export const createBuild = async ({
       } as const;
     },
     preCompile({ config }): Result<PreBuild> {
-      const preBuild = buildPre({
-        config,
-        options: common.options,
-        logger: common.logger,
-      });
+      try {
+        const preBuild = buildPre({
+          config,
+          options: common.options,
+          logger: common.logger,
+        });
 
-      return {
-        status: "success",
-        result: {
-          databaseConfig: preBuild.databaseConfig,
-          ordering: preBuild.ordering,
-        },
-      } as const;
+        return {
+          status: "success",
+          result: {
+            databaseConfig: preBuild.databaseConfig,
+            ordering: preBuild.ordering,
+          },
+        } as const;
+      } catch (error) {
+        return { status: "error", error: error as Error } as const;
+      }
     },
     compileSchema({ schema, preBuild }) {
-      const { statements } = buildSchema({ schema, preBuild });
+      try {
+        const { statements } = buildSchema({ schema, preBuild });
 
-      return {
-        status: "success",
-        result: { schema, statements },
-      } as const;
+        return {
+          status: "success",
+          result: { schema, statements },
+        } as const;
+      } catch (error) {
+        return { status: "error", error: error as Error } as const;
+      }
     },
     compileConfig({ configResult }) {
-      const buildConfigResult = buildConfig({
-        common,
-        config: configResult.config,
-      });
+      try {
+        const buildConfigResult = buildConfig({
+          common,
+          config: configResult.config,
+        });
 
-      for (const log of buildConfigResult.logs) {
-        const { level, ...rest } = log;
-        common.logger[level](rest);
+        for (const log of buildConfigResult.logs) {
+          const { level, ...rest } = log;
+          common.logger[level](rest);
+        }
+
+        return {
+          status: "success",
+          result: {
+            chains: buildConfigResult.chains,
+            rpcs: buildConfigResult.rpcs,
+          },
+        } as const;
+      } catch (error) {
+        return { status: "error", error: error as Error } as const;
       }
-
-      return {
-        status: "success",
-        result: {
-          chains: buildConfigResult.chains,
-          rpcs: buildConfigResult.rpcs,
-        },
-      } as const;
     },
     async compileIndexing({
       configResult,
@@ -439,39 +453,43 @@ export const createBuild = async ({
       indexingResult,
       configBuild,
     }) {
-      const buildIndexingFunctionsResult = await buildIndexingFunctions({
-        common,
-        config: configResult.config,
-        indexingFunctions: indexingResult.indexingFunctions,
-        configBuild,
-      });
-
-      for (const log of buildIndexingFunctionsResult.logs) {
-        const { level, ...rest } = log;
-        common.logger[level](rest);
-      }
-
-      const buildId = createHash("sha256")
-        .update(BUILD_ID_VERSION)
-        .update(configResult.contentHash)
-        .update(schemaResult.contentHash)
-        .update(indexingResult.contentHash)
-        .digest("hex")
-        .slice(0, 10);
-
-      return {
-        status: "success",
-        result: {
-          buildId,
-          chains: buildIndexingFunctionsResult.chains,
-          rpcs: buildIndexingFunctionsResult.rpcs,
-          finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
-          eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
-          setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
-          contracts: buildIndexingFunctionsResult.contracts,
+      try {
+        const buildIndexingFunctionsResult = await buildIndexingFunctions({
+          common,
+          config: configResult.config,
           indexingFunctions: indexingResult.indexingFunctions,
-        },
-      } as const;
+          configBuild,
+        });
+
+        for (const log of buildIndexingFunctionsResult.logs) {
+          const { level, ...rest } = log;
+          common.logger[level](rest);
+        }
+
+        const buildId = createHash("sha256")
+          .update(BUILD_ID_VERSION)
+          .update(configResult.contentHash)
+          .update(schemaResult.contentHash)
+          .update(indexingResult.contentHash)
+          .digest("hex")
+          .slice(0, 10);
+
+        return {
+          status: "success",
+          result: {
+            buildId,
+            chains: buildIndexingFunctionsResult.chains,
+            rpcs: buildIndexingFunctionsResult.rpcs,
+            finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
+            eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
+            setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
+            contracts: buildIndexingFunctionsResult.contracts,
+            indexingFunctions: indexingResult.indexingFunctions,
+          },
+        } as const;
+      } catch (error) {
+        return { status: "error", error: error as Error } as const;
+      }
     },
     async compileApi({ apiResult }) {
       for (const route of apiResult.app.routes) {
