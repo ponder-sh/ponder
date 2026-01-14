@@ -110,8 +110,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         //   common.logger.error({ error: result.error });
         // }
 
-        console.log(result.kind);
-
         // This handles indexing function build failures on hot reload.
         metrics.hasError = true;
         return;

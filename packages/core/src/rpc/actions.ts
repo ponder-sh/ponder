@@ -931,7 +931,6 @@ export const standardizeLogs = (
         requestText(request),
       ];
 
-      console.log(logs);
       throw error;
     } else {
       logIds.add(`${log.blockNumber}_${log.logIndex}`);

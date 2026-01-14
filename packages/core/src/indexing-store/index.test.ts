@@ -572,7 +572,8 @@ test("sql", async () => {
         .values({
           address: "0x0000000000000000000000000000000000000001",
           balance: undefined,
-        }),
+        })
+        .then((res) => res),
     ).rejects.toThrow(RawSqlError);
 
     // TODO(kyle) check constraint
@@ -584,7 +585,8 @@ test("sql", async () => {
     await expect(
       indexingStore.db.sql
         .insert(schema.account)
-        .values({ address: zeroAddress, balance: 10n }),
+        .values({ address: zeroAddress, balance: 10n })
+        .then((res) => res),
     ).rejects.toThrow(RawSqlError);
   });
 });
