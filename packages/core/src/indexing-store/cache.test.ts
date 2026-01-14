@@ -11,7 +11,7 @@ import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getErc20IndexingBuild, getSimulatedEvent } from "@/_test/utils.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import { getEventCount } from "@/indexing/index.js";
-import type { RetryableError } from "@/internal/errors.js";
+import { DelayedInsertError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import { parseEther, zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
@@ -24,16 +24,16 @@ beforeEach(setupCleanup);
 beforeEach(setupAnvil);
 
 const indexingErrorHandler: IndexingErrorHandler = {
-  getRetryableError: () => {
+  getError: () => {
     return indexingErrorHandler.error;
   },
-  setRetryableError: (error: RetryableError) => {
+  setError: (error: Error) => {
     indexingErrorHandler.error = error;
   },
-  clearRetryableError: () => {
+  clearError: () => {
     indexingErrorHandler.error = undefined;
   },
-  error: undefined as RetryableError | undefined,
+  error: undefined as Error | undefined,
 };
 
 test("flush() insert", async () => {
@@ -215,9 +215,7 @@ test("flush() recovers error", async () => {
       balance: 10n,
     });
 
-    await expect(indexingCache.flush()).rejects.toThrowError(
-      `duplicate key value violates unique constraint "account_pkey"`,
-    );
+    await expect(indexingCache.flush()).rejects.toThrow(DelayedInsertError);
   });
 });
 

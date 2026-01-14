@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
 import {
+  BaseError,
   BigIntSerializationError,
   QueryBuilderError,
   ShutdownError,
@@ -545,7 +546,7 @@ export const createQB = <
   return qb;
 };
 
-function shouldRetry(error: Error) {
+export function shouldRetry(error: Error) {
   if (error?.message?.includes("violates not-null constraint")) {
     return false;
   }
@@ -572,6 +573,9 @@ function shouldRetry(error: Error) {
   }
   if (error?.message?.includes("syntax error")) {
     return false;
+  }
+  if (error instanceof BaseError && error.cause) {
+    if (shouldRetry(error.cause) === false) return false;
   }
 
   //  if (

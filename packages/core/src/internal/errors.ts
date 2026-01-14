@@ -1,8 +1,3 @@
-import {
-  ESBuildBuildError,
-  ESBuildContextError,
-  ESBuildTransformError,
-} from "@/build/stacktrace.js";
 import type { getLogsRetryHelper } from "@ponder/utils";
 
 /** Base class for all known errors. */
@@ -264,23 +259,5 @@ export function isUserDerivedError(error: BaseError): boolean {
   if (error instanceof BaseError && error.cause) {
     if (isUserDerivedError(error.cause)) return true;
   }
-  return false;
-}
-
-export function stripErrorStack(error: Error): void {
-  if (shouldPrintErrorStack(error) === false) {
-    error.stack = undefined;
-  }
-  if (error instanceof BaseError && error.cause) {
-    stripErrorStack(error.cause);
-  }
-}
-
-export function shouldPrintErrorStack(error: Error): boolean {
-  if (error instanceof ServerError) return true;
-  if (error instanceof IndexingFunctionError) return true;
-  if (error instanceof ESBuildTransformError) return true;
-  if (error instanceof ESBuildBuildError) return true;
-  if (error instanceof ESBuildContextError) return true;
   return false;
 }

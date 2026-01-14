@@ -48,7 +48,7 @@ import {
   dropLiveQueryTriggers,
   dropTriggers,
 } from "./actions.js";
-import { type QB, createQB } from "./queryBuilder.js";
+import { type QB, createQB, shouldRetry } from "./queryBuilder.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
@@ -468,14 +468,13 @@ export const createDatabase = ({
             method: "migrate_sync",
           });
 
-          common.logger.warn({
-            msg: "Failed database query",
-            query: "migrate_sync",
-            retry_count: i,
-            error,
-          });
-
-          // TODO(kyle) shouldRetry()
+          if (shouldRetry(error.cause) === false) {
+            common.logger.warn({
+              msg: "Failed database query",
+              query: "migrate_sync",
+              error,
+            });
+          }
 
           if (i === 9) {
             common.logger.warn({

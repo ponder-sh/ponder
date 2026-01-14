@@ -1,7 +1,11 @@
 import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
-import { EthGetLogsRangeError, RpcRequestError } from "@/internal/errors.js";
+import {
+  EthGetLogsRangeError,
+  RpcRequestError,
+  ShutdownError,
+} from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
@@ -546,6 +550,10 @@ export const createRpc = ({
           const error = new RpcRequestError(undefined, {
             cause: _error as Error,
           });
+
+          if (common.shutdown.isKilled) {
+            throw new ShutdownError();
+          }
 
           common.metrics.ponder_rpc_request_error_total.inc(
             { method: body.method, chain: chain.name },

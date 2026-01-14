@@ -1330,23 +1330,6 @@ export async function* getLocalSyncGenerator(params: {
           return closestToTipBlock;
         },
       );
-      // TODO(kyle) don't log here because it's not a decision boundary, instead
-      // add context to inner errors.
-      // .catch((error) => {
-      //   if (error instanceof ShutdownError) {
-      //     throw error;
-      //   }
-
-      //   params.common.logger.warn({
-      //     msg: "Failed to fetch backfill JSON-RPC data",
-      //     chain: params.chain.name,
-      //     chain_id: params.chain.id,
-      //     block_range: JSON.stringify(interval),
-      //     duration: endClock(),
-      //     error,
-      //   });
-      //   throw error;
-      // });
 
       clearTimeout(durationTimer);
 

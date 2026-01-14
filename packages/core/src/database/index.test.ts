@@ -7,7 +7,6 @@ import {
   onchainView,
   primaryKey,
 } from "@/drizzle/onchain.js";
-import type { RetryableError } from "@/internal/errors.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
@@ -55,16 +54,16 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
 }
 
 const indexingErrorHandler: IndexingErrorHandler = {
-  getRetryableError: () => {
+  getError: () => {
     return indexingErrorHandler.error;
   },
-  setRetryableError: (error: RetryableError) => {
+  setError: (error: Error) => {
     indexingErrorHandler.error = error;
   },
-  clearRetryableError: () => {
+  clearError: () => {
     indexingErrorHandler.error = undefined;
   },
-  error: undefined as RetryableError | undefined,
+  error: undefined as Error | undefined,
 };
 
 test("migrate() succeeds with empty schema", async () => {
