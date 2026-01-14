@@ -85,6 +85,7 @@ export function createLogger({
         }
         if (options.error && options.error instanceof Error) {
           stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
         logger.error(options);
       },
@@ -98,7 +99,9 @@ export function createLogger({
         }
         if (options.error && options.error instanceof Error) {
           stripErrorStack(options.error);
+          populateErrorMessageAndStack(options.error);
         }
+
         logger.warn(options);
       },
       info<T extends Omit<Log, "level" | "time">>(
@@ -111,6 +114,7 @@ export function createLogger({
         }
         if (options.error && options.error instanceof Error) {
           stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
         logger.info(options);
       },
@@ -124,6 +128,7 @@ export function createLogger({
         }
         if (options.error && options.error instanceof Error) {
           stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
 
         logger.debug(options);
@@ -138,6 +143,7 @@ export function createLogger({
         }
         if (options.error && options.error instanceof Error) {
           stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
         logger.trace(options);
       },
@@ -280,6 +286,18 @@ function stripErrorStack(error: Error): void {
   }
   if (error instanceof BaseError && error.cause) {
     stripErrorStack(error.cause);
+  }
+}
+
+function populateErrorMessageAndStack(error: Error): void {
+  if (error.message === undefined || error.message === "") {
+    error.message = error.name;
+  }
+  if (error.stack === undefined) {
+    error.stack = error.message;
+  }
+  if (error instanceof BaseError && error.cause) {
+    populateErrorMessageAndStack(error.cause);
   }
 }
 
