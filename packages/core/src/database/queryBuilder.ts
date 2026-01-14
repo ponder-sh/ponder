@@ -1,19 +1,10 @@
 import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
 import {
-  BaseError,
-  TransactionCallbackError,
-  TransactionControlError,
-  TransactionStatementError,
-} from "@/internal/errors.js";
-import {
-  BigIntSerializationError,
-  CheckConstraintError,
-  DbConnectionError,
-  NonRetryableUserError,
-  NotNullConstraintError,
+  QueryBuilderError,
   ShutdownError,
-  UniqueConstraintError,
+  TransactionCallbackError,
+  TransactionStatementError,
 } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Schema } from "@/internal/types.js";
@@ -94,51 +85,51 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-export const parseQBError = (error: Error): Error => {
-  // TODO(kyle) how to know if the error is a query builder error?
+// export const parseQBError = (error: Error): Error => {
+//   // TODO(kyle) how to know if the error is a query builder error?
 
-  // TODO(kyle) do we need this?
-  if (error instanceof BaseError) return error;
+//   // TODO(kyle) do we need this?
+//   if (error instanceof BaseError) return error;
 
-  if (error?.message?.includes("violates not-null constraint")) {
-    return new NotNullConstraintError(undefined, { cause: error });
-  } else if (error?.message?.includes("violates unique constraint")) {
-    return new UniqueConstraintError(undefined, { cause: error });
-  } else if (error?.message?.includes("violates check constraint")) {
-    return new CheckConstraintError(undefined, { cause: error });
-  } else if (
-    // nodejs error message
-    error?.message?.includes("Do not know how to serialize a BigInt") ||
-    // bun error message
-    error?.message?.includes("cannot serialize BigInt")
-  ) {
-    const bigIntSerializationError = new BigIntSerializationError(undefined, {
-      cause: error,
-    });
-    bigIntSerializationError.meta.push(
-      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
-    );
-    return bigIntSerializationError;
-  } else if (error?.message?.includes("does not exist")) {
-    return new NonRetryableUserError(error.message);
-  } else if (error?.message?.includes("already exists")) {
-    return new NonRetryableUserError(error.message);
-  } else if (
-    error?.message?.includes(
-      "terminating connection due to administrator command",
-    ) ||
-    error?.message?.includes("connection to client lost") ||
-    error?.message?.includes("too many clients already") ||
-    error?.message?.includes("Connection terminated unexpectedly") ||
-    error?.message?.includes("ECONNRESET") ||
-    error?.message?.includes("ETIMEDOUT") ||
-    error?.message?.includes("timeout exceeded when trying to connect")
-  ) {
-    return new DbConnectionError(error.message);
-  }
+//   if (error?.message?.includes("violates not-null constraint")) {
+//     return new NotNullConstraintError(undefined, { cause: error });
+//   } else if (error?.message?.includes("violates unique constraint")) {
+//     return new UniqueConstraintError(undefined, { cause: error });
+//   } else if (error?.message?.includes("violates check constraint")) {
+//     return new CheckConstraintError(undefined, { cause: error });
+//   } else if (
+//     // nodejs error message
+//     error?.message?.includes("Do not know how to serialize a BigInt") ||
+//     // bun error message
+//     error?.message?.includes("cannot serialize BigInt")
+//   ) {
+//     const bigIntSerializationError = new BigIntSerializationError(undefined, {
+//       cause: error,
+//     });
+//     bigIntSerializationError.meta.push(
+//       "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
+//     );
+//     return bigIntSerializationError;
+//   } else if (error?.message?.includes("does not exist")) {
+//     return new NonRetryableUserError(error.message);
+//   } else if (error?.message?.includes("already exists")) {
+//     return new NonRetryableUserError(error.message);
+//   } else if (
+//     error?.message?.includes(
+//       "terminating connection due to administrator command",
+//     ) ||
+//     error?.message?.includes("connection to client lost") ||
+//     error?.message?.includes("too many clients already") ||
+//     error?.message?.includes("Connection terminated unexpectedly") ||
+//     error?.message?.includes("ECONNRESET") ||
+//     error?.message?.includes("ETIMEDOUT") ||
+//     error?.message?.includes("timeout exceeded when trying to connect")
+//   ) {
+//     return new DbConnectionError(error.message);
+//   }
 
-  return error;
-};
+//   return error;
+// };
 
 /**
  * Create a query builder.
@@ -217,7 +208,15 @@ export const createQB = <
 
         return result;
       } catch (_error) {
-        let error = parseQBError(_error as Error);
+        const error = new QueryBuilderError({ cause: _error as Error });
+
+        // TODO(kyle) determine transaction control error?
+        // if (
+        //   isTransaction &&
+        //   error instanceof TransactionStatementError === false &&
+        //   error instanceof TransactionCallbackError === false
+        // ) {
+        // }
 
         if (common.shutdown.isKilled) {
           throw new ShutdownError();
@@ -238,12 +237,12 @@ export const createQB = <
           firstError = error;
         }
 
-        // Three types of query environments
-        // 1. Query outside of a transaction: Retry immediately.
-        // 2. Query inside of a transaction: Throw error, retry later.
-        // We want the error bubbled up out of the transaction callback scope, so the
-        // so the control flow can rollback the transaction.
-        // 3. Transaction callback: Retry immediately if the error was from #2 or from control statements, else throw error.
+        // Contexts:
+        // 1. Query outside of a transaction.
+        // 2. Query inside of a transaction.
+        // 3. Transaction query: Could be caused by a query in the transaction callback,
+        // a transaction control statement, or a wildcard error that is not related to
+        // the query builder.
 
         if (isTransaction === false && isTransactionStatement) {
           logger.warn({
@@ -253,28 +252,15 @@ export const createQB = <
             duration: endClock(),
             error,
           });
-          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
-          throw new TransactionStatementError(undefined, { cause: error });
-        } else if (error instanceof TransactionCallbackError) {
-          throw error.cause;
-        } else if (error instanceof NonRetryableUserError) {
-          logger.warn({
-            msg: "Failed database query",
-            query: label,
-            query_id: id,
-            duration: endClock(),
-            error,
-          });
-          throw error;
+          // Transaction statements are not immediately retried, so the transaction
+          // will be properly rolled back.
+          throw new TransactionStatementError({ cause: error });
+        } else if (error.cause instanceof TransactionCallbackError) {
+          // Unrelated errors are bubbled out of the query builder.
+          throw error.cause.cause;
         }
 
-        if (
-          isTransaction &&
-          error instanceof TransactionStatementError === false &&
-          error instanceof TransactionCallbackError === false
-        ) {
-          error = new TransactionControlError(undefined, { cause: error });
-        }
+        // TODO(kyle) shouldRetry()
 
         if (i === RETRY_COUNT) {
           logger.warn({
@@ -596,3 +582,7 @@ export const createQB = <
 
   return qb;
 };
+
+// function shouldRetry(error: Error) {
+//   return true;
+// }

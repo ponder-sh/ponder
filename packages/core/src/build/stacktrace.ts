@@ -2,15 +2,15 @@ import { readFileSync } from "node:fs";
 import { codeFrameColumns } from "@babel/code-frame";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
-class ESBuildTransformError extends Error {
+export class ESBuildTransformError extends Error {
   override name = "ESBuildTransformError";
 }
 
-class ESBuildBuildError extends Error {
+export class ESBuildBuildError extends Error {
   override name = "ESBuildBuildError";
 }
 
-class ESBuildContextError extends Error {
+export class ESBuildContextError extends Error {
   override name = "ESBuildContextError";
 }
 

@@ -5,8 +5,8 @@ import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   BaseError,
-  NonRetryableUserError,
   ShutdownError,
+  isUserDerivedError,
 } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -106,11 +106,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       }
 
       if (result.status === "error") {
-        if (isInitialBuild === false) {
-          common.logger.error({
-            error: result.error,
-          });
-        }
+        // if (isInitialBuild === false) {
+        //   common.logger.error({ error: result.error });
+        // }
+
+        console.log(result.kind);
 
         // This handles indexing function build failures on hot reload.
         metrics.hasError = true;
@@ -443,38 +443,31 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   process.on("uncaughtException", (error: Error) => {
     if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
-
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
+    if (error instanceof BaseError) {
+      common.logger.error({ msg: `uncaughtException: ${error.name}` });
+      if (isUserDerivedError(error)) {
+        buildQueue.clear();
+        buildQueue.add({ status: "error", kind: "indexing", error });
+      } else {
+        exit({ code: 75 });
+      }
     } else {
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
+      common.logger.error({ msg: "uncaughtException", error });
       exit({ code: 75 });
     }
   });
   process.on("unhandledRejection", (error: Error) => {
     if (error instanceof ShutdownError) return;
     if (error instanceof BaseError) {
-      common.logger.error({
-        msg: `unhandledRejection: ${error.name}`,
-      });
+      common.logger.error({ msg: `unhandledRejection: ${error.name}` });
+      if (isUserDerivedError(error)) {
+        buildQueue.clear();
+        buildQueue.add({ status: "error", kind: "indexing", error });
+      } else {
+        exit({ code: 75 });
+      }
     } else {
-      common.logger.error({
-        msg: "unhandledRejection",
-        error,
-      });
-    }
-    if (error instanceof NonRetryableUserError) {
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
-    } else {
+      common.logger.error({ msg: "unhandledRejection", error });
       exit({ code: 75 });
     }
   });

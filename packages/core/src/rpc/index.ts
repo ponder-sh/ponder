@@ -1,7 +1,7 @@
 import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import type { Common } from "@/internal/common.js";
-import { RpcRequestError } from "@/internal/errors.js";
+import { EthGetLogsRangeError, RpcRequestError } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
@@ -576,7 +576,10 @@ export const createRpc = ({
                 error,
               });
 
-              throw error;
+              throw new EthGetLogsRangeError(
+                { cause: error },
+                getLogsErrorResponse,
+              );
             } else {
               error.meta = [
                 "Tip: Use the ethGetLogsBlockRange option to override the default behavior for this chain",
@@ -952,11 +955,10 @@ function shouldRetry(error: Error) {
 }
 
 function shouldRateLimit(error: Error) {
-  return (
-    // @ts-ignore
-    error.code === 429 ||
-    // @ts-ignore
-    error.status === 429 ||
-    error instanceof TimeoutError
-  );
+  // @ts-ignore
+  if (error.code === 429) return true;
+  // @ts-ignore
+  if (error.status === 429) return true;
+  if (error instanceof TimeoutError) return true;
+  return false;
 }

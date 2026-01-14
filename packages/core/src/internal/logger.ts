@@ -2,7 +2,7 @@ import type { Prettify } from "@/types/utils.js";
 import { formatEta } from "@/utils/format.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
-import { NonRetryableUserError } from "./errors.js";
+import { stripErrorStack } from "./errors.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
@@ -71,9 +71,15 @@ export function createLogger({
         options: T,
         printKeys?: (keyof T)[],
       ) {
+        if (options.msg === undefined) {
+          console.trace();
+        }
         if (mode === "pretty" && printKeys) {
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
+        }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
         }
         logger.error(options);
       },
@@ -85,6 +91,9 @@ export function createLogger({
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
         }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+        }
         logger.warn(options);
       },
       info<T extends Omit<Log, "level" | "time">>(
@@ -94,6 +103,9 @@ export function createLogger({
         if (mode === "pretty" && printKeys) {
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
+        }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
         }
         logger.info(options);
       },
@@ -105,6 +117,10 @@ export function createLogger({
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
         }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+        }
+
         logger.debug(options);
       },
       trace<T extends Omit<Log, "level" | "time">>(
@@ -114,6 +130,9 @@ export function createLogger({
         if (mode === "pretty" && printKeys) {
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
+        }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
         }
         logger.trace(options);
       },
@@ -236,17 +255,15 @@ const format = (log: Log) => {
   }
 
   if (log.error) {
-    if (log.error.stack && log.error instanceof NonRetryableUserError) {
+    if (log.error.stack) {
       prettyLog.push(log.error.stack);
     } else {
       prettyLog.push(`${log.error.name}: ${log.error.message}`);
     }
 
-    if (typeof log.error === "object" && "where" in log.error) {
-      prettyLog.push(`where: ${log.error.where as string}`);
-    }
     if (typeof log.error === "object" && "meta" in log.error) {
-      prettyLog.push(log.error.meta as string);
+      // @ts-ignore
+      prettyLog.push(log.error.meta);
     }
   }
   return prettyLog.join("\n");

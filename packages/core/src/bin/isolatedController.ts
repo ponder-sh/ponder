@@ -5,10 +5,7 @@ import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import {
-  NonRetryableUserError,
-  nonRetryableUserErrorNames,
-} from "@/internal/errors.js";
+import {} from "@/internal/errors.js";
 import { AggregateMetricsService, getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -248,14 +245,15 @@ export async function isolatedController({
               break;
             }
             case "error": {
-              let error: Error;
-              if (nonRetryableUserErrorNames.includes(message.error.name)) {
-                error = new NonRetryableUserError(message.error.message);
-              } else {
-                error = new Error(message.error.message);
-              }
-              error.name = message.error.name;
-              error.stack = message.error.stack;
+              const error: Error = message.error;
+              // if (nonRetryableUserErrorNames.includes(message.error.name)) {
+              //   error = new NonRetryableUserError(message.error.message);
+              // } else {
+              //   error = new Error(message.error.message);
+              // }
+              // error = message.error;
+              // error.name = message.error.name;
+              // error.stack = message.error.stack;
               throw error;
             }
           }
@@ -263,11 +261,11 @@ export async function isolatedController({
       );
 
       worker.on("error", (error: Error) => {
-        if (nonRetryableUserErrorNames.includes(error.name)) {
-          error = new NonRetryableUserError(error.message);
-        } else {
-          error = new Error(error.message);
-        }
+        // if (nonRetryableUserErrorNames.includes(error.name)) {
+        //   error = new NonRetryableUserError(error.message);
+        // } else {
+        //   error = new Error(error.message);
+        // }
         throw error;
       });
 

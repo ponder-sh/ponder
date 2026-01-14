@@ -211,13 +211,13 @@ export const createIndexing = ({
 
       await event.setupCallback.fn(indexingFunctionArg);
 
-      // Note: Check `getRetryableError` to handle user-code catching errors
+      // Note: Check `getError` to handle user-code catching errors
       // from the indexing store.
 
-      if (indexingErrorHandler.getRetryableError()) {
-        const retryableError = indexingErrorHandler.getRetryableError()!;
-        indexingErrorHandler.clearRetryableError();
-        throw retryableError;
+      if (indexingErrorHandler.getError()) {
+        const error = indexingErrorHandler.getError()!;
+        indexingErrorHandler.clearError();
+        throw error;
       }
 
       common.metrics.ponder_indexing_function_duration.observe(
@@ -225,21 +225,25 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      let error = _error instanceof Error ? _error : new Error(String(_error));
-
-      // Note: Use `getRetryableError` rather than `error` to avoid
-      // issues with the user-code augmenting errors from the indexing store.
-
-      if (indexingErrorHandler.getRetryableError()) {
-        const retryableError = indexingErrorHandler.getRetryableError()!;
-        indexingErrorHandler.clearRetryableError();
-        error = retryableError;
-      }
-
       if (common.shutdown.isKilled) {
         throw new ShutdownError();
       }
 
+      // Note: Use `getError` rather than `error` to avoid
+      // issues with the user-code augmenting errors from the indexing store.
+
+      let error: IndexingFunctionError<Error>;
+      if (indexingErrorHandler.getError()) {
+        error = new IndexingFunctionError({
+          cause: indexingErrorHandler.getError()!,
+        });
+        indexingErrorHandler.clearError();
+      } else {
+        error = new IndexingFunctionError({ cause: _error as Error });
+      }
+
+      // Copy the stack from the inner error.
+      error.stack = error.cause.stack;
       addStackTrace(error, common.options);
       addErrorMeta(error, toErrorMeta(event));
 
@@ -255,7 +259,7 @@ export const createIndexing = ({
 
       common.metrics.hasError = true;
 
-      throw new IndexingFunctionError(undefined, { cause: error as Error });
+      throw new IndexingFunctionError({ cause: error as Error });
     }
   };
 
@@ -278,39 +282,43 @@ export const createIndexing = ({
 
       await event.eventCallback.fn(indexingFunctionArg);
 
+      // Note: Check `getError` to handle user-code catching errors
+      // from the indexing store.
+
+      if (indexingErrorHandler.getError()) {
+        const error = indexingErrorHandler.getError()!;
+        indexingErrorHandler.clearError();
+        throw error;
+      }
+
       common.metrics.ponder_indexing_function_duration.observe(
         metricLabels[event.eventCallback.name]!,
         endClock(),
       );
-
-      // Note: Check `getRetryableError` to handle user-code catching errors
-      // from the indexing store.
-
-      if (indexingErrorHandler.getRetryableError()) {
-        const retryableError = indexingErrorHandler.getRetryableError()!;
-        indexingErrorHandler.clearRetryableError();
-        throw retryableError;
-      }
     } catch (_error) {
-      let error = _error instanceof Error ? _error : new Error(String(_error));
-
-      // Note: Use `getRetryableError` rather than `error` to avoid
-      // issues with the user-code augmenting errors from the indexing store.
-
-      if (indexingErrorHandler.getRetryableError()) {
-        const retryableError = indexingErrorHandler.getRetryableError()!;
-        indexingErrorHandler.clearRetryableError();
-        error = retryableError;
-      }
-
       if (common.shutdown.isKilled) {
         throw new ShutdownError();
       }
 
-      if (error instanceof InvalidEventAccessError) {
-        throw error;
+      // Note: Use `getError` rather than `error` to avoid
+      // issues with the user-code augmenting errors from the indexing store.
+
+      let error: IndexingFunctionError<Error>;
+      if (indexingErrorHandler.getError()) {
+        error = new IndexingFunctionError({
+          cause: indexingErrorHandler.getError()!,
+        });
+        indexingErrorHandler.clearError();
+      } else {
+        error = new IndexingFunctionError({ cause: _error as Error });
       }
 
+      if (error.cause instanceof InvalidEventAccessError) {
+        throw error.cause;
+      }
+
+      // Copy the stack from the inner error.
+      error.stack = error.cause.stack;
       addStackTrace(error, common.options);
       addErrorMeta(error, toErrorMeta(event));
 
@@ -327,7 +335,7 @@ export const createIndexing = ({
 
       common.metrics.hasError = true;
 
-      throw new IndexingFunctionError(undefined, { cause: error as Error });
+      throw error;
     }
   };
 
@@ -776,7 +784,7 @@ export const createEventProxy = <
           resetFilterInclude(eventName);
           // @ts-expect-error
           const error = new InvalidEventAccessError(`${type}.${prop}`);
-          indexingErrorHandler.setRetryableError(error);
+          indexingErrorHandler.setError(error);
           throw error;
         }
 
@@ -808,7 +816,7 @@ export const createEventProxy = <
           resetFilterInclude(eventName);
           // @ts-expect-error
           const error = new InvalidEventAccessError(`${type}.${prop}`);
-          indexingErrorHandler.setRetryableError(error);
+          indexingErrorHandler.setError(error);
           throw error;
         }
 
@@ -833,7 +841,7 @@ export const createEventProxy = <
           resetFilterInclude(eventName);
           // @ts-expect-error
           const error = new InvalidEventAccessError(`${type}.${prop}`);
-          indexingErrorHandler.setRetryableError(error);
+          indexingErrorHandler.setError(error);
           throw error;
         }
 

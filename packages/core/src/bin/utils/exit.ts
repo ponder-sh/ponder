@@ -3,8 +3,8 @@ import readline from "node:readline";
 import type { Common } from "@/internal/common.js";
 import {
   BaseError,
-  NonRetryableUserError,
   ShutdownError,
+  isUserDerivedError,
 } from "@/internal/errors.js";
 import type { Options } from "@/internal/options.js";
 
@@ -92,15 +92,16 @@ export const createExit = ({
         common.logger.error({
           msg: `unhandledRejection: ${error.name}`,
         });
+        if (isUserDerivedError(error)) {
+          exit({ code: 1 });
+        } else {
+          exit({ code: 75 });
+        }
       } else {
         common.logger.error({
           msg: "unhandledRejection",
           error,
         });
-      }
-      if (error instanceof NonRetryableUserError) {
-        exit({ code: 1 });
-      } else {
         exit({ code: 75 });
       }
     });
@@ -110,15 +111,16 @@ export const createExit = ({
         common.logger.error({
           msg: `unhandledRejection: ${error.name}`,
         });
+        if (isUserDerivedError(error)) {
+          exit({ code: 1 });
+        } else {
+          exit({ code: 75 });
+        }
       } else {
         common.logger.error({
           msg: "unhandledRejection",
           error,
         });
-      }
-      if (error instanceof NonRetryableUserError) {
-        exit({ code: 1 });
-      } else {
         exit({ code: 75 });
       }
     });

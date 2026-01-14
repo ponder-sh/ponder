@@ -1,283 +1,286 @@
+import {
+  ESBuildBuildError,
+  ESBuildContextError,
+  ESBuildTransformError,
+} from "@/build/stacktrace.js";
+import type { getLogsRetryHelper } from "@ponder/utils";
+
 /** Base class for all known errors. */
-export class BaseError extends Error {
+export class BaseError<
+  cause extends Error | undefined = undefined,
+> extends Error {
   override name = "BaseError";
+  override cause: cause;
 
   meta: string[] = [];
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
     super(message, { cause });
+    this.cause = cause as cause;
     Object.setPrototypeOf(this, BaseError.prototype);
   }
 }
 
-/** Error caused by user code. Should not be retried. */
-export class NonRetryableUserError extends BaseError {
-  override name = "NonRetryableUserError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, NonRetryableUserError.prototype);
-  }
-}
-
-/** Error that may succeed if tried again. */
-export class RetryableError extends BaseError {
-  override name = "RetryableError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, RetryableError.prototype);
-  }
-}
-
-export class ShutdownError extends NonRetryableUserError {
+export class ShutdownError extends BaseError {
   override name = "ShutdownError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
+  constructor(message?: string | undefined) {
+    super(message);
     Object.setPrototypeOf(this, ShutdownError.prototype);
   }
 }
 
-export class BuildError extends NonRetryableUserError {
+export class BuildError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
   override name = "BuildError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
     super(message, { cause });
     Object.setPrototypeOf(this, BuildError.prototype);
   }
 }
 
-export class MigrationError extends NonRetryableUserError {
-  override name = "MigrationError";
+export class RpcRequestError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "RpcRequestError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
     super(message, { cause });
-    Object.setPrototypeOf(this, MigrationError.prototype);
+    Object.setPrototypeOf(this, RpcRequestError.prototype);
   }
 }
 
-// Non-retryable database errors
+export class EthGetLogsRangeError extends BaseError<
+  RpcRequestError<Error | undefined>
+> {
+  override name = "EthGetLogsRangeError";
+  override cause: RpcRequestError<Error | undefined>;
+  isSuggestedRange: Extract<
+    ReturnType<typeof getLogsRetryHelper>,
+    { shouldRetry: true }
+  >["isSuggestedRange"];
+  ranges: Extract<
+    ReturnType<typeof getLogsRetryHelper>,
+    { shouldRetry: true }
+  >["ranges"];
 
-export class UniqueConstraintError extends NonRetryableUserError {
-  override name = "UniqueConstraintError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, UniqueConstraintError.prototype);
+  constructor(
+    { cause }: { cause: RpcRequestError<Error | undefined> },
+    params: Extract<
+      ReturnType<typeof getLogsRetryHelper>,
+      { shouldRetry: true }
+    >,
+  ) {
+    super(undefined, { cause });
+    this.cause = cause;
+    this.isSuggestedRange = params.isSuggestedRange;
+    this.ranges = params.ranges;
+    Object.setPrototypeOf(this, EthGetLogsRangeError.prototype);
   }
 }
 
-export class NotNullConstraintError extends NonRetryableUserError {
-  override name = "NotNullConstraintError";
+export class QueryBuilderError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "QueryBuilderError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, NotNullConstraintError.prototype);
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
+    Object.setPrototypeOf(this, QueryBuilderError.prototype);
   }
 }
 
-export class InvalidStoreAccessError extends NonRetryableUserError {
-  override name = "InvalidStoreAccessError";
+/**
+ * Error caused by an individual `qb.wrap` statement inside
+ * of a `qb.transaction` callback.
+ */
+export class TransactionStatementError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "TransactionStatementError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, InvalidStoreAccessError.prototype);
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
+    Object.setPrototypeOf(this, TransactionStatementError.prototype);
   }
 }
 
-export class RecordNotFoundError extends NonRetryableUserError {
-  override name = "RecordNotFoundError";
+/**
+ * Error thrown from a `qb.transaction` callback not caused by a `qb.wrap` statement.
+ */
+export class TransactionCallbackError<
+  cause extends Error,
+> extends BaseError<cause> {
+  override name = "TransactionCallbackError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, RecordNotFoundError.prototype);
+  constructor({ cause }: { cause: cause }) {
+    super(undefined, { cause });
+    Object.setPrototypeOf(this, TransactionCallbackError.prototype);
   }
 }
 
-export class CheckConstraintError extends NonRetryableUserError {
-  override name = "CheckConstraintError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, CheckConstraintError.prototype);
-  }
-}
-
-// Retryable database errors
-
-export class DbConnectionError extends RetryableError {
-  override name = "DbConnectionError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, DbConnectionError.prototype);
-  }
-}
-
-// export class TransactionStatementError extends RetryableError {
-//   override name = "TransactionStatementError";
-
-//   constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-//     super(message, { cause });
-//     Object.setPrototypeOf(this, TransactionStatementError.prototype);
-//   }
-// }
-
-export class CopyFlushError extends RetryableError {
+export class CopyFlushError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
   override name = "CopyFlushError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
     Object.setPrototypeOf(this, CopyFlushError.prototype);
   }
 }
 
-export class InvalidEventAccessError extends RetryableError {
-  override name = "InvalidEventAccessError";
-  key: string;
-
-  constructor(key: string, message?: string | undefined) {
-    super(message);
-    Object.setPrototypeOf(this, InvalidEventAccessError.prototype);
-
-    this.key = key;
-  }
-}
-
-// Non-retryable indexing store errors
-
-export class InvalidStoreMethodError extends NonRetryableUserError {
-  override name = "InvalidStoreMethodError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, InvalidStoreMethodError.prototype);
-  }
-}
-
-export class UndefinedTableError extends NonRetryableUserError {
-  override name = "UndefinedTableError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, UndefinedTableError.prototype);
-  }
-}
-
-export class BigIntSerializationError extends NonRetryableUserError {
-  override name = "BigIntSerializationError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, BigIntSerializationError.prototype);
-  }
-}
-
-export class DelayedInsertError extends NonRetryableUserError {
+export class DelayedInsertError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
   override name = "DelayedInsertError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
     Object.setPrototypeOf(this, DelayedInsertError.prototype);
   }
 }
 
-export class RawSqlError extends NonRetryableUserError {
+export class IndexingDBError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "IndexingDBError";
+
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
+    Object.setPrototypeOf(this, IndexingDBError.prototype);
+  }
+}
+
+export class RawSqlError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
   override name = "RawSqlError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
     Object.setPrototypeOf(this, RawSqlError.prototype);
   }
 }
 
-export class IndexingFunctionError extends NonRetryableUserError {
+export class BigIntSerializationError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "BigIntSerializationError";
+
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
+    Object.setPrototypeOf(this, BigIntSerializationError.prototype);
+  }
+}
+
+/**
+ * @dev `stack` property points to the user code that caused the error.
+ */
+export class ServerError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
+  override name = "ServerError";
+
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
+    Object.setPrototypeOf(this, ServerError.prototype);
+  }
+}
+
+/**
+ * @dev `stack` property points to the user code that caused the error.
+ */
+export class IndexingFunctionError<
+  cause extends Error | undefined = undefined,
+> extends BaseError<cause> {
   override name = "IndexingFunctionError";
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
+  constructor({ cause }: { cause?: cause } = {}) {
+    super(undefined, { cause });
     Object.setPrototypeOf(this, IndexingFunctionError.prototype);
   }
 }
 
 /**
- * @dev All JSON-RPC request errors are retryable.
+ * Error throw when an `event` property is unexpectedly accessed in an indexing function.
  */
-export class RpcRequestError<
+export class InvalidEventAccessError extends BaseError {
+  override name = "InvalidEventAccessError";
+  key: string;
+
+  constructor(key: string) {
+    super();
+    this.key = key;
+    Object.setPrototypeOf(this, InvalidEventAccessError.prototype);
+  }
+}
+
+export class MigrationError<
   cause extends Error | undefined = undefined,
-> extends RetryableError {
-  override name = "RpcRequestError";
-  override cause: cause;
+> extends BaseError<cause> {
+  override name = "MigrationError";
+  // TODO(kyle) exit code
 
   constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
     super(message, { cause });
-    // @ts-ignore
-    this.cause = cause;
-    Object.setPrototypeOf(this, RpcRequestError.prototype);
+    Object.setPrototypeOf(this, MigrationError.prototype);
   }
 }
 
-export class QueryBuilderRetryableError extends RetryableError {
-  override name = "QueryBuilderRetryableError";
+// export const nonRetryableUserErrorNames = [
+//   ShutdownError,
+//   BuildError,
+//   MigrationError,
+//   UniqueConstraintError,
+//   NotNullConstraintError,
+//   InvalidStoreAccessError,
+//   RecordNotFoundError,
+//   CheckConstraintError,
+//   InvalidStoreMethodError,
+//   UndefinedTableError,
+//   BigIntSerializationError,
+//   DelayedInsertError,
+//   RawSqlError,
+//   IndexingFunctionError,
+// ].map((err) => err.name);
 
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, QueryBuilderRetryableError.prototype);
+/**
+ * Returns true if the error is derived from a logical error in user code.
+ */
+export function isUserDerivedError(error: BaseError): boolean {
+  if (error instanceof BuildError) return true;
+  if (error instanceof IndexingDBError) return true;
+  if (error instanceof DelayedInsertError) return true;
+  if (
+    error instanceof IndexingFunctionError &&
+    error.cause instanceof BaseError === false
+  ) {
+    return true;
+  }
+
+  if (error instanceof BaseError && error.cause) {
+    if (isUserDerivedError(error.cause)) return true;
+  }
+  return false;
+}
+
+export function stripErrorStack(error: Error): void {
+  if (shouldPrintErrorStack(error) === false) {
+    error.stack = undefined;
+  }
+  if (error instanceof BaseError && error.cause) {
+    stripErrorStack(error.cause);
   }
 }
 
-export class QueryBuilderNonRetryableError extends NonRetryableUserError {
-  override name = "QueryBuilderNonRetryableError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, QueryBuilderNonRetryableError.prototype);
-  }
+export function shouldPrintErrorStack(error: Error): boolean {
+  if (error instanceof ServerError) return true;
+  if (error instanceof IndexingFunctionError) return true;
+  if (error instanceof ESBuildTransformError) return true;
+  if (error instanceof ESBuildBuildError) return true;
+  if (error instanceof ESBuildContextError) return true;
+  return false;
 }
-
-export class TransactionControlError extends QueryBuilderRetryableError {
-  override name = "TransactionControlError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, TransactionControlError.prototype);
-  }
-}
-
-export class TransactionStatementError extends QueryBuilderRetryableError {
-  override name = "TransactionStatementError";
-
-  constructor(message?: string | undefined, { cause }: { cause?: Error } = {}) {
-    super(message, { cause });
-    Object.setPrototypeOf(this, TransactionStatementError.prototype);
-  }
-}
-
-export class TransactionCallbackError extends QueryBuilderRetryableError {
-  override name = "TransactionCallbackError";
-  override cause: Error;
-
-  constructor({ cause }: { cause: Error }) {
-    super(undefined, { cause });
-    this.cause = cause;
-    Object.setPrototypeOf(this, TransactionCallbackError.prototype);
-  }
-}
-
-export const nonRetryableUserErrorNames = [
-  ShutdownError,
-  BuildError,
-  MigrationError,
-  UniqueConstraintError,
-  NotNullConstraintError,
-  InvalidStoreAccessError,
-  RecordNotFoundError,
-  CheckConstraintError,
-  InvalidStoreMethodError,
-  UndefinedTableError,
-  BigIntSerializationError,
-  DelayedInsertError,
-  RawSqlError,
-  IndexingFunctionError,
-].map((err) => err.name);

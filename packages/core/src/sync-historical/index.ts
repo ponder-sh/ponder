@@ -1,4 +1,5 @@
 import type { Common } from "@/internal/common.js";
+import { EthGetLogsRangeError } from "@/internal/errors.js";
 import type {
   BlockFilter,
   Chain,
@@ -54,13 +55,11 @@ import {
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
-import { getLogsRetryHelper } from "@ponder/utils";
 import {
   type Address,
   type Hash,
   type Hex,
   type LogTopic,
-  type RpcError,
   hexToNumber,
   numberToHex,
   toHex,
@@ -211,42 +210,29 @@ export const createHistoricalSync = (
               throw error;
             }
 
-            const getLogsErrorResponse = getLogsRetryHelper({
-              params: [
-                {
-                  address,
-                  topics,
-                  fromBlock: toHex(interval[0]),
-                  toBlock: toHex(interval[1]),
-                },
-              ],
-              error: error as RpcError,
-            });
+            if (error instanceof EthGetLogsRangeError) {
+              const range =
+                hexToNumber(error.ranges[0]!.toBlock) -
+                hexToNumber(error.ranges[0]!.fromBlock);
 
-            if (getLogsErrorResponse.shouldRetry === false) throw error;
+              args.common.logger.debug({
+                msg: "Updated eth_getLogs range",
+                chain: args.chain.name,
+                chain_id: args.chain.id,
+                range,
+              });
 
-            const range =
-              hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
-              hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
+              logsRequestMetadata = {
+                estimatedRange: range,
+                confirmedRange: error.isSuggestedRange ? range : undefined,
+              };
 
-            args.common.logger.debug({
-              msg: "Updated eth_getLogs range",
-              chain: args.chain.name,
-              chain_id: args.chain.id,
-              range,
-            });
-
-            logsRequestMetadata = {
-              estimatedRange: range,
-              confirmedRange: getLogsErrorResponse.isSuggestedRange
-                ? range
-                : undefined,
-            };
-
-            return syncLogsDynamic(
-              { address, topic0, topic1, topic2, topic3, interval },
-              context,
-            );
+              return syncLogsDynamic(
+                { address, topic0, topic1, topic2, topic3, interval },
+                context,
+              );
+            }
+            throw error;
           }),
         ),
       ),

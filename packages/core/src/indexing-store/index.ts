@@ -1,16 +1,7 @@
 import type { QB } from "@/database/queryBuilder.js";
 import { onchain } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
-import {
-  InvalidStoreAccessError,
-  InvalidStoreMethodError,
-  NonRetryableUserError,
-  RawSqlError,
-  RecordNotFoundError,
-  RetryableError,
-  UndefinedTableError,
-  UniqueConstraintError,
-} from "@/internal/errors.js";
+import { IndexingDBError, RawSqlError } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
@@ -52,7 +43,7 @@ export const validateUpdateSet = (
     if (js in set) {
       // Note: Noop on the primary keys if they are identical, otherwise throw an error.
       if ((set as Row)[js] !== prev[js]) {
-        throw new NonRetryableUserError(
+        throw new IndexingDBError(
           `Primary key column '${js}' cannot be updated`,
         );
       }
@@ -66,13 +57,13 @@ export const checkOnchainTable = (
   method: "find" | "insert" | "update" | "delete",
 ) => {
   if (table === undefined)
-    throw new UndefinedTableError(
+    throw new IndexingDBError(
       `Table object passed to db.${method}() is undefined`,
     );
 
   if (onchain in table) return;
 
-  throw new InvalidStoreMethodError(
+  throw new IndexingDBError(
     method === "find"
       ? `db.find() can only be used with onchain tables, and '${getTableConfig(table).name}' is an offchain table or a view.`
       : `Indexing functions can only write to onchain tables, and '${getTableConfig(table).name}' is an offchain table or a view.`,
@@ -87,7 +78,7 @@ export const checkTableAccess = (
 ) => {
   if (chainId === undefined) return;
   if ("chainId" in key && String(key.chainId) === String(chainId)) return;
-  throw new InvalidStoreAccessError(
+  throw new IndexingDBError(
     "chainId" in key
       ? `db.${method}(${getTableConfig(table).name}) cannot access rows on different chains when ordering is 'isolated'.`
       : `db.${method}(${getTableConfig(table).name}) must specify 'chainId' when ordering is 'isolated'.`,
@@ -120,7 +111,7 @@ export const createIndexingStore = ({
     return async (...args: any[]) => {
       try {
         if (isProcessingEvents === false) {
-          throw new NonRetryableUserError(
+          throw new IndexingDBError(
             "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
@@ -128,20 +119,21 @@ export const createIndexingStore = ({
         const result = await fn(...args);
         // @ts-expect-error typescript bug lol
         if (isProcessingEvents === false) {
-          throw new NonRetryableUserError(
+          throw new IndexingDBError(
             "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
         return result;
       } catch (error) {
         if (isProcessingEvents === false) {
-          throw new NonRetryableUserError(
+          throw new IndexingDBError(
             "A store API method (find, update, insert, delete) was called after the indexing function returned. Hint: Did you forget to await the store API method call (an unawaited promise)?",
           );
         }
 
-        if (error instanceof RetryableError) {
-          indexingErrorHandler.setRetryableError(error);
+        // Note: `error` must be an internal ponder error rather than a logical user error.
+        if (error instanceof IndexingDBError === false) {
+          indexingErrorHandler.setError(error as Error);
         }
 
         throw error;
@@ -384,7 +376,7 @@ export const createIndexingStore = ({
                         });
 
                         if (row) {
-                          throw new UniqueConstraintError(
+                          throw new IndexingDBError(
                             `Primary key conflict in table '${getTableName(table)}'`,
                           );
                         } else {
@@ -429,7 +421,7 @@ export const createIndexingStore = ({
                       });
 
                       if (row) {
-                        throw new UniqueConstraintError(
+                        throw new IndexingDBError(
                           `Primary key conflict in table '${getTableName(table)}'`,
                         );
                       } else {
@@ -493,7 +485,7 @@ export const createIndexingStore = ({
             const ponderRowUpdate = await indexingCache.get({ table, key });
 
             if (ponderRowUpdate === null) {
-              const error = new RecordNotFoundError(
+              const error = new IndexingDBError(
                 `No existing record found in table '${getTableName(table)}'`,
               );
               error.meta.push(`db.update arguments:\n${prettyPrint(key)}`);
@@ -603,7 +595,7 @@ export const createIndexingStore = ({
               return result;
             });
           } catch (error) {
-            throw new RawSqlError(undefined, { cause: error as Error });
+            throw new RawSqlError({ cause: error as Error });
           } finally {
             common.metrics.ponder_indexing_store_raw_sql_duration.observe(
               endClock(),

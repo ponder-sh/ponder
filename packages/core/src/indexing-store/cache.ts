@@ -286,7 +286,7 @@ export const getCopyHelper = (qb: QB, chainId?: number) => {
           blob: new Blob([text]),
         })
         .catch((error) => {
-          throw new CopyFlushError(undefined, { cause: error as Error });
+          throw new CopyFlushError({ cause: error as Error });
         });
     };
   } else {
@@ -305,7 +305,7 @@ export const getCopyHelper = (qb: QB, chainId?: number) => {
         copyStream.write(text);
         copyStream.end();
       }).catch((error) => {
-        throw new CopyFlushError(undefined, { cause: error as Error });
+        throw new CopyFlushError({ cause: error as Error });
       });
     };
   }
@@ -755,8 +755,7 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new DelayedInsertError(result.error.message);
-              error.stack = undefined;
+              error = new DelayedInsertError({ cause: result.error as Error });
 
               addErrorMeta(
                 error,
@@ -827,9 +826,7 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new DelayedInsertError(undefined, {
-                cause: result.error as Error,
-              });
+              error = new DelayedInsertError({ cause: result.error as Error });
 
               addErrorMeta(
                 error,

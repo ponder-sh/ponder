@@ -18,11 +18,7 @@ import {
   getEventCount,
 } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
-import {
-  InvalidEventAccessError,
-  NonRetryableUserError,
-  type RetryableError,
-} from "@/internal/errors.js";
+import { InvalidEventAccessError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -93,16 +89,16 @@ export async function runIsolated({
   });
 
   const indexingErrorHandler: IndexingErrorHandler = {
-    getRetryableError: () => {
+    getError: () => {
       return indexingErrorHandler.error;
     },
-    setRetryableError: (error: RetryableError) => {
+    setError: (error: Error) => {
       indexingErrorHandler.error = error;
     },
-    clearRetryableError: () => {
+    clearError: () => {
       indexingErrorHandler.error = undefined;
     },
-    error: undefined as RetryableError | undefined,
+    error: undefined as Error | undefined,
   };
 
   const indexingCache = createIndexingCache({
@@ -421,16 +417,15 @@ export async function runIsolated({
               syncStore,
               events,
             });
-          } else if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
-              msg: "Failed to index block range",
-              chain: chain.name,
-              chain_id: chain.id,
-              block_range: JSON.stringify(blockRange),
-              duration: indexStartClock(),
-              error: error as Error,
-            });
           }
+          common.logger.warn({
+            msg: "Failed to index block range",
+            chain: chain.name,
+            chain_id: chain.id,
+            block_range: JSON.stringify(blockRange),
+            duration: indexStartClock(),
+            error: error as Error,
+          });
 
           throw error;
         }
@@ -623,15 +618,13 @@ export async function runIsolated({
               } catch (error) {
                 indexingCache.clear();
 
-                if (error instanceof NonRetryableUserError === false) {
-                  common.logger.warn({
-                    msg: "Failed to index block",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    error: error,
-                  });
-                }
+                common.logger.warn({
+                  msg: "Failed to index block",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                  error: error,
+                });
 
                 throw error;
               }

@@ -178,13 +178,13 @@ export const createBuild = async ({
       return { status: "success", exports } as const;
     } catch (error_) {
       const relativePath = path.relative(common.options.rootDir, file);
-      // TODO(kyle) error should be a `BuildError`
-      const error = parseViteNodeError(relativePath, error_ as Error);
+      const error = new BuildError(undefined, {
+        cause: parseViteNodeError(relativePath, error_ as Error),
+      });
       return { status: "error", error } as const;
     }
   };
 
-  // TODO(kyle) all files should use this function
   const executeFileWithTimeout = async ({
     file,
   }: { file: string }): Promise<
