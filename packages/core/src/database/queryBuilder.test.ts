@@ -110,7 +110,7 @@ test("QB transaction retries error", async () => {
   connection.release();
 });
 
-test.skip("QB parses error", async () => {
+test("QB parses error", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
   const pool = createPool(
@@ -124,12 +124,19 @@ test.skip("QB parses error", async () => {
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("violates not-null constraint"));
 
-  const error = await qb
-    .wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA))
-    .catch((error) => error);
+  await expect(
+    qb.wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA)),
+  ).rejects.toThrow();
 
   expect(querySpy).toHaveBeenCalledTimes(1);
-  expect(error).toBeInstanceOf(NotNullConstraintError);
+
+  await expect(
+    qb.wrap({ label: "test2" }, (db) =>
+      db.execute("SELECT * FRROM information_schema.schemata"),
+    ),
+  ).rejects.toThrow();
+
+  expect(querySpy).toHaveBeenCalledTimes(2);
 });
 
 test("QB client", async () => {

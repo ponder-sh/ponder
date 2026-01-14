@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
 import {
+  BigIntSerializationError,
   QueryBuilderError,
   ShutdownError,
   TransactionCallbackError,
@@ -55,8 +56,6 @@ type TransactionQB<
   ): Promise<T>;
 };
 
-// TODO(kyle) handle malformed queries
-
 /**
  * Query builder with built-in retry logic, logging, and metrics.
  */
@@ -84,52 +83,6 @@ export type QB<
     | { $dialect: "pglite"; $client: PGlite }
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
-
-// export const parseQBError = (error: Error): Error => {
-//   // TODO(kyle) how to know if the error is a query builder error?
-
-//   // TODO(kyle) do we need this?
-//   if (error instanceof BaseError) return error;
-
-//   if (error?.message?.includes("violates not-null constraint")) {
-//     return new NotNullConstraintError(undefined, { cause: error });
-//   } else if (error?.message?.includes("violates unique constraint")) {
-//     return new UniqueConstraintError(undefined, { cause: error });
-//   } else if (error?.message?.includes("violates check constraint")) {
-//     return new CheckConstraintError(undefined, { cause: error });
-//   } else if (
-//     // nodejs error message
-//     error?.message?.includes("Do not know how to serialize a BigInt") ||
-//     // bun error message
-//     error?.message?.includes("cannot serialize BigInt")
-//   ) {
-//     const bigIntSerializationError = new BigIntSerializationError(undefined, {
-//       cause: error,
-//     });
-//     bigIntSerializationError.meta.push(
-//       "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
-//     );
-//     return bigIntSerializationError;
-//   } else if (error?.message?.includes("does not exist")) {
-//     return new NonRetryableUserError(error.message);
-//   } else if (error?.message?.includes("already exists")) {
-//     return new NonRetryableUserError(error.message);
-//   } else if (
-//     error?.message?.includes(
-//       "terminating connection due to administrator command",
-//     ) ||
-//     error?.message?.includes("connection to client lost") ||
-//     error?.message?.includes("too many clients already") ||
-//     error?.message?.includes("Connection terminated unexpectedly") ||
-//     error?.message?.includes("ECONNRESET") ||
-//     error?.message?.includes("ETIMEDOUT") ||
-//     error?.message?.includes("timeout exceeded when trying to connect")
-//   ) {
-//     return new DbConnectionError(error.message);
-//   }
-
-//   return error;
-// };
 
 /**
  * Create a query builder.
@@ -260,7 +213,16 @@ export const createQB = <
           throw error.cause.cause;
         }
 
-        // TODO(kyle) shouldRetry()
+        if (shouldRetry(error.cause) === false) {
+          logger.warn({
+            msg: "Failed database query",
+            query: label,
+            query_id: id,
+            duration: endClock(),
+            error,
+          });
+          throw error;
+        }
 
         if (i === RETRY_COUNT) {
           logger.warn({
@@ -583,6 +545,47 @@ export const createQB = <
   return qb;
 };
 
-// function shouldRetry(error: Error) {
-//   return true;
-// }
+function shouldRetry(error: Error) {
+  if (error?.message?.includes("violates not-null constraint")) {
+    return false;
+  }
+  if (error?.message?.includes("violates unique constraint")) {
+    return false;
+  }
+  if (error?.message?.includes("violates check constraint")) {
+    return false;
+  }
+  if (
+    error instanceof BigIntSerializationError ||
+    // nodejs error message
+    error?.message?.includes("Do not know how to serialize a BigInt") ||
+    // bun error message
+    error?.message?.includes("cannot serialize BigInt")
+  ) {
+    return false;
+  }
+  if (error?.message?.includes("does not exist")) {
+    return false;
+  }
+  if (error?.message?.includes("already exists")) {
+    return false;
+  }
+  if (error?.message?.includes("syntax error")) {
+    return false;
+  }
+
+  //  if (
+  //   error?.message?.includes(
+  //     "terminating connection due to administrator command",
+  //   ) ||
+  //   error?.message?.includes("connection to client lost") ||
+  //   error?.message?.includes("too many clients already") ||
+  //   error?.message?.includes("Connection terminated unexpectedly") ||
+  //   error?.message?.includes("ECONNRESET") ||
+  //   error?.message?.includes("ETIMEDOUT") ||
+  //   error?.message?.includes("timeout exceeded when trying to connect")
+  // ) {
+  // }
+
+  return true;
+}

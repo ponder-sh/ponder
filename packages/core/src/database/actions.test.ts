@@ -7,7 +7,6 @@ import {
 import { buildSchema } from "@/build/schema.js";
 import { getReorgTable } from "@/drizzle/kit/index.js";
 import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
-import type { RetryableError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
   type Checkpoint,
@@ -44,16 +43,16 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
 }
 
 const indexingErrorHandler: IndexingErrorHandler = {
-  getRetryableError: () => {
+  getError: () => {
     return indexingErrorHandler.error;
   },
-  setRetryableError: (error: RetryableError) => {
+  setError: (error: Error) => {
     indexingErrorHandler.error = error;
   },
-  clearRetryableError: () => {
+  clearError: () => {
     indexingErrorHandler.error = undefined;
   },
-  error: undefined as RetryableError | undefined,
+  error: undefined as Error | undefined,
 };
 
 test("finalize()", async () => {
