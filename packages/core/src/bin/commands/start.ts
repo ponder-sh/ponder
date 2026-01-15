@@ -227,11 +227,21 @@ export async function start({
     return;
   }
 
-  const crashRecoveryCheckpoint = await database.migrate({
-    buildId: indexingBuildResult.result.buildId,
-    chains: indexingBuildResult.result.chains,
-    finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
-  });
+  const crashRecoveryCheckpoint = await database
+    .migrate({
+      buildId: indexingBuildResult.result.buildId,
+      chains: indexingBuildResult.result.chains,
+      finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+    })
+    .catch((error) => {
+      common.logger.error({
+        msg: "Database migration failed",
+        stage: "migration",
+        error: error as Error,
+      });
+
+      throw error;
+    });
 
   await database.migrateSync();
 

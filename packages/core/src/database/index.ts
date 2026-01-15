@@ -454,7 +454,9 @@ export const createDatabase = ({
 
           return;
         } catch (_error) {
-          const error = new QueryBuilderError({ cause: _error as Error });
+          const error = new QueryBuilderError(undefined, {
+            cause: _error as Error,
+          });
 
           if (common.shutdown.isKilled) {
             throw new ShutdownError();

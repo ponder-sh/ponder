@@ -6,7 +6,7 @@ import type { Context, HonoRequest } from "hono";
 import { html } from "hono/html";
 
 export const onError = async (_error: Error, c: Context, common: Common) => {
-  const error = new ServerError({ cause: _error });
+  const error = new ServerError(undefined, { cause: _error });
 
   // Find the filename where the error occurred
   const regex = /(\S+\.(?:js|ts|mjs|cjs)):\d+:\d+/;

@@ -162,15 +162,9 @@ export const createQB = <
 
         return result;
       } catch (_error) {
-        const error = new QueryBuilderError({ cause: _error as Error });
-
-        // TODO(kyle) determine transaction control error?
-        // if (
-        //   isTransaction &&
-        //   error instanceof TransactionStatementError === false &&
-        //   error instanceof TransactionCallbackError === false
-        // ) {
-        // }
+        const error = new QueryBuilderError(undefined, {
+          cause: _error as Error,
+        });
 
         if (common.shutdown.isKilled) {
           throw new ShutdownError();
@@ -208,7 +202,7 @@ export const createQB = <
           });
           // Transaction statements are not immediately retried, so the transaction
           // will be properly rolled back.
-          throw new TransactionStatementError({ cause: error });
+          throw new TransactionStatementError(undefined, { cause: error });
         } else if (error.cause instanceof TransactionCallbackError) {
           // Unrelated errors are bubbled out of the query builder.
           throw error.cause.cause;
@@ -336,7 +330,9 @@ export const createQB = <
                 if (error instanceof TransactionStatementError) {
                   throw error;
                 } else {
-                  throw new TransactionCallbackError({ cause: error as Error });
+                  throw new TransactionCallbackError(undefined, {
+                    cause: error as Error,
+                  });
                 }
               }
             }, config),
@@ -426,7 +422,9 @@ export const createQB = <
                 if (error instanceof TransactionStatementError) {
                   throw error;
                 } else {
-                  throw new TransactionCallbackError({ cause: error as Error });
+                  throw new TransactionCallbackError(undefined, {
+                    cause: error as Error,
+                  });
                 }
               }
             }, config),
@@ -468,7 +466,9 @@ export const createQB = <
               if (error instanceof TransactionStatementError) {
                 throw error;
               } else {
-                throw new TransactionCallbackError({ cause: error as Error });
+                throw new TransactionCallbackError(undefined, {
+                  cause: error as Error,
+                });
               }
             }
           },
@@ -501,7 +501,9 @@ export const createQB = <
               if (error instanceof TransactionStatementError) {
                 throw error;
               } else {
-                throw new TransactionCallbackError({ cause: error as Error });
+                throw new TransactionCallbackError(undefined, {
+                  cause: error as Error,
+                });
               }
             }
           },

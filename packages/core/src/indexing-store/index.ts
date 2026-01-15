@@ -595,7 +595,7 @@ export const createIndexingStore = ({
               return result;
             });
           } catch (error) {
-            throw new RawSqlError({ cause: error as Error });
+            throw new RawSqlError(undefined, { cause: error as Error });
           } finally {
             common.metrics.ponder_indexing_store_raw_sql_duration.observe(
               endClock(),

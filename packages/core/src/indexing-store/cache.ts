@@ -5,9 +5,9 @@ import { getPartitionName } from "@/drizzle/onchain.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
-  CopyFlushError,
   DelayedInsertError,
   ShutdownError,
+  TransactionStatementError,
 } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -286,7 +286,10 @@ export const getCopyHelper = (qb: QB, chainId?: number) => {
           blob: new Blob([text]),
         })
         .catch((error) => {
-          throw new CopyFlushError({ cause: error as Error });
+          throw new TransactionStatementError(
+            `Failed COPY operation for table "${getTableName(table)}"`,
+            { cause: error as Error },
+          );
         });
     };
   } else {
@@ -305,7 +308,10 @@ export const getCopyHelper = (qb: QB, chainId?: number) => {
         copyStream.write(text);
         copyStream.end();
       }).catch((error) => {
-        throw new CopyFlushError({ cause: error as Error });
+        throw new TransactionStatementError(
+          `Failed COPY operation for table "${getTableName(table)}"`,
+          { cause: error as Error },
+        );
       });
     };
   }
@@ -755,7 +761,9 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new DelayedInsertError({ cause: result.error as Error });
+              error = new DelayedInsertError(undefined, {
+                cause: result.error as Error,
+              });
 
               addErrorMeta(
                 error,
@@ -826,7 +834,9 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new DelayedInsertError({ cause: result.error as Error });
+              error = new DelayedInsertError(undefined, {
+                cause: result.error as Error,
+              });
 
               addErrorMeta(
                 error,

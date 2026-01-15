@@ -61,7 +61,7 @@ export class PgJson<
         // bun error message
         error?.message?.includes("cannot serialize BigInt")
       ) {
-        error = new BigIntSerializationError({ cause: error });
+        error = new BigIntSerializationError(undefined, { cause: error });
         (error as BigIntSerializationError).meta.push(
           "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
         );
@@ -141,7 +141,7 @@ export class PgJsonb<
         // bun error message
         error?.message?.includes("cannot serialize BigInt")
       ) {
-        error = new BigIntSerializationError({ cause: error });
+        error = new BigIntSerializationError(undefined, { cause: error });
         (error as BigIntSerializationError).meta.push(
           "Hint:\n  The JSONB column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
         );

@@ -106,10 +106,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       }
 
       if (result.status === "error") {
-        // if (isInitialBuild === false) {
-        //   common.logger.error({ error: result.error });
-        // }
-
         // This handles indexing function build failures on hot reload.
         metrics.hasError = true;
         return;
@@ -280,11 +276,21 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        crashRecoveryCheckpoint = await database.migrate({
-          buildId: indexingBuildResult.result.buildId,
-          chains: indexingBuildResult.result.chains,
-          finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
-        });
+        crashRecoveryCheckpoint = await database
+          .migrate({
+            buildId: indexingBuildResult.result.buildId,
+            chains: indexingBuildResult.result.chains,
+            finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+          })
+          .catch((error) => {
+            common.logger.error({
+              msg: "Database migration failed",
+              stage: "migration",
+              error: error as Error,
+            });
+
+            throw error;
+          });
 
         await database.migrateSync();
 

@@ -234,12 +234,14 @@ export const createIndexing = ({
 
       let error: IndexingFunctionError<Error>;
       if (indexingErrorHandler.getError()) {
-        error = new IndexingFunctionError({
+        error = new IndexingFunctionError(undefined, {
           cause: indexingErrorHandler.getError()!,
         });
         indexingErrorHandler.clearError();
       } else {
-        error = new IndexingFunctionError({ cause: _error as Error });
+        error = new IndexingFunctionError(undefined, {
+          cause: _error as Error,
+        });
       }
 
       // Copy the stack from the inner error.
@@ -259,7 +261,7 @@ export const createIndexing = ({
 
       common.metrics.hasError = true;
 
-      throw new IndexingFunctionError({ cause: error as Error });
+      throw new IndexingFunctionError(undefined, { cause: error as Error });
     }
   };
 
@@ -305,12 +307,14 @@ export const createIndexing = ({
 
       let error: IndexingFunctionError<Error>;
       if (indexingErrorHandler.getError()) {
-        error = new IndexingFunctionError({
+        error = new IndexingFunctionError(undefined, {
           cause: indexingErrorHandler.getError()!,
         });
         indexingErrorHandler.clearError();
       } else {
-        error = new IndexingFunctionError({ cause: _error as Error });
+        error = new IndexingFunctionError(undefined, {
+          cause: _error as Error,
+        });
       }
 
       if (error.cause instanceof InvalidEventAccessError) {

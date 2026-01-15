@@ -456,24 +456,6 @@ export async function runMultichain({
           indexingCache.invalidate();
           indexingCache.clear();
 
-          if (error instanceof InvalidEventAccessError) {
-            common.logger.debug({
-              msg: "Failed to index block range",
-              chain: chain.name,
-              chain_id: chain.id,
-              block_range: JSON.stringify(blockRange),
-              duration: indexStartClock(),
-              error,
-            });
-            events = await refetchHistoricalEvents({
-              common,
-              indexingBuild,
-              perChainSync,
-              syncStore,
-              events,
-            });
-          }
-
           common.logger.warn({
             msg: "Failed to index block range",
             chain: chain.name,
@@ -482,6 +464,16 @@ export async function runMultichain({
             duration: indexStartClock(),
             error: error as Error,
           });
+
+          if (error instanceof InvalidEventAccessError) {
+            events = await refetchHistoricalEvents({
+              common,
+              indexingBuild,
+              perChainSync,
+              syncStore,
+              events,
+            });
+          }
 
           throw error;
         }

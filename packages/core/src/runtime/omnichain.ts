@@ -475,12 +475,13 @@ export async function runOmnichain({
           indexingCache.invalidate();
           indexingCache.clear();
 
+          common.logger.warn({
+            msg: "Failed to index block range",
+            duration: indexStartClock(),
+            error: error as Error,
+          });
+
           if (error instanceof InvalidEventAccessError) {
-            common.logger.debug({
-              msg: "Failed to index block range",
-              duration: indexStartClock(),
-              error,
-            });
             events = await refetchHistoricalEvents({
               common,
               indexingBuild,
@@ -489,11 +490,6 @@ export async function runOmnichain({
               events,
             });
           }
-          common.logger.warn({
-            msg: "Failed to index block range",
-            duration: indexStartClock(),
-            error: error as Error,
-          });
 
           throw error;
         }

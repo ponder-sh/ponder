@@ -245,34 +245,18 @@ export async function isolatedController({
               break;
             }
             case "error": {
-              const error: Error = message.error;
-              // if (nonRetryableUserErrorNames.includes(message.error.name)) {
-              //   error = new NonRetryableUserError(message.error.message);
-              // } else {
-              //   error = new Error(message.error.message);
-              // }
-              // error = message.error;
-              // error.name = message.error.name;
-              // error.stack = message.error.stack;
-              throw error;
+              throw message.error;
             }
           }
         },
       );
 
       worker.on("error", (error: Error) => {
-        // if (nonRetryableUserErrorNames.includes(error.name)) {
-        //   error = new NonRetryableUserError(error.message);
-        // } else {
-        //   error = new Error(error.message);
-        // }
         throw error;
       });
 
       worker.on("exit", (code: number) => {
-        const error = new Error(`Worker thread exited with code ${code}.`);
-        error.stack = undefined;
-        throw error;
+        throw new Error(`Worker thread exited with code ${code}.`);
       });
 
       perThreadWorkers.push(worker);

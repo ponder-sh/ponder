@@ -90,7 +90,7 @@ export const createExit = ({
       if (error instanceof ShutdownError) return;
       if (error instanceof BaseError) {
         common.logger.error({
-          msg: `unhandledRejection: ${error.name}`,
+          msg: `unhandledRejection: ${error.name} ${error.message}`,
         });
         if (isUserDerivedError(error)) {
           exit({ code: 1 });
@@ -109,7 +109,7 @@ export const createExit = ({
       if (error instanceof ShutdownError) return;
       if (error instanceof BaseError) {
         common.logger.error({
-          msg: `unhandledRejection: ${error.name}`,
+          msg: `unhandledRejection: ${error.name} ${error.message}`,
         });
         if (isUserDerivedError(error)) {
           exit({ code: 1 });

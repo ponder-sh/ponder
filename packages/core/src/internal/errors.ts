@@ -92,8 +92,8 @@ export class QueryBuilderError<
 > extends BaseError<cause> {
   override name = "QueryBuilderError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, QueryBuilderError.prototype);
   }
 }
@@ -107,8 +107,8 @@ export class TransactionStatementError<
 > extends BaseError<cause> {
   override name = "TransactionStatementError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, TransactionStatementError.prototype);
   }
 }
@@ -121,20 +121,9 @@ export class TransactionCallbackError<
 > extends BaseError<cause> {
   override name = "TransactionCallbackError";
 
-  constructor({ cause }: { cause: cause }) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, TransactionCallbackError.prototype);
-  }
-}
-
-export class CopyFlushError<
-  cause extends Error | undefined = undefined,
-> extends BaseError<cause> {
-  override name = "CopyFlushError";
-
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
-    Object.setPrototypeOf(this, CopyFlushError.prototype);
   }
 }
 
@@ -143,8 +132,8 @@ export class DelayedInsertError<
 > extends BaseError<cause> {
   override name = "DelayedInsertError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, DelayedInsertError.prototype);
   }
 }
@@ -165,8 +154,8 @@ export class RawSqlError<
 > extends BaseError<cause> {
   override name = "RawSqlError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, RawSqlError.prototype);
   }
 }
@@ -176,8 +165,8 @@ export class BigIntSerializationError<
 > extends BaseError<cause> {
   override name = "BigIntSerializationError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, BigIntSerializationError.prototype);
   }
 }
@@ -190,8 +179,8 @@ export class ServerError<
 > extends BaseError<cause> {
   override name = "ServerError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, ServerError.prototype);
   }
 }
@@ -204,8 +193,8 @@ export class IndexingFunctionError<
 > extends BaseError<cause> {
   override name = "IndexingFunctionError";
 
-  constructor({ cause }: { cause?: cause } = {}) {
-    super(undefined, { cause });
+  constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
+    super(message, { cause });
     Object.setPrototypeOf(this, IndexingFunctionError.prototype);
   }
 }
@@ -228,7 +217,6 @@ export class MigrationError<
   cause extends Error | undefined = undefined,
 > extends BaseError<cause> {
   override name = "MigrationError";
-  // TODO(kyle) exit code
 
   constructor(message?: string | undefined, { cause }: { cause?: cause } = {}) {
     super(message, { cause });
@@ -236,39 +224,23 @@ export class MigrationError<
   }
 }
 
-// export const nonRetryableUserErrorNames = [
-//   ShutdownError,
-//   BuildError,
-//   MigrationError,
-//   UniqueConstraintError,
-//   NotNullConstraintError,
-//   InvalidStoreAccessError,
-//   RecordNotFoundError,
-//   CheckConstraintError,
-//   InvalidStoreMethodError,
-//   UndefinedTableError,
-//   BigIntSerializationError,
-//   DelayedInsertError,
-//   RawSqlError,
-//   IndexingFunctionError,
-// ].map((err) => err.name);
-
 /**
  * Returns true if the error is derived from a logical error in user code.
+ * @dev `instanceof` is not used because it doesn't work with serialized errors
+ * from threads.
  */
 export function isUserDerivedError(error: BaseError): boolean {
-  if (error instanceof BuildError) return true;
-  if (error instanceof ExecuteFileError) return true;
-  if (error instanceof IndexingDBError) return true;
-  if (error instanceof DelayedInsertError) return true;
-  if (
-    error instanceof IndexingFunctionError &&
-    error.cause instanceof BaseError === false
-  ) {
-    return true;
-  }
+  if (error.name === BuildError.name) return true;
+  if (error.name === ExecuteFileError.name) return true;
+  if (error.name === MigrationError.name) return true;
+  if (error.name === IndexingDBError.name) return true;
+  if (error.name === BigIntSerializationError.name) return true;
+  if (error.name === RawSqlError.name) return true;
+  if (error.name === DelayedInsertError.name) return true;
+  if (error.name === IndexingFunctionError.name) return true;
 
-  if (error instanceof BaseError && error.cause) {
+  if ("cause" in error) {
+    // @ts-ignore
     if (isUserDerivedError(error.cause)) return true;
   }
   return false;
