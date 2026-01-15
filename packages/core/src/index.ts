@@ -35,6 +35,8 @@ export {
   primaryKey,
   hex,
   bigint,
+  json,
+  jsonb,
 } from "@/drizzle/onchain.js";
 
 export type {
@@ -112,8 +114,6 @@ export {
   inet,
   integer,
   interval,
-  json,
-  jsonb,
   line,
   macaddr,
   macaddr8,

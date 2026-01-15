@@ -42,7 +42,7 @@ export function buildPre({
 
       if (connectionString === undefined) {
         if (config.database.poolConfig === undefined) {
-          throw new Error(
+          throw new BuildError(
             "Invalid database configuration: Either 'connectionString' or 'poolConfig' must be defined.",
           );
         }
@@ -87,28 +87,4 @@ export function buildPre({
     databaseConfig,
     ordering: config.ordering ?? "multichain",
   };
-}
-
-export function safeBuildPre({
-  config,
-  options,
-  logger,
-}: {
-  config: Config;
-  options: Pick<Options, "rootDir" | "ponderDir">;
-  logger: Logger;
-}) {
-  try {
-    const result = buildPre({ config, options, logger });
-
-    return {
-      status: "success",
-      databaseConfig: result.databaseConfig,
-      ordering: result.ordering,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
 }

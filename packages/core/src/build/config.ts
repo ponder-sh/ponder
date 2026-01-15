@@ -144,9 +144,10 @@ export async function buildIndexingFunctions({
               throw new BlockNotFoundError({ blockNumber: "latest" as any });
             return hexToNumber((block as SyncBlock).number);
           })
-          .catch((e) => {
-            throw new Error(
-              `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
+          .catch((_error) => {
+            throw new BuildError(
+              `Unable to fetch "latest" block for chain '${chain.name}'`,
+              { cause: _error },
             );
           });
         perChainLatestBlockNumber.set(chain.name, blockPromise);
@@ -165,9 +166,10 @@ export async function buildIndexingFunctions({
         retryNullBlockRequest: true,
       })
         .then((block) => hexToNumber((block as SyncBlock).number))
-        .catch((e) => {
-          throw new Error(
-            `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
+        .catch((_error) => {
+          throw new BuildError(
+            `Unable to fetch "latest" block for chain '${chain.name}'`,
+            { cause: _error },
           );
         });
 
@@ -195,7 +197,7 @@ export async function buildIndexingFunctions({
     ...Object.keys(config.blocks ?? {}),
   ]) {
     if (sourceNames.has(source)) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Duplicate name '${source}' not allowed. The name must be unique across blocks, contracts, and accounts.`,
       );
     }
@@ -204,7 +206,7 @@ export async function buildIndexingFunctions({
 
   // Validate and build indexing functions
   if (indexingFunctions.length === 0) {
-    throw new Error(
+    throw new BuildError(
       "Validation failed: Found 0 registered indexing functions.",
     );
   }
@@ -219,7 +221,7 @@ export async function buildIndexingFunctions({
     const [sourceName] = eventNameComponents;
 
     if (!sourceName) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
       );
     }
@@ -231,7 +233,7 @@ export async function buildIndexingFunctions({
         (sourceType !== "transaction" && sourceType !== "transfer") ||
         (fromOrTo !== "from" && fromOrTo !== "to")
       ) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:transaction:from', '{sourceName}:transaction:to', '{sourceName}:transfer:from', or '{sourceName}:transfer:to'.`,
         );
       }
@@ -239,18 +241,18 @@ export async function buildIndexingFunctions({
       const [, sourceEventName] = eventNameComponents;
 
       if (!sourceEventName) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
         );
       }
     } else {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid event '${eventName}', expected format '{sourceName}:{eventName}' or '{sourceName}.{functionName}'.`,
       );
     }
 
     if (eventNames.has(eventName)) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Multiple indexing functions registered for event '${eventName}'.`,
       );
     }
@@ -265,7 +267,7 @@ export async function buildIndexingFunctions({
     }).find((_sourceName) => _sourceName === sourceName);
 
     if (!matchedSourceName) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid event '${eventName}' uses an unrecognized contract, account, or block interval name. Expected one of [${Array.from(
           sourceNames,
         )
@@ -282,7 +284,7 @@ export async function buildIndexingFunctions({
     ...flattenSources(config.blocks ?? {}),
   ]) {
     if (source.chain === null || source.chain === undefined) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Chain for '${source.name}' is null or undefined. Expected one of [${chains
           .map((n) => `'${n.name}'`)
           .join(
@@ -293,7 +295,7 @@ export async function buildIndexingFunctions({
 
     const chain = chains.find((n) => n.name === source.chain);
     if (!chain) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid chain for '${
           source.name
         }'. Got '${source.chain}', expected one of [${chains
@@ -310,19 +312,19 @@ export async function buildIndexingFunctions({
       endBlock !== undefined &&
       endBlock < startBlock
     ) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Start block for '${source.name}' is after end block (${startBlock} > ${endBlock}).`,
       );
     }
 
     if (startBlock !== undefined && Number.isInteger(startBlock) === false) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid start block for '${source.name}'. Got ${startBlock} typeof ${typeof startBlock}, expected an integer.`,
       );
     }
 
     if (endBlock !== undefined && Number.isInteger(endBlock) === false) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid end block for '${source.name}'. Got ${endBlock} typeof ${typeof endBlock}, expected an integer.`,
       );
     }
@@ -343,7 +345,7 @@ export async function buildIndexingFunctions({
         factoryStartBlock !== undefined &&
         (startBlock === undefined || factoryStartBlock > startBlock)
       ) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: Start block for '${source.name}' is before start block of factory address (${factoryStartBlock} > ${startBlock}).`,
         );
       }
@@ -352,7 +354,7 @@ export async function buildIndexingFunctions({
         endBlock !== undefined &&
         (factoryEndBlock === undefined || factoryEndBlock > endBlock)
       ) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: End block for ${source.name}  is before end block of factory address (${factoryEndBlock} > ${endBlock}).`,
         );
       }
@@ -362,7 +364,7 @@ export async function buildIndexingFunctions({
         factoryEndBlock !== undefined &&
         factoryEndBlock < factoryStartBlock
       ) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: Start block for '${source.name}' factory address is after end block (${factoryStartBlock} > ${factoryEndBlock}).`,
         );
       }
@@ -437,14 +439,14 @@ export async function buildIndexingFunctions({
           ? resolvedAddress
           : [resolvedAddress as Address]) {
           if (!address!.startsWith("0x"))
-            throw new Error(
+            throw new BuildError(
               `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
                 0,
                 2,
               )}', expected '0x'.`,
             );
           if (address!.length !== 42)
-            throw new Error(
+            throw new BuildError(
               `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
             );
         }
@@ -483,7 +485,7 @@ export async function buildIndexingFunctions({
             toSafeName({ abi: source.abi, item }) === filter.event,
         );
         if (!abiEvent) {
-          throw new Error(
+          throw new BuildError(
             `Validation failed: Invalid filter for contract '${
               source.name
             }'. Got event name '${filter.event}', expected one of [${source.abi
@@ -505,7 +507,7 @@ export async function buildIndexingFunctions({
         );
 
         if (indexingFunction === undefined) {
-          throw new Error(
+          throw new BuildError(
             `Validation failed: Event selector '${toSafeName({ abi: source.abi, item: abiItem })}' is used in a filter but does not have a corresponding indexing function.`,
           );
         }
@@ -551,7 +553,7 @@ export async function buildIndexingFunctions({
           toSafeName({ abi: source.abi, item }) === logEventName,
       );
       if (abiEvent === undefined) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: Event name for event '${logEventName}' not found in the contract ABI. Got '${logEventName}', expected one of [${source.abi
             .filter((item): item is AbiEvent => item.type === "event")
             .map((item) => `'${toSafeName({ abi: source.abi, item })}'`)
@@ -625,7 +627,7 @@ export async function buildIndexingFunctions({
           toSafeName({ abi: source.abi, item }) === functionEventName,
       );
       if (abiFunction === undefined) {
-        throw new Error(
+        throw new BuildError(
           `Validation failed: Function name for function '${functionEventName}' not found in the contract ABI. Got '${functionEventName}', expected one of [${source.abi
             .filter((item): item is AbiFunction => item.type === "function")
             .map((item) => `'${toSafeName({ abi: source.abi, item })}'`)
@@ -697,7 +699,7 @@ export async function buildIndexingFunctions({
 
     const resolvedAddress = source?.address;
     if (resolvedAddress === undefined) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Account '${source.name}' must specify an 'address'.`,
       );
     }
@@ -730,14 +732,14 @@ export async function buildIndexingFunctions({
         ? resolvedAddress
         : [resolvedAddress]) {
         if (!address!.startsWith("0x"))
-          throw new Error(
+          throw new BuildError(
             `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
               0,
               2,
             )}', expected '0x'.`,
           );
         if (address!.length !== 42)
-          throw new Error(
+          throw new BuildError(
             `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
           );
       }
@@ -868,7 +870,7 @@ export async function buildIndexingFunctions({
     const interval = Number.isNaN(intervalMaybeNan) ? 0 : intervalMaybeNan;
 
     if (!Number.isInteger(interval) || interval === 0) {
-      throw new Error(
+      throw new BuildError(
         `Validation failed: Invalid interval for block interval '${source.name}'. Got ${interval}, expected a non-zero integer.`,
       );
     }
@@ -947,7 +949,7 @@ export async function buildIndexingFunctions({
   }
 
   if (chainsWithSources.length === 0) {
-    throw new Error(
+    throw new BuildError(
       "Validation failed: Found 0 chains with registered indexing functions.",
     );
   }
@@ -982,7 +984,7 @@ export function buildConfig({
   const chains: Chain[] = Object.entries(config.chains).map(
     ([chainName, chain]) => {
       if (chain.id > Number.MAX_SAFE_INTEGER) {
-        throw new Error(
+        throw new BuildError(
           `Chain "${chainName}" with id ${chain.id} has a chain_id that is too large.`,
         );
       }
@@ -996,7 +998,7 @@ export function buildConfig({
 
       if (chain.rpc === undefined || chain.rpc === "") {
         if (matchedChain === undefined) {
-          throw new Error(
+          throw new BuildError(
             `Chain "${chainName}" with id ${chain.id} has no RPC defined and no default RPC URL was found in 'viem/chains'.`,
           );
         }
@@ -1008,7 +1010,7 @@ export function buildConfig({
         const rpcs = Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc];
 
         if (rpcs.length === 0) {
-          throw new Error(
+          throw new BuildError(
             `Chain "${chainName}" with id ${chain.id} has no RPC URLs.`,
           );
         }
@@ -1044,7 +1046,7 @@ export function buildConfig({
       }
 
       if (chain.pollingInterval !== undefined && chain.pollingInterval! < 100) {
-        throw new Error(
+        throw new BuildError(
           `Invalid 'pollingInterval' for chain '${chainName}. Expected 100 milliseconds or greater, got ${chain.pollingInterval} milliseconds.`,
         );
       }
@@ -1066,7 +1068,7 @@ export function buildConfig({
   const chainIds = new Set<number>();
   for (const chain of chains) {
     if (chainIds.has(chain.id)) {
-      throw new Error(
+      throw new BuildError(
         `Invalid id for chain "${chain.name}". ${chain.id} is already in use.`,
       );
     }
@@ -1082,60 +1084,4 @@ export function buildConfig({
   );
 
   return { chains, rpcs, logs };
-}
-
-export async function safeBuildIndexingFunctions({
-  common,
-  config,
-  indexingFunctions,
-  configBuild,
-}: {
-  common: Common;
-  config: Config;
-  indexingFunctions: IndexingFunctions;
-  configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
-}) {
-  try {
-    const result = await buildIndexingFunctions({
-      common,
-      config,
-      indexingFunctions,
-      configBuild,
-    });
-
-    return {
-      status: "success",
-      chains: result.chains,
-      rpcs: result.rpcs,
-      finalizedBlocks: result.finalizedBlocks,
-      eventCallbacks: result.eventCallbacks,
-      setupCallbacks: result.setupCallbacks,
-      contracts: result.contracts,
-      logs: result.logs,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
-}
-
-export function safeBuildConfig({
-  common,
-  config,
-}: { common: Common; config: Config }) {
-  try {
-    const result = buildConfig({ common, config });
-
-    return {
-      status: "success",
-      chains: result.chains,
-      rpcs: result.rpcs,
-      logs: result.logs,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
 }

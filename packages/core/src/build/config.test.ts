@@ -12,12 +12,7 @@ import {
   zeroAddress,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import {
-  buildConfig,
-  buildIndexingFunctions,
-  safeBuildConfig,
-  safeBuildIndexingFunctions,
-} from "./config.js";
+import { buildConfig, buildIndexingFunctions } from "./config.js";
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -209,16 +204,15 @@ test("buildIndexingFunctions() throw useful error for common 0.11 migration mist
     config,
   });
 
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    // @ts-expect-error
-    config,
-    indexingFunctions,
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      // @ts-expect-error
+      config,
+      indexingFunctions,
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Chain for 'a' is null or undefined. Expected one of ['mainnet', 'optimism']. Did you forget to change 'network' to 'chain' when migrating to 0.11?",
   );
 });
@@ -402,15 +396,14 @@ test("buildIndexingFunctions() validates chain name", async () => {
     common: context.common,
     config,
   });
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Invalid chain for 'a'. Got 'mainnetz', expected one of ['mainnet'].",
   );
 });
@@ -430,13 +423,12 @@ test.skip("buildConfig() warns for public RPC URL", () => {
     },
   });
 
-  const result = safeBuildConfig({
+  const { logs } = buildConfig({
     common: context.common,
     config,
   });
 
-  expect(result.status).toBe("success");
-  expect(result.logs!.filter((l) => l.level === "warn")).toEqual([
+  expect(logs!.filter((l) => l.level === "warn")).toEqual([
     {
       level: "warn",
       msg: "Chain 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
@@ -458,12 +450,7 @@ test("buildConfig() handles chains not found in viem", () => {
     },
   });
 
-  const result = safeBuildConfig({
-    common: context.common,
-    config,
-  });
-
-  expect(result.status).toBe("success");
+  buildConfig({ common: context.common, config });
 });
 
 test("buildIndexingFunctions() validates event filter event name must be present in ABI", async () => {
@@ -490,15 +477,14 @@ test("buildIndexingFunctions() validates event filter event name must be present
     common: context.common,
     config,
   });
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0'].",
   );
 });
@@ -522,15 +508,14 @@ test("buildIndexingFunctions() validates address empty string", async () => {
     config,
   });
 
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Invalid prefix for address ''. Got '', expected '0x'.",
   );
 });
@@ -551,15 +536,14 @@ test("buildIndexingFunctions() validates address prefix", async () => {
   });
 
   const configBuild = buildConfig({ common: context.common, config });
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'.",
   );
 });
@@ -579,15 +563,14 @@ test("buildIndexingFunctions() validates address length", async () => {
   });
 
   const configBuild = buildConfig({ common: context.common, config });
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters.",
   );
 });
@@ -923,15 +906,14 @@ test("buildIndexingFunctions() validates factory interval", async () => {
   });
 
   const configBuild = buildConfig({ common: context.common, config });
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
     "Validation failed: Start block for 'a' is before start block of factory address (16370050 > 16370000).",
   );
 });
@@ -955,20 +937,17 @@ test("buildIndexingFunctions() validates start and end block", async () => {
 
   // @ts-expect-error
   const configBuild = buildConfig({ common: context.common, config });
-  const result = await safeBuildIndexingFunctions({
-    common: context.common,
-    // @ts-expect-error
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
-  });
-
-  expect(result).toMatchInlineSnapshot(`
-    {
-      "error": [BuildError: Validation failed: Invalid start block for 'a'. Got 16370000 typeof string, expected an integer.],
-      "status": "error",
-    }
-  `);
+  await expect(
+    buildIndexingFunctions({
+      common: context.common,
+      // @ts-expect-error
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild,
+    }),
+  ).rejects.toThrowError(
+    "Validation failed: Invalid start block for 'a'. Got 16370000 typeof string, expected an integer.",
+  );
 });
 
 test("buildIndexingFunctions() returns chain, rpc, and finalized block", async () => {

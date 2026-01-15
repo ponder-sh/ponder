@@ -1,12 +1,12 @@
 import { addStackTrace } from "@/indexing/addStackTrace.js";
 import type { Common } from "@/internal/common.js";
-import type { BaseError } from "@/internal/errors.js";
+import { ServerError } from "@/internal/errors.js";
 import { prettyPrint } from "@/utils/print.js";
 import type { Context, HonoRequest } from "hono";
 import { html } from "hono/html";
 
 export const onError = async (_error: Error, c: Context, common: Common) => {
-  const error = _error as BaseError;
+  const error = new ServerError(undefined, { cause: _error });
 
   // Find the filename where the error occurred
   const regex = /(\S+\.(?:js|ts|mjs|cjs)):\d+:\d+/;

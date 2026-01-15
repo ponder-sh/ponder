@@ -29,7 +29,6 @@ import type {
   Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
-import type { RetryableError } from "./errors.js";
 
 // Database
 
@@ -388,11 +387,14 @@ export type Status = {
 
 // Indexing error handler
 
+/**
+ * Object to prevent user code from swallowing internal ponder errors.
+ */
 export type IndexingErrorHandler = {
-  getRetryableError: () => RetryableError | undefined;
-  setRetryableError: (error: RetryableError) => void;
-  clearRetryableError: () => void;
-  error: RetryableError | undefined;
+  getError: () => Error | undefined;
+  setError: (error: Error) => void;
+  clearError: () => void;
+  error: Error | undefined;
 };
 
 // Seconds
