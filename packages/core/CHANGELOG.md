@@ -1,5 +1,11 @@
 # ponder
 
+## 0.16.2
+
+### Patch Changes
+
+- [#2255](https://github.com/ponder-sh/ponder/pull/2255) [`dbd82e3`](https://github.com/ponder-sh/ponder/commit/dbd82e38f0c88ed48a84d802b788d5186e3e3008) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved handling of large `eth_getLogs` responses. Fixed "Maximum call stack size exceeded".
+
 ## 0.16.1
 
 ### Patch Changes
