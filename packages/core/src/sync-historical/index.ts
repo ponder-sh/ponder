@@ -250,7 +250,15 @@ export const createHistoricalSync = (
           }),
         ),
       ),
-    ).then((logs) => logs.flat());
+    ).then((logs) => {
+      const result: SyncLog[] = [];
+      for (const _logs of logs) {
+        for (const log of _logs) {
+          result.push(log);
+        }
+      }
+      return result;
+    });
 
     /**
      * Dynamically increase the range used in "eth_getLogs" if an
@@ -584,7 +592,9 @@ export const createHistoricalSync = (
       await Promise.all(
         ethGetLogsParams.map(async (params) => {
           const _logs = await syncLogsDynamic(params, context);
-          logs.push(..._logs);
+          for (const log of _logs) {
+            logs.push(log);
+          }
         }),
       );
 
