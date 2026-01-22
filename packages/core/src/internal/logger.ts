@@ -1,7 +1,18 @@
+import {
+  ESBuildBuildError,
+  ESBuildContextError,
+  ESBuildTransformError,
+} from "@/build/stacktrace.js";
 import type { Prettify } from "@/types/utils.js";
 import { formatEta } from "@/utils/format.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
+import {
+  BaseError,
+  ExecuteFileError,
+  IndexingFunctionError,
+  ServerError,
+} from "./errors.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
@@ -70,9 +81,16 @@ export function createLogger({
         options: T,
         printKeys?: (keyof T)[],
       ) {
+        if (options.msg === undefined) {
+          console.trace();
+        }
         if (mode === "pretty" && printKeys) {
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
+        }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
         logger.error(options);
       },
@@ -84,6 +102,11 @@ export function createLogger({
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
         }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+          populateErrorMessageAndStack(options.error);
+        }
+
         logger.warn(options);
       },
       info<T extends Omit<Log, "level" | "time">>(
@@ -93,6 +116,10 @@ export function createLogger({
         if (mode === "pretty" && printKeys) {
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
+        }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
         logger.info(options);
       },
@@ -104,6 +131,11 @@ export function createLogger({
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
         }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+          populateErrorMessageAndStack;
+        }
+
         logger.debug(options);
       },
       trace<T extends Omit<Log, "level" | "time">>(
@@ -113,6 +145,10 @@ export function createLogger({
         if (mode === "pretty" && printKeys) {
           // @ts-ignore
           options[PRINT_KEYS] = printKeys;
+        }
+        if (options.error && options.error instanceof Error) {
+          stripErrorStack(options.error);
+          populateErrorMessageAndStack;
         }
         logger.trace(options);
       },
@@ -241,12 +277,41 @@ const format = (log: Log) => {
       prettyLog.push(`${log.error.name}: ${log.error.message}`);
     }
 
-    if (typeof log.error === "object" && "where" in log.error) {
-      prettyLog.push(`where: ${log.error.where as string}`);
-    }
     if (typeof log.error === "object" && "meta" in log.error) {
-      prettyLog.push(log.error.meta as string);
+      // @ts-ignore
+      prettyLog.push(log.error.meta);
     }
   }
   return prettyLog.join("\n");
 };
+
+function stripErrorStack(error: Error): void {
+  if (shouldPrintErrorStack(error) === false) {
+    error.stack = undefined;
+  }
+  if (error instanceof BaseError && error.cause) {
+    stripErrorStack(error.cause);
+  }
+}
+
+function populateErrorMessageAndStack(error: Error): void {
+  if (error.message === undefined || error.message === "") {
+    error.message = error.name;
+  }
+  if (error.stack === undefined) {
+    error.stack = error.message;
+  }
+  if (error instanceof BaseError && error.cause) {
+    populateErrorMessageAndStack(error.cause);
+  }
+}
+
+function shouldPrintErrorStack(error: Error): boolean {
+  if (error instanceof ServerError) return true;
+  if (error instanceof IndexingFunctionError) return true;
+  if (error instanceof ExecuteFileError) return true;
+  if (error instanceof ESBuildTransformError) return true;
+  if (error instanceof ESBuildBuildError) return true;
+  if (error instanceof ESBuildContextError) return true;
+  return false;
+}

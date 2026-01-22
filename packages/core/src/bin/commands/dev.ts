@@ -3,7 +3,11 @@ import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { type Database, createDatabase } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
+import {
+  BaseError,
+  ShutdownError,
+  isUserDerivedError,
+} from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -102,12 +106,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
       }
 
       if (result.status === "error") {
-        if (isInitialBuild === false) {
-          common.logger.error({
-            error: result.error,
-          });
-        }
-
         // This handles indexing function build failures on hot reload.
         metrics.hasError = true;
         return;
@@ -158,23 +156,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
             status: "error",
             kind: "indexing",
             error: preCompileResult.error,
-          });
-          return;
-        }
-
-        const databaseDiagnostic = await build.databaseDiagnostic({
-          preBuild: preCompileResult.result,
-        });
-        if (databaseDiagnostic.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "diagnostic",
-            error: databaseDiagnostic.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: databaseDiagnostic.error,
           });
           return;
         }
@@ -276,11 +257,40 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           preBuild: preCompileResult.result,
           schemaBuild: compileSchemaResult.result,
         });
-        crashRecoveryCheckpoint = await database.migrate({
-          buildId: indexingBuildResult.result.buildId,
-          chains: indexingBuildResult.result.chains,
-          finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+
+        const databaseDiagnostic = await build.databaseDiagnostic({
+          preBuild: preCompileResult.result,
+          database,
         });
+        if (databaseDiagnostic.status === "error") {
+          common.logger.error({
+            msg: "Build failed",
+            stage: "diagnostic",
+            error: databaseDiagnostic.error,
+          });
+          buildQueue.add({
+            status: "error",
+            kind: "indexing",
+            error: databaseDiagnostic.error,
+          });
+          return;
+        }
+
+        crashRecoveryCheckpoint = await database
+          .migrate({
+            buildId: indexingBuildResult.result.buildId,
+            chains: indexingBuildResult.result.chains,
+            finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+          })
+          .catch((error) => {
+            common.logger.error({
+              msg: "Database migration failed",
+              stage: "migration",
+              error: error as Error,
+            });
+
+            throw error;
+          });
 
         await database.migrateSync();
 
@@ -437,37 +447,31 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
 
   process.on("uncaughtException", (error: Error) => {
     if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
-
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
+    if (error instanceof BaseError) {
+      common.logger.error({ msg: `uncaughtException: ${error.name}` });
+      if (isUserDerivedError(error)) {
+        buildQueue.clear();
+        buildQueue.add({ status: "error", kind: "indexing", error });
+      } else {
+        exit({ code: 75 });
+      }
     } else {
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
+      common.logger.error({ msg: "uncaughtException", error });
       exit({ code: 75 });
     }
   });
   process.on("unhandledRejection", (error: Error) => {
     if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      common.logger.error({
-        msg: "unhandledRejection",
-        error,
-      });
-
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
+    if (error instanceof BaseError) {
+      common.logger.error({ msg: `unhandledRejection: ${error.name}` });
+      if (isUserDerivedError(error)) {
+        buildQueue.clear();
+        buildQueue.add({ status: "error", kind: "indexing", error });
+      } else {
+        exit({ code: 75 });
+      }
     } else {
-      common.logger.error({
-        msg: "unhandledRejection",
-        error,
-      });
+      common.logger.error({ msg: "unhandledRejection", error });
       exit({ code: 75 });
     }
   });

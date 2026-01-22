@@ -5,9 +5,9 @@ import { getPartitionName } from "@/drizzle/onchain.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
 import type { Common } from "@/internal/common.js";
 import {
-  CopyFlushError,
   DelayedInsertError,
   ShutdownError,
+  TransactionStatementError,
 } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -285,10 +285,11 @@ export const getCopyHelper = (qb: QB, chainId?: number) => {
         .query(`COPY ${target} FROM '/dev/blob'`, [], {
           blob: new Blob([text]),
         })
-        // Note: `TransactionError` is applied because the query
-        // uses the low-level `$client.query` method.
         .catch((error) => {
-          throw new CopyFlushError(error.message);
+          throw new TransactionStatementError(
+            `Failed COPY operation for table "${getTableName(table)}"`,
+            { cause: error as Error },
+          );
         });
     };
   } else {
@@ -307,7 +308,10 @@ export const getCopyHelper = (qb: QB, chainId?: number) => {
         copyStream.write(text);
         copyStream.end();
       }).catch((error) => {
-        throw new CopyFlushError(error.message);
+        throw new TransactionStatementError(
+          `Failed COPY operation for table "${getTableName(table)}"`,
+          { cause: error as Error },
+        );
       });
     };
   }
@@ -757,8 +761,9 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new DelayedInsertError(result.error.message);
-              error.stack = undefined;
+              error = new DelayedInsertError(undefined, {
+                cause: result.error as Error,
+              });
 
               addErrorMeta(
                 error,
@@ -829,8 +834,9 @@ export const createIndexingCache = ({
             );
 
             if (result.status === "error") {
-              error = new DelayedInsertError(result.error.message);
-              error.stack = undefined;
+              error = new DelayedInsertError(undefined, {
+                cause: result.error as Error,
+              });
 
               addErrorMeta(
                 error,

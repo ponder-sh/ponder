@@ -1032,7 +1032,7 @@ export const cachedTransport =
               functionName: "aggregate3",
               result: resultsToEncode,
             });
-          } catch (e) {
+          } catch {
             return encodeFunctionResult({
               abi: multicall3Abi,
               functionName: "aggregate3",

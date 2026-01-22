@@ -1,5 +1,4 @@
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { NotNullConstraintError } from "@/internal/errors.js";
 import { createPool } from "@/utils/pg.js";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -101,6 +100,13 @@ test("QB transaction retries error", async () => {
   // BEGIN, BEGIN, SELECT, ROLLBACK, BEGIN, SELECT, COMMIT
   expect(querySpy).toHaveBeenCalledTimes(7);
 
+  // unrecognized errors are propagated
+  await expect(
+    qb.transaction({ label: "test1" }, async () => {
+      throw new Error("i'm an error");
+    }),
+  ).rejects.toThrow("i'm an error");
+
   connection.release();
 });
 
@@ -118,12 +124,19 @@ test("QB parses error", async () => {
   const querySpy = vi.spyOn(pool, "query");
   querySpy.mockRejectedValueOnce(new Error("violates not-null constraint"));
 
-  const error = await qb
-    .wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA))
-    .catch((error) => error);
+  await expect(
+    qb.wrap({ label: "test1" }, (db) => db.select().from(SCHEMATA)),
+  ).rejects.toThrow();
 
   expect(querySpy).toHaveBeenCalledTimes(1);
-  expect(error).toBeInstanceOf(NotNullConstraintError);
+
+  await expect(
+    qb.wrap({ label: "test2" }, (db) =>
+      db.execute("SELECT * FRROM information_schema.schemata"),
+    ),
+  ).rejects.toThrow();
+
+  expect(querySpy).toHaveBeenCalledTimes(2);
 });
 
 test("QB client", async () => {

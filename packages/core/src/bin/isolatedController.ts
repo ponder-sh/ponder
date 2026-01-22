@@ -5,10 +5,7 @@ import { Worker } from "node:worker_threads";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
-import {
-  NonRetryableUserError,
-  nonRetryableUserErrorNames,
-} from "@/internal/errors.js";
+import {} from "@/internal/errors.js";
 import { AggregateMetricsService, getAppProgress } from "@/internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
@@ -248,33 +245,18 @@ export async function isolatedController({
               break;
             }
             case "error": {
-              let error: Error;
-              if (nonRetryableUserErrorNames.includes(message.error.name)) {
-                error = new NonRetryableUserError(message.error.message);
-              } else {
-                error = new Error(message.error.message);
-              }
-              error.name = message.error.name;
-              error.stack = message.error.stack;
-              throw error;
+              throw message.error;
             }
           }
         },
       );
 
       worker.on("error", (error: Error) => {
-        if (nonRetryableUserErrorNames.includes(error.name)) {
-          error = new NonRetryableUserError(error.message);
-        } else {
-          error = new Error(error.message);
-        }
         throw error;
       });
 
       worker.on("exit", (code: number) => {
-        const error = new Error(`Worker thread exited with code ${code}.`);
-        error.stack = undefined;
-        throw error;
+        throw new Error(`Worker thread exited with code ${code}.`);
       });
 
       perThreadWorkers.push(worker);

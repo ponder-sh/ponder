@@ -8,7 +8,7 @@ import {
 import type { Common } from "@/internal/common.js";
 import {
   MigrationError,
-  NonRetryableUserError,
+  QueryBuilderError,
   ShutdownError,
 } from "@/internal/errors.js";
 import type {
@@ -48,7 +48,7 @@ import {
   dropLiveQueryTriggers,
   dropTriggers,
 } from "./actions.js";
-import { type QB, createQB, parseDbError } from "./queryBuilder.js";
+import { type QB, createQB, shouldRetry } from "./queryBuilder.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
@@ -454,7 +454,9 @@ export const createDatabase = ({
 
           return;
         } catch (_error) {
-          const error = parseDbError(_error);
+          const error = new QueryBuilderError(undefined, {
+            cause: _error as Error,
+          });
 
           if (common.shutdown.isKilled) {
             throw new ShutdownError();
@@ -468,20 +470,12 @@ export const createDatabase = ({
             method: "migrate_sync",
           });
 
-          common.logger.warn({
-            msg: "Failed database query",
-            query: "migrate_sync",
-            retry_count: i,
-            error,
-          });
-
-          if (error instanceof NonRetryableUserError) {
+          if (shouldRetry(error.cause) === false) {
             common.logger.warn({
               msg: "Failed database query",
               query: "migrate_sync",
               error,
             });
-            throw error;
           }
 
           if (i === 9) {
@@ -540,13 +534,10 @@ export const createDatabase = ({
               );
             }
           } catch (_error) {
-            let error = _error as Error;
-            if (!error.message.includes("already exists")) throw error;
-            error = new MigrationError(
-              `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
+            throw new MigrationError(
+              `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}'.`,
+              { cause: _error as Error },
             );
-            error.stack = undefined;
-            throw error;
           }
         }
 
@@ -569,13 +560,10 @@ export const createDatabase = ({
               context,
             )
             .catch((_error) => {
-              const error = _error as Error;
-              if (!error.message.includes("already exists")) throw error;
-              const e = new MigrationError(
-                `Unable to create view "${namespace.schema}"."${schemaBuild.statements.views.json[i]!.name}" because a view with that name already exists.`,
+              throw new MigrationError(
+                `Unable to create view "${namespace.schema}"."${schemaBuild.statements.views.json[i]!.name}".`,
+                { cause: _error as Error },
               );
-              e.stack = undefined;
-              throw e;
             });
         }
       };
@@ -588,13 +576,10 @@ export const createDatabase = ({
               context,
             )
             .catch((_error) => {
-              const error = _error as Error;
-              if (!error.message.includes("already exists")) throw error;
-              const e = new MigrationError(
-                `Unable to create enum "${namespace.schema}"."${schemaBuild.statements.enums.json[i]!.name}" because an enum with that name already exists.`,
+              throw new MigrationError(
+                `Unable to create enum "${namespace.schema}"."${schemaBuild.statements.enums.json[i]!.name}".`,
+                { cause: _error as Error },
               );
-              e.stack = undefined;
-              throw e;
             });
         }
       };
@@ -854,11 +839,9 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
 
           // Note: ponder <=0.8 will evaluate this as true because the version is undefined
           if (previousApp.version !== VERSION) {
-            const error = new MigrationError(
+            throw new MigrationError(
               `Schema "${namespace.schema}" was previously used by a Ponder app with a different minor version. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
             );
-            error.stack = undefined;
-            throw error;
           }
 
           if (
@@ -866,11 +849,9 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
             (common.options.command === "dev" ||
               previousApp.build_id !== buildId)
           ) {
-            const error = new MigrationError(
+            throw new MigrationError(
               `Schema "${namespace.schema}" was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
             );
-            error.stack = undefined;
-            throw error;
           }
 
           const expiry =
@@ -986,11 +967,9 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
 
         result = await tryAcquireLockAndMigrate();
         if (result.status === "locked") {
-          const error = new MigrationError(
+          throw new MigrationError(
             `Failed to acquire lock on schema "${namespace.schema}". A different Ponder app is actively using this schema.`,
           );
-          error.stack = undefined;
-          throw error;
         }
       }
 

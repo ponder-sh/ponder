@@ -10,9 +10,8 @@ import { getRejectionValue } from "@/_test/utils.js";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import {
   BigIntSerializationError,
-  NonRetryableUserError,
+  IndexingDBError,
   RawSqlError,
-  type RetryableError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import { eq } from "drizzle-orm";
@@ -27,16 +26,16 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 const indexingErrorHandler: IndexingErrorHandler = {
-  getRetryableError: () => {
+  getError: () => {
     return indexingErrorHandler.error;
   },
-  setRetryableError: (error: RetryableError) => {
+  setError: (error: Error) => {
     indexingErrorHandler.error = error;
   },
-  clearRetryableError: () => {
+  clearError: () => {
     indexingErrorHandler.error = undefined;
   },
-  error: undefined as RetryableError | undefined,
+  error: undefined as Error | undefined,
 };
 
 test("find", async () => {
@@ -415,7 +414,7 @@ test("update throw error when primary key is updated", async () => {
       .set({ address: ALICE })
       .catch((error) => error);
 
-    expect(error).toBeInstanceOf(NonRetryableUserError);
+    expect(error).toBeInstanceOf(IndexingDBError);
 
     // function
 
@@ -424,7 +423,7 @@ test("update throw error when primary key is updated", async () => {
       .set(() => ({ address: ALICE }))
       .catch((error) => error);
 
-    expect(error).toBeInstanceOf(NonRetryableUserError);
+    expect(error).toBeInstanceOf(IndexingDBError);
 
     // update same primary key no function
     let row: any = await indexingStore.db
@@ -566,16 +565,16 @@ test("sql", async () => {
 
     await tx.wrap((db) => db.execute("SAVEPOINT test"));
 
-    expect(
-      await getRejectionValue(
-        async () =>
-          // @ts-ignore
-          await indexingStore.db.sql.insert(schema.account).values({
-            address: "0x0000000000000000000000000000000000000001",
-            balance: undefined,
-          }),
-      ),
-    ).toBeInstanceOf(RawSqlError);
+    await expect(
+      // @ts-ignore
+      indexingStore.db.sql
+        .insert(schema.account)
+        .values({
+          address: "0x0000000000000000000000000000000000000001",
+          balance: undefined,
+        })
+        .then((res) => res),
+    ).rejects.toThrow(RawSqlError);
 
     // TODO(kyle) check constraint
 
@@ -583,14 +582,12 @@ test("sql", async () => {
 
     await tx.wrap((db) => db.execute("ROLLBACK TO test"));
 
-    expect(
-      await getRejectionValue(
-        async () =>
-          await indexingStore.db.sql
-            .insert(schema.account)
-            .values({ address: zeroAddress, balance: 10n }),
-      ),
-    ).toBeInstanceOf(RawSqlError);
+    await expect(
+      indexingStore.db.sql
+        .insert(schema.account)
+        .values({ address: zeroAddress, balance: 10n })
+        .then((res) => res),
+    ).rejects.toThrow(RawSqlError);
   });
 });
 

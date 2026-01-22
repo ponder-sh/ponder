@@ -137,19 +137,6 @@ export async function start({
     return;
   }
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: preCompileResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
-
   const compileSchemaResult = build.compileSchema({
     ...schemaResult.result,
     preBuild: preCompileResult.result,
@@ -225,11 +212,36 @@ export async function start({
     preBuild: preCompileResult.result,
     schemaBuild: compileSchemaResult.result,
   });
-  const crashRecoveryCheckpoint = await database.migrate({
-    buildId: indexingBuildResult.result.buildId,
-    chains: indexingBuildResult.result.chains,
-    finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: preCompileResult.result,
+    database,
   });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
+
+  const crashRecoveryCheckpoint = await database
+    .migrate({
+      buildId: indexingBuildResult.result.buildId,
+      chains: indexingBuildResult.result.chains,
+      finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
+    })
+    .catch((error) => {
+      common.logger.error({
+        msg: "Database migration failed",
+        stage: "migration",
+        error: error as Error,
+      });
+
+      throw error;
+    });
 
   await database.migrateSync();
 

@@ -111,19 +111,6 @@ export async function createViews({
     return;
   }
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: buildResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
-
   const database = createDatabase({
     common,
     // Note: `namespace` is not used in this command
@@ -134,6 +121,20 @@ export async function createViews({
     preBuild: buildResult.result,
     schemaBuild: emptySchemaBuild,
   });
+
+  const databaseDiagnostic = await build.databaseDiagnostic({
+    preBuild: buildResult.result,
+    database,
+  });
+  if (databaseDiagnostic.status === "error") {
+    common.logger.error({
+      msg: "Build failed",
+      stage: "diagnostic",
+      error: databaseDiagnostic.error,
+    });
+    await exit({ code: 75 });
+    return;
+  }
 
   const endClock = startClock();
 
