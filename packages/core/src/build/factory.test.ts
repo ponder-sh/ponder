@@ -105,3 +105,110 @@ test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
     childAddressLocation: "offset288",
   });
 });
+
+const factoryEventWithBlockNumber = parseAbiItem(
+  "event ChildCreated(address indexed child, uint256 indexed startBlock)",
+);
+
+test("buildLogFactory with childStartBlock static value", () => {
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: llamaFactoryEventAbiItem,
+    parameter: "llamaCore",
+    chainId: 1,
+    sourceId: "Llama",
+    fromBlock: undefined,
+    toBlock: undefined,
+    childStartBlock: 1000000,
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(llamaFactoryEventAbiItem),
+    childAddressLocation: "offset0",
+    childStartBlock: 1000000,
+    childStartBlockLocation: undefined,
+  });
+});
+
+test("buildLogFactory with startBlockParameter from indexed topic", () => {
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: factoryEventWithBlockNumber,
+    parameter: "child",
+    chainId: 1,
+    sourceId: "Factory",
+    fromBlock: undefined,
+    toBlock: undefined,
+    startBlockParameter: "startBlock",
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(factoryEventWithBlockNumber),
+    childAddressLocation: "topic1",
+    childStartBlockLocation: "topic2",
+  });
+});
+
+const factoryEventWithNonIndexedBlock = parseAbiItem(
+  "event ChildCreated(address indexed child, uint256 startBlock, uint256 extra)",
+);
+
+test("buildLogFactory with startBlockParameter from data offset", () => {
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: factoryEventWithNonIndexedBlock,
+    parameter: "child",
+    chainId: 1,
+    sourceId: "Factory",
+    fromBlock: undefined,
+    toBlock: undefined,
+    startBlockParameter: "startBlock",
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(factoryEventWithNonIndexedBlock),
+    childAddressLocation: "topic1",
+    childStartBlockLocation: "offset0",
+  });
+});
+
+test("buildLogFactory with startBlockParameter extracts from chainId (uint256)", () => {
+  // chainId is uint256 type in the event, should work
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: llamaFactoryEventAbiItem,
+    parameter: "llamaCore",
+    chainId: 1,
+    sourceId: "Llama",
+    fromBlock: undefined,
+    toBlock: undefined,
+    startBlockParameter: "chainId",
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(llamaFactoryEventAbiItem),
+    childAddressLocation: "offset0",
+    childStartBlockLocation: "offset96", // chainId is after 3 non-indexed addresses (3 * 32 bytes)
+  });
+});
+
+test("buildLogFactory throws if startBlockParameter not found", () => {
+  expect(() =>
+    buildLogFactory({
+      address: "0xa",
+      event: llamaFactoryEventAbiItem,
+      parameter: "llamaCore",
+      chainId: 1,
+      sourceId: "Llama",
+      fromBlock: undefined,
+      toBlock: undefined,
+      startBlockParameter: "fakeParameter",
+    }),
+  ).toThrowError(
+    "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
+  );
+});

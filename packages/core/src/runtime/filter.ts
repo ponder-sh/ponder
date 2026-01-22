@@ -71,6 +71,47 @@ export const getChildAddress = ({
   }
 };
 
+/**
+ * Extracts the child start block from a factory event log.
+ * Returns undefined if no childStartBlockLocation is configured.
+ * This enables registry patterns where contracts specify their deployment block.
+ */
+export const getChildStartBlock = ({
+  log,
+  factory,
+}: { log: SyncLog; factory: Factory }): number | undefined => {
+  // If static childStartBlock is set, use it
+  if (factory.childStartBlock !== undefined) {
+    return factory.childStartBlock;
+  }
+
+  // If no dynamic location is configured, return undefined
+  if (factory.childStartBlockLocation === undefined) {
+    return undefined;
+  }
+
+  let hexValue: string;
+
+  if (factory.childStartBlockLocation.startsWith("offset")) {
+    const offset = Number(factory.childStartBlockLocation.substring(6));
+    // uint256 is 32 bytes = 64 hex chars
+    const start = 2 + offset * 2;
+    const length = 32 * 2;
+    hexValue = `0x${log.data.substring(start, start + length)}`;
+  } else {
+    const topicIndex =
+      factory.childStartBlockLocation === "topic1"
+        ? 1
+        : factory.childStartBlockLocation === "topic2"
+          ? 2
+          : 3;
+    hexValue = log.topics[topicIndex]!;
+  }
+
+  // Convert hex to number (handles uint256 values that fit in JS number)
+  return Number(BigInt(hexValue));
+};
+
 export const isAddressMatched = ({
   address,
   blockNumber,

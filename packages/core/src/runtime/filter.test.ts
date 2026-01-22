@@ -31,6 +31,7 @@ import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import {
   getChildAddress,
+  getChildStartBlock,
   isBlockFilterMatched,
   isLogFactoryMatched,
   isLogFilterMatched,
@@ -71,6 +72,92 @@ test("getChildAddress() offset", () => {
   expect(getChildAddress({ log, factory })).toBe(
     "0xa21a16ec22a940990922220e4ab5bf4c2310f556",
   );
+});
+
+test("getChildStartBlock() returns undefined when no config", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "topic1",
+  } as unknown as LogFactory;
+  const log = {
+    topics: [
+      null,
+      "0x000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+    ],
+  } as unknown as SyncLog;
+
+  expect(getChildStartBlock({ log, factory })).toBe(undefined);
+});
+
+test("getChildStartBlock() returns static childStartBlock", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "topic1",
+    childStartBlock: 1000000,
+  } as unknown as LogFactory;
+  const log = {
+    topics: [
+      null,
+      "0x000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+    ],
+  } as unknown as SyncLog;
+
+  expect(getChildStartBlock({ log, factory })).toBe(1000000);
+});
+
+test("getChildStartBlock() extracts from topic", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "topic1",
+    childStartBlockLocation: "topic2",
+  } as unknown as LogFactory;
+  // Block number 500000 = 0x7A120 padded to 32 bytes
+  const log = {
+    topics: [
+      null,
+      "0x000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+      "0x000000000000000000000000000000000000000000000000000000000007a120",
+    ],
+  } as unknown as SyncLog;
+
+  expect(getChildStartBlock({ log, factory })).toBe(500000);
+});
+
+test("getChildStartBlock() extracts from data offset", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "topic1",
+    childStartBlockLocation: "offset0",
+  } as unknown as LogFactory;
+  // Block number 12345678 = 0xBC614E padded to 32 bytes
+  const log = {
+    topics: [
+      null,
+      "0x000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+    ],
+    data: "0x0000000000000000000000000000000000000000000000000000000000bc614e",
+  } as unknown as SyncLog;
+
+  expect(getChildStartBlock({ log, factory })).toBe(12345678);
+});
+
+test("getChildStartBlock() static childStartBlock takes precedence over location", () => {
+  const factory = {
+    type: "log",
+    childAddressLocation: "topic1",
+    childStartBlock: 999,
+    childStartBlockLocation: "topic2",
+  } as unknown as LogFactory;
+  const log = {
+    topics: [
+      null,
+      "0x000000000000000000000000a21a16ec22a940990922220e4ab5bf4c2310f556",
+      "0x000000000000000000000000000000000000000000000000000000000007a120",
+    ],
+  } as unknown as SyncLog;
+
+  // Should return static value, not extracted value
+  expect(getChildStartBlock({ log, factory })).toBe(999);
 });
 
 test("isLogFactoryMatched()", async () => {
