@@ -26,7 +26,7 @@ export type DatabaseConfig = Prettify<Config["database"]>;
 
 export type { CreateConfigReturnType } from "@/config/index.js";
 export type { GetEventFilter } from "@/config/eventFilter.js";
-export type { AddressConfig } from "@/config/address.js";
+export type { AddressConfig, Factory } from "@/config/address.js";
 
 export {
   onchainTable,
