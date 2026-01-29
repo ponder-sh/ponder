@@ -1,5 +1,11 @@
 # ponder
 
+## 0.16.3
+
+### Patch Changes
+
+- [#2260](https://github.com/ponder-sh/ponder/pull/2260) [`a859d3f`](https://github.com/ponder-sh/ponder/commit/a859d3f424f52c44b720be8fe1f85633671bd713) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed type exports for `factory`.
+
 ## 0.16.2
 
 ### Patch Changes
