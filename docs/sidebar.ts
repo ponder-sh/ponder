@@ -53,7 +53,6 @@ export const sidebar = {
     {
       text: "Production",
       items: [
-        { text: "Marble ✨", link: "/docs/production/marble" },
         { text: "Railway", link: "/docs/production/railway" },
         { text: "Self-hosting", link: "/docs/production/self-hosting" },
       ],
@@ -169,7 +168,6 @@ export const sidebar = {
     {
       text: "Production",
       items: [
-        { text: "Marble ✨", link: "/docs/0.15/production/marble" },
         { text: "Railway", link: "/docs/0.15/production/railway" },
         { text: "Self-hosting", link: "/docs/0.15/production/self-hosting" },
       ],
@@ -284,7 +282,6 @@ export const sidebar = {
     {
       text: "Production",
       items: [
-        { text: "Marble ✨", link: "/docs/0.14/production/marble" },
         { text: "Railway", link: "/docs/0.14/production/railway" },
         { text: "Self-hosting", link: "/docs/0.14/production/self-hosting" },
       ],
@@ -397,7 +394,6 @@ export const sidebar = {
     {
       text: "Production",
       items: [
-        { text: "Marble ✨", link: "/docs/0.12/production/marble" },
         { text: "Railway", link: "/docs/0.12/production/railway" },
         { text: "Self-hosting", link: "/docs/0.12/production/self-hosting" },
       ],
@@ -513,7 +509,6 @@ export const sidebar = {
     {
       text: "Production",
       items: [
-        { text: "Marble ✨", link: "/docs/0.11/production/marble" },
         { text: "Railway", link: "/docs/0.11/production/railway" },
         { text: "Self-hosting", link: "/docs/0.11/production/self-hosting" },
       ],
@@ -846,7 +841,6 @@ const canonicalSubpathsMap0_15: { [key: string]: string | undefined } = {
   "/docs/0.15/query/graphql": "/docs/query/graphql",
   "/docs/0.15/query/api-endpoints": "/docs/query/api-endpoints",
   "/docs/0.15/query/direct-sql": "/docs/query/direct-sql",
-  "/docs/0.15/production/marble": "/docs/production/marble",
   "/docs/0.15/production/railway": "/docs/production/railway",
   "/docs/0.15/production/self-hosting": "/docs/production/self-hosting",
   "/docs/0.15/guides/factory": "/docs/guides/factory",
@@ -907,7 +901,6 @@ const canonicalSubpathsMap0_14: { [key: string]: string | undefined } = {
   "/docs/0.14/query/graphql": "/docs/query/graphql",
   "/docs/0.14/query/api-endpoints": "/docs/query/api-endpoints",
   "/docs/0.14/query/direct-sql": "/docs/query/direct-sql",
-  "/docs/0.14/production/marble": "/docs/production/marble",
   "/docs/0.14/production/railway": "/docs/production/railway",
   "/docs/0.14/production/self-hosting": "/docs/production/self-hosting",
   "/docs/0.14/guides/offchain-data": "/docs/guides/offchain-data",
@@ -966,7 +959,6 @@ const canonicalSubpathsMap0_12: { [key: string]: string | undefined } = {
   "/docs/0.12/query/graphql": "/docs/query/graphql",
   "/docs/0.12/query/api-endpoints": "/docs/query/api-endpoints",
   "/docs/0.12/query/direct-sql": "/docs/query/direct-sql",
-  "/docs/0.12/production/marble": "/docs/production/marble",
   "/docs/0.12/production/railway": "/docs/production/railway",
   "/docs/0.12/production/self-hosting": "/docs/production/self-hosting",
   "/docs/0.12/guides/offchain-data": "/docs/guides/offchain-data",
@@ -1025,7 +1017,6 @@ const canonicalSubpathsMap0_11: { [key: string]: string | undefined } = {
   "/docs/0.11/query/graphql": "/docs/query/graphql",
   "/docs/0.11/query/api-endpoints": "/docs/query/api-endpoints",
   "/docs/0.11/query/direct-sql": "/docs/query/direct-sql",
-  "/docs/0.11/production/marble": "/docs/production/marble",
   "/docs/0.11/production/railway": "/docs/production/railway",
   "/docs/0.11/production/self-hosting": "/docs/production/self-hosting",
   "/docs/0.11/guides/offchain-data": "/docs/guides/offchain-data",
