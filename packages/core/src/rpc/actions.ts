@@ -10,6 +10,7 @@ import type {
 } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import type { Trace } from "@/utils/debug.js";
 import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
 import {
   BlockNotFoundError,
@@ -155,6 +156,69 @@ export const eth_getBlockReceipts = (
     });
 
 /**
+ * Process raw trace results into flattened SyncTrace array using DFS.
+ * Shared between debug_traceBlockByNumber and debug_traceBlockByHash.
+ */
+const processTraceResult = (
+  traces: Trace[],
+  request: Extract<
+    RequestParameters,
+    { method: "debug_traceBlockByNumber" | "debug_traceBlockByHash" }
+  >,
+): SyncTrace[] => {
+  const result: SyncTrace[] = [];
+  let index = 0;
+  // all traces that weren't included because the trace has an error
+  // or the trace's parent has an error, mapped to the error string
+  const failedTraces = new Map<
+    Trace["result"],
+    { error?: string; revertReason?: string }
+  >();
+
+  const dfs = (
+    frames: Trace["result"][],
+    transactionHash: Hex,
+    parentFrame: Trace["result"] | undefined,
+  ) => {
+    for (const frame of frames) {
+      if (frame.error !== undefined) {
+        failedTraces.set(frame, {
+          error: frame.error,
+          revertReason: frame.revertReason,
+        });
+      } else if (parentFrame && failedTraces.has(parentFrame)) {
+        const error = failedTraces.get(parentFrame)!;
+
+        frame.error = error.error;
+        frame.revertReason = error.revertReason;
+
+        failedTraces.set(frame, error);
+      }
+
+      // @ts-ignore
+      frame.index = index;
+      // @ts-ignore
+      frame.subcalls = frame.calls?.length ?? 0;
+
+      result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+
+      index++;
+
+      if (frame.calls) {
+        dfs(frame.calls, transactionHash, frame);
+      }
+    }
+  };
+
+  for (const trace of traces) {
+    index = 0;
+    dfs([trace.result], trace.txHash, undefined);
+  }
+
+  return result.map((trace) => standardizeTrace(trace, request));
+};
+
+/**
  * Helper function for "debug_traceBlockByNumber" request.
  */
 export const debug_traceBlockByNumber = (
@@ -174,61 +238,10 @@ export const debug_traceBlockByNumber = (
         );
       }
 
-      const result: SyncTrace[] = [];
-      let index = 0;
-      // all traces that weren't included because the trace has an error
-      // or the trace's parent has an error, mapped to the error string
-      const failedTraces = new Map<
-        (typeof traces)[number]["result"],
-        { error?: string; revertReason?: string }
-      >();
-
-      const dfs = (
-        frames: (typeof traces)[number]["result"][],
-        transactionHash: Hex,
-        parentFrame: (typeof traces)[number]["result"] | undefined,
-      ) => {
-        for (const frame of frames) {
-          if (frame.error !== undefined) {
-            failedTraces.set(frame, {
-              error: frame.error,
-              revertReason: frame.revertReason,
-            });
-          } else if (parentFrame && failedTraces.has(parentFrame)) {
-            const error = failedTraces.get(parentFrame)!;
-
-            frame.error = error.error;
-            frame.revertReason = error.revertReason;
-
-            failedTraces.set(frame, error);
-          }
-
-          // @ts-ignore
-          frame.index = index;
-          // @ts-ignore
-          frame.subcalls = frame.calls?.length ?? 0;
-
-          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
-
-          index++;
-
-          if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame);
-          }
-        }
-      };
-
-      for (const trace of traces) {
-        index = 0;
-        dfs([trace.result], trace.txHash, undefined);
-      }
-
-      return result.map((trace) =>
-        standardizeTrace(trace, {
-          method: "debug_traceBlockByNumber",
-          params,
-        }),
-      );
+      return processTraceResult(traces, {
+        method: "debug_traceBlockByNumber",
+        params,
+      });
     });
 
 /**
@@ -251,61 +264,10 @@ export const debug_traceBlockByHash = (
         );
       }
 
-      const result: SyncTrace[] = [];
-      let index = 0;
-      // all traces that weren't included because the trace has an error
-      // or the trace's parent has an error, mapped to the error string
-      const failedTraces = new Map<
-        (typeof traces)[number]["result"],
-        { error?: string; revertReason?: string }
-      >();
-
-      const dfs = (
-        frames: (typeof traces)[number]["result"][],
-        transactionHash: Hex,
-        parentFrame: (typeof traces)[number]["result"] | undefined,
-      ) => {
-        for (const frame of frames) {
-          if (frame.error !== undefined) {
-            failedTraces.set(frame, {
-              error: frame.error,
-              revertReason: frame.revertReason,
-            });
-          } else if (parentFrame && failedTraces.has(parentFrame)) {
-            const error = failedTraces.get(parentFrame)!;
-
-            frame.error = error.error;
-            frame.revertReason = error.revertReason;
-
-            failedTraces.set(frame, error);
-          }
-
-          // @ts-ignore
-          frame.index = index;
-          // @ts-ignore
-          frame.subcalls = frame.calls?.length ?? 0;
-
-          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
-
-          index++;
-
-          if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame);
-          }
-        }
-      };
-
-      for (const trace of traces) {
-        index = 0;
-        dfs([trace.result], trace.txHash, undefined);
-      }
-
-      return result.map((trace) =>
-        standardizeTrace(trace, {
-          method: "debug_traceBlockByHash",
-          params,
-        }),
-      );
+      return processTraceResult(traces, {
+        method: "debug_traceBlockByHash",
+        params,
+      });
     });
 
 /**
