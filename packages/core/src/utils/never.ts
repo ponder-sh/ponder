@@ -1,3 +1,3 @@
 export const never = (_x: never) => {
-  throw "unreachable";
+  throw new Error("Unreachable");
 };

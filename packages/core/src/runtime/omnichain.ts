@@ -55,6 +55,7 @@ import {
   bufferAsyncGenerator,
   recordAsyncGenerator,
 } from "@/utils/generators.js";
+import { invariant } from "@/utils/invariant.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
@@ -439,7 +440,10 @@ export async function runOmnichain({
 
           endClock = startClock();
 
-          // Note: It is an invariant that result.result.length > 0
+          invariant(
+            result.result.length > 0,
+            "Expected at least one result from event processing",
+          );
           await tx.wrap({ label: "update_checkpoints" }, (tx) =>
             tx
               .insert(PONDER_CHECKPOINT)

@@ -54,6 +54,7 @@ import {
   encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { invariant } from "@/utils/invariant.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
 import type { Abi, Address } from "viem";
@@ -345,6 +346,10 @@ export const createIndexing = ({
     let include: Filter["include"];
 
     // Note: It's an invariant that all filters have the same type.
+    invariant(
+      filters.every((f) => f.type === filters[0]!.type),
+      `All filters must have the same type, got: ${[...new Set(filters.map((f) => f.type))].join(", ")}`,
+    );
     switch (filters[0]!.type) {
       case "block": {
         include = defaultBlockFilterInclude;

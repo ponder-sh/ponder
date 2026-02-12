@@ -15,6 +15,7 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { invariant } from "@/utils/invariant.js";
 import { prettyPrint } from "@/utils/print.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { startClock } from "@/utils/timer.js";
@@ -896,6 +897,10 @@ export const createIndexingCache = ({
           cache.get(table)!.isCacheComplete = false;
           // Note: spillover is not cleared because it is an invariant
           // it is empty
+          invariant(
+            cache.get(table)!.spillover.size === 0,
+            `Spillover set should be empty when evicting cache for table ${getTableName(table)}`,
+          );
 
           common.logger.debug({
             msg: "Evicted cached database rows",
