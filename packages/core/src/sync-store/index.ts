@@ -988,7 +988,7 @@ export const createSyncStore = ({
         tracesRows,
       ] = await Promise.all([
         shouldQueryBlocks
-          ? qb.wrap({ label: "select_blocks" }, () => blocksQuery)
+          ? qb.wrap({ label: "select_blocks" }, () => blocksQuery, context)
           : [],
         shouldQueryTransactions
           ? qb.wrap(

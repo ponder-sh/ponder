@@ -494,7 +494,7 @@ test("recordProfilePattern() string concat", () => {
     {
       "id": {
         "delimiter": "-",
-        "type": "delimeter",
+        "type": "delimiter",
         "values": [
           {
             "type": "derived",
@@ -612,7 +612,7 @@ test("recordProfilePattern() string concat hint", () => {
     {
       "id": {
         "delimiter": "-",
-        "type": "delimeter",
+        "type": "delimiter",
         "values": [
           {
             "type": "derived",

@@ -961,7 +961,6 @@ export const standardizeLogs = (
         requestText(request),
       ];
 
-      console.log(logs);
       error.stack = undefined;
       throw error;
     } else {

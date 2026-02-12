@@ -220,7 +220,7 @@ export const createRpc = ({
   } else if (Array.isArray(chain.rpc)) {
     backends = chain.rpc.map((rpc) => {
       const protocol = new url.URL(rpc).protocol;
-      const hostname = new url.URL(chain.rpc).hostname;
+      const hostname = new url.URL(rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
         const httpRpcClient = getHttpRpcClient(rpc, {
@@ -683,7 +683,7 @@ export const createRpc = ({
         }
       }
 
-      throw "unreachable";
+      throw new Error("Unreachable");
     },
   });
 
@@ -872,7 +872,9 @@ export const createRpc = ({
               if (isUnsubscribed || webSocketErrorCount >= RETRY_COUNT) {
                 resolve();
               } else {
-                const duration = BASE_DURATION * 2 ** webSocketErrorCount;
+                const duration =
+                  BASE_DURATION * 2 ** webSocketErrorCount +
+                  Math.random() * BASE_DURATION;
 
                 common.logger.debug({
                   msg: "Retrying JSON-RPC WebSocket connection",
