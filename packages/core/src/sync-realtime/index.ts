@@ -341,39 +341,12 @@ export const createRealtimeSync = (
       );
 
       // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
-      let isInvalidLogsBloom = false;
       for (const log of logs) {
-        if (isInBloom(block.logsBloom, log.address) === false) {
-          isInvalidLogsBloom = true;
-        }
-
-        if (
-          log.topics[0] &&
-          isInBloom(block.logsBloom, log.topics[0]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
-
-        if (
-          log.topics[1] &&
-          isInBloom(block.logsBloom, log.topics[1]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
-
-        if (
-          log.topics[2] &&
-          isInBloom(block.logsBloom, log.topics[2]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
-
-        if (
-          log.topics[3] &&
-          isInBloom(block.logsBloom, log.topics[3]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+        const isInvalidLogsBloom =
+          isInBloom(block.logsBloom, log.address) === false ||
+          log.topics.some(
+            (topic) => topic && isInBloom(block!.logsBloom, topic) === false,
+          );
 
         if (isInvalidLogsBloom) {
           args.common.logger.warn({
