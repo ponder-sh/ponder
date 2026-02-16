@@ -5,8 +5,9 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import type { Plugin } from "graphql-yoga";
 import { Hono } from "hono";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { graphql } from "./middleware.js";
 
 beforeEach(setupCommon);
@@ -354,4 +355,52 @@ test("graphQLMiddleware interactive", async () => {
   const response = await app.request("/graphql");
 
   expect(response.status).toBe(200);
+});
+
+test("graphQLMiddleware supports custom plugins", async () => {
+  const schema = {
+    table: onchainTable("table", (t) => ({
+      id: t.text().primaryKey(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+
+  globalThis.PONDER_DATABASE = database;
+
+  await database.userQB.raw.insert(schema.table).values({
+    id: "0",
+  });
+
+  // Create a simple plugin that tracks execution
+  const onExecuteSpy = vi.fn();
+  const customPlugin: Plugin = {
+    onExecute: onExecuteSpy,
+  };
+
+  const app = new Hono().use(
+    "/graphql",
+    graphql(
+      { schema, db: database.readonlyQB.raw },
+      { plugins: [customPlugin] },
+    ),
+  );
+
+  const response = await app.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `query { table(id: "0") { id } }`,
+    }),
+  });
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    data: { table: { id: "0" } },
+  });
+
+  // Verify the custom plugin was called
+  expect(onExecuteSpy).toHaveBeenCalled();
 });

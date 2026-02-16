@@ -65,6 +65,7 @@ export type { ReadonlyDrizzle } from "@/types/db.js";
 export { client } from "@/client/index.js";
 
 export { graphql } from "@/graphql/middleware.js";
+export { buildGraphQLSchema, buildDataLoaderCache } from "@/graphql/index.js";
 
 export {
   sql,
