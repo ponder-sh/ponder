@@ -51,8 +51,11 @@ import {
   getHistoricalEventsIsolated,
   refetchHistoricalEvents,
 } from "./historical.js";
-import { getCachedIntervals, getChildAddresses } from "./index.js";
-import { initSyncProgress } from "./init.js";
+import {
+  getCachedIntervals,
+  getChildAddresses,
+  getLocalSyncProgress,
+} from "./index.js";
 import { getRealtimeEventsIsolated } from "./realtime.js";
 
 export async function runIsolated({
@@ -142,7 +145,7 @@ export async function runIsolated({
     filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
-  const syncProgress = await initSyncProgress({
+  const syncProgress = await getLocalSyncProgress({
     common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
