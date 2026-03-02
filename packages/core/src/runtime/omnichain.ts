@@ -69,8 +69,8 @@ import {
   type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
+  getLocalSyncProgress,
 } from "./index.js";
-import { initSyncProgress } from "./init.js";
 import { getRealtimeEventsOmnichain } from "./realtime.js";
 
 export async function runOmnichain({
@@ -169,7 +169,7 @@ export async function runOmnichain({
         filters: eventCallbacks.map(({ filter }) => filter),
         syncStore,
       });
-      const syncProgress = await initSyncProgress({
+      const syncProgress = await getLocalSyncProgress({
         common,
         filters: eventCallbacks.map(({ filter }) => filter),
         chain,

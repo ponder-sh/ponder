@@ -425,7 +425,6 @@ test("getHistoricalEventsMultichain()", async () => {
         eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
-        finalizedBlocks: [await eth_getBlockByNumber(rpc, ["0x1", true])],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
@@ -487,7 +486,6 @@ test("getHistoricalEvents() omnichain", async () => {
         eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
-        finalizedBlocks: [await eth_getBlockByNumber(rpc, ["0x1", true])],
       },
       crashRecoveryCheckpoint: undefined,
       perChainSync,
@@ -549,7 +547,6 @@ test("getHistoricalEvents() with crash recovery checkpoint", async () => {
         eventCallbacks: [eventCallbacks],
         chains: [chain],
         rpcs: [rpc],
-        finalizedBlocks: [await eth_getBlockByNumber(rpc, ["0x2", true])],
       },
       crashRecoveryCheckpoint: [
         { chainId: 1, checkpoint: MAX_CHECKPOINT_STRING },

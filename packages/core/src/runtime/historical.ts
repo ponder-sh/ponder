@@ -41,15 +41,11 @@ import {
   getRequiredIntervals,
   getRequiredIntervalsWithFilters,
 } from "./index.js";
-import { initEventGenerator, initRefetchEvents } from "./init.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
 export async function* getHistoricalEventsOmnichain(params: {
   common: Common;
-  indexingBuild: Pick<
-    IndexingBuild,
-    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
-  >;
+  indexingBuild: Pick<IndexingBuild, "eventCallbacks" | "chains" | "rpcs">;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   perChainSync: Map<
     Chain,
@@ -204,9 +200,8 @@ export async function* getHistoricalEventsOmnichain(params: {
           ]),
         });
 
-        const eventGenerator = await initEventGenerator({
+        const eventGenerator = getLocalEventGenerator({
           common: params.common,
-          indexingBuild: params.indexingBuild,
           chain,
           rpc,
           eventCallbacks,
@@ -393,10 +388,7 @@ export async function* getHistoricalEventsOmnichain(params: {
 
 export async function* getHistoricalEventsMultichain(params: {
   common: Common;
-  indexingBuild: Pick<
-    IndexingBuild,
-    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
-  >;
+  indexingBuild: Pick<IndexingBuild, "eventCallbacks" | "chains" | "rpcs">;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   perChainSync: Map<
     Chain,
@@ -495,9 +487,8 @@ export async function* getHistoricalEventsMultichain(params: {
           ]),
         });
 
-        const eventGenerator = await initEventGenerator({
+        const eventGenerator = getLocalEventGenerator({
           common: params.common,
-          indexingBuild: params.indexingBuild,
           chain,
           rpc,
           eventCallbacks,
@@ -652,10 +643,7 @@ export async function* getHistoricalEventsMultichain(params: {
 
 export async function* getHistoricalEventsIsolated(params: {
   common: Common;
-  indexingBuild: Pick<
-    IndexingBuild,
-    "eventCallbacks" | "chains" | "rpcs" | "finalizedBlocks"
-  >;
+  indexingBuild: Pick<IndexingBuild, "eventCallbacks" | "chains" | "rpcs">;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   chain: Chain;
   syncProgress: SyncProgress;
@@ -724,9 +712,8 @@ export async function* getHistoricalEventsIsolated(params: {
       ]),
     });
 
-    const eventGenerator = await initEventGenerator({
+    const eventGenerator = getLocalEventGenerator({
       common: params.common,
-      indexingBuild: params.indexingBuild,
       chain: params.chain,
       rpc,
       eventCallbacks,
@@ -874,7 +861,7 @@ export async function refetchHistoricalEvents(params: {
 
     if (chainEvents.length === 0) continue;
 
-    const rawEvents = await initRefetchEvents({
+    const rawEvents = await refetchLocalEvents({
       common: params.common,
       chain,
       childAddresses,
