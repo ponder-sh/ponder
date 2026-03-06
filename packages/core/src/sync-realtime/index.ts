@@ -1013,6 +1013,20 @@ export const createRealtimeSync = (
     // Quickly check for a reorg by comparing block numbers. If the block
     // number has not increased, a reorg must have occurred.
     if (hexToNumber(latestBlock.number) >= hexToNumber(block.number)) {
+      // When readPending is enabled and a block with the same number but
+      // different hash arrives (i.e. an updated flashblock), reorg the old
+      // block and then immediately re-process the new one in the same cycle.
+      // This avoids wasting a poll tick on just the reorg.
+      if (
+        args.chain.readPending &&
+        hexToNumber(latestBlock.number) === hexToNumber(block.number)
+      ) {
+        const reorgEvent = await reconcileReorg(block);
+        yield reorgEvent;
+        yield* reconcileBlock(blockWithEventData, blockCallback);
+        return;
+      }
+
       const reorgEvent = await reconcileReorg(block);
 
       blockCallback?.(false);

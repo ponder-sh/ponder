@@ -1060,3 +1060,188 @@ test("handleReorg() throws error for deep reorg", async () => {
   // block 4 is not added to `unfinalizedBlocks`
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);
 });
+
+// readPending (flashblocks) tests
+
+test("readPending: same block number with different hash triggers reorg without readPending", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2 });
+  const rpc = createRpc({ chain, common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+
+  // Simulate a "flashblock" update: same block number, different hash
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...blockData1.block,
+      hash: "0x0000000000000000000000000000000000000000000000000000000000000099",
+      parentHash: finalizedBlock.hash,
+    }),
+  );
+
+  // Without readPending, this is treated as a plain reorg (only reorg, no re-process)
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]!.type).toBe("reorg");
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
+});
+
+test("readPending: same block number with different hash reorgs and re-processes", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2, readPending: true });
+  const rpc = createRpc({ chain, common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+  const originalHash = realtimeSync.unfinalizedBlocks[0]!.hash;
+
+  // Simulate a flashblock update: same block number, different hash
+  const updatedBlock = {
+    ...blockData1.block,
+    hash: "0x0000000000000000000000000000000000000000000000000000000000000099" as `0x${string}`,
+    parentHash: finalizedBlock.hash,
+  };
+
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(updatedBlock));
+
+  // With readPending, we get reorg + re-processed block in one cycle
+  expect(syncResult).toHaveLength(2);
+  expect(syncResult[0]!.type).toBe("reorg");
+  expect(syncResult[1]!.type).toBe("block");
+
+  // The unfinalized block is replaced with the new hash
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks[0]!.hash).not.toBe(originalHash);
+  expect(realtimeSync.unfinalizedBlocks[0]!.hash).toBe(updatedBlock.hash);
+});
+
+test("readPending: multiple flashblock updates replace each other", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2, readPending: true });
+  const rpc = createRpc({ chain, common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
+
+  // First flashblock update
+  const flashblock2 = {
+    ...blockData1.block,
+    hash: "0x0000000000000000000000000000000000000000000000000000000000000002" as `0x${string}`,
+    parentHash: finalizedBlock.hash,
+  };
+  await drainAsyncGenerator(realtimeSync.sync(flashblock2));
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks[0]!.hash).toBe(flashblock2.hash);
+
+  // Second flashblock update
+  const flashblock3 = {
+    ...blockData1.block,
+    hash: "0x0000000000000000000000000000000000000000000000000000000000000003" as `0x${string}`,
+    parentHash: finalizedBlock.hash,
+  };
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(flashblock3));
+
+  expect(syncResult).toHaveLength(2);
+  expect(syncResult[0]!.type).toBe("reorg");
+  expect(syncResult[1]!.type).toBe("block");
+
+  // Latest flashblock is tracked
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks[0]!.hash).toBe(flashblock3.hash);
+});
+
+test("readPending: normal block progression still works", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2, readPending: true });
+  const rpc = createRpc({ chain, common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  // Normal block progression (different block numbers)
+  const blockData1 = await simulateBlock();
+  const syncResult1 = await drainAsyncGenerator(
+    realtimeSync.sync(blockData1.block),
+  );
+  expect(syncResult1).toHaveLength(1);
+  expect(syncResult1[0]!.type).toBe("block");
+
+  const blockData2 = await simulateBlock();
+  const syncResult2 = await drainAsyncGenerator(
+    realtimeSync.sync(blockData2.block),
+  );
+  expect(syncResult2).toHaveLength(1);
+  expect(syncResult2[0]!.type).toBe("block");
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+});
