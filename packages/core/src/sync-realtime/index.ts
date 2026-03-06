@@ -276,7 +276,9 @@ export const createRealtimeSync = (
    */
   const fetchBlockEventData = async (
     maybeBlockHeader: SyncBlock | SyncBlockHeader,
+    options?: { isPending?: boolean },
   ): Promise<BlockWithEventData> => {
+    const isPending = options?.isPending ?? false;
     const context = {
       logger: args.common.logger.child({ action: "fetch_block_data" }),
     };
@@ -305,7 +307,38 @@ export const createRealtimeSync = (
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
-      if (block === undefined) {
+      if (isPending) {
+        // For pending/flashblocks, use fromBlock/toBlock with "pending" tag
+        // as recommended by flashblock-enabled RPCs (e.g. Alchemy).
+        // blockHash-based queries may not work for pending block hashes.
+        if (block === undefined) {
+          [block, logs] = await Promise.all([
+            eth_getBlockByHash(
+              args.rpc,
+              [maybeBlockHeader.hash, true],
+              context,
+            ),
+            eth_getLogs(
+              args.rpc,
+              [
+                {
+                  fromBlock: maybeBlockHeader.number,
+                  toBlock: "pending",
+                },
+              ],
+              context,
+            ),
+          ]);
+        } else {
+          logs = await eth_getLogs(
+            args.rpc,
+            [{ fromBlock: block.number, toBlock: "pending" }],
+            context,
+          );
+        }
+        // Skip strict hash validation for pending blocks — the block hash
+        // may change between the eth_getBlockByNumber and eth_getLogs calls.
+      } else if (block === undefined) {
         [block, logs] = await Promise.all([
           eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
           eth_getLogs(
@@ -322,23 +355,25 @@ export const createRealtimeSync = (
         );
       }
 
-      validateLogsAndBlock(
-        logs,
-        block,
-        {
-          method: "eth_getLogs",
-          params: [{ blockHash: block.hash }],
-        },
-        ethGetBlockMethod === "eth_getBlockByNumber"
-          ? {
-              method: "eth_getBlockByNumber",
-              params: [block.number, true],
-            }
-          : {
-              method: "eth_getBlockByHash",
-              params: [block.hash, true],
-            },
-      );
+      if (!isPending) {
+        validateLogsAndBlock(
+          logs,
+          block,
+          {
+            method: "eth_getLogs",
+            params: [{ blockHash: block.hash }],
+          },
+          ethGetBlockMethod === "eth_getBlockByNumber"
+            ? {
+                method: "eth_getBlockByNumber",
+                params: [block.number, true],
+              }
+            : {
+                method: "eth_getBlockByHash",
+                params: [block.hash, true],
+              },
+        );
+      }
 
       // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
       let isInvalidLogsBloom = false;
@@ -1284,7 +1319,9 @@ export const createRealtimeSync = (
 
         latestFetchedBlock = block;
 
-        const blockWithEventData = await fetchBlockEventData(block);
+        const blockWithEventData = await fetchBlockEventData(block, {
+          isPending: args.chain.readPending,
+        });
 
         // Note: `reconcileBlock` must be called serially.
 
