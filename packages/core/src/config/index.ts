@@ -109,6 +109,12 @@ type ChainConfig<chain> = {
    * attempt to determine the block range automatically based on error messages.
    */
   ethGetLogsBlockRange?: number;
+  /**
+   * Use "pending" block tag instead of "latest" when polling for new blocks.
+   * Enables reading pre-confirmation data such as Base flashblocks.
+   * Default: `false`.
+   */
+  readPending?: boolean;
 };
 
 type ChainsConfig<chains> = {} extends chains

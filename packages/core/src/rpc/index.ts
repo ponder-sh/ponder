@@ -703,16 +703,18 @@ export const createRpc = ({
           if (isUnsubscribed) return;
 
           if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
+            const blockTag = chain.readPending ? "pending" : "latest";
             common.logger.debug({
               msg: "Created JSON-RPC polling subscription",
               chain: chain.name,
               chain_id: chain.id,
               polling_interval: chain.pollingInterval,
+              block_tag: blockTag,
             });
 
             interval = setInterval(async () => {
               try {
-                const block = await eth_getBlockByNumber(rpc, ["latest", true]);
+                const block = await eth_getBlockByNumber(rpc, [blockTag, true]);
                 common.logger.trace({
                   msg: "Received successful JSON-RPC polling response",
                   chain: chain.name,

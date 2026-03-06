@@ -1000,6 +1000,71 @@ test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (
   expect(finalizedBlocks[0]!.number).toBe("0x0");
 });
 
+test("buildConfig() defaults readPending to false", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    contracts: {
+      a: {
+        chain: "mainnet",
+        abi: [event0],
+        address: address1,
+      },
+    },
+  });
+
+  const { chains } = buildConfig({ common: context.common, config });
+
+  expect(chains[0]!.readPending).toBe(false);
+});
+
+test("buildConfig() sets readPending to true when configured", () => {
+  const config = createConfig({
+    chains: {
+      base: {
+        id: 8453,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        readPending: true,
+      },
+    },
+    contracts: {
+      a: {
+        chain: "base",
+        abi: [event0],
+        address: address1,
+      },
+    },
+  });
+
+  const { chains } = buildConfig({ common: context.common, config });
+
+  expect(chains[0]!.readPending).toBe(true);
+});
+
+test("buildConfig() preserves readPending false when explicitly set", () => {
+  const config = createConfig({
+    chains: {
+      base: {
+        id: 8453,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        readPending: false,
+      },
+    },
+    contracts: {
+      a: {
+        chain: "base",
+        abi: [event0],
+        address: address1,
+      },
+    },
+  });
+
+  const { chains } = buildConfig({ common: context.common, config });
+
+  expect(chains[0]!.readPending).toBe(false);
+});
+
 test("buildIndexingFunctions() hyperliquid evm", async () => {
   const config = createConfig({
     chains: {

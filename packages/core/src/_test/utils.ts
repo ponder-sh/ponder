@@ -663,6 +663,7 @@ export const getSimulatedEvent = ({
 
 export const getChain = (params?: {
   finalityBlockCount?: number;
+  readPending?: boolean;
 }) => {
   return {
     name: "mainnet",
@@ -674,6 +675,7 @@ export const getChain = (params?: {
     disableCache: false,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,
+    readPending: params?.readPending ?? false,
   } satisfies Chain;
 };
 

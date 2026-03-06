@@ -306,6 +306,7 @@ export type Chain = {
   disableCache: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
+  readPending: boolean;
 };
 
 // Schema
