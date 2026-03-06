@@ -171,12 +171,17 @@ export const createRealtimeSync = (
     transactionHashes: Set<Hash>,
     ethGetBlockMethod: "eth_getBlockByHash" | "eth_getBlockByNumber",
     context?: Parameters<Rpc["request"]>[1],
+    options?: { isPending?: boolean },
   ): Promise<SyncTransactionReceipt[]> => {
     if (transactionHashes.size === 0) {
       return [];
     }
 
-    if (isBlockReceipts === false) {
+    const isPendingBlock = options?.isPending ?? false;
+
+    // For pending/flashblocks, skip eth_getBlockReceipts (not supported)
+    // and go straight to eth_getTransactionReceipt (which is supported).
+    if (isPendingBlock || isBlockReceipts === false) {
       const transactionReceipts = await Promise.all(
         Array.from(transactionHashes).map(async (hash) => {
           const receipt = await eth_getTransactionReceipt(
@@ -185,23 +190,27 @@ export const createRealtimeSync = (
             context,
           );
 
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            ethGetBlockMethod === "eth_getBlockByNumber"
-              ? {
-                  method: "eth_getBlockByNumber",
-                  params: [block.number, true],
-                }
-              : {
-                  method: "eth_getBlockByHash",
-                  params: [block.hash, true],
-                },
-          );
+          // Skip strict hash validation for pending blocks — the block hash
+          // may differ between the eth_getBlockByNumber and receipt calls.
+          if (!isPendingBlock) {
+            validateReceiptsAndBlock(
+              [receipt],
+              block,
+              {
+                method: "eth_getTransactionReceipt",
+                params: [hash],
+              },
+              ethGetBlockMethod === "eth_getBlockByNumber"
+                ? {
+                    method: "eth_getBlockByNumber",
+                    params: [block.number, true],
+                  }
+                : {
+                    method: "eth_getBlockByHash",
+                    params: [block.hash, true],
+                  },
+            );
+          }
 
           return receipt;
         }),
@@ -233,6 +242,7 @@ export const createRealtimeSync = (
         transactionHashes,
         ethGetBlockMethod,
         context,
+        options,
       );
     }
 
@@ -458,7 +468,9 @@ export const createRealtimeSync = (
       traceFilters.length > 0 || transferFilters.length > 0;
 
     let traces: SyncTrace[] = [];
-    if (shouldRequestTraces) {
+    // debug_traceBlockByHash is not supported for pending/flashblocks.
+    // Skip trace requests entirely for pending blocks.
+    if (shouldRequestTraces && !isPending) {
       if (block === undefined) {
         [block, traces] = await Promise.all([
           eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
@@ -689,6 +701,7 @@ export const createRealtimeSync = (
       requiredTransactionReceipts,
       ethGetBlockMethod,
       context,
+      { isPending },
     );
 
     let childAddressCount = 0;
