@@ -348,6 +348,10 @@ export const createRealtimeSync = (
         }
         // Skip strict hash validation for pending blocks — the block hash
         // may change between the eth_getBlockByNumber and eth_getLogs calls.
+        // Filter logs to only include those from the current block number.
+        // The toBlock:"pending" range may return logs from a newer block if
+        // the pending state advanced between the RPC calls.
+        logs = logs.filter((log) => log.blockNumber === block!.number);
       } else if (block === undefined) {
         [block, logs] = await Promise.all([
           eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
@@ -386,51 +390,55 @@ export const createRealtimeSync = (
       }
 
       // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
-      let isInvalidLogsBloom = false;
-      for (const log of logs) {
-        if (isInBloom(block.logsBloom, log.address) === false) {
-          isInvalidLogsBloom = true;
-        }
+      // Skip logsBloom check for pending blocks — the bloom filter may be
+      // incomplete or zeroed out for flashblocks / pending state.
+      if (!isPending) {
+        let isInvalidLogsBloom = false;
+        for (const log of logs) {
+          if (isInBloom(block.logsBloom, log.address) === false) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[0] &&
-          isInBloom(block.logsBloom, log.topics[0]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[0] &&
+            isInBloom(block.logsBloom, log.topics[0]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[1] &&
-          isInBloom(block.logsBloom, log.topics[1]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[1] &&
+            isInBloom(block.logsBloom, log.topics[1]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[2] &&
-          isInBloom(block.logsBloom, log.topics[2]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[2] &&
+            isInBloom(block.logsBloom, log.topics[2]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[3] &&
-          isInBloom(block.logsBloom, log.topics[3]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[3] &&
+            isInBloom(block.logsBloom, log.topics[3]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (isInvalidLogsBloom) {
-          args.common.logger.warn({
-            msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
-            action: "fetch_block_data",
-            chain: args.chain.name,
-            chain_id: args.chain.id,
-            number: hexToNumber(block.number),
-            hash: block.hash,
-            logIndex: hexToNumber(log.logIndex),
-          });
-          break;
+          if (isInvalidLogsBloom) {
+            args.common.logger.warn({
+              msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
+              action: "fetch_block_data",
+              chain: args.chain.name,
+              chain_id: args.chain.id,
+              number: hexToNumber(block.number),
+              hash: block.hash,
+              logIndex: hexToNumber(log.logIndex),
+            });
+            break;
+          }
         }
       }
 
@@ -667,18 +675,29 @@ export const createRealtimeSync = (
         context,
       );
     }
-    validateTransactionsAndBlock(
-      block,
-      ethGetBlockMethod === "eth_getBlockByNumber"
-        ? {
-            method: "eth_getBlockByNumber",
-            params: [block.number, true],
-          }
-        : {
-            method: "eth_getBlockByHash",
-            params: [block.hash, true],
-          },
-    );
+
+    if (isPending) {
+      // Pending blocks may have zero hash and transactions with null blockHash.
+      // Normalize transaction.blockHash to block.hash to prevent downstream issues.
+      for (const tx of block.transactions) {
+        if (tx.blockHash === null || tx.blockHash === undefined) {
+          tx.blockHash = block.hash;
+        }
+      }
+    } else {
+      validateTransactionsAndBlock(
+        block,
+        ethGetBlockMethod === "eth_getBlockByNumber"
+          ? {
+              method: "eth_getBlockByNumber",
+              params: [block.number, true],
+            }
+          : {
+              method: "eth_getBlockByHash",
+              params: [block.hash, true],
+            },
+      );
+    }
 
     const transactions = block.transactions.filter((transaction) => {
       let isMatched = requiredTransactions.has(transaction.hash);
@@ -1045,7 +1064,11 @@ export const createRealtimeSync = (
     const block = blockWithEventData.block;
 
     // We already saw and handled this block. No-op.
-    if (latestBlock.hash === block.hash) {
+    // Skip dedup for zero-hash pending blocks (same logic as in sync()).
+    if (
+      !(args.chain.readPending && block.hash === zeroHash) &&
+      latestBlock.hash === block.hash
+    ) {
       args.common.logger.trace({
         msg: "Detected duplicate block",
         chain: args.chain.name,
@@ -1310,9 +1333,13 @@ export const createRealtimeSync = (
         const latestBlock = getLatestUnfinalizedBlock();
 
         // We already saw and handled this block. No-op.
+        // When readPending is enabled, skip dedup for zero-hash blocks —
+        // some RPCs return 0x000...000 for pending block hashes, and we
+        // must always process them to pick up new flashblock data.
         if (
-          latestBlock.hash === block.hash ||
-          latestFetchedBlock?.hash === block.hash
+          !(args.chain.readPending && block.hash === zeroHash) &&
+          (latestBlock.hash === block.hash ||
+            latestFetchedBlock?.hash === block.hash)
         ) {
           args.common.logger.trace({
             msg: "Detected duplicate block",
