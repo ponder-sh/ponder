@@ -352,6 +352,25 @@ export const createRealtimeSync = (
         // The toBlock:"pending" range may return logs from a newer block if
         // the pending state advanced between the RPC calls.
         logs = logs.filter((log) => log.blockNumber === block!.number);
+
+        // Reconcile logs with block transactions. The block and logs may come
+        // from different pending states, so transactionIndex can differ.
+        // Match by transactionHash (stable) and patch transactionIndex to
+        // match the block's ordering. Drop logs whose tx isn't in the block.
+        if (block !== undefined && logs.length > 0) {
+          const txByHash = new Map(
+            block.transactions.map((tx) => [tx.hash, tx]),
+          );
+          logs = logs.filter((log) => {
+            const tx = txByHash.get(log.transactionHash);
+            if (tx) {
+              log.transactionIndex = tx.transactionIndex;
+              log.blockHash = block!.hash;
+              return true;
+            }
+            return false;
+          });
+        }
       } else if (block === undefined) {
         [block, logs] = await Promise.all([
           eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
