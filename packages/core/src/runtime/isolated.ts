@@ -243,6 +243,7 @@ export async function runIsolated({
             latestCheckpoint: initialCheckpoint,
             safeCheckpoint: initialCheckpoint,
             finalizedCheckpoint: initialCheckpoint,
+            eventCount: 0,
           })
           .onConflictDoUpdate({
             target: PONDER_CHECKPOINT.chainName,
@@ -378,6 +379,7 @@ export async function runIsolated({
                   latestCheckpoint: checkpoint,
                   finalizedCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
+                  eventCount: events.length,
                 })
                 .onConflictDoUpdate({
                   target: PONDER_CHECKPOINT.chainName,
@@ -385,6 +387,7 @@ export async function runIsolated({
                     safeCheckpoint: sql`excluded.safe_checkpoint`,
                     finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
+                    eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
                   },
                 }),
             context,
@@ -645,7 +648,10 @@ export async function runIsolated({
               (db) =>
                 db
                   .update(PONDER_CHECKPOINT)
-                  .set({ latestCheckpoint: event.checkpoint })
+                  .set({
+                    latestCheckpoint: event.checkpoint,
+                    eventCount: sql`"_ponder_checkpoint"."event_count" + ${event.events.length}`,
+                  })
                   .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );

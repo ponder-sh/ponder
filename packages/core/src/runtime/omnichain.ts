@@ -284,6 +284,7 @@ export async function runOmnichain({
                 latestCheckpoint: initialCheckpoint,
                 safeCheckpoint: initialCheckpoint,
                 finalizedCheckpoint: initialCheckpoint,
+                eventCount: 0,
               };
             }),
           )
@@ -444,15 +445,18 @@ export async function runOmnichain({
             tx
               .insert(PONDER_CHECKPOINT)
               .values(
-                result.result.map(({ chainId, checkpoint }) => ({
-                  chainName: indexingBuild.chains.find(
-                    (chain) => chain.id === chainId,
-                  )!.name,
-                  chainId,
-                  latestCheckpoint: checkpoint,
-                  safeCheckpoint: checkpoint,
-                  finalizedCheckpoint: checkpoint,
-                })),
+                result.result.map(
+                  ({ chainId, checkpoint, events: chainEvents }) => ({
+                    chainName: indexingBuild.chains.find(
+                      (chain) => chain.id === chainId,
+                    )!.name,
+                    chainId,
+                    latestCheckpoint: checkpoint,
+                    safeCheckpoint: checkpoint,
+                    finalizedCheckpoint: checkpoint,
+                    eventCount: chainEvents.length,
+                  }),
+                ),
               )
               .onConflictDoUpdate({
                 target: PONDER_CHECKPOINT.chainName,
@@ -460,6 +464,7 @@ export async function runOmnichain({
                   safeCheckpoint: sql`excluded.safe_checkpoint`,
                   latestCheckpoint: sql`excluded.latest_checkpoint`,
                   finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                  eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
                 },
               }),
           );
@@ -754,7 +759,10 @@ export async function runOmnichain({
               (db) =>
                 db
                   .update(PONDER_CHECKPOINT)
-                  .set({ latestCheckpoint: event.checkpoint })
+                  .set({
+                    latestCheckpoint: event.checkpoint,
+                    eventCount: sql`"_ponder_checkpoint"."event_count" + ${event.events.length}`,
+                  })
                   .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );
