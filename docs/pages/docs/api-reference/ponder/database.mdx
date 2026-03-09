@@ -67,9 +67,30 @@ style Z2 fill:#f00,color:#fff
 
 The `_ponder_meta` table tracks the state of an instance running in a specific database schema. It stores the `build_id`, indexing checkpoint, and table names of the current instance, and uses a heartbeat locking mechanism to support the lifecycle logic described above.
 
-### Checkpoint Table
+### Checkpoint table
 
-The `_ponder_checkpoint` table tracks the indexing progress of each chain.
+The `_ponder_checkpoint` table tracks the indexing progress of each chain. It contains one row per chain.
+
+| column                   | type           | description                                                                                     |
+| :----------------------- | :------------- | :---------------------------------------------------------------------------------------------- |
+| **chain_name**           | `TEXT`         | Primary key. The chain name from your config.                                                   |
+| **chain_id**             | `BIGINT`       | The numeric chain ID.                                                                           |
+| **safe_checkpoint**      | `VARCHAR(75)`  | The checkpoint that has been safely committed (used for crash recovery).                         |
+| **latest_checkpoint**    | `VARCHAR(75)`  | The most recently indexed checkpoint.                                                           |
+| **finalized_checkpoint** | `VARCHAR(75)`  | The most recently finalized checkpoint.                                                         |
+| **data_checkpoint**      | `INTEGER`      | Monotonically increasing change sequence. Increments by the number of events indexed per batch, and by 1 on every reorg. |
+
+#### Detecting new data with `data_checkpoint`
+
+The `data_checkpoint` column is designed to let downstream systems (Dagster, Airflow, custom pollers, etc.) detect when Ponder has indexed new data without diffing checkpoint strings. Query it with a simple comparison:
+
+```sql
+SELECT chain_name, data_checkpoint
+FROM _ponder_checkpoint
+WHERE data_checkpoint > :last_seen_value;
+```
+
+Because `data_checkpoint` also increments during reorgs, downstream will always be notified of data changes — even when a reorg replays zero new events but reverts previously indexed data.
 
 ### Build ID and crash recovery
 
