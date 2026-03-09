@@ -200,6 +200,223 @@ test("_ponder_checkpoint event_count defaults to 0", async () => {
   await context.common.shutdown.kill();
 });
 
+test("_ponder_checkpoint event_count accumulates on upsert conflict", async () => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable();
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      ordering: "multichain",
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const checkpoint = createCheckpoint({ chainId: 1n, blockNumber: 10n });
+
+  await database.userQB.wrap((db) =>
+    db
+      .insert(PONDER_CHECKPOINT)
+      .values({
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: checkpoint,
+        finalizedCheckpoint: checkpoint,
+        safeCheckpoint: checkpoint,
+        eventCount: 5,
+      })
+      .onConflictDoUpdate({
+        target: PONDER_CHECKPOINT.chainName,
+        set: {
+          latestCheckpoint: sql`excluded.latest_checkpoint`,
+          eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
+        },
+      }),
+  );
+
+  const checkpoint2 = createCheckpoint({ chainId: 1n, blockNumber: 20n });
+  await database.userQB.wrap((db) =>
+    db
+      .insert(PONDER_CHECKPOINT)
+      .values({
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: checkpoint2,
+        finalizedCheckpoint: checkpoint2,
+        safeCheckpoint: checkpoint2,
+        eventCount: 3,
+      })
+      .onConflictDoUpdate({
+        target: PONDER_CHECKPOINT.chainName,
+        set: {
+          latestCheckpoint: sql`excluded.latest_checkpoint`,
+          eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
+        },
+      }),
+  );
+
+  const rows = await database.userQB.wrap((db) =>
+    db.select().from(PONDER_CHECKPOINT),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.eventCount).toBe(8);
+
+  await context.common.shutdown.kill();
+});
+
+test("_ponder_checkpoint event_count increments on update", async () => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable();
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      ordering: "multichain",
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const checkpoint = createCheckpoint({ chainId: 1n, blockNumber: 10n });
+
+  await database.userQB.wrap((db) =>
+    db.insert(PONDER_CHECKPOINT).values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: checkpoint,
+      finalizedCheckpoint: checkpoint,
+      safeCheckpoint: checkpoint,
+      eventCount: 10,
+    }),
+  );
+
+  const checkpoint2 = createCheckpoint({ chainId: 1n, blockNumber: 20n });
+  await database.userQB.wrap((db) =>
+    db
+      .update(PONDER_CHECKPOINT)
+      .set({
+        latestCheckpoint: checkpoint2,
+        eventCount: sql`"_ponder_checkpoint"."event_count" + ${7}`,
+      })
+      .where(eq(PONDER_CHECKPOINT.chainName, "mainnet")),
+  );
+
+  const rows = await database.userQB.wrap((db) =>
+    db.select().from(PONDER_CHECKPOINT),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.eventCount).toBe(17);
+
+  await context.common.shutdown.kill();
+});
+
+test("_ponder_checkpoint event_count is independent per chain", async () => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable();
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      ordering: "multichain",
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const cp1 = createCheckpoint({ chainId: 1n, blockNumber: 10n });
+  const cp2 = createCheckpoint({ chainId: 10n, blockNumber: 10n });
+
+  await database.userQB.wrap((db) =>
+    db.insert(PONDER_CHECKPOINT).values([
+      {
+        chainId: 1,
+        chainName: "mainnet",
+        latestCheckpoint: cp1,
+        finalizedCheckpoint: cp1,
+        safeCheckpoint: cp1,
+        eventCount: 100,
+      },
+      {
+        chainId: 10,
+        chainName: "optimism",
+        latestCheckpoint: cp2,
+        finalizedCheckpoint: cp2,
+        safeCheckpoint: cp2,
+        eventCount: 50,
+      },
+    ]),
+  );
+
+  await database.userQB.wrap((db) =>
+    db
+      .update(PONDER_CHECKPOINT)
+      .set({
+        eventCount: sql`"_ponder_checkpoint"."event_count" + ${25}`,
+      })
+      .where(eq(PONDER_CHECKPOINT.chainName, "mainnet")),
+  );
+
+  const rows = await database.userQB.wrap((db) =>
+    db.select().from(PONDER_CHECKPOINT),
+  );
+
+  const mainnet = rows.find((r) => r.chainName === "mainnet")!;
+  const optimism = rows.find((r) => r.chainName === "optimism")!;
+
+  expect(mainnet.eventCount).toBe(125);
+  expect(optimism.eventCount).toBe(50);
+
+  await context.common.shutdown.kill();
+});
+
 test("migrate() with empty schema creates tables, views, and enums", async () => {
   const mood = onchainEnum("mood", ["sad", "happy"]);
 
