@@ -107,6 +107,99 @@ test("migrate() succeeds with empty schema", async () => {
   await context.common.shutdown.kill();
 });
 
+test("migrate() creates _ponder_checkpoint with event_count column", async () => {
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      ordering: "multichain",
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  await database.userQB.wrap((db) =>
+    db.insert(getPonderCheckpointTable()).values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      eventCount: 42,
+    }),
+  );
+
+  const rows = await database.userQB.wrap((db) =>
+    db.select().from(getPonderCheckpointTable()),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.eventCount).toBe(42);
+
+  await context.common.shutdown.kill();
+});
+
+test("_ponder_checkpoint event_count defaults to 0", async () => {
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      ordering: "multichain",
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  await database.userQB.wrap((db) =>
+    db.insert(getPonderCheckpointTable()).values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+      safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    }),
+  );
+
+  const rows = await database.userQB.wrap((db) =>
+    db.select().from(getPonderCheckpointTable()),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.eventCount).toBe(0);
+
+  await context.common.shutdown.kill();
+});
+
 test("migrate() with empty schema creates tables, views, and enums", async () => {
   const mood = onchainEnum("mood", ["sad", "happy"]);
 
