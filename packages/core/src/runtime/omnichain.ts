@@ -284,7 +284,7 @@ export async function runOmnichain({
                 latestCheckpoint: initialCheckpoint,
                 safeCheckpoint: initialCheckpoint,
                 finalizedCheckpoint: initialCheckpoint,
-                eventCount: 0,
+                dataCheckpoint: 0,
               };
             }),
           )
@@ -454,7 +454,7 @@ export async function runOmnichain({
                     latestCheckpoint: checkpoint,
                     safeCheckpoint: checkpoint,
                     finalizedCheckpoint: checkpoint,
-                    eventCount: chainEvents.length,
+                    dataCheckpoint: chainEvents.length,
                   }),
                 ),
               )
@@ -464,7 +464,7 @@ export async function runOmnichain({
                   safeCheckpoint: sql`excluded.safe_checkpoint`,
                   latestCheckpoint: sql`excluded.latest_checkpoint`,
                   finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                  eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
+                  dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + excluded."data_checkpoint"`,
                 },
               }),
           );
@@ -761,7 +761,7 @@ export async function runOmnichain({
                   .update(PONDER_CHECKPOINT)
                   .set({
                     latestCheckpoint: event.checkpoint,
-                    eventCount: sql`"_ponder_checkpoint"."event_count" + ${event.events.length}`,
+                    dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + ${event.events.length}`,
                   })
                   .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
@@ -826,6 +826,18 @@ export async function runOmnichain({
           await createLiveQueryTriggers(
             tx,
             { namespaceBuild, tables },
+            context,
+          );
+
+          await tx.wrap(
+            { label: "update_checkpoints" },
+            (db) =>
+              db
+                .update(PONDER_CHECKPOINT)
+                .set({
+                  dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + 1`,
+                })
+                .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
             context,
           );
         });

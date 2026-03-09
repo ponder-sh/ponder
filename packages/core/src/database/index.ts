@@ -180,7 +180,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
       safeCheckpoint: t.varchar({ length: 75 }).notNull(),
       latestCheckpoint: t.varchar({ length: 75 }).notNull(),
       finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
-      eventCount: t.integer().notNull().default(0),
+      dataCheckpoint: t.integer().notNull().default(0),
     }));
   }
 
@@ -190,7 +190,7 @@ export const getPonderCheckpointTable = (schema?: string) => {
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
     finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
-    eventCount: t.integer().notNull().default(0),
+    dataCheckpoint: t.integer().notNull().default(0),
   }));
 };
 
@@ -624,7 +624,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
   "safe_checkpoint" VARCHAR(75) NOT NULL,
   "latest_checkpoint" VARCHAR(75) NOT NULL,
   "finalized_checkpoint" VARCHAR(75) NOT NULL,
-  "event_count" INTEGER NOT NULL DEFAULT 0
+  "data_checkpoint" INTEGER NOT NULL DEFAULT 0
 )`,
             ),
           context,

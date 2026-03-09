@@ -281,7 +281,7 @@ export async function runMultichain({
                 latestCheckpoint: initialCheckpoint,
                 safeCheckpoint: initialCheckpoint,
                 finalizedCheckpoint: initialCheckpoint,
-                eventCount: 0,
+                dataCheckpoint: 0,
               };
             }),
           )
@@ -434,7 +434,7 @@ export async function runMultichain({
                   latestCheckpoint: checkpoint,
                   finalizedCheckpoint: checkpoint,
                   safeCheckpoint: checkpoint,
-                  eventCount: events.length,
+                  dataCheckpoint: events.length,
                 })
                 .onConflictDoUpdate({
                   target: PONDER_CHECKPOINT.chainName,
@@ -442,7 +442,7 @@ export async function runMultichain({
                     safeCheckpoint: sql`excluded.safe_checkpoint`,
                     finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
-                    eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
+                    dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + excluded."data_checkpoint"`,
                   },
                 }),
             context,
@@ -739,7 +739,7 @@ export async function runMultichain({
                   .update(PONDER_CHECKPOINT)
                   .set({
                     latestCheckpoint: event.checkpoint,
-                    eventCount: sql`"_ponder_checkpoint"."event_count" + ${event.events.length}`,
+                    dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + ${event.events.length}`,
                   })
                   .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
@@ -809,6 +809,18 @@ export async function runMultichain({
             await createLiveQueryTriggers(
               tx,
               { namespaceBuild, tables },
+              context,
+            );
+
+            await tx.wrap(
+              { label: "update_checkpoints" },
+              (db) =>
+                db
+                  .update(PONDER_CHECKPOINT)
+                  .set({
+                    dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + 1`,
+                  })
+                  .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
               context,
             );
           },
