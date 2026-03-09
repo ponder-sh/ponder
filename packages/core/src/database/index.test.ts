@@ -107,7 +107,7 @@ test("migrate() succeeds with empty schema", async () => {
   await context.common.shutdown.kill();
 });
 
-test("migrate() creates _ponder_checkpoint with event_count column", async () => {
+test("migrate() creates _ponder_checkpoint with data_checkpoint column", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -140,7 +140,7 @@ test("migrate() creates _ponder_checkpoint with event_count column", async () =>
       latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
       finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
       safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
-      eventCount: 42,
+      dataCheckpoint: 42,
     }),
   );
 
@@ -149,12 +149,12 @@ test("migrate() creates _ponder_checkpoint with event_count column", async () =>
   );
 
   expect(rows).toHaveLength(1);
-  expect(rows[0]!.eventCount).toBe(42);
+  expect(rows[0]!.dataCheckpoint).toBe(42);
 
   await context.common.shutdown.kill();
 });
 
-test("_ponder_checkpoint event_count defaults to 0", async () => {
+test("_ponder_checkpoint data_checkpoint defaults to 0", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -195,12 +195,12 @@ test("_ponder_checkpoint event_count defaults to 0", async () => {
   );
 
   expect(rows).toHaveLength(1);
-  expect(rows[0]!.eventCount).toBe(0);
+  expect(rows[0]!.dataCheckpoint).toBe(0);
 
   await context.common.shutdown.kill();
 });
 
-test("_ponder_checkpoint event_count accumulates on upsert conflict", async () => {
+test("_ponder_checkpoint data_checkpoint accumulates on upsert conflict", async () => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable();
 
   const database = createDatabase({
@@ -239,13 +239,13 @@ test("_ponder_checkpoint event_count accumulates on upsert conflict", async () =
         latestCheckpoint: checkpoint,
         finalizedCheckpoint: checkpoint,
         safeCheckpoint: checkpoint,
-        eventCount: 5,
+        dataCheckpoint: 5,
       })
       .onConflictDoUpdate({
         target: PONDER_CHECKPOINT.chainName,
         set: {
           latestCheckpoint: sql`excluded.latest_checkpoint`,
-          eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
+          dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + excluded."data_checkpoint"`,
         },
       }),
   );
@@ -260,13 +260,13 @@ test("_ponder_checkpoint event_count accumulates on upsert conflict", async () =
         latestCheckpoint: checkpoint2,
         finalizedCheckpoint: checkpoint2,
         safeCheckpoint: checkpoint2,
-        eventCount: 3,
+        dataCheckpoint: 3,
       })
       .onConflictDoUpdate({
         target: PONDER_CHECKPOINT.chainName,
         set: {
           latestCheckpoint: sql`excluded.latest_checkpoint`,
-          eventCount: sql`"_ponder_checkpoint"."event_count" + excluded."event_count"`,
+          dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + excluded."data_checkpoint"`,
         },
       }),
   );
@@ -276,12 +276,12 @@ test("_ponder_checkpoint event_count accumulates on upsert conflict", async () =
   );
 
   expect(rows).toHaveLength(1);
-  expect(rows[0]!.eventCount).toBe(8);
+  expect(rows[0]!.dataCheckpoint).toBe(8);
 
   await context.common.shutdown.kill();
 });
 
-test("_ponder_checkpoint event_count increments on update", async () => {
+test("_ponder_checkpoint data_checkpoint increments on update", async () => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable();
 
   const database = createDatabase({
@@ -318,7 +318,7 @@ test("_ponder_checkpoint event_count increments on update", async () => {
       latestCheckpoint: checkpoint,
       finalizedCheckpoint: checkpoint,
       safeCheckpoint: checkpoint,
-      eventCount: 10,
+      dataCheckpoint: 10,
     }),
   );
 
@@ -328,7 +328,7 @@ test("_ponder_checkpoint event_count increments on update", async () => {
       .update(PONDER_CHECKPOINT)
       .set({
         latestCheckpoint: checkpoint2,
-        eventCount: sql`"_ponder_checkpoint"."event_count" + ${7}`,
+        dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + ${7}`,
       })
       .where(eq(PONDER_CHECKPOINT.chainName, "mainnet")),
   );
@@ -338,12 +338,12 @@ test("_ponder_checkpoint event_count increments on update", async () => {
   );
 
   expect(rows).toHaveLength(1);
-  expect(rows[0]!.eventCount).toBe(17);
+  expect(rows[0]!.dataCheckpoint).toBe(17);
 
   await context.common.shutdown.kill();
 });
 
-test("_ponder_checkpoint event_count is independent per chain", async () => {
+test("_ponder_checkpoint data_checkpoint is independent per chain", async () => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable();
 
   const database = createDatabase({
@@ -382,7 +382,7 @@ test("_ponder_checkpoint event_count is independent per chain", async () => {
         latestCheckpoint: cp1,
         finalizedCheckpoint: cp1,
         safeCheckpoint: cp1,
-        eventCount: 100,
+        dataCheckpoint: 100,
       },
       {
         chainId: 10,
@@ -390,7 +390,7 @@ test("_ponder_checkpoint event_count is independent per chain", async () => {
         latestCheckpoint: cp2,
         finalizedCheckpoint: cp2,
         safeCheckpoint: cp2,
-        eventCount: 50,
+        dataCheckpoint: 50,
       },
     ]),
   );
@@ -399,7 +399,7 @@ test("_ponder_checkpoint event_count is independent per chain", async () => {
     db
       .update(PONDER_CHECKPOINT)
       .set({
-        eventCount: sql`"_ponder_checkpoint"."event_count" + ${25}`,
+        dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + ${25}`,
       })
       .where(eq(PONDER_CHECKPOINT.chainName, "mainnet")),
   );
@@ -411,8 +411,82 @@ test("_ponder_checkpoint event_count is independent per chain", async () => {
   const mainnet = rows.find((r) => r.chainName === "mainnet")!;
   const optimism = rows.find((r) => r.chainName === "optimism")!;
 
-  expect(mainnet.eventCount).toBe(125);
-  expect(optimism.eventCount).toBe(50);
+  expect(mainnet.dataCheckpoint).toBe(125);
+  expect(optimism.dataCheckpoint).toBe(50);
+
+  await context.common.shutdown.kill();
+});
+
+test("_ponder_checkpoint data_checkpoint bumps on reorg then accumulates reprocessed events", async () => {
+  const PONDER_CHECKPOINT = getPonderCheckpointTable();
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      ordering: "multichain",
+      databaseConfig: context.databaseConfig,
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const checkpoint = createCheckpoint({ chainId: 1n, blockNumber: 10n });
+
+  // Insert with dataCheckpoint=10
+  await database.userQB.wrap((db) =>
+    db.insert(PONDER_CHECKPOINT).values({
+      chainId: 1,
+      chainName: "mainnet",
+      latestCheckpoint: checkpoint,
+      finalizedCheckpoint: checkpoint,
+      safeCheckpoint: checkpoint,
+      dataCheckpoint: 10,
+    }),
+  );
+
+  // Simulate reorg bump (+1)
+  await database.userQB.wrap((db) =>
+    db
+      .update(PONDER_CHECKPOINT)
+      .set({
+        dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + 1`,
+      })
+      .where(eq(PONDER_CHECKPOINT.chainName, "mainnet")),
+  );
+
+  // Simulate reprocessed events (+5)
+  const checkpoint2 = createCheckpoint({ chainId: 1n, blockNumber: 20n });
+  await database.userQB.wrap((db) =>
+    db
+      .update(PONDER_CHECKPOINT)
+      .set({
+        latestCheckpoint: checkpoint2,
+        dataCheckpoint: sql`"_ponder_checkpoint"."data_checkpoint" + ${5}`,
+      })
+      .where(eq(PONDER_CHECKPOINT.chainName, "mainnet")),
+  );
+
+  const rows = await database.userQB.wrap((db) =>
+    db.select().from(PONDER_CHECKPOINT),
+  );
+
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.dataCheckpoint).toBe(16);
 
   await context.common.shutdown.kill();
 });
