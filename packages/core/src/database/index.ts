@@ -509,7 +509,7 @@ export const createDatabase = ({
     async migrate({ buildId, chains, finalizedBlocks }) {
       const context = { logger: common.logger.child({ action: "migrate" }) };
 
-      const createTables = async (tx: QB) => {
+      const createTables = async (tx: QB, { skipExisting = false } = {}) => {
         for (let i = 0; i < schemaBuild.statements.tables.sql.length; i++) {
           try {
             const schemaName = schemaBuild.statements.tables.json[i]!.schema;
@@ -542,6 +542,7 @@ export const createDatabase = ({
           } catch (_error) {
             let error = _error as Error;
             if (!error.message.includes("already exists")) throw error;
+            if (skipExisting) continue;
             error = new MigrationError(
               `Unable to create table '${namespace.schema}'.'${schemaBuild.statements.tables.json[i]!.tableName}' because a table with that name already exists.`,
             );
@@ -561,7 +562,7 @@ export const createDatabase = ({
         }
       };
 
-      const createViews = async (tx: QB) => {
+      const createViews = async (tx: QB, { skipExisting = false } = {}) => {
         for (let i = 0; i < schemaBuild.statements.views.sql.length; i++) {
           await tx
             .wrap(
@@ -571,6 +572,7 @@ export const createDatabase = ({
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
+              if (skipExisting) return;
               const e = new MigrationError(
                 `Unable to create view "${namespace.schema}"."${schemaBuild.statements.views.json[i]!.name}" because a view with that name already exists.`,
               );
@@ -580,7 +582,7 @@ export const createDatabase = ({
         }
       };
 
-      const createEnums = async (tx: QB) => {
+      const createEnums = async (tx: QB, { skipExisting = false } = {}) => {
         for (let i = 0; i < schemaBuild.statements.enums.sql.length; i++) {
           await tx
             .wrap(
@@ -590,6 +592,7 @@ export const createDatabase = ({
             .catch((_error) => {
               const error = _error as Error;
               if (!error.message.includes("already exists")) throw error;
+              if (skipExisting) return;
               const e = new MigrationError(
                 `Unable to create enum "${namespace.schema}"."${schemaBuild.statements.enums.json[i]!.name}" because an enum with that name already exists.`,
               );
@@ -861,18 +864,6 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
             throw error;
           }
 
-          if (
-            process.env.PONDER_EXPERIMENTAL_DB !== "platform" &&
-            (common.options.command === "dev" ||
-              previousApp.build_id !== buildId)
-          ) {
-            const error = new MigrationError(
-              `Schema "${namespace.schema}" was previously used by a different Ponder app. Drop the schema first, or use a different schema. Read more: https://ponder.sh/docs/database#database-schema`,
-            );
-            error.stack = undefined;
-            throw error;
-          }
-
           const expiry =
             previousApp.heartbeat_at + common.options.databaseHeartbeatTimeout;
 
@@ -883,8 +874,32 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
             return { status: "locked", expiry } as const;
           }
 
+          if (
+            process.env.PONDER_EXPERIMENTAL_DB !== "platform" &&
+            previousApp.build_id !== buildId
+          ) {
+            endClock = startClock();
+
+            common.logger.info({
+              msg: "Build changed, creating new database objects",
+              previous_build_id: previousApp.build_id,
+              new_build_id: buildId,
+              schema: namespace.schema,
+            });
+
+            await createEnums(tx, { skipExisting: true });
+            await createTables(tx, { skipExisting: true });
+            await createViews(tx, { skipExisting: true });
+
+            common.logger.info({
+              msg: "Ensured database objects exist for updated build",
+              schema: namespace.schema,
+              duration: endClock(),
+            });
+          }
+
           common.logger.info({
-            msg: "Detected crash recovery",
+            msg: "Resuming from checkpoint",
             build_id: buildId,
             last_active: `${formatEta(Date.now() - previousApp.heartbeat_at)}s`,
             schema: namespace.schema,

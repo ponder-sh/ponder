@@ -170,7 +170,7 @@ test("migrate() with empty schema creates tables, views, and enums", async () =>
   await context.common.shutdown.kill();
 });
 
-test("migrate() throws with schema used", async () => {
+test("migrate() resumes with different build_id", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: {
@@ -217,15 +217,13 @@ test("migrate() throws with schema used", async () => {
     },
   });
 
-  const error = await databaseTwo
-    .migrate({
-      buildId: "def",
-      chains: [],
-      finalizedBlocks: [],
-    })
-    .catch((err) => err);
+  const checkpoint = await databaseTwo.migrate({
+    buildId: "def",
+    chains: [],
+    finalizedBlocks: [],
+  });
 
-  expect(error).toBeDefined();
+  expect(checkpoint).toBeUndefined();
 
   await context.common.shutdown.kill();
 });
