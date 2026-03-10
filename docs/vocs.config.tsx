@@ -13,7 +13,7 @@ export default defineConfig({
   title: "Ponder",
   titleTemplate: "%s – Ponder",
   description:
-    "Ponder is an open-source backend framework for robust, performant, and maintainable crypto apps.",
+    "Ponder is an open-source TypeScript framework for EVM data indexing.",
   rootDir: ".",
   iconUrl: { light: "/icon.png", dark: "/icon.png" },
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
