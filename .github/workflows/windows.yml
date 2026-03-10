@@ -44,5 +44,3 @@ jobs:
 
       - name: Test
         run: pnpm --filter create-ponder test
-        env:
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
