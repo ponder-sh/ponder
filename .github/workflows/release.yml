@@ -30,8 +30,9 @@ jobs:
 
       - name: Create release pull request or publish to npm
         id: changesets
-        uses: changesets/action@v1.4.5
+        uses: changesets/action@v1.7.0
         with:
+          commitMode: github-api 
           title: "chore: version packages"
           commit: "chore: version packages"
           version: pnpm changeset:version
