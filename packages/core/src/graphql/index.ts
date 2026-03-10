@@ -6,12 +6,11 @@ import type { Schema, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { never } from "@/utils/never.js";
 import DataLoader from "dataloader";
+import type { Column, TableRelationalConfig } from "drizzle-orm";
 import {
-  type Column,
   Many,
   One,
   SQL,
-  type TableRelationalConfig,
   and,
   arrayContained,
   arrayContains,

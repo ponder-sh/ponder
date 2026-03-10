@@ -39,7 +39,7 @@ export const graphiQLHtml = `<!--
   </head>
   <body>
     <div id="graphiql">Loading...</div>
-    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.development.js"></script>1
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.development.js"></script>
     <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.development.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/graphiql@3.7.2/graphiql.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@graphiql/plugin-explorer@3.2.3/dist/index.umd.js" crossorigin="anonymous"></script>
