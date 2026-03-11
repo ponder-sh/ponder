@@ -23,16 +23,11 @@ import {
 } from "viem";
 
 /**
- * Returns true if the error indicates that a block does not exist.
- * Handles both viem's BlockNotFoundError (null response) and Filecoin's
- * RPC error code 12 ("requested epoch was a null round").
+ * Returns true if the error indicates a null round (an epoch with no block).
+ * Matches RPC error code 12 or a "null round" error message.
  */
-export function isBlockNotFoundError(error: unknown): boolean {
-  if (error instanceof BlockNotFoundError) return true;
+export function isNullRoundError(error: unknown): boolean {
   if (error && typeof error === "object") {
-    if ("cause" in error && error.cause instanceof BlockNotFoundError) {
-      return true;
-    }
     // Filecoin null rounds return RPC error code 12
     if (
       "cause" in error &&
@@ -53,6 +48,21 @@ export function isBlockNotFoundError(error: unknown): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Returns true if the error indicates that a block does not exist.
+ * Handles both viem's BlockNotFoundError (null response) and Filecoin's
+ * RPC error code 12 ("requested epoch was a null round").
+ */
+export function isBlockNotFoundError(error: unknown): boolean {
+  if (error instanceof BlockNotFoundError) return true;
+  if (error && typeof error === "object") {
+    if ("cause" in error && error.cause instanceof BlockNotFoundError) {
+      return true;
+    }
+  }
+  return isNullRoundError(error);
 }
 
 /**

@@ -5,7 +5,7 @@ import type { Logger } from "@/internal/logger.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import {
   eth_getBlockByNumber,
-  isBlockNotFoundError,
+  isNullRoundError,
   standardizeBlock,
 } from "@/rpc/actions.js";
 import { createQueue } from "@/utils/queue.js";
@@ -949,10 +949,9 @@ function shouldRetry(error: Error) {
     // eth_call reverted
     if (error.message.includes("revert")) return false;
   }
-  // Some chains (e.g. Filecoin) have "null rounds" where no block exists at a
-  // given height. The RPC returns an error rather than null. Retrying will
-  // never succeed because the block genuinely does not exist.
-  if (isBlockNotFoundError(error)) return false;
+  // Chains with "null rounds" (no block at a given height) return an RPC error
+  // rather than null. Retrying will never succeed.
+  if (isNullRoundError(error)) return false;
   if (error instanceof HttpRequestError && error.status) {
     // Method Not Allowed
     if (error.status === 405) return false;
