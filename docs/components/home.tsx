@@ -24,9 +24,9 @@ export function Home() {
                 Rapid custom indexing for any EVM smart contract
               </h1>
               <p>
-                Ponder is an open-source framework for building fast, reliable,
+                Ponder is an open-source TypeScript framework for fast, reliable,
                 <br className="hidden lg:inline" />
-                and maintainable backend software in crypto.
+                and maintainable EVM data indexing
               </p>
             </div>
 

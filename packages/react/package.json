@@ -1,7 +1,7 @@
 {
   "name": "@ponder/react",
   "version": "0.16.3",
-  "description": "React hooks for Ponder",
+  "description": "React hook library for Ponder SQL over HTTP queries",
   "license": "MIT",
   "repository": {
     "type": "git",
