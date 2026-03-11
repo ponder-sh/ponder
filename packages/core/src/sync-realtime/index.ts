@@ -26,6 +26,7 @@ import {
   eth_getBlockReceipts,
   eth_getLogs,
   eth_getTransactionReceipt,
+  isBlockNotFoundError,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -1021,7 +1022,13 @@ export const createRealtimeSync = (
     }
 
     // Blocks are missing. They should be fetched and enqueued.
-    if (hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number)) {
+    // On chains with null rounds (e.g. Filecoin), some block heights have no
+    // block. If the incoming block's parentHash matches our local tip, the gap
+    // consists entirely of null rounds and we can skip straight to ingestion.
+    if (
+      hexToNumber(latestBlock.number) + 1 < hexToNumber(block.number) &&
+      block.parentHash !== latestBlock.hash
+    ) {
       args.common.logger.trace({
         msg: "Missing blocks from local chain",
         chain: args.chain.name,
@@ -1041,15 +1048,33 @@ export const createRealtimeSync = (
         ),
       );
 
-      const pendingBlocks = await Promise.all(
-        missingBlockRange.map((blockNumber) =>
-          eth_getBlockByNumber(args.rpc, [numberToHex(blockNumber), true], {
-            logger: args.common.logger.child({
-              action: "fetch_missing_blocks",
-            }),
-          }).then((block) => fetchBlockEventData(block)),
-        ),
-      );
+      // Some chains (e.g. Filecoin) have "null rounds" where no block is
+      // produced at a given height. eth_getBlockByNumber returns null for
+      // these heights. Filter them out rather than treating as an error.
+      const pendingBlocks = (
+        await Promise.all(
+          missingBlockRange.map((blockNumber) =>
+            eth_getBlockByNumber(args.rpc, [numberToHex(blockNumber), true], {
+              logger: args.common.logger.child({
+                action: "fetch_missing_blocks",
+              }),
+            })
+              .then((block) => fetchBlockEventData(block))
+              .catch((error) => {
+                if (isBlockNotFoundError(error)) {
+                  args.common.logger.trace({
+                    msg: "Block not found (null round), skipping",
+                    chain: args.chain.name,
+                    chain_id: args.chain.id,
+                    number: blockNumber,
+                  });
+                  return null;
+                }
+                throw error;
+              }),
+          ),
+        )
+      ).filter((b): b is BlockWithEventData => b !== null);
 
       args.common.logger.debug({
         msg: "Fetched missing blocks",
