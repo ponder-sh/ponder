@@ -126,8 +126,6 @@ export default createConfig({
 
 ## Usage with non-factory contracts
 
-
-
 The factory pattern is simply a primitive that extracts a list of addresses from event logs. The contract does not have to be a "factory" in the EVM/Solidity sense (it doesn't need to create other contracts).
 
 For example, the `ENSRegistry` contract emits the `NewResolver` event whenever a name's resolver gets set or changed. We can use this event with the factory pattern to index all resolvers that have ever been used.
@@ -185,10 +183,48 @@ export default createConfig({
 });
 ```
 
+## Child address location
+
+The location of the child address in the emitted event can be specified with either `parameter` or `location`.
+
+- **`parameter`** — The name of the event parameter that contains the child contract address. Ponder resolves the byte offset or topic position automatically from the event ABI.
+- **`location`** — A low-level alternative that specifies the exact position in the log. Use this when you need direct control over how the child address is extracted.
+
+The `location` field accepts the following values:
+
+- **`"topic1"`**, **`"topic2"`**, **`"topic3"`** — The child address is an indexed event parameter at the given topic position.
+- **`"offset{number}"`** — The child address is in the non-indexed event data at the given byte offset (e.g. `"offset0"`, `"offset32"`, `"offset64"`).
+
+```ts [ponder.config.ts]
+import { createConfig, factory } from "ponder"; // [!code focus]
+import { parseAbiItem } from "viem";
+import { SudoswapPoolAbi } from "./abis/SudoswapPool";
+
+export default createConfig({
+  chains: { /* ... */ },
+  contracts: {
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      chain: "mainnet",
+      address: factory({ // [!code focus]
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4", // [!code focus]
+        event: parseAbiItem("event NewPair(bytes data)"), // [!code focus]
+        location: "offset32", // [!code focus]
+      }), // [!code focus]
+      startBlock: 14645816,
+    },
+  },
+});
+```
+
+:::info
+  Invalid child address locations will fail gracefully. If the address cannot be decoded from the specified location, the log is skipped during indexing.
+:::
+
 ## How it works
   
 1. Fetch logs emitted by the factory contract that match the configuration using `eth_getLogs` in bulk.
-2. Decode each log using the provided `event` ABI item and extract the child address from it using the `parameter` name.
+2. Decode each log using the provided `event` ABI item and extract the child address from it using the `parameter` name or `location`.
 3. Fetch the requested data for each child contract – usually, more logs using `eth_getLogs` in bulk.
 
 ## Performance
@@ -208,19 +244,12 @@ event ChildContractCreated(address child);
 // ✅ Eligible. The parameter "pool" has type "address" and is indexed.
 event PoolCreated(address indexed deployer, address indexed pool, uint256 fee);
 
-// ❌ Not eligible. The parameter "contracts" is an array type, which is not supported.
-// Always emit a separate event for each child contract, even if they are created in a batch.
+// ❌ Not eligible. The parameter "contracts" is an array type, which is not supported
+// with `parameter`.
+// ✅ Eligible with `location` if the byte offset of the child address is known.
 event ContractsCreated(address[] contracts);
-
-// ❌ Not eligible. The parameter "child" is a struct/tuple, which is not supported.
-struct ChildContract {
-  address addr;
-}
-event ChildCreated(ChildContract child);
 ```
 
 ### Nested factory patterns
 
 Ponder does not support factory patterns that are nested beyond a single layer.
-
-
