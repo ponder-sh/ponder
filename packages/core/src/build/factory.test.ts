@@ -105,3 +105,22 @@ test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
     childAddressLocation: "offset288",
   });
 });
+
+test("buildLogFactory handles location", () => {
+  const criteria = buildLogFactory({
+    address: "0xa",
+    event: zoraFactoryEvent,
+    location: "offset10",
+    chainId: 1,
+    sourceId: "Llama",
+    fromBlock: undefined,
+    toBlock: undefined,
+  });
+
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector:
+      "0x2de436107c2096e039c98bbcc3c5a2560583738ce15c234557eecb4d3221aa81",
+    childAddressLocation: "offset10",
+  });
+});
