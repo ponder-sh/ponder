@@ -110,7 +110,7 @@ test("buildLogFactory handles location", () => {
   const criteria = buildLogFactory({
     address: "0xa",
     event: zoraFactoryEvent,
-    location: `offset${10}`,
+    location: "offset10",
     chainId: 1,
     sourceId: "Llama",
     fromBlock: undefined,
