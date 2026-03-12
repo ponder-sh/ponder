@@ -1,5 +1,11 @@
 # ponder
 
+## 0.16.4
+
+### Patch Changes
+
+- [#2283](https://github.com/ponder-sh/ponder/pull/2283) [`df46917`](https://github.com/ponder-sh/ponder/commit/df469170c804ec023f0ba5fdb6614671831893ef) Thanks [@kyscott18](https://github.com/kyscott18)! - Added `location` as a low-level alternative to `parameter` in factory config for specifying the child address position in the event.
+
 ## 0.16.3
 
 ### Patch Changes
