@@ -683,7 +683,7 @@ export const createRpc = ({
         }
       }
 
-      throw new Error("Unreachable");
+      throw "unreachable";
     },
   });
 
@@ -872,9 +872,7 @@ export const createRpc = ({
               if (isUnsubscribed || webSocketErrorCount >= RETRY_COUNT) {
                 resolve();
               } else {
-                const duration =
-                  BASE_DURATION * 2 ** webSocketErrorCount +
-                  Math.random() * BASE_DURATION;
+                const duration = BASE_DURATION * 2 ** webSocketErrorCount;
 
                 common.logger.debug({
                   msg: "Retrying JSON-RPC WebSocket connection",
