@@ -1,8 +1,5 @@
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import {
-  BigIntSerializationError,
-  NotNullConstraintError,
-} from "@/internal/errors.js";
+import { IndexingDBError } from "@/internal/errors.js";
 import { prettyPrint } from "@/utils/print.js";
 import {
   type Column,
@@ -64,37 +61,23 @@ export const normalizeColumn = (
   if (value === null) return null;
   if (column.mapToDriverValue === undefined) return value;
 
-  try {
-    if (Array.isArray(value) && column instanceof PgArray) {
-      return value.map((v) => {
-        if (column.baseColumn.columnType === "PgTimestamp") {
-          return v;
-        }
+  if (Array.isArray(value) && column instanceof PgArray) {
+    return value.map((v) => {
+      if (column.baseColumn.columnType === "PgTimestamp") {
+        return v;
+      }
 
-        return column.baseColumn.mapFromDriverValue(
-          column.baseColumn.mapToDriverValue(v),
-        );
-      });
-    }
-
-    if (column.columnType === "PgTimestamp") {
-      return value;
-    }
-
-    return column.mapFromDriverValue(column.mapToDriverValue(value));
-  } catch (e) {
-    if (
-      (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
-    ) {
-      const error = new BigIntSerializationError((e as Error).message);
-      error.meta.push(
-        "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
+      return column.baseColumn.mapFromDriverValue(
+        column.baseColumn.mapToDriverValue(v),
       );
-      throw error;
-    }
-
-    throw e;
+    });
   }
+
+  if (column.columnType === "PgTimestamp") {
+    return value;
+  }
+
+  return column.mapFromDriverValue(column.mapToDriverValue(value));
 };
 
 export const normalizeRow = (
@@ -110,7 +93,7 @@ export const normalizeRow = (
       column.notNull &&
       hasEmptyValue(column) === false
     ) {
-      const error = new NotNullConstraintError(
+      const error = new IndexingDBError(
         `Column '${getTableName(
           table,
         )}.${columnName}' violates not-null constraint.`,

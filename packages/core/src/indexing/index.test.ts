@@ -18,10 +18,7 @@ import { onchainTable } from "@/drizzle/onchain.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
-import {
-  InvalidEventAccessError,
-  type RetryableError,
-} from "@/internal/errors.js";
+import { InvalidEventAccessError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import { parseEther, toHex, zeroAddress } from "viem";
@@ -47,16 +44,16 @@ const account = onchainTable("account", (p) => ({
 const schema = { account };
 
 const indexingErrorHandler: IndexingErrorHandler = {
-  getRetryableError: () => {
+  getError: () => {
     return indexingErrorHandler.error;
   },
-  setRetryableError: (error: RetryableError) => {
+  setError: (error: Error) => {
     indexingErrorHandler.error = error;
   },
-  clearRetryableError: () => {
+  clearError: () => {
     indexingErrorHandler.error = undefined;
   },
-  error: undefined as RetryableError | undefined,
+  error: undefined as Error | undefined,
 };
 
 test("createIndexing()", async () => {

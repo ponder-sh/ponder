@@ -91,8 +91,17 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     return;
   }
 
+  const database = createDatabase({
+    common,
+    // Note: `namespace` is not used in this command
+    namespace: { schema: "public", viewsSchema: undefined },
+    preBuild: buildResult.result,
+    schemaBuild: emptySchemaBuild,
+  });
+
   const databaseDiagnostic = await build.databaseDiagnostic({
     preBuild: buildResult.result,
+    database,
   });
   if (databaseDiagnostic.status === "error") {
     common.logger.error({
@@ -103,14 +112,6 @@ export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
     await exit({ code: 75 });
     return;
   }
-
-  const database = createDatabase({
-    common,
-    // Note: `namespace` is not used in this command
-    namespace: { schema: "public", viewsSchema: undefined },
-    preBuild: buildResult.result,
-    schemaBuild: emptySchemaBuild,
-  });
 
   const ponderSchemas = await database.adminQB.wrap((db) =>
     db

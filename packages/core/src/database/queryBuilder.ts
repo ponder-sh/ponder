@@ -1,14 +1,12 @@
 import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
-import { BaseError } from "@/internal/errors.js";
 import {
+  BaseError,
   BigIntSerializationError,
-  CheckConstraintError,
-  DbConnectionError,
-  NonRetryableUserError,
-  NotNullConstraintError,
+  QueryBuilderError,
   ShutdownError,
-  UniqueConstraintError,
+  TransactionCallbackError,
+  TransactionStatementError,
 } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Schema } from "@/internal/types.js";
@@ -87,52 +85,6 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-export const parseDbError = (error: any): Error => {
-  const stack = error.stack;
-
-  if (error instanceof BaseError) {
-    return error;
-  }
-
-  if (error?.message?.includes("violates not-null constraint")) {
-    error = new NotNullConstraintError(error.message);
-  } else if (error?.message?.includes("violates unique constraint")) {
-    error = new UniqueConstraintError(error.message);
-  } else if (error?.message?.includes("violates check constraint")) {
-    error = new CheckConstraintError(error.message);
-  } else if (
-    // nodejs error message
-    error?.message?.includes("Do not know how to serialize a BigInt") ||
-    // bun error message
-    error?.message?.includes("cannot serialize BigInt")
-  ) {
-    error = new BigIntSerializationError(error.message);
-    error.meta.push(
-      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
-    );
-  } else if (error?.message?.includes("does not exist")) {
-    error = new NonRetryableUserError(error.message);
-  } else if (error?.message?.includes("already exists")) {
-    error = new NonRetryableUserError(error.message);
-  } else if (
-    error?.message?.includes(
-      "terminating connection due to administrator command",
-    ) ||
-    error?.message?.includes("connection to client lost") ||
-    error?.message?.includes("too many clients already") ||
-    error?.message?.includes("Connection terminated unexpectedly") ||
-    error?.message?.includes("ECONNRESET") ||
-    error?.message?.includes("ETIMEDOUT") ||
-    error?.message?.includes("timeout exceeded when trying to connect")
-  ) {
-    error = new DbConnectionError(error.message);
-  }
-
-  error.stack = stack;
-
-  return error;
-};
-
 /**
  * Create a query builder.
  *
@@ -209,8 +161,10 @@ export const createQB = <
         }
 
         return result;
-      } catch (e) {
-        const error = parseDbError(e);
+      } catch (_error) {
+        const error = new QueryBuilderError(undefined, {
+          cause: _error as Error,
+        });
 
         if (common.shutdown.isKilled) {
           throw new ShutdownError();
@@ -231,17 +185,14 @@ export const createQB = <
           firstError = error;
         }
 
-        // Two types of transaction environments
-        // 1. Inside callback (running user statements or control flow statements): Throw error, retry
-        // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
-        // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
+        // Contexts:
+        // 1. Query outside of a transaction.
+        // 2. Query inside of a transaction.
+        // 3. Transaction query: Could be caused by a query in the transaction callback,
+        // a transaction control statement, or a wildcard error that is not related to
+        // the query builder.
 
-        if (isTransaction) {
-          if (error instanceof NonRetryableUserError) {
-            throw error;
-          }
-        } else if (isTransactionStatement) {
-          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
+        if (isTransaction === false && isTransactionStatement) {
           logger.warn({
             msg: "Failed database query",
             query: label,
@@ -249,8 +200,15 @@ export const createQB = <
             duration: endClock(),
             error,
           });
-          throw error;
-        } else if (error instanceof NonRetryableUserError) {
+          // Transaction statements are not immediately retried, so the transaction
+          // will be properly rolled back.
+          throw new TransactionStatementError(undefined, { cause: error });
+        } else if (error.cause instanceof TransactionCallbackError) {
+          // Unrelated errors are bubbled out of the query builder.
+          throw error.cause.cause;
+        }
+
+        if (shouldRetry(error.cause) === false) {
           logger.warn({
             msg: "Failed database query",
             query: label,
@@ -365,8 +323,18 @@ export const createQB = <
                 }
               };
 
-              const result = await callback(tx);
-              return result;
+              try {
+                const result = await callback(tx);
+                return result;
+              } catch (error) {
+                if (error instanceof TransactionStatementError) {
+                  throw error;
+                } else {
+                  throw new TransactionCallbackError(undefined, {
+                    cause: error as Error,
+                  });
+                }
+              }
             }, config),
           {
             isTransaction: true,
@@ -447,8 +415,18 @@ export const createQB = <
                 }
               };
 
-              const result = await callback(tx);
-              return result;
+              try {
+                const result = await callback(tx);
+                return result;
+              } catch (error) {
+                if (error instanceof TransactionStatementError) {
+                  throw error;
+                } else {
+                  throw new TransactionCallbackError(undefined, {
+                    cause: error as Error,
+                  });
+                }
+              }
             }, config),
           {
             label,
@@ -478,11 +456,28 @@ export const createQB = <
           { logger?: Logger } | undefined,
         ];
 
-        // @ts-expect-error
-        return retryLogMetricErrorWrap(() => callback(db), {
-          isTransactionStatement: true,
-          logger: context?.logger ?? common.logger,
-        });
+        return retryLogMetricErrorWrap(
+          async () => {
+            try {
+              // @ts-expect-error
+              const result = await callback(db);
+              return result;
+            } catch (error) {
+              if (error instanceof TransactionStatementError) {
+                throw error;
+              } else {
+                throw new TransactionCallbackError(undefined, {
+                  cause: error as Error,
+                });
+              }
+            }
+          },
+          {
+            isTransaction: false,
+            isTransactionStatement: true,
+            logger: context?.logger ?? common.logger,
+          },
+        );
       } else {
         const [{ label }, callback, context] = args as [
           { label: string },
@@ -496,12 +491,29 @@ export const createQB = <
           { logger?: Logger } | undefined,
         ];
 
-        // @ts-expect-error
-        return retryLogMetricErrorWrap(() => callback(db), {
-          label,
-          isTransactionStatement: true,
-          logger: context?.logger ?? common.logger,
-        });
+        return retryLogMetricErrorWrap(
+          async () => {
+            try {
+              // @ts-expect-error
+              const result = await callback(db);
+              return result;
+            } catch (error) {
+              if (error instanceof TransactionStatementError) {
+                throw error;
+              } else {
+                throw new TransactionCallbackError(undefined, {
+                  cause: error as Error,
+                });
+              }
+            }
+          },
+          {
+            label,
+            isTransaction: false,
+            isTransactionStatement: true,
+            logger: context?.logger ?? common.logger,
+          },
+        );
       }
     };
   }
@@ -535,3 +547,51 @@ export const createQB = <
 
   return qb;
 };
+
+export function shouldRetry(error: Error) {
+  if (error?.message?.includes("violates not-null constraint")) {
+    return false;
+  }
+  if (error?.message?.includes("violates unique constraint")) {
+    return false;
+  }
+  if (error?.message?.includes("violates check constraint")) {
+    return false;
+  }
+  if (
+    error instanceof BigIntSerializationError ||
+    // nodejs error message
+    error?.message?.includes("Do not know how to serialize a BigInt") ||
+    // bun error message
+    error?.message?.includes("cannot serialize BigInt")
+  ) {
+    return false;
+  }
+  if (error?.message?.includes("does not exist")) {
+    return false;
+  }
+  if (error?.message?.includes("already exists")) {
+    return false;
+  }
+  if (error?.message?.includes("syntax error")) {
+    return false;
+  }
+  if (error instanceof BaseError && error.cause) {
+    if (shouldRetry(error.cause) === false) return false;
+  }
+
+  //  if (
+  //   error?.message?.includes(
+  //     "terminating connection due to administrator command",
+  //   ) ||
+  //   error?.message?.includes("connection to client lost") ||
+  //   error?.message?.includes("too many clients already") ||
+  //   error?.message?.includes("Connection terminated unexpectedly") ||
+  //   error?.message?.includes("ECONNRESET") ||
+  //   error?.message?.includes("ETIMEDOUT") ||
+  //   error?.message?.includes("timeout exceeded when trying to connect")
+  // ) {
+  // }
+
+  return true;
+}

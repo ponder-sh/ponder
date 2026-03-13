@@ -2,13 +2,12 @@ import {
   type Address,
   type Hex,
   type LogTopic,
-  type RpcError,
   hexToBigInt,
   numberToHex,
 } from "viem";
 
 export type GetLogsRetryHelperParameters = {
-  error: RpcError;
+  error: Error;
   params: [
     {
       address?: Address | Address[];
@@ -109,6 +108,7 @@ export const getLogsRetryHelper = ({
 
   // ankr
   match = sError.match("block range is too wide");
+  // @ts-ignore
   if (match !== null && error.code === -32600) {
     const ranges = chunk({ params, range: 3000n });
 
