@@ -220,7 +220,7 @@ export const createRpc = ({
   } else if (Array.isArray(chain.rpc)) {
     backends = chain.rpc.map((rpc) => {
       const protocol = new url.URL(rpc).protocol;
-      const hostname = new url.URL(chain.rpc).hostname;
+      const hostname = new url.URL(rpc).hostname;
 
       if (protocol === "https:" || protocol === "http:") {
         const httpRpcClient = getHttpRpcClient(rpc, {

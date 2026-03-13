@@ -482,7 +482,7 @@ const matchEventParameters = (
       const subValues = value.split(delimiter);
       if (subValues.length > 1) {
         const result: ProfilePattern[keyof ProfilePattern] = {
-          type: "delimeter",
+          type: "delimiter",
           values: [],
           delimiter,
         };

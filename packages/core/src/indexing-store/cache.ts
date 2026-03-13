@@ -136,7 +136,7 @@ export type ProfilePattern = {
         fn?: (value: unknown) => unknown;
       }
     | {
-        type: "delimeter";
+        type: "delimiter";
         values: { value: string[]; fn?: (value: unknown) => unknown }[];
         delimiter: string;
       };
