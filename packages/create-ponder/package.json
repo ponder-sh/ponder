@@ -9,10 +9,7 @@
     "url": "https://github.com/ponder-sh/ponder",
     "directory": "packages/create-ponder"
   },
-  "files": [
-    "dist",
-    "templates"
-  ],
+  "files": ["dist", "templates"],
   "bin": {
     "create-ponder": "./dist/index.js"
   },
