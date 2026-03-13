@@ -497,7 +497,9 @@ export const createIndexingStore = ({
               const error = new RecordNotFoundError(
                 `No existing record found in table '${getTableName(table)}'`,
               );
-              error.meta.push(`db.update arguments:\n${prettyPrint(key)}`);
+              error.meta.push(
+                `db.update arguments:\n${prettyPrint(key, { truncate: false })}`,
+              );
               throw error;
             }
 
