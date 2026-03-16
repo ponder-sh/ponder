@@ -15,7 +15,10 @@
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/**/*.bench.ts",
-    "!src/**/_test/**/*"
+    "!src/**/_test/**/*",
+    "README.md",
+    "tsconfig.json",
+    "LICENSE"
   ],
   "repository": {
     "type": "git",
