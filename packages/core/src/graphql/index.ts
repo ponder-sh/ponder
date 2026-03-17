@@ -174,7 +174,14 @@ export function buildGraphQLSchema({
             });
 
             if (["String", "ID"].includes(type.name)) {
-              conditionSuffixes.string.forEach((suffix) => {
+              const stringConditionSuffixes =
+                column.columnType === "PgHex"
+                  ? conditionSuffixes.string.filter(
+                      (suffix) => suffix.endsWith("_nocase") === false,
+                    )
+                  : conditionSuffixes.string;
+
+              stringConditionSuffixes.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -254,7 +261,14 @@ export function buildGraphQLSchema({
             });
 
             if (["String", "ID"].includes(type.name)) {
-              conditionSuffixes.string.forEach((suffix) => {
+              const stringConditionSuffixes =
+                column.columnType === "PgHex"
+                  ? conditionSuffixes.string.filter(
+                      (suffix) => suffix.endsWith("_nocase") === false,
+                    )
+                  : conditionSuffixes.string;
+
+              stringConditionSuffixes.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };

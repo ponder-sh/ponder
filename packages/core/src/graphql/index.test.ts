@@ -1165,12 +1165,6 @@ test("filter input type", async () => {
     hex_ends_with: "String",
     hex_not_starts_with: "String",
     hex_not_ends_with: "String",
-    hex_contains_nocase: "String",
-    hex_not_contains_nocase: "String",
-    hex_starts_with_nocase: "String",
-    hex_ends_with_nocase: "String",
-    hex_not_starts_with_nocase: "String",
-    hex_not_ends_with_nocase: "String",
 
     bool: "Boolean",
     bool_not: "Boolean",
@@ -1745,21 +1739,6 @@ test("filter string", async () => {
   result = await query(`
     query {
       persons(where: { hex_contains: "c" }) {
-        items {
-          id
-        }
-      }
-    }
-  `);
-
-  expect(result.errors?.[0]?.message).toBeUndefined();
-  expect(result.data).toMatchObject({
-    persons: { items: [{ id: "1" }, { id: "2" }] },
-  });
-
-  result = await query(`
-    query {
-      persons(where: { hex_contains_nocase: "C" }) {
         items {
           id
         }
