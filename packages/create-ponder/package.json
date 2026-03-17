@@ -1,6 +1,6 @@
 {
   "name": "create-ponder",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "type": "module",
   "description": "CLI tool to create Ponder projects",
   "license": "MIT",
@@ -9,7 +9,12 @@
     "url": "https://github.com/ponder-sh/ponder",
     "directory": "packages/create-ponder"
   },
-  "files": ["dist", "templates", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "create-ponder": "./dist/index.js"
   },
