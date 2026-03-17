@@ -1,5 +1,14 @@
 # ponder
 
+## 0.16.5
+
+### Patch Changes
+
+- [#2287](https://github.com/ponder-sh/ponder/pull/2287) [`b7a0a0b`](https://github.com/ponder-sh/ponder/commit/b7a0a0b8d41f84dcaedcc4696618c5e209440072) Thanks [@kyscott18](https://github.com/kyscott18)! - Include `tsconfig.json` as part of NPM payload.
+
+- Updated dependencies [[`b7a0a0b`](https://github.com/ponder-sh/ponder/commit/b7a0a0b8d41f84dcaedcc4696618c5e209440072)]:
+  - @ponder/utils@0.2.18
+
 ## 0.16.4
 
 ### Patch Changes

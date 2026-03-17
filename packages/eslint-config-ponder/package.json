@@ -1,6 +1,6 @@
 {
   "name": "eslint-config-ponder",
-  "version": "0.16.4",
+  "version": "0.16.5",
   "description": "Recommended ESLint rules for Ponder projects",
   "license": "MIT",
   "repository": {
