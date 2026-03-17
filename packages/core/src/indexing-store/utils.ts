@@ -115,7 +115,9 @@ export const normalizeRow = (
           table,
         )}.${columnName}' violates not-null constraint.`,
       );
-      error.meta.push(`db.insert arguments:\n${prettyPrint(row)}`);
+      error.meta.push(
+        `db.insert arguments:\n${prettyPrint(row, { truncate: false })}`,
+      );
       throw error;
     }
 
