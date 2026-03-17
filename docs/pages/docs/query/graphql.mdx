@@ -95,10 +95,16 @@ Use the `where` argument to filter for records that match certain criteria. The 
 | `{column}_lte`             | Numeric primitives            | is **less than or equal to** the value    |
 | `{column}_contains`        | String primitives             | **contains** the substring                |
 | `{column}_not_contains`    | String primitives             | **does not contain** the substring        |
+| `{column}_contains_nocase` | String primitives             | case-insensitively **contains** the substring |
+| `{column}_not_contains_nocase` | String primitives         | case-insensitively **does not contain** the substring |
 | `{column}_starts_with`     | String primitives             | **starts with** the substring             |
 | `{column}_not_starts_with` | String primitives             | **does not start with** the substring     |
+| `{column}_starts_with_nocase` | String primitives          | case-insensitively **starts with** the substring |
+| `{column}_not_starts_with_nocase` | String primitives      | case-insensitively **does not start with** the substring |
 | `{column}_ends_with`       | String primitives             | **ends with** the substring               |
 | `{column}_not_ends_with`   | String primitives             | **does not end with** the substring       |
+| `{column}_ends_with_nocase` | String primitives            | case-insensitively **ends with** the substring |
+| `{column}_not_ends_with_nocase` | String primitives        | case-insensitively **does not end with** the substring |
 | `{column}_has`             | Lists of primitives and enums | **has** the value as an element           |
 | `{column}_not_has`         | Lists of primitives and enums | **does not have** the value as an element |
 
@@ -197,6 +203,29 @@ query {
   "persons": [
     { "name": "Barry", "age": 57 },
     { "name": "Sally", "age": 22 },
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
+
+:::
+
+Get all `person` records with a `name` that starts with `"p"` regardless of case.
+
+:::code-group
+
+```graphql [Query]
+query {
+  persons(where: { name_starts_with_nocase: "p" }) {
+    name
+    age
+  }
+}
+```
+
+```json [Result]
+{
+  "persons": [
     { "name": "Pablo", "age": 71 },
   ]
 }

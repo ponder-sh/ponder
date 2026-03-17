@@ -23,6 +23,7 @@ import {
   getTableColumns,
   gt,
   gte,
+  ilike,
   inArray,
   is,
   isNotNull,
@@ -32,6 +33,7 @@ import {
   lte,
   ne,
   not,
+  notIlike,
   notInArray,
   notLike,
   or,
@@ -171,7 +173,14 @@ export function buildGraphQLSchema({
             });
 
             if (["String", "ID"].includes(type.name)) {
-              conditionSuffixes.string.forEach((suffix) => {
+              const stringConditionSuffixes =
+                column.columnType === "PgHex"
+                  ? conditionSuffixes.string.filter(
+                      (suffix) => suffix.endsWith("_nocase") === false,
+                    )
+                  : conditionSuffixes.string;
+
+              stringConditionSuffixes.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -251,7 +260,14 @@ export function buildGraphQLSchema({
             });
 
             if (["String", "ID"].includes(type.name)) {
-              conditionSuffixes.string.forEach((suffix) => {
+              const stringConditionSuffixes =
+                (column as PgColumn).columnType === "PgHex"
+                  ? conditionSuffixes.string.filter(
+                      (suffix) => suffix.endsWith("_nocase") === false,
+                    )
+                  : conditionSuffixes.string;
+
+              stringConditionSuffixes.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = {
                   type: type,
                 };
@@ -1012,6 +1028,12 @@ const conditionSuffixes = {
     "_ends_with",
     "_not_starts_with",
     "_not_ends_with",
+    "_contains_nocase",
+    "_not_contains_nocase",
+    "_starts_with_nocase",
+    "_ends_with_nocase",
+    "_not_starts_with_nocase",
+    "_not_ends_with_nocase",
   ],
 } as const;
 
@@ -1151,6 +1173,24 @@ function buildWhereConditions(
         break;
       case "_not_ends_with":
         conditions.push(notLike(column, `%${rawValue}`));
+        break;
+      case "_contains_nocase":
+        conditions.push(ilike(column, `%${rawValue}%`));
+        break;
+      case "_not_contains_nocase":
+        conditions.push(notIlike(column, `%${rawValue}%`));
+        break;
+      case "_starts_with_nocase":
+        conditions.push(ilike(column, `${rawValue}%`));
+        break;
+      case "_ends_with_nocase":
+        conditions.push(ilike(column, `%${rawValue}`));
+        break;
+      case "_not_starts_with_nocase":
+        conditions.push(notIlike(column, `${rawValue}%`));
+        break;
+      case "_not_ends_with_nocase":
+        conditions.push(notIlike(column, `%${rawValue}`));
         break;
       default:
         never(conditionSuffix);
