@@ -210,17 +210,28 @@ query {
 
 :::
 
-Get all `person` records with a `name` that starts with `"al"` regardless of case.
+Get all `person` records with a `name` that starts with `"p"` regardless of case.
 
-```graphql
+:::code-group
+
+```graphql [Query]
 query {
-  persons(
-    where: { name_starts_with_nocase: "al" }
-  ) {
+  persons(where: { name_starts_with_nocase: "p" }) {
     name
+    age
   }
 }
 ```
+
+```json [Result]
+{
+  "persons": [
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
+
+:::
 
 ## Sorting
 
