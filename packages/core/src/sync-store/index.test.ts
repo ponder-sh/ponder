@@ -368,16 +368,55 @@ test("getIntervals() 0.15 migration", async () => {
             "toBlock": 20,
             "type": "factory_log",
           },
-          "intervals": [
-            [
-              10,
-              20,
-            ],
-          ],
+          "intervals": [],
         },
       ],
     }
   `);
+});
+
+test("getIntervals() does not infer factory intervals from filter when factory_log_* has no rows (#2271)", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  // Factory range 10–30 (factory_log_* fragment ID includes _10_30).
+  // We only insert log_* intervals [10, 20], so no factory_log_* row exists for this factory.
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      sourceId: "factory",
+      address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: 10,
+      toBlock: 30,
+    },
+    fromBlock: 10,
+    toBlock: 30,
+  } satisfies LogFilter;
+
+  // Only insert filter (log_*) intervals — simulates reusing cache where log_* was synced
+  // but factory_log_* rows are missing for the current factory (e.g. after range change).
+  await syncStore.insertIntervals({
+    intervals: [{ filter, interval: [10, 20] }],
+    factoryIntervals: [],
+    chainId: 1,
+  });
+
+  const intervals = await syncStore.getIntervals({ filters: [filter] });
+  const factory = filter.address as Factory;
+  const factoryEntries = intervals.get(factory)!;
+
+  // Bug #2271: we must NOT infer factory intervals from log_* when factory_log_* has no rows.
+  // Factory discovery should be considered incomplete so historical sync runs child discovery.
+  const factoryIntervalUnion = factoryEntries.flatMap((e) => e.intervals);
+  expect(
+    factoryIntervalUnion,
+    "Factory intervals must be empty when no factory_log_* rows exist (do not infer from log_*)",
+  ).toEqual([]);
 });
 
 test("insertIntervals() merges duplicates", async () => {
