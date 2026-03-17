@@ -1,5 +1,15 @@
 # ponder
 
+## 0.16.6
+
+### Patch Changes
+
+- [#2247](https://github.com/ponder-sh/ponder/pull/2247) [`51f9978`](https://github.com/ponder-sh/ponder/commit/51f99780cdaa8b33cc9def84607fb7a704fcac3c) Thanks [@typedarray](https://github.com/typedarray)! - Fixed an issue where string values would sometimes be truncated in critical error messages.
+
+- [#2290](https://github.com/ponder-sh/ponder/pull/2290) [`eeeae47`](https://github.com/ponder-sh/ponder/commit/eeeae472d698fa313711e393250c1b20cb22b3ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Added case-insensitive GraphQL string filters: `contains_nocase`, `not_contains_nocase`,
+  `starts_with_nocase`, `not_starts_with_nocase`, `ends_with_nocase`, and
+  `not_ends_with_nocase`.
+
 ## 0.16.5
 
 ### Patch Changes
