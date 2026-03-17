@@ -262,7 +262,7 @@ export function buildGraphQLSchema({
 
             if (["String", "ID"].includes(type.name)) {
               const stringConditionSuffixes =
-                column.columnType === "PgHex"
+                (column as PgColumn).columnType === "PgHex"
                   ? conditionSuffixes.string.filter(
                       (suffix) => suffix.endsWith("_nocase") === false,
                     )
