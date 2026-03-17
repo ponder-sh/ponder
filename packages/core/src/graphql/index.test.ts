@@ -1148,6 +1148,12 @@ test("filter input type", async () => {
     text_ends_with: "String",
     text_not_starts_with: "String",
     text_not_ends_with: "String",
+    text_contains_nocase: "String",
+    text_not_contains_nocase: "String",
+    text_starts_with_nocase: "String",
+    text_ends_with_nocase: "String",
+    text_not_starts_with_nocase: "String",
+    text_not_ends_with_nocase: "String",
 
     hex: "String",
     hex_not: "String",
@@ -1159,6 +1165,12 @@ test("filter input type", async () => {
     hex_ends_with: "String",
     hex_not_starts_with: "String",
     hex_not_ends_with: "String",
+    hex_contains_nocase: "String",
+    hex_not_contains_nocase: "String",
+    hex_starts_with_nocase: "String",
+    hex_ends_with_nocase: "String",
+    hex_not_starts_with_nocase: "String",
+    hex_not_ends_with_nocase: "String",
 
     bool: "Boolean",
     bool_not: "Boolean",
@@ -1689,6 +1701,19 @@ test("filter string", async () => {
 
   result = await query(`
     query {
+      persons(where: { text_starts_with_nocase: "O" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({ persons: { items: [{ id: "1" }] } });
+
+  result = await query(`
+    query {
       persons(where: { text_not_ends_with: "e" }) {
         items {
           id
@@ -1704,7 +1729,37 @@ test("filter string", async () => {
 
   result = await query(`
     query {
+      persons(where: { text_not_ends_with_nocase: "E" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "2" }] },
+  });
+
+  result = await query(`
+    query {
       persons(where: { hex_contains: "c" }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: { items: [{ id: "1" }, { id: "2" }] },
+  });
+
+  result = await query(`
+    query {
+      persons(where: { hex_contains_nocase: "C" }) {
         items {
           id
         }

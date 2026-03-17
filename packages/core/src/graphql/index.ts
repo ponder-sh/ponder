@@ -24,6 +24,7 @@ import {
   getTableColumns,
   gt,
   gte,
+  ilike,
   inArray,
   is,
   isNotNull,
@@ -33,6 +34,7 @@ import {
   lte,
   ne,
   not,
+  notIlike,
   notInArray,
   notLike,
   or,
@@ -1013,6 +1015,12 @@ const conditionSuffixes = {
     "_ends_with",
     "_not_starts_with",
     "_not_ends_with",
+    "_contains_nocase",
+    "_not_contains_nocase",
+    "_starts_with_nocase",
+    "_ends_with_nocase",
+    "_not_starts_with_nocase",
+    "_not_ends_with_nocase",
   ],
 } as const;
 
@@ -1152,6 +1160,24 @@ function buildWhereConditions(
         break;
       case "_not_ends_with":
         conditions.push(notLike(column, `%${rawValue}`));
+        break;
+      case "_contains_nocase":
+        conditions.push(ilike(column, `%${rawValue}%`));
+        break;
+      case "_not_contains_nocase":
+        conditions.push(notIlike(column, `%${rawValue}%`));
+        break;
+      case "_starts_with_nocase":
+        conditions.push(ilike(column, `${rawValue}%`));
+        break;
+      case "_ends_with_nocase":
+        conditions.push(ilike(column, `%${rawValue}`));
+        break;
+      case "_not_starts_with_nocase":
+        conditions.push(notIlike(column, `${rawValue}%`));
+        break;
+      case "_not_ends_with_nocase":
+        conditions.push(notIlike(column, `%${rawValue}`));
         break;
       default:
         never(conditionSuffix);
