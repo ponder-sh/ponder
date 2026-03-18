@@ -220,6 +220,8 @@ export namespace Virtual {
         }[keyof sourceChain];
     client: Prettify<ReadonlyClient>;
     db: Db<schema>;
+    /** `true` when the event is processed by the live indexer; `false` during historical backfill. */
+    isRealtime: boolean;
   };
 
   export type IndexingFunctionArgs<

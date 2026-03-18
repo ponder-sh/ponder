@@ -467,5 +467,6 @@ test("Registry", () => {
     context.client;
     context.contracts.c1;
     context.contracts.c2;
+    context.isRealtime;
   });
 });

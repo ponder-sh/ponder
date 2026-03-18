@@ -1,5 +1,17 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.17
+
+### Breaking changes
+
+None.
+
+### New features
+
+#### `context.isRealtime`
+
+Indexing functions now receive `context.isRealtime`: `true` when the event is processed by the live indexer, `false` during historical backfill and setup. See the [indexing functions API reference](/docs/api-reference/ponder/indexing-functions#isrealtime). This is not the same as being caught up to chain tip.
+
 ## 0.16
 
 ### Breaking changes
