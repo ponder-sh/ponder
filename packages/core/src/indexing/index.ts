@@ -554,20 +554,17 @@ export const createIndexing = ({
           }
         }
 
-        // @ts-expect-error
-        await executeEvent(
-          { ...event, event: proxyEvent },
-          {
-            isRealtime: false,
-          },
-        );
+        await executeEvent({ ...event, event: proxyEvent } as Event, {
+          isRealtime: false,
+        });
 
         common.metrics.ponder_indexing_completed_events.inc(
           { event: event.eventCallback.name },
           1,
         );
-        columnAccessPattern.get(event.eventCallback.name)!.count++;
-        eventCount[event.eventCallback.name]++;
+        const eventName = event.eventCallback.name;
+        columnAccessPattern.get(eventName)!.count++;
+        eventCount[eventName] = (eventCount[eventName] ?? 0) + 1;
 
         const now = performance.now();
 
@@ -732,7 +729,8 @@ export const createIndexing = ({
           { event: event.eventCallback.name },
           1,
         );
-        eventCount[event.eventCallback.name]++;
+        const eventName = event.eventCallback.name;
+        eventCount[eventName] = (eventCount[eventName] ?? 0) + 1;
       }
     },
   };
