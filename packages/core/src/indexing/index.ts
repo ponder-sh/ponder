@@ -81,6 +81,8 @@ export type Context = {
       endBlock?: number;
     }
   >;
+  /** `true` when the event is processed by the live indexer; `false` during historical backfill and setup. */
+  isRealtime: boolean;
 };
 
 export type Indexing = {
@@ -173,6 +175,7 @@ export const createIndexing = ({
       contracts: undefined!,
       client: undefined!,
       db: indexingStore.db,
+      isRealtime: false,
     } as Context,
   };
 
@@ -207,6 +210,7 @@ export const createIndexing = ({
 
         lastChainId = event.chain.id;
       }
+      indexingFunctionArg.context.isRealtime = false;
 
       const endClock = startClock();
 
@@ -265,7 +269,10 @@ export const createIndexing = ({
   };
 
   // metric label for "ponder_indexing_function_duration"
-  const executeEvent = async (event: Event): Promise<void> => {
+  const executeEvent = async (
+    event: Event,
+    params: { isRealtime: boolean },
+  ): Promise<void> => {
     try {
       if (event.chain.id !== lastChainId) {
         indexingFunctionArg.context.chain.id = event.chain.id;
@@ -276,6 +283,7 @@ export const createIndexing = ({
 
         lastChainId = event.chain.id;
       }
+      indexingFunctionArg.context.isRealtime = params.isRealtime;
       // @ts-ignore
       indexingFunctionArg.event = event.event;
 
@@ -547,7 +555,12 @@ export const createIndexing = ({
         }
 
         // @ts-expect-error
-        await executeEvent({ ...event, event: proxyEvent });
+        await executeEvent(
+          { ...event, event: proxyEvent },
+          {
+            isRealtime: false,
+          },
+        );
 
         common.metrics.ponder_indexing_completed_events.inc(
           { event: event.eventCallback.name },
@@ -713,7 +726,7 @@ export const createIndexing = ({
 
         client.event = event;
 
-        await executeEvent(event);
+        await executeEvent(event, { isRealtime: true });
 
         common.metrics.ponder_indexing_completed_events.inc(
           { event: event.eventCallback.name },

@@ -252,6 +252,7 @@ test("processSetupEvents()", async () => {
       },
       client: expect.any(Object),
       db: expect.any(Object),
+      isRealtime: false,
     },
   });
 });
@@ -351,8 +352,97 @@ test("processEvent()", async () => {
       },
       client: expect.any(Object),
       db: expect.any(Object),
+      isRealtime: true,
     },
   });
+});
+
+test("context.isRealtime is false during historical indexing and true during realtime", async () => {
+  const { common } = context;
+  const { syncStore } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
+
+  const { eventCallbacks, setupCallbacks, indexingFunctions, contracts } =
+    getErc20IndexingBuild({
+      address,
+    });
+
+  const eventCount = getEventCount(indexingFunctions);
+  const columnAccessPattern = createColumnAccessPattern({
+    indexingBuild: { indexingFunctions },
+  });
+
+  const historicalFlags: boolean[] = [];
+  const realtimeFlags: boolean[] = [];
+
+  eventCallbacks[0]!.fn = async ({ context: ctx }) => {
+    if (ctx.isRealtime) realtimeFlags.push(ctx.isRealtime);
+    else historicalFlags.push(ctx.isRealtime);
+  };
+
+  const cachedViemClient = createCachedViemClient({
+    common,
+    indexingBuild: { chains: [chain], rpcs: [rpc] },
+    syncStore,
+    eventCount,
+  });
+
+  const indexingCache = createIndexingCache({
+    common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount,
+  });
+
+  const indexingStore = createIndexingStore({
+    common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  const indexing = createIndexing({
+    common,
+    indexingBuild: {
+      eventCallbacks: [eventCallbacks],
+      setupCallbacks: [setupCallbacks],
+      chains: [chain],
+      contracts: [contracts],
+      indexingFunctions,
+    },
+    indexingStore,
+    indexingCache,
+    client: cachedViemClient,
+    indexingErrorHandler,
+    columnAccessPattern,
+    eventCount,
+  });
+
+  const event = getSimulatedEvent({
+    eventCallback: eventCallbacks[0],
+    blockData,
+  });
+
+  await indexing.processHistoricalEvents({
+    events: [event],
+    updateIndexingSeconds: vi.fn(),
+  });
+  await indexing.processRealtimeEvents({ events: [event] });
+
+  expect(historicalFlags).toEqual([false]);
+  expect(realtimeFlags).toEqual([true]);
 });
 
 test("processEvents eventCount", async () => {
