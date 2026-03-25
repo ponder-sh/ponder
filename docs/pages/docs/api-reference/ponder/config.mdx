@@ -44,6 +44,8 @@ Here is the logic Ponder uses to determine which database to use:
 | **kind**      | `"pglite"` |                                                                                 |
 | **directory** |  `string`  | **Default: `.ponder/pglite`**. Directory path to use for PGlite database files. |
 
+Set `directory` to `"memory://"` to use an in-memory database (data will not persist across restarts).
+
 ```ts [ponder.config.ts] {4-7}
 import { createConfig } from "ponder";
 
