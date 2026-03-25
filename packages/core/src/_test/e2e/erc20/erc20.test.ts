@@ -72,3 +72,45 @@ test("erc20", async () => {
 
   await shutdown!();
 }, 15_000);
+
+test("erc20 with pglite memory://", async () => {
+  const port = await getFreePort();
+  const client = createClient(`http://localhost:${port}/sql`, { schema });
+
+  const shutdown = await start({
+    cliOptions: {
+      ...cliOptions,
+      config: "ponder.config.memory.ts",
+      command: "start",
+      port,
+      version: "0.0.0",
+    },
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  await waitForIndexedBlock({
+    port,
+    chainName: "mainnet",
+    block: { number: 2 },
+  });
+
+  const result = await client.db.select().from(schema.account);
+
+  expect(result[0]).toMatchObject({
+    address: zeroAddress,
+    balance: -1n * 10n ** 18n,
+  });
+  expect(result[1]).toMatchObject({
+    address: ALICE.toLowerCase(),
+    balance: 10n ** 18n,
+  });
+
+  await shutdown!();
+}, 15_000);

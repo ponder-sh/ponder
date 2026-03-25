@@ -19,12 +19,11 @@ export function createPglite(options: PGliteOptions) {
   // PGlite uses the memory FS by default, and Windows doesn't like the
   // "memory://" path, so it's better to pass `undefined` here.
   if (options.dataDir === "memory://") {
-    // @ts-expect-error
-    options.dataDir = undefined;
-  } else {
-    mkdirSync(options.dataDir, { recursive: true });
+    const { dataDir: _, ...rest } = options;
+    return new PGlite(rest);
   }
 
+  mkdirSync(options.dataDir, { recursive: true });
   return new PGlite(options);
 }
 
