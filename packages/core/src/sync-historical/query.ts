@@ -2,6 +2,7 @@ import type { Common } from "@/internal/common.js";
 import type {
   Chain,
   FactoryId,
+  LogFilter as InternalLogFilter,
   SyncBlock,
   SyncLog,
   SyncTransaction,
@@ -13,11 +14,6 @@ import {
   paginate,
   type QueryLogsRequest,
 } from "@/rpc/query.js";
-import type {
-  IntervalWithFactory,
-  IntervalWithFilter,
-} from "@/runtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { type Interval, intervalRange } from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
@@ -25,8 +21,6 @@ import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 import {
   type Address,
-  type Hash,
-  type Hex,
   type LogTopic,
   hexToNumber,
   numberToHex,
@@ -68,7 +62,7 @@ export const createQueryHistoricalSync = (
       const logFilters = requiredIntervals
         .filter(({ filter }) => filter.type === "log")
         .map(({ filter, interval: filterInterval }) => ({
-          filter,
+          filter: filter as InternalLogFilter,
           interval: filterInterval,
         }));
 
@@ -91,7 +85,7 @@ export const createQueryHistoricalSync = (
             toBlock: numberToHex(filterInterval[1]),
             order: "asc",
             filter: {
-              address: filter.address,
+              address: filter.address as Address | Address[] | undefined,
               topics: topics.length > 0 ? topics : undefined,
             },
             fields: {
@@ -152,9 +146,6 @@ export const createQueryHistoricalSync = (
     },
 
     async syncBlockData({ syncStore, interval, requiredIntervals, logs }) {
-      const context = {
-        logger: args.common.logger.child({ action: "fetch_block_data" }),
-      };
       const endClock = startClock();
 
       // Group logs by block number

@@ -1,3 +1,4 @@
+// TODO: replace these types with our client npm package once its published!
 import type { Rpc } from "@/rpc/index.js";
 import type { Hex } from "viem";
 

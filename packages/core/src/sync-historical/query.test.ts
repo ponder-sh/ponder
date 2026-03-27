@@ -19,8 +19,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
 import { createQueryHistoricalSync, syncLogsViaQueryApi } from "./query.js";
 
-const MONAD_QUERY_RPC = "https://monad-data-poc-production.up.railway.app/rpc";
-const MONAD_STANDARD_RPC = "https://rpc.monad.xyz";
+const MONAD_RPC = "https://monad-data-poc-production.up.railway.app/rpc";
 
 // Kuru MON-USDC OrderBook on Monad
 const KURU_ADDRESS = "0x065C9d28E428A0db40191a54d33d5b7c71a9C394";
@@ -40,7 +39,7 @@ function getMonadChain(hasQueryApi: boolean): Chain {
   return {
     name: "monad",
     id: 143,
-    rpc: hasQueryApi ? MONAD_QUERY_RPC : MONAD_STANDARD_RPC,
+    rpc: MONAD_RPC,
     ws: undefined,
     pollingInterval: 1_000,
     finalityBlockCount: 1,
@@ -152,7 +151,10 @@ test("query API and legacy sync produce the same logs", async () => {
     db
       .select()
       .from(ponderSyncSchema.logs)
-      .orderBy(ponderSyncSchema.logs.blockNumber, ponderSyncSchema.logs.logIndex)
+      .orderBy(
+        ponderSyncSchema.logs.blockNumber,
+        ponderSyncSchema.logs.logIndex,
+      )
       .execute(),
   );
   const queryDbBlocks = await queryDb.syncQB.wrap((db) =>
@@ -198,7 +200,10 @@ test("query API and legacy sync produce the same logs", async () => {
     db
       .select()
       .from(ponderSyncSchema.logs)
-      .orderBy(ponderSyncSchema.logs.blockNumber, ponderSyncSchema.logs.logIndex)
+      .orderBy(
+        ponderSyncSchema.logs.blockNumber,
+        ponderSyncSchema.logs.logIndex,
+      )
       .execute(),
   );
   const legacyDbBlocks = await legacyDb.syncQB.wrap((db) =>
