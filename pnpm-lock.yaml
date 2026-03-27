@@ -356,6 +356,34 @@ importers:
         specifier: ^5.3.2
         version: 5.3.3
 
+  examples/project-kuru:
+    dependencies:
+      drizzle-kit:
+        specifier: 0.22.8
+        version: 0.22.8
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^2.21.3
+        version: 2.30.1(typescript@5.3.3)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.11.24
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.3
+
   examples/project-uniswap-v3-flash:
     dependencies:
       hono:
@@ -5421,7 +5449,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   globals@11.12.0:
     resolution: {integrity: sha512-WOBp/EEGUiIsJSp7wcv/y6MO+lV9UoncWqxuFfm8eBwzWNgyfBd6Gz+IeKQ9jCmyhoH99g15M3T+QaVHFjizVA==}
@@ -5748,10 +5776,6 @@ packages:
 
   js-yaml@3.14.1:
     resolution: {integrity: sha512-okMH7OXXJ7YrN9Ok3/SXrnu4iX9yOk+25nqX4imS2npuvTYDmo/QEZoqwZkYaIDk3jVvBOTOIEgEhaLOynBS9g==}
-    hasBin: true
-
-  js-yaml@4.1.0:
-    resolution: {integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==}
     hasBin: true
 
   js-yaml@4.1.1:
@@ -8936,7 +8960,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.0
       import-fresh: 3.3.0
-      js-yaml: 4.1.0
+      js-yaml: 4.1.1
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -10858,6 +10882,11 @@ snapshots:
       typescript: 5.0.4
       zod: 3.23.8
 
+  abitype@1.0.8(typescript@5.3.3)(zod@3.23.8):
+    optionalDependencies:
+      typescript: 5.3.3
+      zod: 3.23.8
+
   abort-controller@3.0.0:
     dependencies:
       event-target-shim: 5.0.1
@@ -12038,7 +12067,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: 4.1.0
+      js-yaml: 4.1.1
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -12726,10 +12755,6 @@ snapshots:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.1
-
-  js-yaml@4.1.0:
-    dependencies:
-      argparse: 2.0.1
 
   js-yaml@4.1.1:
     dependencies:
@@ -13688,6 +13713,21 @@ snapshots:
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.0.4
+    transitivePeerDependencies:
+      - zod
+
+  ox@0.7.1(typescript@5.3.3)(zod@3.23.8):
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.0
+      '@noble/ciphers': 1.3.0
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.0.8(typescript@5.3.3)(zod@3.23.8)
+      eventemitter3: 5.0.1
+    optionalDependencies:
+      typescript: 5.3.3
     transitivePeerDependencies:
       - zod
 
@@ -15214,6 +15254,23 @@ snapshots:
       ws: 8.18.2
     optionalDependencies:
       typescript: 5.0.4
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
+  viem@2.30.1(typescript@5.3.3)(zod@3.23.8):
+    dependencies:
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.0.8(typescript@5.3.3)(zod@3.23.8)
+      isows: 1.0.7(ws@8.18.2)
+      ox: 0.7.1(typescript@5.3.3)(zod@3.23.8)
+      ws: 8.18.2
+    optionalDependencies:
+      typescript: 5.3.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

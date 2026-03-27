@@ -33,10 +33,12 @@ import {
 import { WebSocket } from "ws";
 import type { DebugRpcSchema } from "../utils/debug.js";
 import { getHttpRpcClient } from "./http.js";
+import type { QueryRpcSchema } from "./query.js";
 
 export type RpcSchema = [
   ...PublicRpcSchema,
   ...DebugRpcSchema,
+  ...QueryRpcSchema,
   /**
    * @description Returns the receipts of a block specified by hash
    *
