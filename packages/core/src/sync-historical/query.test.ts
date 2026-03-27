@@ -11,7 +11,10 @@ import {
 } from "@/_test/setup.js";
 import type { Chain, EventCallback } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
-import { defaultLogFilterInclude } from "@/runtime/filter.js";
+import {
+  defaultLogFilterInclude,
+  defaultTraceFilterInclude,
+} from "@/runtime/filter.js";
 import { getRequiredIntervalsWithFilters } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -235,3 +238,84 @@ test("query API and legacy sync produce the same logs", async () => {
     expect(queryDbBlocks[i]!.timestamp).toBe(legacyDbBlocks[i]!.timestamp);
   }
 }, 120_000);
+
+test("query API syncs traces via eth_queryTraces", async () => {
+  const chain = getMonadChain(true);
+  const rpc = createRpc({ common: context.common, chain });
+
+  const traceEventCallback: EventCallback = {
+    filter: {
+      type: "trace" as const,
+      chainId: 143,
+      sourceId: "KuruOrderBook",
+      fromAddress: undefined,
+      toAddress: toLowerCase(KURU_ADDRESS),
+      functionSelector: "0x7c51d6cf" as `0x${string}`,
+      callType: "CALL",
+      includeReverted: false,
+      fromBlock: undefined,
+      toBlock: undefined,
+      hasTransactionReceipt: false,
+      include: defaultTraceFilterInclude,
+    },
+    name: "KuruOrderBook:trace",
+    fn: vi.fn(),
+    chain,
+    type: "contract" as const,
+    abiItem: { type: "function", name: "placeAndExecuteMarketBuy" } as any,
+    metadata: { safeName: "placeAndExecuteMarketBuy()", abi: [] },
+  };
+
+  const childAddresses = setupChildAddresses([traceEventCallback]);
+  const cachedIntervals = setupCachedIntervals([traceEventCallback]);
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: BLOCK_RANGE,
+    filters: [traceEventCallback.filter],
+    cachedIntervals,
+  });
+
+  const { syncStore, database } = await setupDatabaseServices();
+
+  const querySync = createQueryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses,
+  });
+
+  const logs = await querySync.syncBlockRangeData({
+    interval: BLOCK_RANGE,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+  await querySync.syncBlockData({
+    interval: BLOCK_RANGE,
+    requiredIntervals: requiredIntervals.intervals,
+    logs,
+    syncStore,
+  });
+
+  const dbTraces = await database.syncQB.wrap((db) =>
+    db
+      .select()
+      .from(ponderSyncSchema.traces)
+      .orderBy(
+        ponderSyncSchema.traces.blockNumber,
+        ponderSyncSchema.traces.traceIndex,
+      )
+      .execute(),
+  );
+
+  expect(dbTraces.length).toBeGreaterThan(0);
+
+  const dbBlocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
+  expect(dbBlocks.length).toBeGreaterThan(0);
+
+  const dbTransactions = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactions).execute(),
+  );
+  expect(dbTransactions.length).toBeGreaterThan(0);
+}, 60_000);
