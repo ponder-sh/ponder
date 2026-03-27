@@ -14,6 +14,7 @@ import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
+import { createQueryHistoricalSync } from "@/sync-historical/query.js";
 import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
 import {
   MAX_CHECKPOINT,
@@ -1221,7 +1222,9 @@ export async function* getLocalSyncGenerator(params: {
     });
   }
 
-  const historicalSync = createHistoricalSync(params);
+  const historicalSync = params.chain.hasQueryApi
+    ? createQueryHistoricalSync(params)
+    : createHistoricalSync(params);
 
   const { callback: intervalCallback, generator: intervalGenerator } =
     createCallbackGenerator<{

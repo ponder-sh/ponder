@@ -1059,6 +1059,7 @@ export function buildConfig({
         disableCache: chain.disableCache ?? false,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,
+        hasQueryApi: false,
       } satisfies Chain;
     },
   );

@@ -697,13 +697,39 @@ export const createBuild = async ({
             return { status: "error", error } as const;
           }
 
-          common.logger.info({
-            msg: "Connected to JSON-RPC",
-            chain: chain.name,
-            chain_id: chain.id,
-            hostnames: JSON.stringify(rpc.hostnames),
-            duration: endClock(),
-          });
+          // Probe for query API support (eth_queryBlocks)
+          try {
+            await rpc.request(
+              {
+                method: "eth_queryBlocks",
+                params: [
+                  {
+                    fromBlock: "earliest",
+                    order: "asc",
+                    limit: "0x1",
+                  },
+                ],
+              },
+              context,
+            );
+            chain.hasQueryApi = true;
+            common.logger.info({
+              msg: "Connected to JSON-RPC (query API supported)",
+              chain: chain.name,
+              chain_id: chain.id,
+              hostnames: JSON.stringify(rpc.hostnames),
+              duration: endClock(),
+            });
+          } catch {
+            chain.hasQueryApi = false;
+            common.logger.info({
+              msg: "Connected to JSON-RPC",
+              chain: chain.name,
+              chain_id: chain.id,
+              hostnames: JSON.stringify(rpc.hostnames),
+              duration: endClock(),
+            });
+          }
 
           return { status: "success", result: undefined } as const;
         }),

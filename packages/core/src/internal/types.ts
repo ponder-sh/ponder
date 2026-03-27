@@ -306,6 +306,8 @@ export type Chain = {
   disableCache: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
+  /** Whether the RPC supports eth_query* methods. Set during rpcDiagnostic. */
+  hasQueryApi: boolean;
 };
 
 // Schema

@@ -167,6 +167,14 @@ export type ResponseTransaction = {
   s: Hex | null;
   v: Hex | null;
   yParity: Hex | null;
+  // Receipt fields
+  contractAddress: Hex | null;
+  cumulativeGasUsed: Hex;
+  effectiveGasPrice: Hex;
+  gasUsed: Hex;
+  logsBloom: Hex;
+  root: Hex | null;
+  status: "success" | "reverted";
 };
 
 // ---------------------------------------------------------------------------

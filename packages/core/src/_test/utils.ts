@@ -674,6 +674,7 @@ export const getChain = (params?: {
     disableCache: false,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,
+    hasQueryApi: false,
   } satisfies Chain;
 };
 
