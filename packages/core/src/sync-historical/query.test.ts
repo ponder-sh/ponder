@@ -9,7 +9,7 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import type { Chain, EventCallback } from "@/internal/types.js";
+import type { Chain, EventCallback, LogFactory } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import {
   defaultLogFilterInclude,
@@ -318,4 +318,95 @@ test("query API syncs traces via eth_queryTraces", async () => {
     db.select().from(ponderSyncSchema.transactions).execute(),
   );
   expect(dbTransactions.length).toBeGreaterThan(0);
+}, 60_000);
+
+test("query API syncs factory child addresses", async () => {
+  const chain = getMonadChain(true);
+  const rpc = createRpc({ common: context.common, chain });
+
+  // Uniswap V2 factory on Monad
+  const FACTORY_ADDRESS = "0x02a84c1b3bbd7401a5f7fa98a384ebc70bb5749e";
+  // PairCreated(address indexed token0, address indexed token1, address pair, uint256)
+  const PAIR_CREATED_TOPIC =
+    "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9";
+  // Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)
+  const SWAP_TOPIC =
+    "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822";
+
+  // Block range covering just the first PairCreated event
+  const factoryRange: [number, number] = [25796484, 25796500];
+
+  const factory: LogFactory = {
+    id: `log_${toLowerCase(FACTORY_ADDRESS)}_143_offset0_${PAIR_CREATED_TOPIC}_undefined_undefined`,
+    type: "log",
+    chainId: 143,
+    sourceId: "Pair",
+    address: toLowerCase(FACTORY_ADDRESS),
+    eventSelector: PAIR_CREATED_TOPIC as `0x${string}`,
+    childAddressLocation: "offset0",
+    fromBlock: undefined,
+    toBlock: undefined,
+  };
+
+  const swapEventCallback: EventCallback = {
+    filter: {
+      type: "log" as const,
+      chainId: 143,
+      sourceId: "Pair",
+      address: factory,
+      topic0: SWAP_TOPIC as `0x${string}`,
+      topic1: null,
+      topic2: null,
+      topic3: null,
+      fromBlock: undefined,
+      toBlock: undefined,
+      hasTransactionReceipt: false,
+      include: defaultLogFilterInclude,
+    },
+    name: "Pair:Swap",
+    fn: vi.fn(),
+    chain,
+    type: "contract" as const,
+    abiItem: { type: "event", name: "Swap" } as any,
+    metadata: { safeName: "Swap", abi: [] },
+  };
+
+  const childAddresses = setupChildAddresses([swapEventCallback]);
+  const cachedIntervals = setupCachedIntervals([swapEventCallback]);
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: factoryRange,
+    filters: [swapEventCallback.filter],
+    cachedIntervals,
+  });
+
+  const { syncStore, database } = await setupDatabaseServices();
+
+  const querySync = createQueryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses,
+  });
+
+  const logs = await querySync.syncBlockRangeData({
+    interval: factoryRange,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+
+  await querySync.syncBlockData({
+    interval: factoryRange,
+    requiredIntervals: requiredIntervals.intervals,
+    logs,
+    syncStore,
+  });
+
+  // Factory should have discovered child addresses
+  const factoryChildAddresses = childAddresses.get(factory.id)!;
+  expect(factoryChildAddresses.size).toBeGreaterThan(0);
+
+  // The discovered pair address should be the known first pair
+  const FIRST_PAIR = toLowerCase("0xb33956a3d4057cb96f8359a5da979339c2c1d3ed");
+  expect(factoryChildAddresses.has(FIRST_PAIR)).toBe(true);
 }, 60_000);

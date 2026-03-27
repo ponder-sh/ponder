@@ -1,13 +1,13 @@
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  Factory,
   FactoryId,
   LogFilter as InternalLogFilter,
   TraceFilter as InternalTraceFilter,
   TransferFilter as InternalTransferFilter,
   SyncBlock,
   SyncLog,
-  SyncTrace,
   SyncTransaction,
 } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
@@ -19,7 +19,14 @@ import {
   eth_queryTraces,
   paginate,
 } from "@/rpc/query.js";
+import {
+  getChildAddress,
+  isAddressFactory,
+  isLogFactoryMatched,
+} from "@/runtime/filter.js";
+import type { ChildAddresses } from "@/runtime/index.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { intervalBounds } from "@/utils/interval.js";
 import { type Interval, intervalRange } from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
@@ -41,11 +48,60 @@ type CreateQueryHistoricalSyncParameters = {
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
 
+async function syncFactoryAddresses(
+  rpc: Rpc,
+  factory: Factory,
+  interval: Interval,
+  childAddressesRecord: Map<Address, number>,
+  context?: Parameters<Rpc["request"]>[1],
+): Promise<Map<Address, number>> {
+  const request: QueryLogsRequest = {
+    fromBlock: numberToHex(interval[0]),
+    toBlock: numberToHex(interval[1]),
+    order: "asc",
+    filter: {
+      address: factory.address as Address | Address[] | undefined,
+      topics: [factory.eventSelector],
+    },
+    fields: { logs: true },
+    limit: "0x2710",
+  };
+
+  const response = await paginate(eth_queryLogs, rpc, request, context);
+  const result = mapQueryResponseData(response.data);
+
+  const childAddresses = new Map<Address, number>();
+
+  for (const log of result.logs) {
+    if (isLogFactoryMatched({ factory, log })) {
+      let address: Address;
+      try {
+        address = getChildAddress({ log, factory });
+      } catch {
+        continue;
+      }
+      const existingBlockNumber = childAddressesRecord.get(address);
+      const newBlockNumber = hexToNumber(log.blockNumber);
+
+      if (
+        existingBlockNumber === undefined ||
+        existingBlockNumber > newBlockNumber
+      ) {
+        childAddresses.set(address, newBlockNumber);
+        childAddressesRecord.set(address, newBlockNumber);
+      }
+    }
+  }
+
+  return childAddresses;
+}
+
 async function syncLogsForFilter(
   rpc: Rpc,
   filter: InternalLogFilter,
   filterInterval: Interval,
   chainId: number,
+  childAddresses: ChildAddresses,
   syncStore: Parameters<HistoricalSync["syncBlockRangeData"]>[0]["syncStore"],
   context?: Parameters<Rpc["request"]>[1],
 ): Promise<SyncLog[]> {
@@ -59,12 +115,22 @@ async function syncLogsForFilter(
     topics.pop();
   }
 
+  // Resolve factory addresses to the list of discovered child addresses
+  let address: Address | Address[] | undefined;
+  if (isAddressFactory(filter.address)) {
+    const children = childAddresses.get(filter.address.id);
+    address =
+      children && children.size > 0 ? Array.from(children.keys()) : undefined;
+  } else {
+    address = filter.address as Address | Address[] | undefined;
+  }
+
   const request: QueryLogsRequest = {
     fromBlock: numberToHex(filterInterval[0]),
     toBlock: numberToHex(filterInterval[1]),
     order: "asc",
     filter: {
-      address: filter.address as Address | Address[] | undefined,
+      address,
       topics: topics.length > 0 ? topics : undefined,
     },
     fields: {
@@ -179,7 +245,7 @@ export const createQueryHistoricalSync = (
     async syncBlockRangeData({
       interval,
       requiredIntervals,
-      requiredFactoryIntervals: _requiredFactoryIntervals,
+      requiredFactoryIntervals,
       syncStore,
     }) {
       const context = {
@@ -187,7 +253,55 @@ export const createQueryHistoricalSync = (
       };
       const endClock = startClock();
 
-      // TODO: handle factory address discovery via query API
+      // Discover child addresses from factory contracts.
+      // This must happen before log/trace queries so that filters
+      // using factory addresses have the child addresses available.
+      const factoryIntervalsById = new Map<
+        Factory["id"],
+        { factory: Factory; interval: Interval }
+      >();
+      for (const { factory, interval } of requiredFactoryIntervals) {
+        if (factoryIntervalsById.has(factory.id)) {
+          factoryIntervalsById.get(factory.id)!.interval = intervalBounds([
+            factoryIntervalsById.get(factory.id)!.interval,
+            interval,
+          ]);
+        } else {
+          factoryIntervalsById.set(factory.id, { factory, interval });
+        }
+      }
+
+      const discoveredChildAddresses: ChildAddresses = new Map();
+      await Promise.all(
+        Array.from(factoryIntervalsById.values()).map(
+          async ({ factory, interval }) => {
+            const childAddressesRecord = args.childAddresses.get(factory.id)!;
+            const newAddresses = await syncFactoryAddresses(
+              args.rpc,
+              factory,
+              interval,
+              childAddressesRecord,
+              context,
+            );
+            discoveredChildAddresses.set(factory.id, newAddresses);
+          },
+        ),
+      );
+
+      // Persist discovered child addresses
+      await promiseAllSettledWithThrow(
+        Array.from(discoveredChildAddresses.entries()).map(
+          ([factoryId, childAddresses]) =>
+            syncStore.insertChildAddresses(
+              {
+                factory: factoryIntervalsById.get(factoryId)!.factory,
+                childAddresses,
+                chainId: args.chain.id,
+              },
+              context,
+            ),
+        ),
+      );
 
       let logs: SyncLog[] = [];
 
@@ -200,6 +314,7 @@ export const createQueryHistoricalSync = (
               filter as InternalLogFilter,
               filterInterval,
               args.chain.id,
+              args.childAddresses,
               syncStore,
               context,
             ),
