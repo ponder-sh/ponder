@@ -14,6 +14,7 @@ import { createRpc } from "@/rpc/index.js";
 import {
   defaultLogFilterInclude,
   defaultTraceFilterInclude,
+  defaultTransactionFilterInclude,
 } from "@/runtime/filter.js";
 import { getRequiredIntervalsWithFilters } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
@@ -409,4 +410,85 @@ test("query API syncs factory child addresses", async () => {
   // The discovered pair address should be the known first pair
   const FIRST_PAIR = toLowerCase("0xb33956a3d4057cb96f8359a5da979339c2c1d3ed");
   expect(factoryChildAddresses.has(FIRST_PAIR)).toBe(true);
+}, 60_000);
+
+test("query API syncs transactions via eth_queryTransactions", async () => {
+  const chain = getMonadChain(true);
+  const rpc = createRpc({ common: context.common, chain });
+
+  // First transaction to Kuru OrderBook is at block 43932538
+  const txRange: [number, number] = [43932538, 43932600];
+
+  const txEventCallback: EventCallback = {
+    filter: {
+      type: "transaction" as const,
+      chainId: 143,
+      sourceId: "KuruOrderBook",
+      fromAddress: undefined,
+      toAddress: toLowerCase(KURU_ADDRESS),
+      includeReverted: false,
+      fromBlock: undefined,
+      toBlock: undefined,
+      hasTransactionReceipt: true,
+      include: defaultTransactionFilterInclude,
+    },
+    name: "KuruOrderBook:transaction:to",
+    fn: vi.fn(),
+    chain,
+    type: "account" as const,
+  };
+
+  const childAddresses = setupChildAddresses([txEventCallback]);
+  const cachedIntervals = setupCachedIntervals([txEventCallback]);
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: txRange,
+    filters: [txEventCallback.filter],
+    cachedIntervals,
+  });
+
+  const { syncStore, database } = await setupDatabaseServices();
+
+  const querySync = createQueryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses,
+  });
+
+  const logs = await querySync.syncBlockRangeData({
+    interval: txRange,
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+  await querySync.syncBlockData({
+    interval: txRange,
+    requiredIntervals: requiredIntervals.intervals,
+    logs,
+    syncStore,
+  });
+
+  const dbTransactions = await database.syncQB.wrap((db) =>
+    db
+      .select()
+      .from(ponderSyncSchema.transactions)
+      .orderBy(ponderSyncSchema.transactions.blockNumber)
+      .execute(),
+  );
+  expect(dbTransactions.length).toBeGreaterThan(0);
+
+  // Every transaction should be to the Kuru address
+  for (const tx of dbTransactions) {
+    expect(tx.to).toBe(toLowerCase(KURU_ADDRESS));
+  }
+
+  const dbBlocks = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.blocks).execute(),
+  );
+  expect(dbBlocks.length).toBeGreaterThan(0);
+
+  const dbReceipts = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.transactionReceipts).execute(),
+  );
+  expect(dbReceipts.length).toBeGreaterThan(0);
 }, 60_000);

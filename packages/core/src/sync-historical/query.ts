@@ -3,8 +3,10 @@ import type {
   Chain,
   Factory,
   FactoryId,
+  BlockFilter as InternalBlockFilter,
   LogFilter as InternalLogFilter,
   TraceFilter as InternalTraceFilter,
+  TransactionFilter as InternalTransactionFilter,
   TransferFilter as InternalTransferFilter,
   SyncBlock,
   SyncLog,
@@ -13,10 +15,14 @@ import type {
 import type { Rpc } from "@/rpc/index.js";
 import { mapQueryResponseData } from "@/rpc/query-mappers.js";
 import {
+  type QueryBlocksRequest,
   type QueryLogsRequest,
   type QueryTracesRequest,
+  type QueryTransactionsRequest,
+  eth_queryBlocks,
   eth_queryLogs,
   eth_queryTraces,
+  eth_queryTransactions,
   paginate,
 } from "@/rpc/query.js";
 import {
@@ -47,6 +53,76 @@ type CreateQueryHistoricalSyncParameters = {
   rpc: Rpc;
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
+
+async function syncBlocksForFilter(
+  rpc: Rpc,
+  _filter: InternalBlockFilter,
+  filterInterval: Interval,
+  chainId: number,
+  syncStore: Parameters<HistoricalSync["syncBlockRangeData"]>[0]["syncStore"],
+  context?: Parameters<Rpc["request"]>[1],
+) {
+  const request: QueryBlocksRequest = {
+    fromBlock: numberToHex(filterInterval[0]),
+    toBlock: numberToHex(filterInterval[1]),
+    order: "asc",
+    fields: { blocks: true },
+    limit: "0x2710",
+  };
+
+  const response = await paginate(eth_queryBlocks, rpc, request, context);
+  const result = mapQueryResponseData(response.data);
+
+  if (result.blocks.length > 0) {
+    await syncStore.insertBlocks({
+      blocks: result.blocks,
+      chainId,
+    });
+  }
+}
+
+async function syncTransactionsForFilter(
+  rpc: Rpc,
+  filter: InternalTransactionFilter,
+  filterInterval: Interval,
+  chainId: number,
+  syncStore: Parameters<HistoricalSync["syncBlockRangeData"]>[0]["syncStore"],
+  context?: Parameters<Rpc["request"]>[1],
+) {
+  const queryFilter: QueryTransactionsRequest["filter"] = {};
+  if (filter.fromAddress !== undefined)
+    queryFilter.from = filter.fromAddress as Hex;
+  if (filter.toAddress !== undefined) queryFilter.to = filter.toAddress as Hex;
+
+  const request: QueryTransactionsRequest = {
+    fromBlock: numberToHex(filterInterval[0]),
+    toBlock: numberToHex(filterInterval[1]),
+    order: "asc",
+    filter: queryFilter,
+    fields: {
+      transactions: true,
+      blocks: true,
+    },
+    limit: "0x2710",
+  };
+
+  const response = await paginate(eth_queryTransactions, rpc, request, context);
+  const result = mapQueryResponseData(response.data);
+
+  if (result.transactions.length > 0) {
+    await promiseAllSettledWithThrow([
+      syncStore.insertBlocks({ blocks: result.blocks, chainId }),
+      syncStore.insertTransactions({
+        transactions: result.transactions,
+        chainId,
+      }),
+      syncStore.insertTransactionReceipts({
+        transactionReceipts: result.transactionReceipts,
+        chainId,
+      }),
+    ]);
+  }
+}
 
 async function syncFactoryAddresses(
   rpc: Rpc,
@@ -325,6 +401,38 @@ export const createQueryHistoricalSync = (
       }
 
       logs = dedupe(logs, (log) => `${log.blockNumber}_${log.logIndex}`);
+
+      // Block filters
+      await Promise.all(
+        requiredIntervals
+          .filter(({ filter }) => filter.type === "block")
+          .map(({ filter, interval: filterInterval }) =>
+            syncBlocksForFilter(
+              args.rpc,
+              filter as InternalBlockFilter,
+              filterInterval,
+              args.chain.id,
+              syncStore,
+              context,
+            ),
+          ),
+      );
+
+      // Transaction filters
+      await Promise.all(
+        requiredIntervals
+          .filter(({ filter }) => filter.type === "transaction")
+          .map(({ filter, interval: filterInterval }) =>
+            syncTransactionsForFilter(
+              args.rpc,
+              filter as InternalTransactionFilter,
+              filterInterval,
+              args.chain.id,
+              syncStore,
+              context,
+            ),
+          ),
+      );
 
       // Trace and transfer filters — both use eth_queryTraces
       await Promise.all(
