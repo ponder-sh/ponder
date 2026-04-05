@@ -112,7 +112,9 @@ export const createBuild = async ({
     .replace(/\\/g, "/")
     // Escape special characters in the path.
     .replace(escapeRegex, "\\$&");
-  const indexingRegex = new RegExp(`^${escapedIndexingDir}/.*\\.(ts|js)$`);
+  const indexingRegex = new RegExp(
+    `^${escapedIndexingDir}/(?!.*\\.(test|spec)\\.).*\\.(ts|js)$`,
+  );
 
   const indexingPattern = path
     .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
@@ -120,6 +122,10 @@ export const createBuild = async ({
 
   const apiPattern = path
     .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
+    .replace(/\\/g, "/");
+
+  const testFilePattern = path
+    .join(common.options.indexingDir, "**/*.{test,spec}.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
   const viteLogger = {
@@ -277,7 +283,7 @@ export const createBuild = async ({
     },
     async executeIndexingFunctions(): Promise<IndexingResult> {
       const files = glob.sync(indexingPattern, {
-        ignore: apiPattern,
+        ignore: [apiPattern, testFilePattern],
       });
 
       for (const file of files) {
@@ -655,7 +661,7 @@ export const createBuild = async ({
           ]);
           viteNodeRunner.moduleCache.invalidateDepTree(
             glob.sync(indexingPattern, {
-              ignore: apiPattern,
+              ignore: [apiPattern, testFilePattern],
             }),
           );
           viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
