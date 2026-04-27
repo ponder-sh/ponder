@@ -15,7 +15,7 @@
     "ponder": "workspace:*",
     "abitype": "^0.10.2",
     "hono": "^4.5.0",
-    "viem": "^2.21.3"
+    "viem": "^2.35.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
