@@ -646,7 +646,12 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
 
           if (dialect === "pglite" || dialect === "pglite_test") {
             await tx.wrap(
-              (tx) => tx.execute(`SET search_path TO "${namespace.schema}"`),
+              (tx) =>
+                tx.execute(
+                  namespace.schema === "public"
+                    ? `SET search_path TO "public"`
+                    : `SET search_path TO "${namespace.schema}", "public"`,
+                ),
               context,
             );
           }
@@ -992,6 +997,19 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
           error.stack = undefined;
           throw error;
         }
+      }
+
+      // Set search_path on the PGlite instance directly (using exec) to
+      // ensure it persists for all subsequent queries, including raw SQL
+      // issued by user code via db.execute(). This is the PGlite equivalent
+      // of the search_path that is set per-connection in createReadonlyPool
+      // for Postgres.
+      if (dialect === "pglite" || dialect === "pglite_test") {
+        const searchPath =
+          namespace.schema === "public"
+            ? `SET search_path TO "public"`
+            : `SET search_path TO "${namespace.schema}", "public"`;
+        await (driver as PGliteDriver).instance.exec(searchPath);
       }
 
       heartbeatInterval = setInterval(async () => {
