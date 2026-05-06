@@ -110,7 +110,10 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
         ? Number(process.env.PONDER_MAX_THREADS)
         : 4,
 
-    factoryAddressCountThreshold: 1_000,
+    factoryAddressCountThreshold:
+      process.env.PONDER_FACTORY_ADDRESS_COUNT_THRESHOLD !== undefined
+        ? Number(process.env.PONDER_FACTORY_ADDRESS_COUNT_THRESHOLD)
+        : 1_000,
 
     rpcMaxConcurrency: 256,
 
