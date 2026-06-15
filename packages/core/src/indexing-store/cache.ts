@@ -528,12 +528,13 @@ export const createIndexingCache = ({
     },
     async flush({ tableNames } = {}) {
       const sp = `flush_${++_flushId}`;
+      const currentQb = qb; // snapshot to prevent external mutation between SAVEPOINT and RELEASE
       const context = {
         logger: common.logger.child({ action: "flush_database_rows" }),
       };
       const flushEndClock = startClock();
 
-      const copy = getCopyHelper(qb, chainId);
+      const copy = getCopyHelper(currentQb, chainId);
 
       const flushTable = async (table: Table) => {
         const shouldRecordBytes = cache.get(table)!.isCacheComplete;
@@ -567,7 +568,7 @@ export const createIndexingCache = ({
 
             await copy(table, text);
           } else {
-            await qb.wrap(
+            await currentQb.wrap(
               (db) =>
                 db.insert(table).values(insertValues.map(({ row }) => row)),
               context,
@@ -627,7 +628,7 @@ export const createIndexingCache = ({
                 .map(({ sql }) => `target."${sql}" = source."${sql}"`)
                 .join(" AND ")};`;
 
-            await qb.wrap((db) => db.execute(createTempTableQuery), context);
+            await currentQb.wrap((db) => db.execute(createTempTableQuery), context);
 
             const text = getCopyText(
               table,
@@ -636,13 +637,13 @@ export const createIndexingCache = ({
             await new Promise(setImmediate);
 
             await copy(table, text, false);
-            await qb.wrap((db) => db.execute(updateQuery), context);
-            await qb.wrap(
+            await currentQb.wrap((db) => db.execute(updateQuery), context);
+            await currentQb.wrap(
               (db) => db.execute(`TRUNCATE TABLE "${target}"`),
               context,
             );
           } else {
-            await qb.wrap(
+            await currentQb.wrap(
               (db) =>
                 db
                   .insert(table)
@@ -697,14 +698,14 @@ export const createIndexingCache = ({
       };
 
       try {
-        if (qb.$dialect === "postgres") {
-          await qb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
+        if (currentQb.$dialect === "postgres") {
+          await currentQb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
 
           await promiseAllSettledWithThrow(
             Array.from(cache.keys()).map(flushTable),
           );
 
-          await qb.wrap((db) => db.execute(`RELEASE ${sp}`), context);
+          await currentQb.wrap((db) => db.execute(`RELEASE ${sp}`), context);
         } else {
           // Note: pglite must run sequentially
           for (const table of cache.keys()) {
@@ -713,7 +714,7 @@ export const createIndexingCache = ({
         }
       } catch (_error) {
         let error = _error as Error;
-        if (error instanceof ShutdownError || qb.$dialect === "pglite") {
+        if (error instanceof ShutdownError || currentQb.$dialect === "pglite") {
           throw error;
         }
 
@@ -721,7 +722,7 @@ export const createIndexingCache = ({
         // function takes an optimized fast path, with support for small batch sizes. PGlite always takes
         // the fast path because it doesn't support delayed insert errors.
 
-        await qb.wrap((db) => db.execute(`ROLLBACK to ${sp}`), context);
+        await currentQb.wrap((db) => db.execute(`ROLLBACK to ${sp}`), context);
 
         for (const table of cache.keys()) {
           if (
@@ -742,19 +743,19 @@ export const createIndexingCache = ({
           if (insertValues.length > 0) {
             const endClock = startClock();
 
-            await qb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
+            await currentQb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
 
             const result = await recoverBatchError(
               insertValues,
               async (values) => {
-                await qb.wrap((db) => db.execute(`ROLLBACK to ${sp}`), context);
+                await currentQb.wrap((db) => db.execute(`ROLLBACK to ${sp}`), context);
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text);
 
-                await qb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
+                await currentQb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
               },
             );
 
@@ -808,24 +809,24 @@ export const createIndexingCache = ({
 
             const endClock = startClock();
 
-            await qb.wrap((db) => db.execute(createTempTableQuery), context);
-            await qb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
+            await currentQb.wrap((db) => db.execute(createTempTableQuery), context);
+            await currentQb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
 
             const result = await recoverBatchError(
               updateValues,
               async (values) => {
-                await qb.wrap((db) => db.execute(`ROLLBACK to ${sp}`), context);
+                await currentQb.wrap((db) => db.execute(`ROLLBACK to ${sp}`), context);
                 const text = getCopyText(
                   table,
                   values.map(({ row }) => row),
                 );
                 await copy(table, text, false);
 
-                await qb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
+                await currentQb.wrap((db) => db.execute(`SAVEPOINT ${sp}`), context);
               },
             );
 
-            await qb.wrap(
+            await currentQb.wrap(
               (db) => db.execute(`TRUNCATE TABLE "${target}"`),
               context,
             );
