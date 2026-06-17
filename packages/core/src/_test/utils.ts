@@ -661,7 +661,10 @@ export const getSimulatedEvent = ({
   return events[0]!;
 };
 
-export const getChain = (params?: { finalityBlockCount?: number }) => {
+export const getChain = (params?: {
+  finalityBlockCount?: number;
+  experimentalRangeScan?: boolean;
+}) => {
   return {
     name: "mainnet",
     id: 1,
@@ -671,6 +674,7 @@ export const getChain = (params?: { finalityBlockCount?: number }) => {
     finalityBlockCount: params?.finalityBlockCount ?? 1,
     disableCache: false,
     ethGetLogsBlockRange: undefined,
+    experimentalRangeScan: params?.experimentalRangeScan ?? false,
     viemChain: anvil,
   } satisfies Chain;
 };

@@ -716,7 +716,15 @@ export const createRpc = ({
 
             interval = setInterval(async () => {
               try {
-                const block = await eth_getBlockByNumber(rpc, ["latest", true]);
+                // The range-scan path only needs the head block header; full
+                // transactions are fetched per-block as needed. `false` returns
+                // a full header at runtime, but is typed as `LightBlock`.
+                const block = chain.experimentalRangeScan
+                  ? ((await eth_getBlockByNumber(rpc, [
+                      "latest",
+                      false,
+                    ])) as unknown as SyncBlockHeader)
+                  : await eth_getBlockByNumber(rpc, ["latest", true]);
                 common.logger.trace({
                   msg: "Received successful JSON-RPC polling response",
                   chain: chain.name,

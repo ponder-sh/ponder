@@ -27,6 +27,7 @@ import {
   getChain,
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
+  testClient,
 } from "@/_test/utils.js";
 import { buildLogFactory } from "@/build/factory.js";
 import type { EventCallback, LogFactory, LogFilter } from "@/internal/types.js";
@@ -1209,4 +1210,170 @@ test("handleReorg() throws error for deep reorg", async () => {
 
   // block 4 is not added to `unfinalizedBlocks`
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);
+});
+
+test("sync() range scan emits matched blocks and advances to head", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  // Finalize at block 2 (deploy + mint).
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  // Block 3: matched transfer. Block 4: empty.
+  await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
+  await simulateBlock();
+
+  const head = await eth_getBlockByNumber(rpc, ["0x4", true]);
+
+  const requestSpy = vi.spyOn(rpc, "request");
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(head));
+
+  const data = syncResult as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  // One matched block (3) plus the empty head (4).
+  expect(syncResult).toHaveLength(2);
+  expect(data[0]!.hasMatchedFilter).toBe(true);
+  expect(data[0]!.block.number).toBe("0x3");
+  expect(data[0]!.logs).toHaveLength(1);
+  expect(data[1]!.hasMatchedFilter).toBe(false);
+  expect(data[1]!.block.number).toBe("0x4");
+  expect(data[1]!.logs).toHaveLength(0);
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+
+  // A single ranged `eth_getLogs` is used, no per-block `eth_getBlockByNumber`,
+  // and only the matched block is fetched by hash.
+  const methods = requestSpy.mock.calls.map(
+    (call) => (call[0] as { method: string }).method,
+  );
+  expect(methods.filter((m) => m === "eth_getLogs")).toHaveLength(1);
+  expect(methods.filter((m) => m === "eth_getBlockByNumber")).toHaveLength(0);
+  expect(methods.filter((m) => m === "eth_getBlockByHash")).toHaveLength(1);
+});
+
+test("sync() range scan detects reorg of matched block", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  // Finalize at block 2 (deploy + mint).
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  // Snapshot the chain at block 2, then create a matched block 3.
+  const snapshotId = await testClient.snapshot();
+  await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
+
+  const head3 = await eth_getBlockByNumber(rpc, ["0x3", true]);
+  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(head3));
+
+  expect(syncResult1.filter((event) => event.type === "block")).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+
+  // Reorg: revert to block 2 and mine a different (empty) block 3'.
+  await testClient.revert({ id: snapshotId });
+  await testClient.mine({ blocks: 1 });
+
+  const head3Prime = await eth_getBlockByNumber(rpc, ["0x3", true]);
+  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(head3Prime));
+
+  const reorg = syncResult2.find((event) => event.type === "reorg") as Extract<
+    RealtimeSyncEvent,
+    { type: "reorg" }
+  >;
+
+  // The matched block 3 reorged out; the common ancestor is the finalized block.
+  expect(reorg).toBeDefined();
+  expect(reorg.block.number).toBe("0x2");
+  expect(reorg.reorgedBlocks).toHaveLength(1);
+
+  // The new empty head 3' is ingested in its place.
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+  expect(realtimeSync.unfinalizedBlocks[0]!.hash).toBe(head3Prime.hash);
+});
+
+test("sync() ignores range scan when a block filter is present", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  // Block filters are unsupported on the range-scan path, so the chain falls
+  // back to the default per-block sync.
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const blockData = await simulateBlock();
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData.block),
+  );
+
+  // The default path matches the block filter on the (otherwise empty) block.
+  expect(syncResult).toHaveLength(1);
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)
+      .hasMatchedFilter,
+  ).toBe(true);
 });

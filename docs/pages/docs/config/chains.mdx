@@ -161,7 +161,9 @@ export default createConfig({
 
 The `pollingInterval` option controls how frequently (in milliseconds) the indexing engine checks for a new block in realtime. The default is `1000` (1 second).
 
-If you set `pollingInterval` greater than the chain's block time, it **does not reduce RPC usage**. The indexing engine still fetches every block to check for reorgs. The default is suitable for most chains.
+By default, setting `pollingInterval` greater than the chain's block time **does not reduce RPC usage**. The indexing engine still fetches every block to check for reorgs. The default is suitable for most chains.
+
+To reduce RPC usage on high-throughput chains (e.g. L2s with sub-second block times), enable [`experimentalRangeScan`](#range-scan-experimental) alongside a larger `pollingInterval`.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -176,6 +178,32 @@ export default createConfig({
   },
 });
 ```
+
+## Range scan (experimental)
+
+The `experimentalRangeScan` option reduces realtime RPC usage by scanning each polling interval with a single ranged `eth_getLogs` request instead of fetching every block. When enabled, a `pollingInterval` larger than the chain's block time reduces RPC usage proportionally — useful for high-throughput L2 chains.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    base: {
+      id: 8453,
+      rpc: process.env.PONDER_RPC_URL_8453,
+      pollingInterval: 5_000, // 5 seconds [!code focus]
+      experimentalRangeScan: true, // [!code focus]
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+This option only applies to chains whose indexed sources are exclusively non-factory `log` events. Chains that use factory, block, transaction, trace, or transfer sources fall back to the default per-block realtime sync.
+
+:::warning
+This option is experimental. It changes how reorgs are detected in realtime (by diffing the block hashes of event-bearing blocks rather than tracing a contiguous chain of block hashes). The default is `false`.
+:::
 
 ## Disable caching
 
