@@ -588,10 +588,12 @@ export const finalizeOmnichain = async (
     checkpoint,
     tables,
     namespaceBuild,
+    onFinalize,
   }: {
     checkpoint: string;
     tables: Table[];
     namespaceBuild: NamespaceBuild;
+    onFinalize?: (tx: QB) => Promise<void>;
   },
   context?: { logger?: Logger },
 ) => {
@@ -599,11 +601,18 @@ export const finalizeOmnichain = async (
 
   // TODO(kyle) is this breaking an invariant?
   if (tables.length === 0) {
-    await qb.wrap(
-      (db) =>
-        db
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
+    await qb.transaction(
+      { label: "finalize" },
+      async (tx) => {
+        await tx.wrap((tx) =>
+          tx.update(PONDER_CHECKPOINT).set({
+            finalizedCheckpoint: checkpoint,
+            safeCheckpoint: checkpoint,
+          }),
+        );
+        await onFinalize?.(tx);
+      },
+      undefined,
       context,
     );
     return;
@@ -626,6 +635,8 @@ export const finalizeOmnichain = async (
             .where(lte(getReorgTable(table).checkpoint, checkpoint)),
         );
       }
+
+      await onFinalize?.(tx);
     },
     undefined,
     context,
@@ -638,10 +649,12 @@ export const finalizeMultichain = async (
     checkpoint,
     tables,
     namespaceBuild,
+    onFinalize,
   }: {
     checkpoint: string;
     tables: Table[];
     namespaceBuild: NamespaceBuild;
+    onFinalize?: (tx: QB) => Promise<void>;
   },
   context?: { logger?: Logger },
 ) => {
@@ -649,11 +662,18 @@ export const finalizeMultichain = async (
 
   // TODO(kyle) is this breaking an invariant?
   if (tables.length === 0) {
-    await qb.wrap(
-      (db) =>
-        db
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
+    await qb.transaction(
+      { label: "finalize" },
+      async (tx) => {
+        await tx.wrap((tx) =>
+          tx.update(PONDER_CHECKPOINT).set({
+            finalizedCheckpoint: checkpoint,
+            safeCheckpoint: checkpoint,
+          }),
+        );
+        await onFinalize?.(tx);
+      },
+      undefined,
       context,
     );
     return;
@@ -727,6 +747,8 @@ WHERE checkpoint > (
             .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
         );
       }
+
+      await onFinalize?.(tx);
     },
     undefined,
     context,
@@ -739,10 +761,12 @@ export const finalizeIsolated = async (
     checkpoint,
     tables,
     namespaceBuild,
+    onFinalize,
   }: {
     checkpoint: string;
     tables: Table[];
     namespaceBuild: NamespaceBuild;
+    onFinalize?: (tx: QB) => Promise<void>;
   },
   context?: { logger?: Logger },
 ) => {
@@ -750,12 +774,21 @@ export const finalizeIsolated = async (
   const chainId = Number(decodeCheckpoint(checkpoint).chainId);
 
   if (tables.length === 0) {
-    await qb.wrap(
-      (db) =>
-        db
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint })
-          .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+    await qb.transaction(
+      { label: "finalize" },
+      async (tx) => {
+        await tx.wrap((tx) =>
+          tx
+            .update(PONDER_CHECKPOINT)
+            .set({
+              finalizedCheckpoint: checkpoint,
+              safeCheckpoint: checkpoint,
+            })
+            .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+        );
+        await onFinalize?.(tx);
+      },
+      undefined,
       context,
     );
     return;
@@ -780,6 +813,8 @@ export const finalizeIsolated = async (
           ),
       );
     }
+
+    await onFinalize?.(tx);
   });
 };
 

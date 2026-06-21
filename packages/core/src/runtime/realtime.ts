@@ -54,7 +54,7 @@ export type RealtimeEvent =
       blockCallback?: (isAccepted: boolean) => void;
     }
   | { type: "reorg"; chain: Chain; checkpoint: string }
-  | { type: "finalize"; chain: Chain; checkpoint: string };
+  | { type: "finalize"; events: Event[]; chain: Chain; checkpoint: string };
 
 export async function* getRealtimeEventsOmnichain(params: {
   common: Common;
@@ -278,7 +278,12 @@ export async function* getRealtimeEventsOmnichain(params: {
           event_count: finalizedEvents.length,
         });
 
-        yield { type: "finalize", chain, checkpoint: to };
+        yield {
+          type: "finalize",
+          events: finalizedEvents,
+          chain,
+          checkpoint: to,
+        };
         break;
       }
       case "reorg": {
@@ -542,7 +547,7 @@ export async function* getRealtimeEventsMultichain(params: {
           event_count: finalizedEvents.length,
         });
 
-        yield { type: "finalize", chain, checkpoint };
+        yield { type: "finalize", events: finalizedEvents, chain, checkpoint };
         break;
       }
       case "reorg": {
@@ -662,6 +667,9 @@ export async function* getRealtimeEventsIsolated(params: {
     bufferCallback,
   );
 
+  /** Events that have been executed but not finalized. */
+  let executedEvents: Event[] = [];
+
   for await (const { chain, event } of eventGenerator) {
     await handleRealtimeSyncEvent(event, {
       common: params.common,
@@ -727,6 +735,8 @@ export async function* getRealtimeEventsIsolated(params: {
           tag: "current",
         });
 
+        executedEvents = executedEvents.concat(events);
+
         yield {
           type: "block",
           events,
@@ -741,13 +751,24 @@ export async function* getRealtimeEventsIsolated(params: {
           tag: "finalized",
         });
 
-        yield { type: "finalize", chain, checkpoint };
+        const finalizedEvents = executedEvents.filter(
+          (event) => event.checkpoint <= checkpoint,
+        );
+        executedEvents = executedEvents.filter(
+          (event) => event.checkpoint > checkpoint,
+        );
+
+        yield { type: "finalize", events: finalizedEvents, chain, checkpoint };
         break;
       }
       case "reorg": {
         const checkpoint = params.syncProgress.getCheckpoint({
           tag: "current",
         });
+
+        executedEvents = executedEvents.filter(
+          (event) => event.checkpoint <= checkpoint,
+        );
 
         yield { type: "reorg", chain, checkpoint };
         break;

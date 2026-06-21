@@ -338,6 +338,8 @@ export type SchemaBuild = {
 export type IndexingBuild = {
   /** Ten character hex string identifier. */
   buildId: string;
+  /** Analytics sinks configured by the user. */
+  sinks: readonly IndexingSink[];
   /** Chains to index. */
   chains: Chain[];
   /** RPCs for all `chains`. */
@@ -354,6 +356,49 @@ export type IndexingBuild = {
   contracts: {
     [name: string]: Contract;
   }[];
+};
+
+/** A finalized event delivered to an {@link IndexingSink}. */
+export type FinalizedSinkEvent = {
+  /** Stable Ponder event identifier. */
+  id: string;
+  /** Ponder checkpoint for this event. */
+  checkpoint: string;
+  /** Chain metadata without RPC client state. */
+  chain: { id: number; name: string };
+  /** Registered indexing callback name. */
+  name: string;
+  /** Event category. */
+  type: Event["type"];
+  /** Decoded event payload. */
+  event: Event["event"];
+};
+
+/** A durable, finalized delivery unit for an {@link IndexingSink}. */
+export type FinalizedSinkBatch = {
+  /** Serialized payload format version. */
+  version: 1;
+  /** Stable identifier reused across delivery retries. */
+  id: string;
+  /** Highest checkpoint contained in `events`. */
+  checkpoint: string;
+  events: FinalizedSinkEvent[];
+};
+
+/**
+ * Optional analytics projection for finalized Ponder events.
+ *
+ * Sink writes are at least once. Implementations must tolerate a batch being
+ * delivered again after a successful write but failed acknowledgement. Sinks
+ * require a Postgres database because PGlite lacks durable transaction
+ * boundaries.
+ */
+export type IndexingSink = {
+  name: string;
+  setup?: () => Promise<void>;
+  writeFinalizedBatch: (batch: FinalizedSinkBatch) => Promise<void>;
+  flush?: () => Promise<void>;
+  shutdown?: () => Promise<void>;
 };
 
 export type ApiBuild = {

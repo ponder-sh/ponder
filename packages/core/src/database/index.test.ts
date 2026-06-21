@@ -97,6 +97,7 @@ test("migrate() succeeds with empty schema", async () => {
   expect(tableNames).toContain("account");
   expect(tableNames).toContain("_reorg__account");
   expect(tableNames).toContain("_ponder_meta");
+  expect(tableNames).toContain("_ponder_sink_delivery");
 
   const metadata = await database.userQB.wrap((db) =>
     db.select().from(sql`_ponder_meta`),
@@ -163,6 +164,7 @@ test("migrate() with empty schema creates tables, views, and enums", async () =>
   expect(tableNames).toContain("_reorg__kyle");
   expect(tableNames).toContain("_ponder_meta");
   expect(tableNames).toContain("_ponder_checkpoint");
+  expect(tableNames).toContain("_ponder_sink_delivery");
 
   const viewNames = await getUserViewNames(database, "public");
   expect(viewNames).toContain("user_view");

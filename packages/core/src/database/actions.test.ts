@@ -25,7 +25,9 @@ import {
   createTriggers,
   createViews,
   dropTriggers,
+  finalizeIsolated,
   finalizeMultichain,
+  finalizeOmnichain,
   revertMultichain,
 } from "./actions.js";
 import { type Database, getPonderCheckpointTable } from "./index.js";
@@ -391,6 +393,7 @@ test("empty schema", async () => {
   const { database } = await setupDatabaseServices({
     schemaBuild: { schema: {} },
   });
+  const finalized: string[] = [];
   await createTriggers(database.userQB, { tables: [] });
   await dropTriggers(database.userQB, { tables: [] });
   await createViews(database.userQB, {
@@ -407,7 +410,28 @@ test("empty schema", async () => {
     checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
 
     namespaceBuild: { schema: "public", viewsSchema: undefined },
+    onFinalize: async () => {
+      finalized.push("multichain");
+    },
   });
+  await finalizeOmnichain(database.userQB, {
+    tables: [],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    namespaceBuild: { schema: "public", viewsSchema: undefined },
+    onFinalize: async () => {
+      finalized.push("omnichain");
+    },
+  });
+  await finalizeIsolated(database.userQB, {
+    tables: [],
+    checkpoint: createCheckpoint({ chainId: 1n, blockNumber: 10n }),
+    namespaceBuild: { schema: "public", viewsSchema: undefined },
+    onFinalize: async () => {
+      finalized.push("isolated");
+    },
+  });
+
+  expect(finalized).toStrictEqual(["multichain", "omnichain", "isolated"]);
 });
 
 async function getUserIndexNames(

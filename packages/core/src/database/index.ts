@@ -96,6 +96,7 @@ export const PONDER_META_TABLE_NAME = "_ponder_meta";
  * @dev Used since version 0.11.
  */
 export const PONDER_CHECKPOINT_TABLE_NAME = "_ponder_checkpoint";
+export const PONDER_SINK_DELIVERY_TABLE_NAME = "_ponder_sink_delivery";
 /**
  * @dev Used from version 0.9 to 0.11.
  */
@@ -189,6 +190,26 @@ export const getPonderCheckpointTable = (schema?: string) => {
     safeCheckpoint: t.varchar({ length: 75 }).notNull(),
     latestCheckpoint: t.varchar({ length: 75 }).notNull(),
     finalizedCheckpoint: t.varchar({ length: 75 }).notNull(),
+  }));
+};
+
+export const getPonderSinkDeliveryTable = (schema?: string) => {
+  if (schema === undefined || schema === "public") {
+    return pgTable(PONDER_SINK_DELIVERY_TABLE_NAME, (t) => ({
+      id: t.text().primaryKey(),
+      sinkName: t.text().notNull(),
+      checkpoint: t.varchar({ length: 75 }).notNull(),
+      payload: t.text().notNull(),
+      createdAt: t.bigint({ mode: "number" }).notNull(),
+    }));
+  }
+
+  return pgSchema(schema).table(PONDER_SINK_DELIVERY_TABLE_NAME, (t) => ({
+    id: t.text().primaryKey(),
+    sinkName: t.text().notNull(),
+    checkpoint: t.varchar({ length: 75 }).notNull(),
+    payload: t.text().notNull(),
+    createdAt: t.bigint({ mode: "number" }).notNull(),
   }));
 };
 
@@ -630,6 +651,29 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
         await tx.wrap(
           (tx) =>
             tx.execute(
+              `
+CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_SINK_DELIVERY_TABLE_NAME}" (
+  "id" TEXT PRIMARY KEY,
+  "sink_name" TEXT NOT NULL,
+  "checkpoint" VARCHAR(75) NOT NULL,
+  "payload" TEXT NOT NULL,
+  "created_at" BIGINT NOT NULL
+)`,
+            ),
+          context,
+        );
+
+        await tx.wrap(
+          (tx) =>
+            tx.execute(
+              `CREATE INDEX IF NOT EXISTS "${PONDER_SINK_DELIVERY_TABLE_NAME}_pending_index" ON "${namespace.schema}"."${PONDER_SINK_DELIVERY_TABLE_NAME}" ("sink_name", "checkpoint")`,
+            ),
+          context,
+        );
+
+        await tx.wrap(
+          (tx) =>
+            tx.execute(
               `CREATE SEQUENCE IF NOT EXISTS "${namespace.schema}"."${getReorgSequenceName()}" AS integer INCREMENT BY 1`,
             ),
           context,
@@ -658,7 +702,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
           common.logger.debug({
             msg: "Created internal database objects",
             schema: namespace.schema,
-            table_count: 2,
+            table_count: 3,
             trigger_count: 2,
             duration: endClock(),
           });
@@ -804,6 +848,14 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
               (tx) =>
                 tx.execute(
                   `DROP TABLE IF EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}" CASCADE`,
+                ),
+              context,
+            );
+
+            await tx.wrap(
+              (tx) =>
+                tx.execute(
+                  `DROP TABLE IF EXISTS "${namespace.schema}"."${PONDER_SINK_DELIVERY_TABLE_NAME}" CASCADE`,
                 ),
               context,
             );

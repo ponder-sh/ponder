@@ -1,4 +1,5 @@
 import type { ConnectionOptions } from "node:tls";
+import type { IndexingSink } from "@/internal/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { PoolConfig } from "pg";
@@ -9,6 +10,8 @@ import type { GetEventFilter } from "./eventFilter.js";
 export type Config = {
   database?: DatabaseConfig;
   ordering?: "omnichain" | "multichain" | "experimental_isolated";
+  /** Finalized analytics sinks. Requires a Postgres database. */
+  sinks?: readonly IndexingSink[];
   chains: { [chainName: string]: ChainConfig<unknown> };
   contracts: { [contractName: string]: GetContract };
   accounts: { [accountName: string]: AccountConfig<unknown> };
@@ -17,31 +20,37 @@ export type Config = {
   };
 };
 
-export type CreateConfigReturnType<chains, contracts, accounts, blocks> = {
-  database?: DatabaseConfig;
-  ordering?: "omnichain" | "multichain" | "experimental_isolated";
-  chains: chains;
-  contracts: contracts;
-  accounts: accounts;
-  blocks: blocks;
-};
+export type CreateConfigReturnType<chains, contracts, accounts, blocks, sinks> =
+  {
+    database?: DatabaseConfig;
+    ordering?: "omnichain" | "multichain" | "experimental_isolated";
+    /** Finalized analytics sinks. Requires a Postgres database. */
+    sinks?: sinks;
+    chains: chains;
+    contracts: contracts;
+    accounts: accounts;
+    blocks: blocks;
+  };
 
 export const createConfig = <
   const chains,
   const contracts = {},
   const accounts = {},
   const blocks = {},
+  const sinks extends readonly IndexingSink[] = [],
 >(config: {
   database?: DatabaseConfig;
   ordering?: "omnichain" | "multichain" | "experimental_isolated";
+  /** Finalized analytics sinks. Requires a Postgres database. */
+  sinks?: sinks;
   // TODO: add jsdoc to these properties.
   chains: ChainsConfig<Narrow<chains>>;
   contracts?: ContractsConfig<chains, Narrow<contracts>>;
   accounts?: AccountsConfig<chains, Narrow<accounts>>;
   blocks?: BlockFiltersConfig<chains, blocks>;
-}): CreateConfigReturnType<chains, contracts, accounts, blocks> =>
+}): CreateConfigReturnType<chains, contracts, accounts, blocks, sinks> =>
   config as Prettify<
-    CreateConfigReturnType<chains, contracts, accounts, blocks>
+    CreateConfigReturnType<chains, contracts, accounts, blocks, sinks>
   >;
 
 // database

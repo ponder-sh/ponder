@@ -79,12 +79,12 @@ export type Build = {
   }) => Result<SchemaBuild>;
   compileConfig: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
-  }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
+  }) => Result<Pick<IndexingBuild, "chains" | "rpcs" | "sinks">>;
   compileIndexing: (params: {
     configResult: Extract<ConfigResult, { status: "success" }>["result"];
     schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
     indexingResult: Extract<IndexingResult, { status: "success" }>["result"];
-    configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
+    configBuild: Pick<IndexingBuild, "chains" | "rpcs" | "sinks">;
   }) => Promise<Result<IndexingBuild>>;
   compileApi: (params: {
     apiResult: Extract<ApiResult, { status: "success" }>["result"];
@@ -481,6 +481,7 @@ export const createBuild = async ({
         result: {
           chains: buildConfigResult.chains,
           rpcs: buildConfigResult.rpcs,
+          sinks: buildConfigResult.sinks,
         },
       } as const;
     },
@@ -518,6 +519,7 @@ export const createBuild = async ({
         status: "success",
         result: {
           buildId,
+          sinks: configBuild.sinks,
           chains: buildIndexingFunctionsResult.chains,
           rpcs: buildIndexingFunctionsResult.rpcs,
           finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,

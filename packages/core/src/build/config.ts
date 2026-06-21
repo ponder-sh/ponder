@@ -10,6 +10,7 @@ import type {
   FilterAddress,
   IndexingBuild,
   IndexingFunctions,
+  IndexingSink,
   LightBlock,
   LogFilter,
   SetupCallback,
@@ -969,6 +970,7 @@ export function buildConfig({
 }: { common: Common; config: Config }): {
   chains: Chain[];
   rpcs: Rpc[];
+  sinks: readonly IndexingSink[];
   logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
     string,
     unknown
@@ -1081,7 +1083,41 @@ export function buildConfig({
     }),
   );
 
-  return { chains, rpcs, logs };
+  const sinks = config.sinks ?? [];
+  const sinkNames = new Set<string>();
+  for (const sink of sinks) {
+    if (
+      typeof sink.name !== "string" ||
+      sink.name === "" ||
+      sink.name !== sink.name.trim()
+    ) {
+      throw new Error(
+        "Validation failed: Sink name must be a non-empty string without leading or trailing whitespace.",
+      );
+    }
+    if (typeof sink.writeFinalizedBatch !== "function") {
+      throw new Error(
+        `Validation failed: Sink '${sink.name}' must define writeFinalizedBatch().`,
+      );
+    }
+    if (
+      (sink.setup !== undefined && typeof sink.setup !== "function") ||
+      (sink.flush !== undefined && typeof sink.flush !== "function") ||
+      (sink.shutdown !== undefined && typeof sink.shutdown !== "function")
+    ) {
+      throw new Error(
+        `Validation failed: Sink '${sink.name}' lifecycle hooks must be functions.`,
+      );
+    }
+    if (sinkNames.has(sink.name)) {
+      throw new Error(
+        `Validation failed: Multiple sinks use the name '${sink.name}'.`,
+      );
+    }
+    sinkNames.add(sink.name);
+  }
+
+  return { chains, rpcs, sinks, logs };
 }
 
 export async function safeBuildIndexingFunctions({
@@ -1131,6 +1167,7 @@ export function safeBuildConfig({
       status: "success",
       chains: result.chains,
       rpcs: result.rpcs,
+      sinks: result.sinks,
       logs: result.logs,
     } as const;
   } catch (_error) {

@@ -42,6 +42,7 @@ import type {
   Seconds,
 } from "@/internal/types.js";
 import { splitEvents } from "@/runtime/events.js";
+import { createSinkService } from "@/sink/index.js";
 import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
@@ -97,6 +98,14 @@ export async function runOmnichain({
 
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+  const sinks = createSinkService({
+    common,
+    database,
+    namespace: namespaceBuild,
+    sinks: indexingBuild.sinks,
+  });
+
+  await sinks.start();
 
   const eventCount = getEventCount(indexingBuild.indexingFunctions);
 
@@ -464,6 +473,8 @@ export async function runOmnichain({
               }),
           );
 
+          await sinks.enqueue(tx, events);
+
           common.metrics.ponder_historical_transform_duration.inc(
             { step: "finalize" },
             endClock(),
@@ -506,6 +517,8 @@ export async function runOmnichain({
       undefined,
       context,
     );
+
+    await sinks.drain();
 
     cachedViemClient.clear();
     common.metrics.ponder_historical_transform_duration.inc(
@@ -846,9 +859,12 @@ export async function runOmnichain({
             checkpoint: event.checkpoint,
             tables,
             namespaceBuild,
+            onFinalize: (tx) => sinks.enqueue(tx, event.events),
           },
           context,
         );
+
+        await sinks.drain();
 
         common.logger.info({
           msg: "Finalized block",

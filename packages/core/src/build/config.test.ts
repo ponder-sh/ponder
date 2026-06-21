@@ -2,7 +2,12 @@ import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import { TEST_POOL_ID } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import type {
+  IndexingSink,
+  LogFactory,
+  LogFilter,
+  TraceFilter,
+} from "@/internal/types.js";
 import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   type Address,
@@ -39,6 +44,29 @@ const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 
 beforeEach(setupAnvil);
+
+test("buildConfig() validates sinks", () => {
+  const sink = {
+    name: "analytics",
+    writeFinalizedBatch: async () => {},
+  } satisfies IndexingSink;
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    sinks: [sink],
+  });
+
+  expect(buildConfig({ common: context.common, config }).sinks).toStrictEqual([
+    sink,
+  ]);
+  expect(() =>
+    buildConfig({
+      common: context.common,
+      config: { ...config, sinks: [sink, sink] },
+    }),
+  ).toThrow("Multiple sinks use the name");
+});
 
 test("buildIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({

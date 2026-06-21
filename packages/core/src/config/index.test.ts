@@ -1,3 +1,4 @@
+import type { IndexingSink } from "@/internal/types.js";
 import { type Abi, parseAbiItem } from "viem";
 import { expectTypeOf, test } from "vitest";
 import { factory } from "./address.js";
@@ -34,6 +35,23 @@ test("createConfig basic", () => {
       },
     },
   });
+});
+
+test("createConfig sinks", () => {
+  const sink = {
+    name: "analytics",
+    writeFinalizedBatch: async () => {},
+  } satisfies IndexingSink;
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: "https://rpc.com" },
+    },
+    sinks: [sink],
+  });
+
+  expectTypeOf(config.sinks).toMatchTypeOf<
+    readonly IndexingSink[] | undefined
+  >();
 });
 
 test("createConfig no extra properties", () => {
