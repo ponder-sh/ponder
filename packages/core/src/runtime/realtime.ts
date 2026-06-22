@@ -56,6 +56,26 @@ export type RealtimeEvent =
   | { type: "reorg"; chain: Chain; checkpoint: string }
   | { type: "finalize"; events: Event[]; chain: Chain; checkpoint: string };
 
+export const getFinalizedEventsMultichain = <
+  T extends { chain: Pick<Chain, "id">; checkpoint: string },
+>(
+  events: T[],
+  { chain, checkpoint }: { chain: Pick<Chain, "id">; checkpoint: string },
+) => {
+  const finalizedEvents: T[] = [];
+  const remainingEvents: T[] = [];
+
+  for (const event of events) {
+    if (event.chain.id === chain.id && event.checkpoint <= checkpoint) {
+      finalizedEvents.push(event);
+    } else {
+      remainingEvents.push(event);
+    }
+  }
+
+  return { finalizedEvents, remainingEvents };
+};
+
 export async function* getRealtimeEventsOmnichain(params: {
   common: Common;
   indexingBuild: Pick<
@@ -515,32 +535,10 @@ export async function* getRealtimeEventsMultichain(params: {
       case "finalize": {
         const checkpoint = syncProgress.getCheckpoint({ tag: "finalized" });
 
-        // index of the first unfinalized event
-        let finalizeIndex: number | undefined = undefined;
-
-        for (const [index, event] of executedEvents.entries()) {
-          const _chain = params.indexingBuild.chains.find(
-            (c) => c.id === event.chain.id,
-          )!;
-          const _checkpoint = params.perChainSync
-            .get(_chain)!
-            .syncProgress.getCheckpoint({ tag: "finalized" });
-
-          if (event.checkpoint > _checkpoint) {
-            finalizeIndex = index;
-            break;
-          }
-        }
-
-        let finalizedEvents: Event[];
-
-        if (finalizeIndex === undefined) {
-          finalizedEvents = executedEvents;
-          executedEvents = [];
-        } else {
-          finalizedEvents = executedEvents.slice(0, finalizeIndex);
-          executedEvents = executedEvents.slice(finalizeIndex);
-        }
+        // A multichain finalization transaction advances one chain checkpoint.
+        const { finalizedEvents, remainingEvents } =
+          getFinalizedEventsMultichain(executedEvents, { chain, checkpoint });
+        executedEvents = remainingEvents;
 
         params.common.logger.trace({
           msg: "Removed finalized events",
