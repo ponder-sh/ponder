@@ -6,14 +6,23 @@ import {
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
 import { getChain } from "@/_test/utils.js";
-import { type Database, getPonderSinkDeliveryTable } from "@/database/index.js";
+import { finalizeMultichain } from "@/database/actions.js";
+import {
+  type Database,
+  getPonderCheckpointTable,
+  getPonderSinkDeliveryTable,
+} from "@/database/index.js";
+import { onchainTable } from "@/drizzle/onchain.js";
 import { NonRetryableUserError } from "@/internal/errors.js";
 import type {
+  Chain,
   Event,
   FinalizedSinkBatch,
   IndexingSink,
 } from "@/internal/types.js";
+import { getFinalizedEventsMultichain } from "@/runtime/realtime.js";
 import { ZERO_CHECKPOINT, encodeCheckpoint } from "@/utils/checkpoint.js";
+import { eq } from "drizzle-orm";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createSinkService } from "./index.js";
 
@@ -23,16 +32,34 @@ beforeEach(setupCleanup);
 
 const namespace = { schema: "public", viewsSchema: undefined };
 
-const createEvent = (id = "event-1"): Event => {
-  const chain = getChain();
+const createCheckpoint = ({
+  chainId,
+  blockNumber = 0n,
+  blockTimestamp = 0n,
+}: {
+  chainId: number;
+  blockNumber?: bigint;
+  blockTimestamp?: bigint;
+}) =>
+  encodeCheckpoint({
+    ...ZERO_CHECKPOINT,
+    chainId: BigInt(chainId),
+    blockNumber,
+    blockTimestamp,
+  });
 
+const createEvent = ({
+  id = "event-1",
+  chain = getChain(),
+  checkpoint = createCheckpoint({ chainId: chain.id, blockNumber: 1n }),
+}: {
+  id?: string;
+  chain?: Chain;
+  checkpoint?: string;
+} = {}): Event => {
   return {
     type: "block",
-    checkpoint: encodeCheckpoint({
-      ...ZERO_CHECKPOINT,
-      chainId: 1n,
-      blockNumber: 1n,
-    }),
+    checkpoint,
     chain,
     eventCallback: {
       filter: {
@@ -63,6 +90,120 @@ const getPendingDeliveries = (database: Database) => {
 
   return database.userQB.wrap((db) => db.select().from(PONDER_SINK_DELIVERY));
 };
+
+test("replays a multichain delivery after finalizing its chain", async () => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
+  const account = onchainTable("account", (p) => ({
+    id: p.text().primaryKey(),
+  }));
+  const { database } = await setupDatabaseServices({
+    namespaceBuild: namespace,
+    schemaBuild: { schema: { account } },
+  });
+  const chainA = getChain();
+  const chainB = { ...getChain(), id: 2, name: "optimism" };
+  const checkpointA = createCheckpoint({
+    chainId: chainA.id,
+    blockNumber: 1n,
+    blockTimestamp: 1n,
+  });
+  const checkpointB = createCheckpoint({
+    chainId: chainB.id,
+    blockNumber: 1n,
+    blockTimestamp: 2n,
+  });
+  const initialCheckpointA = createCheckpoint({ chainId: chainA.id });
+  const initialCheckpointB = createCheckpoint({ chainId: chainB.id });
+  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace.schema);
+
+  await database.userQB.wrap((tx) =>
+    tx.insert(PONDER_CHECKPOINT).values([
+      {
+        chainName: chainA.name,
+        chainId: chainA.id,
+        latestCheckpoint: checkpointA,
+        safeCheckpoint: initialCheckpointA,
+        finalizedCheckpoint: initialCheckpointA,
+      },
+      {
+        chainName: chainB.name,
+        chainId: chainB.id,
+        latestCheckpoint: checkpointB,
+        safeCheckpoint: initialCheckpointB,
+        finalizedCheckpoint: initialCheckpointB,
+      },
+    ]),
+  );
+
+  const eventA = createEvent({
+    id: "event-a",
+    chain: chainA,
+    checkpoint: checkpointA,
+  });
+  const eventB = createEvent({
+    id: "event-b",
+    chain: chainB,
+    checkpoint: checkpointB,
+  });
+  const { finalizedEvents } = getFinalizedEventsMultichain([eventA, eventB], {
+    chain: chainB,
+    checkpoint: checkpointB,
+  });
+  const service = createSinkService({
+    common: context.common,
+    database,
+    namespace,
+    sinks: [{ name: "test", writeFinalizedBatch: async () => {} }],
+  });
+
+  await finalizeMultichain(database.userQB, {
+    checkpoint: checkpointB,
+    tables: [account],
+    namespaceBuild: namespace,
+    onFinalize: (tx) => service.enqueue(tx, finalizedEvents),
+  });
+
+  const checkpointARow = await database.userQB.wrap((tx) =>
+    tx
+      .select()
+      .from(PONDER_CHECKPOINT)
+      .where(eq(PONDER_CHECKPOINT.chainId, chainA.id))
+      .then((rows) => rows[0]),
+  );
+  const checkpointBRow = await database.userQB.wrap((tx) =>
+    tx
+      .select()
+      .from(PONDER_CHECKPOINT)
+      .where(eq(PONDER_CHECKPOINT.chainId, chainB.id))
+      .then((rows) => rows[0]),
+  );
+
+  expect(checkpointARow!.finalizedCheckpoint).toBe(initialCheckpointA);
+  expect(checkpointBRow!.finalizedCheckpoint).toBe(checkpointB);
+  expect(await getPendingDeliveries(database)).toHaveLength(1);
+
+  const delivered: FinalizedSinkBatch[] = [];
+  const restartedService = createSinkService({
+    common: context.common,
+    database,
+    namespace,
+    sinks: [
+      {
+        name: "test",
+        writeFinalizedBatch: async (batch) => {
+          delivered.push(batch);
+        },
+      },
+    ],
+  });
+
+  await restartedService.drain();
+
+  expect(delivered).toHaveLength(1);
+  expect(delivered[0]!.events).toMatchObject([{ id: "event-b" }]);
+  expect(await getPendingDeliveries(database)).toHaveLength(0);
+});
 
 test("drains a persisted finalized batch", async () => {
   const { database } = await setupDatabaseServices({
