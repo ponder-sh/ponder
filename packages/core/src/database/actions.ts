@@ -659,6 +659,7 @@ export const finalizeMultichain = async (
   context?: { logger?: Logger },
 ) => {
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+  const chainId = Number(decodeCheckpoint(checkpoint).chainId);
 
   // TODO(kyle) is this breaking an invariant?
   if (tables.length === 0) {
@@ -666,10 +667,13 @@ export const finalizeMultichain = async (
       { label: "finalize" },
       async (tx) => {
         await tx.wrap((tx) =>
-          tx.update(PONDER_CHECKPOINT).set({
-            finalizedCheckpoint: checkpoint,
-            safeCheckpoint: checkpoint,
-          }),
+          tx
+            .update(PONDER_CHECKPOINT)
+            .set({
+              finalizedCheckpoint: checkpoint,
+              safeCheckpoint: checkpoint,
+            })
+            .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
         );
         await onFinalize?.(tx);
       },
@@ -688,12 +692,7 @@ export const finalizeMultichain = async (
         tx
           .update(PONDER_CHECKPOINT)
           .set({ finalizedCheckpoint: checkpoint })
-          .where(
-            eq(
-              PONDER_CHECKPOINT.chainId,
-              Number(decodeCheckpoint(checkpoint).chainId),
-            ),
-          ),
+          .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
       );
 
       const minOperationId = await tx

@@ -12,7 +12,6 @@ import {
   getPonderCheckpointTable,
   getPonderSinkDeliveryTable,
 } from "@/database/index.js";
-import { onchainTable } from "@/drizzle/onchain.js";
 import { NonRetryableUserError } from "@/internal/errors.js";
 import type {
   Chain,
@@ -94,12 +93,8 @@ const getPendingDeliveries = (database: Database) => {
 test("replays a multichain delivery after finalizing its chain", async () => {
   if (context.databaseConfig.kind !== "postgres") return;
 
-  const account = onchainTable("account", (p) => ({
-    id: p.text().primaryKey(),
-  }));
   const { database } = await setupDatabaseServices({
     namespaceBuild: namespace,
-    schemaBuild: { schema: { account } },
   });
   const chainA = getChain();
   const chainB = { ...getChain(), id: 2, name: "optimism" };
@@ -159,7 +154,7 @@ test("replays a multichain delivery after finalizing its chain", async () => {
 
   await finalizeMultichain(database.userQB, {
     checkpoint: checkpointB,
-    tables: [account],
+    tables: [],
     namespaceBuild: namespace,
     onFinalize: (tx) => service.enqueue(tx, finalizedEvents),
   });
