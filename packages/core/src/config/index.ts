@@ -20,17 +20,22 @@ export type Config = {
   };
 };
 
-export type CreateConfigReturnType<chains, contracts, accounts, blocks, sinks> =
-  {
-    database?: DatabaseConfig;
-    ordering?: "omnichain" | "multichain" | "experimental_isolated";
-    /** Finalized analytics sinks. Requires a Postgres database. */
-    sinks?: sinks;
-    chains: chains;
-    contracts: contracts;
-    accounts: accounts;
-    blocks: blocks;
-  };
+export type CreateConfigReturnType<
+  chains,
+  contracts,
+  accounts,
+  blocks,
+  sinks extends readonly IndexingSink[] = [],
+> = {
+  database?: DatabaseConfig;
+  ordering?: "omnichain" | "multichain" | "experimental_isolated";
+  /** Finalized analytics sinks. Requires a Postgres database. */
+  sinks?: sinks;
+  chains: chains;
+  contracts: contracts;
+  accounts: accounts;
+  blocks: blocks;
+};
 
 export const createConfig = <
   const chains,

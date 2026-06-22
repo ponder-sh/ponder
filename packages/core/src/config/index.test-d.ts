@@ -1,6 +1,27 @@
 import { assertType, test } from "vitest";
-import type { IndexingSink } from "../index.js";
+import type { CreateConfigReturnType, IndexingSink } from "../index.js";
 import { createConfig } from "./index.js";
+
+test("CreateConfigReturnType generic defaults", () => {
+  const sink = {
+    name: "analytics",
+    writeFinalizedBatch: async () => {},
+  } satisfies IndexingSink;
+
+  assertType<CreateConfigReturnType<{}, {}, {}, {}>>({
+    chains: {},
+    contracts: {},
+    accounts: {},
+    blocks: {},
+  });
+  assertType<CreateConfigReturnType<{}, {}, {}, {}, readonly [typeof sink]>>({
+    chains: {},
+    contracts: {},
+    accounts: {},
+    blocks: {},
+    sinks: [sink] as const,
+  });
+});
 
 test("createConfig sinks", () => {
   const sink = {
