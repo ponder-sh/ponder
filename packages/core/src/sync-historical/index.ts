@@ -4,6 +4,7 @@ import type {
   Chain,
   Factory,
   FactoryId,
+  Filter,
   LogFilter,
   SyncBlock,
   SyncLog,
@@ -93,6 +94,7 @@ type CreateHistoricalSyncParameters = {
   chain: Chain;
   rpc: Rpc;
   childAddresses: Map<FactoryId, Map<Address, number>>;
+  filters?: Filter[];
 };
 
 export const createHistoricalSync = (
@@ -579,6 +581,35 @@ export const createHistoricalSync = (
         }
       }
 
+      // Supplementary fetch: when new child addresses are discovered by the factory scan
+      // in this batch, ensure their events are fetched for the full batch interval.
+      // This guards against the case where the child filter appears cached in
+      // cachedIntervals (not in requiredIntervals) but those cached intervals were
+      // recorded before this child address existed, so the child's events were never
+      // fetched. The dedupe call below removes any resulting duplicate eth_getLogs params.
+      for (const [factoryId, newAddresses] of childAddresses.entries()) {
+        if (newAddresses.size === 0) continue;
+
+        const newAddressList = Array.from(newAddresses.keys());
+        const threshold = args.common.options.factoryAddressCountThreshold;
+
+        for (const filter of args.filters ?? []) {
+          if (filter.type !== "log") continue;
+          if (!isAddressFactory(filter.address)) continue;
+          if (filter.address.id !== factoryId) continue;
+
+          singleEthGetLogsParams.push({
+            address:
+              newAddressList.length >= threshold ? undefined : newAddressList,
+            topic0: filter.topic0,
+            topic1: filter.topic1,
+            topic2: filter.topic2,
+            topic3: filter.topic3,
+            interval,
+          });
+        }
+      }
+
       const ethGetLogsParams = dedupe(
         [
           ...singleEthGetLogsParams,
@@ -740,6 +771,36 @@ export const createHistoricalSync = (
 
                   // skip to next log
                   break;
+                }
+              }
+            }
+
+            // Supplementary match: logs fetched by the factory-address scan in
+            // syncBlockRangeData for child filters that appeared cached (absent from
+            // requiredIntervals / logFilters) but were recorded before this child
+            // address was created, so the child's events were never actually stored.
+            if (!isMatched) {
+              for (const filter of args.filters ?? []) {
+                if (filter.type !== "log") continue;
+                if (!isAddressFactory(filter.address)) continue;
+                const factoryAddresses = args.childAddresses.get(
+                  filter.address.id,
+                );
+                if (!factoryAddresses) continue;
+                if (
+                  isLogFilterMatched({ filter, log }) &&
+                  isAddressMatched({
+                    address: log.address,
+                    blockNumber,
+                    childAddresses: factoryAddresses,
+                  })
+                ) {
+                  isMatched = true;
+                  requiredTransactions.add(log.transactionHash);
+                  if (filter.hasTransactionReceipt) {
+                    requiredTransactionReceipts.add(log.transactionHash);
+                    break;
+                  }
                 }
               }
             }
@@ -1038,7 +1099,7 @@ export const createHistoricalSync = (
         100,
       );
 
-      if (requiredIntervals.length > 0) {
+      if (requiredIntervals.length > 0 || logs.length > 0) {
         const queue = createQueue({
           browser: false,
           initialStart: true,

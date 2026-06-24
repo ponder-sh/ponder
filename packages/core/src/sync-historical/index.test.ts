@@ -1142,3 +1142,86 @@ test("syncAddress() handles many addresses", async () => {
   expect(dbLogs).toHaveLength(1);
   expect(factories).toHaveLength(11);
 });
+
+test("sync() with log factory fetches child events even when child filter appears cached", async () => {
+  // Regression test for the "same-batch factory child address miss" bug.
+  //
+  // Scenario: a factory creates a child contract AND the child emits an event
+  // in the same ethGetLogsBlockRange window. If `cachedIntervals` causes the
+  // child filter to appear fully cached (not in `requiredIntervals`) while the
+  // factory IS in `requiredFactoryIntervals`, child events for newly discovered
+  // addresses must still be fetched.
+  //
+  // This can happen after a v0.14→v0.15 migration (migration compat marks factory
+  // as cached but child addresses may be missing) or in other stale-cache scenarios.
+
+  const { syncStore, database } = await setupDatabaseServices();
+
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: setupChildAddresses(eventCallbacks),
+    filters: eventCallbacks.map(({ filter }) => filter),
+  });
+
+  // Compute the normal required intervals so we have the factory intervals.
+  const allRequiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+
+  // Simulate the full bug: both calls get empty child filter intervals (as if the
+  // child filter appeared fully cached in cachedIntervals for the entire batch range).
+  // The factory IS in requiredFactoryIntervals so syncAddressFactory runs and adds
+  // the pair to childAddresses. The supplementary fetch must then return the Swap
+  // log; the syncBlockData fallback must store it despite logFilters being empty.
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 3],
+    requiredIntervals: [],
+    requiredFactoryIntervals: allRequiredIntervals.factoryIntervals,
+    syncStore,
+  });
+
+  await historicalSync.syncBlockData({
+    interval: [1, 3],
+    requiredIntervals: [],
+    logs,
+    syncStore,
+  });
+
+  const dbLogs = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.logs).execute(),
+  );
+  const factories = await database.syncQB.wrap((db) =>
+    db.select().from(ponderSyncSchema.factories).execute(),
+  );
+
+  // The Swap event from the newly discovered child must be present.
+  expect(dbLogs).toHaveLength(1);
+  expect(factories).toHaveLength(1);
+});
