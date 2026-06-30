@@ -1053,6 +1053,7 @@ export function buildConfig({
         id: chain.id,
         name: chainName,
         rpc: chain.rpc,
+        sync: chain.sync,
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),

@@ -1221,7 +1221,8 @@ export async function* getLocalSyncGenerator(params: {
     });
   }
 
-  const historicalSync = createHistoricalSync(params);
+  const createSync = params.chain.sync?.historical ?? createHistoricalSync;
+  const historicalSync = createSync(params);
 
   const { callback: intervalCallback, generator: intervalGenerator } =
     createCallbackGenerator<{

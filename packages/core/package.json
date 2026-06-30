@@ -33,6 +33,10 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./sync": {
+      "types": "./dist/types/sync.d.ts",
+      "import": "./dist/esm/sync.js"
+    },
     "./virtual": {
       "types": "./src/types.d.ts"
     }

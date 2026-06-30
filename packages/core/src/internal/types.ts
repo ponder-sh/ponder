@@ -1,5 +1,7 @@
 import type { SqlStatements } from "@/drizzle/kit/index.js";
 import type { Rpc } from "@/rpc/index.js";
+import type { HistoricalSyncFactory } from "@/sync-historical/index.js";
+import type { RealtimeSyncFactory } from "@/sync-realtime/index.js";
 import type {
   Block,
   Log,
@@ -296,10 +298,22 @@ export type SetupCallback = {
 
 // Chain
 
+/**
+ * Custom sync providers for a chain. When a field is set, it replaces the
+ * default JSON-RPC sync for that phase: `historical` backs the backfill,
+ * `realtime` (reserved) backs near-head sync. Unset → default RPC sync.
+ */
+export type ChainSync = {
+  historical?: HistoricalSyncFactory;
+  realtime?: RealtimeSyncFactory;
+};
+
 export type Chain = {
   name: string;
   id: number;
   rpc: string | string[] | Transport;
+  /** Custom sync providers. Unset → JSON-RPC sync. */
+  sync: ChainSync | undefined;
   ws: string | undefined;
   pollingInterval: number;
   finalityBlockCount: number;

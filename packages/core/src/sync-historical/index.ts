@@ -88,12 +88,21 @@ export type HistoricalSync = {
   }): Promise<SyncBlock | undefined>;
 };
 
-type CreateHistoricalSyncParameters = {
+export type CreateHistoricalSyncParameters = {
   common: Common;
   chain: Chain;
   rpc: Rpc;
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
+
+/**
+ * Factory for a {@link HistoricalSync} implementation. Pass one via
+ * `chain.sync.historical` to back the historical backfill with a custom data
+ * source instead of JSON-RPC.
+ */
+export type HistoricalSyncFactory = (
+  args: CreateHistoricalSyncParameters,
+) => HistoricalSync;
 
 export const createHistoricalSync = (
   args: CreateHistoricalSyncParameters,

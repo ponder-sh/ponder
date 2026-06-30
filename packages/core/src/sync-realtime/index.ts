@@ -90,7 +90,7 @@ export type RealtimeSyncEvent =
   | { type: "finalize"; block: LightBlock }
   | { type: "reorg"; block: LightBlock; reorgedBlocks: LightBlock[] };
 
-type CreateRealtimeSyncParameters = {
+export type CreateRealtimeSyncParameters = {
   common: Common;
   chain: Chain;
   rpc: Rpc;
@@ -98,6 +98,16 @@ type CreateRealtimeSyncParameters = {
   syncProgress: Pick<SyncProgress, "finalized">;
   childAddresses: Map<FactoryId, Map<Address, number>>;
 };
+
+/**
+ * Factory for a {@link RealtimeSync} implementation. Pass one via
+ * `chain.sync.realtime` to back realtime sync with a custom data source instead
+ * of JSON-RPC. Reserved for future use; the default RPC realtime sync is used
+ * when unset.
+ */
+export type RealtimeSyncFactory = (
+  args: CreateRealtimeSyncParameters,
+) => RealtimeSync;
 
 const MAX_LATEST_BLOCK_ATTEMPT_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_QUEUED_BLOCKS = 50;

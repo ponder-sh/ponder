@@ -1,4 +1,5 @@
 import type { ConnectionOptions } from "node:tls";
+import type { ChainSync } from "@/internal/types.js";
 import type { Prettify } from "@/types/utils.js";
 import type { Abi } from "abitype";
 import type { PoolConfig } from "pg";
@@ -94,6 +95,13 @@ type ChainConfig<chain> = {
   id: chain extends { id: infer id extends number } ? id | number : number;
   /** RPC url. */
   rpc: string | string[] | Transport | undefined;
+  /**
+   * Custom sync providers for this chain. Set `sync.historical` to stream the
+   * historical backfill from a custom data source instead of JSON-RPC;
+   * `sync.realtime` is reserved. Realtime and indexing-function reads still use
+   * `rpc`, which remains required.
+   */
+  sync?: ChainSync;
   ws?: string;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;

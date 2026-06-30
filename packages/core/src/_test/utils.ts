@@ -668,6 +668,7 @@ export const getChain = (params?: {
     name: "mainnet",
     id: 1,
     rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+    sync: undefined,
     ws: undefined,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,

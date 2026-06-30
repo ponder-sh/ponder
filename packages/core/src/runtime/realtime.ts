@@ -765,7 +765,8 @@ export async function* getRealtimeEventGenerator(params: {
   childAddresses: ChildAddresses;
   database: Database;
 }) {
-  const realtimeSync = createRealtimeSync(params);
+  const createSync = params.chain.sync?.realtime ?? createRealtimeSync;
+  const realtimeSync = createSync(params);
 
   let childCount = 0;
   for (const [, factoryChildAddresses] of params.childAddresses) {
