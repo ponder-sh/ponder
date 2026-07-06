@@ -203,8 +203,38 @@ test("live query notify trigger batches large payloads", async () => {
   });
 
   const channel = getLiveQueryChannelName("public");
-  const notifications = await collectNotifications(database, channel, 2, () =>
-    database.userQB.transaction(async (tx) => {
+  const notifications: string[] = [];
+  let resolve!: () => void;
+  const done = new Promise<void>((_resolve) => {
+    resolve = _resolve;
+  });
+  const onNotification = (payload: string | undefined) => {
+    if (payload === undefined) return;
+    notifications.push(payload);
+    if (notifications.length >= 2) resolve();
+  };
+
+  if (database.driver.dialect === "pglite") {
+    await database.driver.instance.query(`LISTEN "${channel}"`);
+    database.driver.instance.onNotification((_, payload) =>
+      onNotification(payload),
+    );
+  }
+
+  const client =
+    database.driver.dialect === "postgres"
+      ? await database.driver.admin.connect()
+      : undefined;
+
+  try {
+    if (client) {
+      client.on("notification", (notification) =>
+        onNotification(notification.payload),
+      );
+      await client.query(`LISTEN "${channel}"`);
+    }
+
+    await database.userQB.transaction(async (tx) => {
       if (database.userQB.$dialect === "postgres") {
         await tx.wrap((tx) =>
           tx.execute(`DROP TABLE IF EXISTS ${getLiveQueryTempTableName()}`),
@@ -249,8 +279,20 @@ test("live query notify trigger batches large payloads", async () => {
           })
           .where(eq(getPonderCheckpointTable().chainName, "mainnet")),
       );
-    }),
-  );
+    });
+
+    await Promise.race([
+      done,
+      new Promise((resolve) => setTimeout(resolve, 500)),
+    ]);
+  } finally {
+    if (database.driver.dialect === "pglite") {
+      await database.driver.instance.query(`UNLISTEN "${channel}"`);
+    } else if (client) {
+      await client.query(`UNLISTEN "${channel}"`);
+      client.release();
+    }
+  }
 
   expect(notifications.length).toBeGreaterThan(1);
   expect(notifications.flatMap((payload) => JSON.parse(payload))).toHaveLength(
@@ -509,56 +551,4 @@ async function getUserIndexNames(
       ),
   );
   return rows.map((r) => r.name);
-}
-
-async function collectNotifications(
-  database: Database,
-  channel: string,
-  count: number,
-  callback: () => Promise<void>,
-) {
-  const notifications: string[] = [];
-  let resolve!: () => void;
-  const done = new Promise<void>((_resolve) => {
-    resolve = _resolve;
-  });
-
-  const onNotification = (payload: string | undefined) => {
-    if (payload === undefined) return;
-    notifications.push(payload);
-    if (notifications.length >= count) resolve();
-  };
-
-  if (database.driver.dialect === "pglite") {
-    await database.driver.instance.query(`LISTEN "${channel}"`);
-    database.driver.instance.onNotification((_, payload) =>
-      onNotification(payload),
-    );
-
-    await callback();
-    await Promise.race([
-      done,
-      new Promise((resolve) => setTimeout(resolve, 500)),
-    ]);
-    await database.driver.instance.query(`UNLISTEN "${channel}"`);
-  } else {
-    const client = await database.driver.admin.connect();
-    client.on("notification", (notification) =>
-      onNotification(notification.payload),
-    );
-
-    try {
-      await client.query(`LISTEN "${channel}"`);
-      await callback();
-      await Promise.race([
-        done,
-        new Promise((resolve) => setTimeout(resolve, 500)),
-      ]);
-    } finally {
-      await client.query(`UNLISTEN "${channel}"`);
-      client.release();
-    }
-  }
-
-  return notifications;
 }
