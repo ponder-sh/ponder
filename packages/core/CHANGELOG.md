@@ -1,5 +1,11 @@
 # ponder
 
+## 0.16.7
+
+### Patch Changes
+
+- [#2314](https://github.com/ponder-sh/ponder/pull/2314) [`6ad8b87`](https://github.com/ponder-sh/ponder/commit/6ad8b8709872fc7482e8710b9302c8e0061f588d) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated live query notification to support more than 100 tables. Table count limit (100) is no longer enforced.
+
 ## 0.16.6
 
 ### Patch Changes
