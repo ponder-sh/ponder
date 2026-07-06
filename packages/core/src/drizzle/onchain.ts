@@ -70,6 +70,54 @@ export const getLiveQueryNotifyProcedureName = () => {
 export const getLiveQueryTempTableName = () => {
   return "live_query_tables";
 };
+export const getLiveQueryNotifyProcedureSql = ({
+  schema,
+  channel,
+}: { schema: string; channel: string }) => {
+  const tempTableName = getLiveQueryTempTableName();
+
+  return `
+CREATE OR REPLACE FUNCTION "${schema}".${getLiveQueryNotifyProcedureName()}
+RETURNS TRIGGER LANGUAGE plpgsql
+AS $$
+  DECLARE
+    current_payload text := '[';
+    separator text := '';
+    entry text;
+    entry_json text;
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = '${tempTableName}'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) THEN
+      RETURN NULL;
+    END IF;
+
+    FOR entry IN SELECT table_name FROM ${tempTableName} ORDER BY table_name LOOP
+      entry_json := to_json(entry)::text;
+
+      IF current_payload <> '[' AND octet_length(current_payload) + octet_length(separator) + octet_length(entry_json) + 1 >= 7900 THEN
+        PERFORM pg_notify('${channel}', current_payload || ']');
+        current_payload := '[' || entry_json;
+        separator := ',';
+      ELSE
+        current_payload := current_payload || separator || entry_json;
+        separator := ',';
+      END IF;
+    END LOOP;
+
+    IF current_payload = '[' THEN
+      PERFORM pg_notify('${channel}', '[]');
+    ELSE
+      PERFORM pg_notify('${channel}', current_payload || ']');
+    END IF;
+
+    RETURN NULL;
+  END;
+$$;`;
+};
 export const getPartitionName = (table: string | PgTable, chainId: number) => {
   return `${typeof table === "string" ? table : getTableName(table)}_${chainId}`;
 };

@@ -15,8 +15,8 @@ import {
 } from "@/database/index.js";
 import {
   getLiveQueryChannelName,
+  getLiveQueryNotifyProcedureSql,
   getLiveQueryNotifyProcedureName,
-  getLiveQueryTempTableName,
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
 import { sql } from "@/index.js";
@@ -273,32 +273,12 @@ export async function createViews({
   const channel = getLiveQueryChannelName(cliOptions.viewsSchema);
 
   await database.adminQB.wrap((db) =>
-    db.execute(`
-CREATE OR REPLACE FUNCTION "${cliOptions.viewsSchema}".${notifyProcedure}
-RETURNS TRIGGER LANGUAGE plpgsql
-AS $$
-  DECLARE
-    table_names json;
-    table_exists boolean := false;
-  BEGIN
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.tables
-      WHERE table_name = '${getLiveQueryTempTableName()}'
-      AND table_type = 'LOCAL TEMPORARY'
-    ) INTO table_exists;
-
-    IF table_exists THEN
-      SELECT json_agg(table_name) INTO table_names
-      FROM ${getLiveQueryTempTableName()};
-
-      table_names := COALESCE(table_names, '[]'::json);
-      PERFORM pg_notify('${channel}', table_names::text);
-    END IF;
-
-    RETURN NULL;
-  END;
-$$;`),
+    db.execute(
+      getLiveQueryNotifyProcedureSql({
+        schema: cliOptions.viewsSchema!,
+        channel,
+      }),
+    ),
   );
 
   const trigger = getViewsLiveQueryNotifyTriggerName(cliOptions.viewsSchema);

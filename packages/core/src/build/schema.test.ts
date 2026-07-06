@@ -27,6 +27,19 @@ test("buildSchema() success", () => {
   buildSchema({ schema, preBuild: { ordering: "multichain" } });
 });
 
+test("buildSchema() success with more than 100 tables", () => {
+  const schema = Object.fromEntries(
+    Array.from({ length: 101 }, (_, i) => [
+      `table${i}`,
+      onchainTable(`table_${i}`, (p) => ({
+        id: p.integer().primaryKey(),
+      })),
+    ]),
+  );
+
+  buildSchema({ schema, preBuild: { ordering: "multichain" } });
+});
+
 test("buildSchema() error with multiple primary key", () => {
   const schema = {
     account: onchainTable("account", (p) => ({
