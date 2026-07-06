@@ -6,7 +6,12 @@ import {
 } from "@/_test/setup.js";
 import { buildSchema } from "@/build/schema.js";
 import { getReorgTable } from "@/drizzle/kit/index.js";
-import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
+import {
+  getLiveQueryChannelName,
+  getLiveQueryTempTableName,
+  onchainTable,
+  primaryKey,
+} from "@/drizzle/onchain.js";
 import type { RetryableError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
@@ -22,6 +27,7 @@ import { beforeEach, expect, test } from "vitest";
 import {
   commitBlock,
   createIndexes,
+  createLiveQueryTriggers,
   createTriggers,
   createViews,
   dropTriggers,
@@ -174,6 +180,85 @@ test("createTriggers() duplicate", async () => {
 
   await createTriggers(database.userQB, { tables: [account] });
   await createTriggers(database.userQB, { tables: [account] });
+});
+
+test("live query notify trigger batches large payloads", async () => {
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema: { account } },
+  });
+
+  await database.userQB.wrap((tx) =>
+    tx.insert(getPonderCheckpointTable()).values({
+      chainName: "mainnet",
+      chainId: 1,
+      safeCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 0n }),
+      finalizedCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 0n }),
+      latestCheckpoint: createCheckpoint({ chainId: 1n, blockNumber: 0n }),
+    }),
+  );
+
+  await createLiveQueryTriggers(database.userQB, {
+    tables: [],
+    namespaceBuild: { schema: "public", viewsSchema: undefined },
+  });
+
+  const channel = getLiveQueryChannelName("public");
+  const notifications = await collectNotifications(database, channel, 2, () =>
+    database.userQB.transaction(async (tx) => {
+      if (database.userQB.$dialect === "postgres") {
+        await tx.wrap((tx) =>
+          tx.execute(`DROP TABLE IF EXISTS ${getLiveQueryTempTableName()}`),
+        );
+        await tx.wrap((tx) =>
+          tx.execute(
+            `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
+          ),
+        );
+      } else {
+        await tx.wrap((tx) =>
+          tx.execute(
+            `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
+          ),
+        );
+        await tx.wrap((tx) =>
+          tx.execute(`TRUNCATE TABLE ${getLiveQueryTempTableName()}`),
+        );
+      }
+
+      const tableNames = Array.from(
+        { length: 160 },
+        (_, i) => `table_${i.toString().padStart(3, "0")}_${"x".repeat(48)}`,
+      );
+
+      await tx.wrap((tx) =>
+        tx.execute(
+          `INSERT INTO ${getLiveQueryTempTableName()} (table_name) VALUES ${tableNames
+            .map((tableName) => `('${tableName}')`)
+            .join(",")}`,
+        ),
+      );
+
+      await tx.wrap((tx) =>
+        tx
+          .update(getPonderCheckpointTable())
+          .set({
+            latestCheckpoint: createCheckpoint({
+              chainId: 1n,
+              blockNumber: 1n,
+            }),
+          })
+          .where(eq(getPonderCheckpointTable().chainName, "mainnet")),
+      );
+    }),
+  );
+
+  expect(notifications.length).toBeGreaterThan(1);
+  expect(notifications.flatMap((payload) => JSON.parse(payload))).toHaveLength(
+    160,
+  );
+  expect(
+    notifications.every((payload) => Buffer.byteLength(payload) < 8000),
+  ).toBe(true);
 });
 
 test("commitBlock()", async () => {
@@ -424,4 +509,56 @@ async function getUserIndexNames(
       ),
   );
   return rows.map((r) => r.name);
+}
+
+async function collectNotifications(
+  database: Database,
+  channel: string,
+  count: number,
+  callback: () => Promise<void>,
+) {
+  const notifications: string[] = [];
+  let resolve!: () => void;
+  const done = new Promise<void>((_resolve) => {
+    resolve = _resolve;
+  });
+
+  const onNotification = (payload: string | undefined) => {
+    if (payload === undefined) return;
+    notifications.push(payload);
+    if (notifications.length >= count) resolve();
+  };
+
+  if (database.driver.dialect === "pglite") {
+    await database.driver.instance.query(`LISTEN "${channel}"`);
+    database.driver.instance.onNotification((_, payload) =>
+      onNotification(payload),
+    );
+
+    await callback();
+    await Promise.race([
+      done,
+      new Promise((resolve) => setTimeout(resolve, 500)),
+    ]);
+    await database.driver.instance.query(`UNLISTEN "${channel}"`);
+  } else {
+    const client = await database.driver.admin.connect();
+    client.on("notification", (notification) =>
+      onNotification(notification.payload),
+    );
+
+    try {
+      await client.query(`LISTEN "${channel}"`);
+      await callback();
+      await Promise.race([
+        done,
+        new Promise((resolve) => setTimeout(resolve, 500)),
+      ]);
+    } finally {
+      await client.query(`UNLISTEN "${channel}"`);
+      client.release();
+    }
+  }
+
+  return notifications;
 }

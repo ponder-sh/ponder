@@ -15,8 +15,8 @@ import {
 } from "@/database/index.js";
 import {
   getLiveQueryChannelName,
-  getLiveQueryNotifyProcedureSql,
   getLiveQueryNotifyProcedureName,
+  getLiveQueryNotifyProcedureSql,
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
 import { sql } from "@/index.js";

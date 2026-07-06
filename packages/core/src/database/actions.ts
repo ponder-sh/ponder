@@ -2,8 +2,8 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
-  getLiveQueryNotifyProcedureSql,
   getLiveQueryNotifyProcedureName,
+  getLiveQueryNotifyProcedureSql,
   getLiveQueryNotifyTriggerName,
   getLiveQueryProcedureName,
   getLiveQueryTempTableName,
@@ -250,8 +250,7 @@ $$;`,
       const channel = getLiveQueryChannelName(namespaceBuild.schema);
 
       await tx.wrap(
-        (tx) =>
-          tx.execute(getLiveQueryNotifyProcedureSql({ schema, channel })),
+        (tx) => tx.execute(getLiveQueryNotifyProcedureSql({ schema, channel })),
         context,
       );
     },
