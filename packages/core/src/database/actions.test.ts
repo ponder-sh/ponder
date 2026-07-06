@@ -397,6 +397,7 @@ test("empty schema", async () => {
     tables: [],
     views: [],
     namespaceBuild: { schema: "public", viewsSchema: undefined },
+    ordering: "multichain",
   });
   await revertMultichain(database.userQB, {
     tables: [],

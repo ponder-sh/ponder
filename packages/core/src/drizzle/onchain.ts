@@ -70,6 +70,61 @@ export const getLiveQueryNotifyProcedureName = () => {
 export const getLiveQueryTempTableName = () => {
   return "live_query_tables";
 };
+export const getLiveQueryNotifyProcedureSql = ({
+  schema,
+  channel,
+  tableNames,
+  stripPartitionSuffix,
+}: {
+  schema: string;
+  channel: string;
+  tableNames: string[];
+  stripPartitionSuffix: boolean;
+}) => {
+  const escapeSqlString = (value: string) => value.replaceAll("'", "''");
+  const tempTableName = getLiveQueryTempTableName();
+  const tableMapSql =
+    tableNames.length === 0
+      ? "(SELECT NULL::text AS table_name, NULL::integer AS table_index WHERE false)"
+      : `(VALUES ${tableNames
+          .map((tableName, index) => `('${escapeSqlString(tableName)}', ${index})`)
+          .join(", ")})`;
+  const tableNameExpression = stripPartitionSuffix
+    ? "regexp_replace(live_query_tables.table_name, '_[0-9]+$', '')"
+    : "live_query_tables.table_name";
+
+  return `
+CREATE OR REPLACE FUNCTION "${schema}".${getLiveQueryNotifyProcedureName()}
+RETURNS TRIGGER LANGUAGE plpgsql
+AS $$
+  DECLARE
+    table_indexes json;
+    table_exists boolean := false;
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_name = '${tempTableName}'
+      AND table_type = 'LOCAL TEMPORARY'
+    ) INTO table_exists;
+
+    IF table_exists THEN
+      SELECT json_agg(table_index ORDER BY table_index) INTO table_indexes
+      FROM (
+        SELECT DISTINCT table_map.table_index
+        FROM ${tempTableName} AS live_query_tables
+        JOIN ${tableMapSql} AS table_map(table_name, table_index)
+        ON table_map.table_name = ${tableNameExpression}
+      ) AS changed_tables;
+
+      table_indexes := COALESCE(table_indexes, '[]'::json);
+      PERFORM pg_notify('${escapeSqlString(channel)}', table_indexes::text);
+    END IF;
+
+    RETURN NULL;
+  END;
+$$;`;
+};
 export const getPartitionName = (table: string | PgTable, chainId: number) => {
   return `${typeof table === "string" ? table : getTableName(table)}_${chainId}`;
 };

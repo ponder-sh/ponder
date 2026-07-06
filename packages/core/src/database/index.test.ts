@@ -825,6 +825,7 @@ test("camelCase", async () => {
     tables: [accountCC],
     views: [accountViewCC],
     namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+    ordering: "multichain",
   });
 
   await commitBlock(database.userQB, {
@@ -837,6 +838,8 @@ test("camelCase", async () => {
 
   await createLiveQueryProcedures(database.userQB, {
     namespaceBuild: { schema: "public", viewsSchema: "viewCc" },
+    tables: [accountCC],
+    ordering: "multichain",
   });
   await createLiveQueryTriggers(database.userQB, {
     tables: [accountCC],

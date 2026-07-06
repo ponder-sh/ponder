@@ -27,11 +27,6 @@ import {
   getViewConfig,
 } from "drizzle-orm/pg-core";
 
-/**
- * @dev The maximum notify message size is 8KB (8000 / 63 > 100).
- */
-const TABLE_LIMIT = 100;
-
 export const buildSchema = ({
   schema,
   preBuild,
@@ -328,12 +323,6 @@ export const buildSchema = ({
           }
         }
     }
-  }
-
-  if (tableNames.size > TABLE_LIMIT) {
-    throw new Error(
-      `Schema validation failed: the maximum number of tables is ${TABLE_LIMIT}.`,
-    );
   }
 
   return { statements };

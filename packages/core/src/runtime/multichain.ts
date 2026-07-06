@@ -579,7 +579,12 @@ export async function runMultichain({
   if (namespaceBuild.viewsSchema !== undefined) {
     const endClock = startClock();
 
-    await createViews(database.adminQB, { tables, views, namespaceBuild });
+    await createViews(database.adminQB, {
+      tables,
+      views,
+      namespaceBuild,
+      ordering: preBuild.ordering,
+    });
 
     common.logger.info({
       msg: "Created database views",

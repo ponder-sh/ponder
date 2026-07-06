@@ -693,7 +693,11 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
             await createViews(tx);
             await createLiveQueryProcedures(
               tx,
-              { namespaceBuild: namespace },
+              {
+                namespaceBuild: namespace,
+                tables,
+                ordering: preBuild.ordering,
+              },
               context,
             );
 
@@ -831,7 +835,11 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
             await createAdminObjects(tx);
             await createLiveQueryProcedures(
               tx,
-              { namespaceBuild: namespace },
+              {
+                namespaceBuild: namespace,
+                tables,
+                ordering: preBuild.ordering,
+              },
               context,
             );
 

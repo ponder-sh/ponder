@@ -2,6 +2,7 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
+  getLiveQueryNotifyProcedureSql,
   getLiveQueryNotifyProcedureName,
   getLiveQueryNotifyTriggerName,
   getLiveQueryProcedureName,
@@ -220,7 +221,15 @@ export const dropLiveQueryTriggers = async (
 
 export const createLiveQueryProcedures = async (
   qb: QB,
-  { namespaceBuild }: { namespaceBuild: NamespaceBuild },
+  {
+    namespaceBuild,
+    tables,
+    ordering,
+  }: {
+    namespaceBuild: NamespaceBuild;
+    tables: Table[];
+    ordering: PreBuild["ordering"];
+  },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -246,37 +255,18 @@ $$;`,
         context,
       );
 
-      const notifyProcedure = getLiveQueryNotifyProcedureName();
       const channel = getLiveQueryChannelName(namespaceBuild.schema);
 
       await tx.wrap(
         (tx) =>
-          tx.execute(`
-CREATE OR REPLACE FUNCTION "${schema}".${notifyProcedure}
-RETURNS TRIGGER LANGUAGE plpgsql
-AS $$
-  DECLARE
-    table_names json;
-    table_exists boolean := false;
-  BEGIN
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.tables
-      WHERE table_name = '${getLiveQueryTempTableName()}'
-      AND table_type = 'LOCAL TEMPORARY'
-    ) INTO table_exists;
-
-    IF table_exists THEN
-      SELECT json_agg(table_name) INTO table_names
-      FROM ${getLiveQueryTempTableName()};
-
-      table_names := COALESCE(table_names, '[]'::json);
-      PERFORM pg_notify('${channel}', table_names::text);
-    END IF;
-
-    RETURN NULL;
-  END;
-$$;`),
+          tx.execute(
+            getLiveQueryNotifyProcedureSql({
+              schema,
+              channel,
+              tableNames: tables.map(getTableName),
+              stripPartitionSuffix: ordering === "experimental_isolated",
+            }),
+          ),
         context,
       );
     },
@@ -291,7 +281,13 @@ export const createViews = async (
     tables,
     views,
     namespaceBuild,
-  }: { tables: Table[]; views: View[]; namespaceBuild: NamespaceBuild },
+    ordering,
+  }: {
+    tables: Table[];
+    views: View[];
+    namespaceBuild: NamespaceBuild;
+    ordering: PreBuild["ordering"];
+  },
   context?: { logger?: Logger },
 ) => {
   await qb.transaction(
@@ -358,41 +354,23 @@ export const createViews = async (
         ),
       );
 
-      const notifyProcedure = getLiveQueryNotifyProcedureName();
       const channel = getLiveQueryChannelName(namespaceBuild.viewsSchema!);
 
       await tx.wrap((tx) =>
-        tx.execute(`
-CREATE OR REPLACE FUNCTION "${namespaceBuild.viewsSchema}".${notifyProcedure}
-RETURNS TRIGGER LANGUAGE plpgsql
-AS $$
-  DECLARE
-    table_names json;
-    table_exists boolean := false;
-  BEGIN
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.tables
-      WHERE table_name = '${getLiveQueryTempTableName()}'
-      AND table_type = 'LOCAL TEMPORARY'
-    ) INTO table_exists;
-
-    IF table_exists THEN
-      SELECT json_agg(table_name) INTO table_names
-      FROM ${getLiveQueryTempTableName()};
-
-      table_names := COALESCE(table_names, '[]'::json);
-      PERFORM pg_notify('${channel}', table_names::text);
-    END IF;
-
-    RETURN NULL;
-  END;
-$$;`),
+        tx.execute(
+          getLiveQueryNotifyProcedureSql({
+            schema: namespaceBuild.viewsSchema!,
+            channel,
+            tableNames: tables.map(getTableName),
+            stripPartitionSuffix: ordering === "experimental_isolated",
+          }),
+        ),
       );
 
       const trigger = getViewsLiveQueryNotifyTriggerName(
         namespaceBuild.viewsSchema!,
       );
+      const notifyProcedure = getLiveQueryNotifyProcedureName();
 
       await tx.wrap((tx) =>
         tx.execute(

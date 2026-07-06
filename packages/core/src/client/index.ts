@@ -89,7 +89,8 @@ export const client = ({
 
   const tables = Object.values(schema).filter(isTable);
   const views = Object.values(schema).filter(isView);
-  const tableNames = new Set(tables.map(getTableName));
+  const schemaTableNames = tables.map(getTableName);
+  const tableNames = new Set(schemaTableNames);
   const viewNames = new Set(views.map(getViewName));
 
   // Note: Add system tables to the live query registry.
@@ -137,6 +138,17 @@ export const client = ({
   for (const table of tableNames) {
     perTableResolver.set(table, promiseWithResolvers<void>());
   }
+
+  const decodeNotificationPayload = (payload: string) => {
+    const tableIndexes = JSON.parse(payload) as number[];
+    const tables = tableIndexes.flatMap((index) => {
+      const table = schemaTableNames[index];
+      return table === undefined ? [] : [table];
+    });
+
+    tables.push("_ponder_checkpoint");
+    return tables;
+  };
 
   const parseViewPromise = (async () => {
     const unresolvedViewRelations = new Map<string, Set<string>>();
@@ -192,8 +204,7 @@ export const client = ({
     driver.instance.query(`LISTEN "${channel}"`);
 
     driver.instance.onNotification((_, payload) => {
-      const tables = JSON.parse(payload!) as string[];
-      tables.push("_ponder_checkpoint");
+      const tables = decodeNotificationPayload(payload!);
       let invalidQueryCount = 0;
 
       for (const [queryString, referencedTables] of perQueryReferences) {
@@ -254,20 +265,7 @@ export const client = ({
             });
 
             client.on("notification", (notification) => {
-              let tables = JSON.parse(notification.payload!) as string[];
-
-              // Convert partition names to table names
-              if (
-                globalThis.PONDER_PRE_BUILD.ordering === "experimental_isolated"
-              ) {
-                tables = tables.map((table) => {
-                  const _table = table.split("_");
-                  _table.pop();
-                  return _table.join("_");
-                });
-              }
-
-              tables.push("_ponder_checkpoint");
+              const tables = decodeNotificationPayload(notification.payload!);
               let invalidQueryCount = 0;
 
               for (const [

@@ -102,7 +102,12 @@ export async function isolatedController({
 
         const tables = Object.values(schemaBuild.schema).filter(isTable);
         const views = Object.values(schemaBuild.schema).filter(isView);
-        await createViews(database.adminQB, { tables, views, namespaceBuild });
+        await createViews(database.adminQB, {
+          tables,
+          views,
+          namespaceBuild,
+          ordering: preBuild.ordering,
+        });
 
         common.logger.info({
           msg: "Created database views",
