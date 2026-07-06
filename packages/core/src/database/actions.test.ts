@@ -281,10 +281,7 @@ test("live query notify trigger batches large payloads", async () => {
       );
     });
 
-    await Promise.race([
-      done,
-      new Promise((resolve) => setTimeout(resolve, 500)),
-    ]);
+    await done;
   } finally {
     if (database.driver.dialect === "pglite") {
       await database.driver.instance.query(`UNLISTEN "${channel}"`);
