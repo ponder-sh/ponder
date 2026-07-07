@@ -1049,13 +1049,25 @@ export function buildConfig({
         );
       }
 
+      if (
+        chain.finalityBlockCount !== undefined &&
+        (Number.isInteger(chain.finalityBlockCount) === false ||
+          chain.finalityBlockCount < 0)
+      ) {
+        throw new Error(
+          `Invalid 'finalityBlockCount' for chain '${chainName}'. Expected a non-negative integer, got ${chain.finalityBlockCount}.`,
+        );
+      }
+
       return {
         id: chain.id,
         name: chainName,
         rpc: chain.rpc,
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
-        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
+        finalityBlockCount:
+          chain.finalityBlockCount ??
+          getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,

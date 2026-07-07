@@ -97,6 +97,8 @@ type ChainConfig<chain> = {
   ws?: string;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
+  /** Number of blocks before a block is considered final. Default: chain-specific. */
+  finalityBlockCount?: number;
   /**
    * Maximum number of RPC requests per second.
    * @deprecated Handled automatically instead.
