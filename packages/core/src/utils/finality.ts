@@ -1,5 +1,8 @@
 import type { Chain } from "viem";
 
+export const isAsyncExecutionChain = (chainId: number) =>
+  chainId === 143 || chainId === 10143;
+
 /**
  * Returns the number of blocks that must pass before a block is considered final.
  * Note that a value of `0` indicates that blocks are considered final immediately.

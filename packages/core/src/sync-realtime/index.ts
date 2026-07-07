@@ -45,6 +45,7 @@ import {
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
 import type { SyncProgress } from "@/runtime/index.js";
+import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
@@ -297,7 +298,9 @@ export const createRealtimeSync = (
     ////////
 
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
+    // Async-execution chains can expose blocks before logsBloom is execution-ready.
     const shouldRequestLogs =
+      (isAsyncExecutionChain(args.chain.id) && logFilters.length > 0) ||
       maybeBlockHeader.logsBloom === zeroLogsBloom ||
       logFilters.some((filter) =>
         isFilterInBloom({ block: maybeBlockHeader, filter }),
