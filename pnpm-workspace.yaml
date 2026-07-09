@@ -19,7 +19,7 @@ allowBuilds:
   simple-git-hooks: true
 
 catalog:
-  "@types/node": ^24.8.0
+  "@types/node": ^18.19.0
   typescript: 6.0.2
 
 catalogs:
@@ -35,7 +35,7 @@ catalogs:
     mitata: ^1.0.34
     rimraf: ^5.0.5
     simple-git-hooks: ^2.9.0
-    tsup: ^8.0.1
+    tsup: 8.5.1
     tsx: ^4.19.2
     vite: 5.4.21
     vite-node: 1.0.2
@@ -120,7 +120,7 @@ catalogs:
     prompts: ^2.4.2
     update-check: ^1.5.4
     validate-npm-package-name: ^5.0.0
-    yaml: ^2.3.4
+    yaml: 2.4.2
   peer:
     "@ponder/client": ">=0.16.8"
     "@tanstack/react-query": ">=5.0.0"
