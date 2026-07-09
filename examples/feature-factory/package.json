@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "ponder": "workspace:*",
-    "abitype": "^0.10.2",
-    "hono": "^4.5.0",
-    "viem": "^2.21.3"
+    "abitype": "^1",
+    "hono": "4.12.27",
+    "viem": "2.54.6"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

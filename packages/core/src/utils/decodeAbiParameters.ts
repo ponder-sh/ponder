@@ -55,13 +55,13 @@ export function decodeAbiParameters<
   data: Hex,
   {
     formatAddress = checksumAddress,
-    out = [] as DecodeAbiParametersReturnType<params>,
+    out = [],
   }: {
     formatAddress?: (address: Hex) => Hex;
-    out?: DecodeAbiParametersReturnType<params>;
+    out?: unknown[];
   } = {
     formatAddress: checksumAddress,
-    out: [] as DecodeAbiParametersReturnType<params>,
+    out: [],
   },
 ): DecodeAbiParametersReturnType<params> {
   if (data.length <= 2 && params.length > 0) {
@@ -87,10 +87,10 @@ export function decodeAbiParameters<
       throw new Error("Invalid data length.");
     }
 
-    (out as unknown[]).push(_decodeAbiParameter(param, data, formatAddress));
+    out.push(_decodeAbiParameter(param, data, formatAddress));
   }
 
-  return out;
+  return out as unknown as DecodeAbiParametersReturnType<params>;
 }
 
 function _decodeAbiParameter(

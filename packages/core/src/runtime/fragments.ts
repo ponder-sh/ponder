@@ -13,7 +13,7 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
-import type { Address, Hex } from "viem";
+import type { Address, Hex, LogTopic } from "viem";
 import { isAddressFactory } from "./filter.js";
 
 export const isFragmentAddressFactory = (
@@ -568,10 +568,7 @@ const recoverAddress = <filterAddress extends FilterAddress>(
   return baseAddress;
 };
 
-const recoverTopic = (
-  base: Hex | Hex[] | null,
-  fragments: (Hex | null)[],
-): Hex | Hex[] | null => {
+const recoverTopic = (base: LogTopic, fragments: (Hex | null)[]): LogTopic => {
   if (base === null) return null;
   if (typeof base === "string") return base;
   return dedupe(fragments) as Hex[];

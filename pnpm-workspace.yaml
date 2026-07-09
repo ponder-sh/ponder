@@ -5,3 +5,135 @@ packages:
   - examples/**
   - packages/*
   - tmp/*
+
+catalogMode: prefer
+autoInstallPeers: false
+enablePrePostScripts: true
+linkWorkspacePackages: deep
+strictPeerDependencies: false
+provenance: true
+
+allowBuilds:
+  "@biomejs/biome": true
+  esbuild: true
+  simple-git-hooks: true
+
+catalog:
+  "@types/node": ^24.8.0
+  typescript: 5.0.4
+
+catalogs:
+  tooling:
+    "@biomejs/biome": ^1.9.4
+    "@changesets/changelog-github": 0.6.0
+    "@changesets/cli": ^2.30.0
+    "@types/bun": ^1.2.14
+    "@types/seedrandom": ^3.0.8
+    chokidar: ^4.0.3
+    execa: ^8.0.1
+    lint-staged: ^15.1.0
+    mitata: ^1.0.34
+    rimraf: ^5.0.5
+    simple-git-hooks: ^2.9.0
+    tsup: ^8.0.1
+    tsx: ^4.19.2
+    vite: 5.4.21
+    vite-node: 1.0.2
+    vite-tsconfig-paths: 4.3.1
+    vitest: 1.6.1
+  runtime:
+    "@babel/code-frame": ^7.23.4
+    "@commander-js/extra-typings": ^12.0.1
+    "@escape.tech/graphql-armor-max-aliases": ^2.3.0
+    "@escape.tech/graphql-armor-max-depth": ^2.2.0
+    "@escape.tech/graphql-armor-max-tokens": ^2.3.0
+    "@hono/node-server": 1.19.5
+    "@types/babel__code-frame": ^7.0.6
+    "@types/glob": ^8.1.0
+    "@types/semver": ^7.5.8
+    "@types/ws": ^8.18.1
+    ansi-escapes: ^7.0.0
+    commander: ^12.0.0
+    conf: ^12.0.0
+    dataloader: ^2.2.2
+    detect-package-manager: ^3.0.2
+    dotenv: ^16.3.1
+    eventsource: ^3.0.5
+    glob: 10.5.0
+    graphql: 16.8.2
+    graphql-yoga: 5.17.1
+    hono: 4.12.27
+    http-terminator: ^3.2.0
+    picocolors: ^1.1.1
+    pino: ^8.16.2
+    prom-client: ^15.0.0
+    seedrandom: ^3.0.5
+    semver: ^7.7.1
+    stacktrace-parser: ^0.1.10
+    superjson: ^2.2.2
+    terminal-size: ^4.0.0
+    ws: ^8.18.3
+  db:
+    "@electric-sql/pglite": 0.2.13
+    "@pgsql/types": 16.0.0
+    "@types/pg": ^8.10.9
+    "@types/pg-copy-streams": ^1.2.5
+    drizzle-kit: ^0.30.6
+    drizzle-orm: 0.45.2
+    kysely: ^0.26.3
+    pg: 8.22.0
+    pg-connection-string: ^2.6.2
+    pg-copy-streams: ^6.0.6
+    pg-query-emscripten: 5.1.0
+  web3:
+    "@viem/anvil": ^0.0.6
+    "@wagmi/cli": ^1.5.2
+    abitype: ^1
+    viem: 2.54.6
+  react:
+    "@tanstack/react-query": 5.101.1
+    "@types/react": 19.2.17
+    "@types/react-dom": 19.2.3
+    react: 19.2.7
+    react-dom: 19.2.7
+  docs:
+    "@clickhouse/client": 1.11.0
+    "@theguild/remark-mermaid": ^0.3.0
+    "@vercel/node": ^5.1.16
+    "@vercel/og": ^0.6.8
+    clsx: ^2.1.1
+    lucide-react: ^0.510.0
+    radix-ui: ^1.4.1
+    react-router: ^7.6.0
+    tailwind-merge: ^3.0.2
+    tailwindcss: ^4.0.6
+    vocs: ^1.0.11
+  create:
+    "@types/fs-extra": ^11.0.4
+    "@types/prompts": ^2.4.9
+    "@types/validate-npm-package-name": ^4.0.2
+    cac: ^6.7.14
+    cpy: ^11.0.0
+    fs-extra: ^11.1.1
+    ora: ^7.0.1
+    prettier: ^3.1.0
+    prompts: ^2.4.2
+    update-check: ^1.5.4
+    validate-npm-package-name: ^5.0.0
+    yaml: ^2.3.4
+  peer:
+    "@ponder/client": ">=0.16.8"
+    "@tanstack/react-query": ">=5.0.0"
+    "@typescript-eslint/eslint-plugin": ^6.3.0
+    "@typescript-eslint/parser": ^6.3.0
+    eslint: ">= 3"
+    hono: ">=4.5 <5"
+    react: ">=18 <20"
+    typescript: ">=5.0.4"
+    viem: ">=2"
+
+peerDependencyRules:
+  ignoreMissing:
+    - node-fetch
+  allowedVersions:
+    typescript: ">=5.0.4"

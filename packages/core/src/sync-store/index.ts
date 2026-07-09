@@ -1515,7 +1515,7 @@ export const logFilter = (filter: LogFilter): SQL => {
     if (raw === null) continue;
     const topic = Array.isArray(raw) && raw.length === 1 ? raw[0]! : raw;
     if (Array.isArray(topic)) {
-      conditions.push(inArray(PONDER_SYNC.logs[`topic${idx}`], topic));
+      conditions.push(inArray(PONDER_SYNC.logs[`topic${idx}`], [...topic]));
     } else {
       conditions.push(eq(PONDER_SYNC.logs[`topic${idx}`], topic));
     }

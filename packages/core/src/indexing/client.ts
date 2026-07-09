@@ -70,6 +70,12 @@ const MULTICALL_SELECTOR = toFunctionSelector(
   getAbiItem({ abi: multicall3Abi, name: "aggregate3" }),
 );
 
+type Multicall3Call = {
+  target: Hex;
+  allowFailure: boolean;
+  callData: Hex;
+};
+
 const SAMPLING_RATE = 10;
 const DB_PREDICTION_THRESHOLD = 0.2;
 const RPC_PREDICTION_THRESHOLD = 0.8;
@@ -840,7 +846,7 @@ export const cachedTransport =
           const multicallRequests = decodeFunctionData({
             abi: multicall3Abi,
             data: params[0]!.data,
-          }).args[0];
+          }).args[0] as unknown as readonly Multicall3Call[];
 
           if (multicallRequests.length === 0) {
             // empty multicall result
@@ -958,7 +964,7 @@ export const cachedTransport =
                         ],
                       }),
                     },
-                    blockNumber!,
+                    blockNumber ?? "latest",
                   ],
                 },
                 context,
@@ -1036,10 +1042,7 @@ export const cachedTransport =
             return encodeFunctionResult({
               abi: multicall3Abi,
               functionName: "aggregate3",
-              result: [
-                // @ts-expect-error known issue in viem <= 2.23.6
-                resultsToEncode,
-              ],
+              result: [resultsToEncode] as unknown as typeof resultsToEncode,
             });
           }
         } else if (

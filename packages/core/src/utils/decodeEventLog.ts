@@ -1,7 +1,6 @@
 import {
   type AbiEvent,
   type AbiParameter,
-  type DecodeAbiParametersReturnType,
   DecodeLogDataMismatch,
   DecodeLogTopicsMismatch,
   type Hex,
@@ -55,7 +54,7 @@ export function decodeEventLog({
   const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   if (nonIndexedInputs.length > 0) {
     if (data && data !== "0x") {
-      const out = [] as DecodeAbiParametersReturnType<typeof nonIndexedInputs>;
+      const out: unknown[] = [];
       decodeAbiParameters(nonIndexedInputs, data, {
         out,
         formatAddress: toLowerCase,

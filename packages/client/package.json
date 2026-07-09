@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.4"
+    "typescript": "catalog:peer"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -44,12 +44,12 @@
     }
   },
   "dependencies": {
-    "drizzle-orm": "0.41.0",
-    "eventsource": "^3.0.5",
-    "superjson": "^2.2.2"
+    "drizzle-orm": "catalog:db",
+    "eventsource": "catalog:runtime",
+    "superjson": "catalog:runtime"
   },
   "devDependencies": {
-    "tsup": "^8.0.1",
-    "vitest": "1.6.1"
+    "tsup": "catalog:tooling",
+    "vitest": "catalog:tooling"
   }
 }

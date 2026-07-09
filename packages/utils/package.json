@@ -39,8 +39,8 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.4",
-    "viem": ">=2"
+    "typescript": "catalog:peer",
+    "viem": "catalog:peer"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -48,10 +48,10 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
-    "abitype": "^1.0.1",
-    "dotenv": "^16.3.1",
-    "tsup": "^8.0.1",
-    "vitest": "1.6.1"
+    "@types/node": "catalog:",
+    "abitype": "catalog:web3",
+    "dotenv": "catalog:runtime",
+    "tsup": "catalog:tooling",
+    "vitest": "catalog:tooling"
   }
 }

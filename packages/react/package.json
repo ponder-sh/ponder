@@ -37,13 +37,13 @@
     }
   },
   "dependencies": {
-    "superjson": "^2.2.2"
+    "superjson": "catalog:runtime"
   },
   "peerDependencies": {
-    "@ponder/client": ">=0.16.8",
-    "@tanstack/react-query": ">=5.0.0",
-    "react": ">=18",
-    "typescript": ">=5.0.4"
+    "@ponder/client": "catalog:peer",
+    "@tanstack/react-query": "catalog:peer",
+    "react": "catalog:peer",
+    "typescript": "catalog:peer"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -52,15 +52,15 @@
   },
   "devDependencies": {
     "@ponder/client": "workspace:*",
-    "@tanstack/react-query": "^5.12.2",
-    "@types/node": "^22.10.6",
-    "@types/react": "^18.2.0",
-    "chokidar": "^4.0.3",
-    "execa": "^8.0.1",
-    "picocolors": "^1.0.0",
-    "react": "^18.2.0",
-    "rimraf": "^5.0.5",
-    "tsx": "^4.19.2",
-    "vitest": "1.6.1"
+    "@tanstack/react-query": "catalog:react",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:react",
+    "chokidar": "catalog:tooling",
+    "execa": "catalog:tooling",
+    "picocolors": "catalog:runtime",
+    "react": "catalog:react",
+    "rimraf": "catalog:tooling",
+    "tsx": "catalog:tooling",
+    "vitest": "catalog:tooling"
   }
 }

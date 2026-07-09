@@ -15,15 +15,15 @@
     "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@changesets/changelog-github": "0.6.0",
-    "@changesets/cli": "^2.30.0",
-    "drizzle-kit": "^0.30.6",
-    "hono": "4.5.0",
-    "lint-staged": "^15.1.0",
-    "simple-git-hooks": "^2.9.0",
-    "typescript": "5.0.4",
-    "viem": "2.30.1"
+    "@biomejs/biome": "catalog:tooling",
+    "@changesets/changelog-github": "catalog:tooling",
+    "@changesets/cli": "catalog:tooling",
+    "drizzle-kit": "catalog:db",
+    "hono": "catalog:runtime",
+    "lint-staged": "catalog:tooling",
+    "simple-git-hooks": "catalog:tooling",
+    "typescript": "catalog:",
+    "viem": "catalog:web3"
   },
   "lint-staged": {
     "*.ts": [
@@ -35,12 +35,7 @@
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
   },
-  "packageManager": "pnpm@9.10.0",
-  "pnpm": {
-    "peerDependencyRules": {
-      "ignoreMissing": ["node-fetch"]
-    }
-  },
+  "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=18.14"
   }

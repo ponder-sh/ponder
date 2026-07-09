@@ -92,7 +92,7 @@ export const isAddressMatched = ({
 };
 
 const isValueMatched = <T extends string>(
-  filterValue: T | T[] | null | undefined,
+  filterValue: T | readonly T[] | null | undefined,
   eventValue: T | undefined,
 ): boolean => {
   // match all

@@ -10,23 +10,23 @@
     "preview": "vocs preview"
   },
   "dependencies": {
-    "@clickhouse/client": "1.11.0",
-    "@theguild/remark-mermaid": "^0.3.0",
-    "@vercel/node": "^5.1.16",
-    "@vercel/og": "^0.6.8",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.510.0",
-    "radix-ui": "^1.4.1",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router": "^7.6.0",
-    "tailwind-merge": "^3.0.2",
-    "tailwindcss": "^4.0.6",
-    "vocs": "^1.0.11"
+    "@clickhouse/client": "catalog:docs",
+    "@theguild/remark-mermaid": "catalog:docs",
+    "@vercel/node": "catalog:docs",
+    "@vercel/og": "catalog:docs",
+    "clsx": "catalog:docs",
+    "lucide-react": "catalog:docs",
+    "radix-ui": "catalog:docs",
+    "react": "catalog:react",
+    "react-dom": "catalog:react",
+    "react-router": "catalog:docs",
+    "tailwind-merge": "catalog:docs",
+    "tailwindcss": "catalog:docs",
+    "vocs": "catalog:docs"
   },
   "devDependencies": {
-    "@types/node": "^22.15.18",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^18"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:react",
+    "@types/react-dom": "catalog:react"
   }
 }
