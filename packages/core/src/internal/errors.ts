@@ -210,6 +210,58 @@ export class RpcProviderError extends BaseError {
   }
 }
 
+export const getErrorCauseMessages = (error: unknown) => {
+  const messages: string[] = [];
+  const seen = new Set<object>();
+  let current = error;
+
+  while (current !== undefined && current !== null) {
+    if (typeof current === "object") {
+      if (seen.has(current)) break;
+      seen.add(current);
+
+      const message = (current as { message?: unknown }).message;
+      if (typeof message === "string" && message.length > 0) {
+        messages.push(message);
+      }
+
+      current = (current as { cause?: unknown }).cause;
+    } else {
+      messages.push(String(current));
+      break;
+    }
+  }
+
+  return messages;
+};
+
+export const getErrorMessageWithCause = (error: unknown) => {
+  return getErrorCauseMessages(error).join("\n");
+};
+
+export const getErrorCauseByInstance = <
+  T extends abstract new (
+    ...args: any[]
+  ) => object,
+>(
+  error: unknown,
+  ErrorClass: T,
+) => {
+  const seen = new Set<object>();
+  let current = error;
+
+  while (current !== undefined && current !== null) {
+    if (typeof current !== "object") return undefined;
+    if (seen.has(current)) return undefined;
+    seen.add(current);
+
+    if (current instanceof ErrorClass) return current as InstanceType<T>;
+    current = (current as { cause?: unknown }).cause;
+  }
+
+  return undefined;
+};
+
 export const nonRetryableUserErrorNames = [
   ShutdownError,
   BuildError,

@@ -1,12 +1,16 @@
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { NotNullConstraintError } from "@/internal/errors.js";
+import {
+  DbConnectionError,
+  NonRetryableUserError,
+  NotNullConstraintError,
+} from "@/internal/errors.js";
 import { createPool } from "@/utils/pg.js";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { beforeEach, expect, test, vi } from "vitest";
 import { SCHEMATA } from "./index.js";
-import { createQB } from "./queryBuilder.js";
+import { createQB, parseDbError } from "./queryBuilder.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -124,6 +128,28 @@ test("QB parses error", async () => {
 
   expect(querySpy).toHaveBeenCalledTimes(1);
   expect(error).toBeInstanceOf(NotNullConstraintError);
+});
+
+test("QB parses wrapped error causes", () => {
+  const error = parseDbError(
+    new Error("Failed query: SELECT * FROM account", {
+      cause: new Error('relation "account" does not exist'),
+    }),
+  );
+
+  expect(error).toBeInstanceOf(NonRetryableUserError);
+  expect(error.message).toContain('relation "account" does not exist');
+});
+
+test("QB ignores wrapped query text when parsing errors", () => {
+  const error = parseDbError(
+    new Error('Failed query: SELECT * FROM "does not exist ETIMEDOUT"', {
+      cause: new Error('syntax error at or near "SELECT"'),
+    }),
+  );
+
+  expect(error).not.toBeInstanceOf(NonRetryableUserError);
+  expect(error).not.toBeInstanceOf(DbConnectionError);
 });
 
 test("QB client", async () => {

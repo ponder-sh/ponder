@@ -9,6 +9,9 @@ import {
   NotNullConstraintError,
   ShutdownError,
   UniqueConstraintError,
+  getErrorCauseByInstance,
+  getErrorCauseMessages,
+  getErrorMessageWithCause,
 } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Schema } from "@/internal/types.js";
@@ -87,45 +90,59 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
+const getDbErrorMessage = (error: unknown) => {
+  const messages = getErrorCauseMessages(error);
+  const dbMessages = messages
+    .map((message) => {
+      if (message.startsWith("Failed query:") === false) return message;
+
+      const lines = message.split("\n");
+      const paramsIndex = lines.findIndex((line) => line.startsWith("params:"));
+      return paramsIndex === -1 ? "" : lines.slice(paramsIndex + 1).join("\n");
+    })
+    .filter((message) => message.length > 0);
+
+  return (dbMessages.length === 0 ? messages : dbMessages).join("\n");
+};
+
 export const parseDbError = (error: any): Error => {
   const stack = error.stack;
+  const baseError = getErrorCauseByInstance(error, BaseError);
+  if (baseError !== undefined) return baseError;
 
-  if (error instanceof BaseError) {
-    return error;
-  }
+  const message = getErrorMessageWithCause(error);
+  const dbMessage = getDbErrorMessage(error);
 
-  if (error?.message?.includes("violates not-null constraint")) {
-    error = new NotNullConstraintError(error.message);
-  } else if (error?.message?.includes("violates unique constraint")) {
-    error = new UniqueConstraintError(error.message);
-  } else if (error?.message?.includes("violates check constraint")) {
-    error = new CheckConstraintError(error.message);
+  if (dbMessage.includes("violates not-null constraint")) {
+    error = new NotNullConstraintError(message);
+  } else if (dbMessage.includes("violates unique constraint")) {
+    error = new UniqueConstraintError(message);
+  } else if (dbMessage.includes("violates check constraint")) {
+    error = new CheckConstraintError(message);
   } else if (
     // nodejs error message
-    error?.message?.includes("Do not know how to serialize a BigInt") ||
+    dbMessage.includes("Do not know how to serialize a BigInt") ||
     // bun error message
-    error?.message?.includes("cannot serialize BigInt")
+    dbMessage.includes("cannot serialize BigInt")
   ) {
-    error = new BigIntSerializationError(error.message);
+    error = new BigIntSerializationError(message);
     error.meta.push(
       "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
     );
-  } else if (error?.message?.includes("does not exist")) {
-    error = new NonRetryableUserError(error.message);
-  } else if (error?.message?.includes("already exists")) {
-    error = new NonRetryableUserError(error.message);
+  } else if (dbMessage.includes("does not exist")) {
+    error = new NonRetryableUserError(message);
+  } else if (dbMessage.includes("already exists")) {
+    error = new NonRetryableUserError(message);
   } else if (
-    error?.message?.includes(
-      "terminating connection due to administrator command",
-    ) ||
-    error?.message?.includes("connection to client lost") ||
-    error?.message?.includes("too many clients already") ||
-    error?.message?.includes("Connection terminated unexpectedly") ||
-    error?.message?.includes("ECONNRESET") ||
-    error?.message?.includes("ETIMEDOUT") ||
-    error?.message?.includes("timeout exceeded when trying to connect")
+    dbMessage.includes("terminating connection due to administrator command") ||
+    dbMessage.includes("connection to client lost") ||
+    dbMessage.includes("too many clients already") ||
+    dbMessage.includes("Connection terminated unexpectedly") ||
+    dbMessage.includes("ECONNRESET") ||
+    dbMessage.includes("ETIMEDOUT") ||
+    dbMessage.includes("timeout exceeded when trying to connect")
   ) {
-    error = new DbConnectionError(error.message);
+    error = new DbConnectionError(message);
   }
 
   error.stack = stack;

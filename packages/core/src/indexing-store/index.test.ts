@@ -686,6 +686,41 @@ test("sql with error", async () => {
   });
 });
 
+test("sql preserves store errors", async () => {
+  const { database } = await setupDatabaseServices();
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  indexingCache.qb = database.userQB;
+  indexingStore.qb = database.userQB;
+  indexingStore.isProcessingEvents = false;
+
+  const error = await indexingStore.db.sql
+    .execute("SELECT 1")
+    .catch((error) => error);
+
+  expect(error).toBeInstanceOf(NonRetryableUserError);
+});
+
 test("onchain table", async () => {
   const { database } = await setupDatabaseServices();
 
