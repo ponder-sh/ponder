@@ -10,7 +10,6 @@ import {
   ShutdownError,
   UniqueConstraintError,
   getErrorCauseByInstance,
-  getErrorCauseMessages,
   getErrorMessageWithCause,
 } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
@@ -90,19 +89,54 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-const getDbErrorMessage = (error: unknown) => {
-  const messages = getErrorCauseMessages(error);
-  const dbMessages = messages
-    .map((message) => {
-      if (message.startsWith("Failed query:") === false) return message;
+const getErrorMessage = (error: unknown) => {
+  if (typeof error === "object" && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
 
-      const lines = message.split("\n");
-      const paramsIndex = lines.findIndex((line) => line.startsWith("params:"));
-      return paramsIndex === -1 ? "" : lines.slice(paramsIndex + 1).join("\n");
-    })
-    .filter((message) => message.length > 0);
+  return String(error);
+};
 
-  return (dbMessages.length === 0 ? messages : dbMessages).join("\n");
+const getErrorCode = (error: unknown) => {
+  if (typeof error === "object" && error !== null) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+
+  return undefined;
+};
+
+const getErrorCauseChain = (error: unknown) => {
+  const errors: unknown[] = [];
+  const seen = new Set<object>();
+  let current = error;
+
+  while (current !== undefined && current !== null) {
+    errors.push(current);
+
+    if (typeof current !== "object") break;
+    if (seen.has(current)) break;
+    seen.add(current);
+
+    current = (current as { cause?: unknown }).cause;
+  }
+
+  return errors;
+};
+
+const isDrizzleQueryError = (error: unknown) => {
+  return getErrorMessage(error).startsWith("Failed query:");
+};
+
+const getDbError = (error: unknown) => {
+  const errors = getErrorCauseChain(error);
+
+  return (
+    errors.find((error) => getErrorCode(error) !== undefined) ??
+    errors.find((error) => isDrizzleQueryError(error) === false) ??
+    error
+  );
 };
 
 export const parseDbError = (error: any): Error => {
@@ -111,13 +145,24 @@ export const parseDbError = (error: any): Error => {
   if (baseError !== undefined) return baseError;
 
   const message = getErrorMessageWithCause(error);
-  const dbMessage = getDbErrorMessage(error);
+  const dbError = getDbError(error);
+  const dbCode = getErrorCode(dbError);
+  const dbMessage = getErrorMessage(dbError);
 
-  if (dbMessage.includes("violates not-null constraint")) {
+  if (
+    dbCode === "23502" ||
+    dbMessage.includes("violates not-null constraint")
+  ) {
     error = new NotNullConstraintError(message);
-  } else if (dbMessage.includes("violates unique constraint")) {
+  } else if (
+    dbCode === "23505" ||
+    dbMessage.includes("violates unique constraint")
+  ) {
     error = new UniqueConstraintError(message);
-  } else if (dbMessage.includes("violates check constraint")) {
+  } else if (
+    dbCode === "23514" ||
+    dbMessage.includes("violates check constraint")
+  ) {
     error = new CheckConstraintError(message);
   } else if (
     // nodejs error message
@@ -129,9 +174,9 @@ export const parseDbError = (error: any): Error => {
     error.meta.push(
       "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
     );
-  } else if (dbMessage.includes("does not exist")) {
+  } else if (dbCode === "42P01" || dbMessage.includes("does not exist")) {
     error = new NonRetryableUserError(message);
-  } else if (dbMessage.includes("already exists")) {
+  } else if (dbCode === "42710" || dbMessage.includes("already exists")) {
     error = new NonRetryableUserError(message);
   } else if (
     dbMessage.includes("terminating connection due to administrator command") ||

@@ -1,8 +1,10 @@
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import {
+  BaseError,
   DbConnectionError,
   NonRetryableUserError,
   NotNullConstraintError,
+  UniqueConstraintError,
 } from "@/internal/errors.js";
 import { createPool } from "@/utils/pg.js";
 import { sql } from "drizzle-orm";
@@ -141,6 +143,17 @@ test("QB parses wrapped error causes", () => {
   expect(error.message).toContain('relation "account" does not exist');
 });
 
+test("QB parses wrapped error codes", () => {
+  const cause = Object.assign(new Error("driver error"), { code: "23505" });
+  const error = parseDbError(
+    new Error("Failed query: INSERT INTO account", { cause }),
+  );
+
+  expect(error).toBeInstanceOf(UniqueConstraintError);
+  expect(error.message).toContain("Failed query: INSERT INTO account");
+  expect(error.message).toContain("driver error");
+});
+
 test("QB ignores wrapped query text when parsing errors", () => {
   const error = parseDbError(
     new Error('Failed query: SELECT * FROM "does not exist ETIMEDOUT"', {
@@ -150,6 +163,17 @@ test("QB ignores wrapped query text when parsing errors", () => {
 
   expect(error).not.toBeInstanceOf(NonRetryableUserError);
   expect(error).not.toBeInstanceOf(DbConnectionError);
+});
+
+test("QB preserves known errors from cause chain", () => {
+  const cause = new BaseError("known error");
+  const error = parseDbError(
+    new Error("Failed query: SELECT 1", {
+      cause,
+    }),
+  );
+
+  expect(error).toBe(cause);
 });
 
 test("QB client", async () => {
