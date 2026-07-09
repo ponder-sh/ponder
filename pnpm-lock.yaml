@@ -81,8 +81,8 @@ catalogs:
       specifier: ^24.8.0
       version: 24.13.3
     typescript:
-      specifier: 5.0.4
-      version: 5.0.4
+      specifier: 6.0.2
+      version: 6.0.2
   docs:
     '@clickhouse/client':
       specifier: 1.11.0
@@ -320,13 +320,16 @@ importers:
         version: 2.9.0
       typescript:
         specifier: 'catalog:'
-        version: 5.0.4
+        version: 6.0.2
       viem:
         specifier: catalog:web3
-        version: 2.54.6(typescript@5.0.4)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
 
   benchmark:
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
       commander:
         specifier: catalog:runtime
         version: 12.0.0
@@ -380,7 +383,7 @@ importers:
         version: 4.1.6
       vocs:
         specifier: catalog:docs
-        version: 1.0.11(@types/node@24.13.3)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.40.2)(tsx@4.19.2)(typescript@5.0.4)
+        version: 1.0.11(@types/node@24.13.3)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.40.2)(tsx@4.19.2)(typescript@6.0.2)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -402,7 +405,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -414,8 +417,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-api-functions:
     dependencies:
@@ -427,7 +430,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -439,8 +442,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-blocks:
     dependencies:
@@ -452,7 +455,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -464,8 +467,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-call-traces:
     dependencies:
@@ -477,7 +480,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -489,14 +492,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-factory:
     dependencies:
       abitype:
         specifier: ^1
-        version: 1.0.8(typescript@5.3.3)(zod@3.23.8)
+        version: 1.0.8(typescript@6.0.2)(zod@3.23.8)
       hono:
         specifier: 4.12.27
         version: 4.12.27
@@ -505,7 +508,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -517,8 +520,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-filter:
     dependencies:
@@ -530,7 +533,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -542,8 +545,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-multichain:
     dependencies:
@@ -555,7 +558,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -567,8 +570,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-proxy:
     dependencies:
@@ -580,7 +583,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -592,8 +595,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/feature-read-contract:
     dependencies:
@@ -605,7 +608,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -617,8 +620,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/project-friendtech:
     dependencies:
@@ -630,7 +633,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -642,8 +645,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/project-uniswap-v3-flash:
     dependencies:
@@ -655,7 +658,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -667,8 +670,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/reference-erc1155:
     dependencies:
@@ -680,7 +683,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -692,8 +695,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/reference-erc20:
     dependencies:
@@ -708,7 +711,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -720,8 +723,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/reference-erc4626:
     dependencies:
@@ -733,7 +736,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -745,8 +748,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/reference-erc721:
     dependencies:
@@ -758,7 +761,7 @@ importers:
         version: link:../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -770,8 +773,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/with-client: {}
 
@@ -798,7 +801,7 @@ importers:
         version: link:../../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -810,14 +813,14 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/with-foundry:
     devDependencies:
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2(typescript@5.0.4)
+        version: 1.5.2(typescript@6.0.2)
 
   examples/with-foundry/foundry:
     dependencies:
@@ -835,7 +838,7 @@ importers:
         version: link:../../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.9.0
@@ -847,8 +850,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.2.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/with-nextjs: {}
 
@@ -880,7 +883,7 @@ importers:
         version: 18.2.0(react@18.2.0)
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -899,10 +902,10 @@ importers:
         version: 8.5.3
       tailwindcss:
         specifier: ^3.3.0
-        version: 3.3.5(ts-node@10.9.1(@types/node@20.11.24)(typescript@5.3.3))
+        version: 3.3.5(ts-node@10.9.1(@types/node@20.11.24)(typescript@6.0.2))
       typescript:
-        specifier: ^5
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/with-nextjs/ponder:
     dependencies:
@@ -914,7 +917,7 @@ importers:
         version: link:../../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -926,8 +929,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/with-offchain: {}
 
@@ -966,7 +969,7 @@ importers:
         version: link:../../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -981,8 +984,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   examples/with-trpc: {}
 
@@ -1008,7 +1011,7 @@ importers:
         version: link:../../../packages/core
       viem:
         specifier: 2.54.6
-        version: 2.54.6(typescript@5.3.3)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
       zod:
         specifier: ^3.23.8
         version: 3.23.8
@@ -1023,8 +1026,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/eslint-config-ponder
       typescript:
-        specifier: ^5.3.2
-        version: 5.3.3
+        specifier: 6.0.2
+        version: 6.0.2
 
   packages/client:
     dependencies:
@@ -1040,7 +1043,7 @@ importers:
     devDependencies:
       tsup:
         specifier: catalog:tooling
-        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.3.3))(typescript@5.3.3)
+        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2))(typescript@6.0.2)
       vitest:
         specifier: catalog:tooling
         version: 1.6.1(@edge-runtime/vm@3.2.0)(@types/node@24.13.3)(lightningcss@1.30.0)
@@ -1073,7 +1076,7 @@ importers:
         version: link:../utils
       abitype:
         specifier: catalog:web3
-        version: 1.0.8(typescript@5.0.4)(zod@3.23.8)
+        version: 1.0.8(typescript@6.0.2)(zod@3.23.8)
       ansi-escapes:
         specifier: catalog:runtime
         version: 7.0.0
@@ -1151,7 +1154,7 @@ importers:
         version: 1.0.2(@types/node@24.13.3)(lightningcss@1.30.0)
       vite-tsconfig-paths:
         specifier: catalog:tooling
-        version: 4.3.1(typescript@5.0.4)(vite@5.4.21(@types/node@24.13.3)(lightningcss@1.30.0))
+        version: 4.3.1(typescript@6.0.2)(vite@5.4.21(@types/node@24.13.3)(lightningcss@1.30.0))
       ws:
         specifier: catalog:runtime
         version: 8.18.3
@@ -1188,7 +1191,7 @@ importers:
         version: 0.0.6
       '@wagmi/cli':
         specifier: catalog:web3
-        version: 1.5.2(typescript@5.0.4)
+        version: 1.5.2(typescript@6.0.2)
       chokidar:
         specifier: catalog:tooling
         version: 4.0.3
@@ -1242,7 +1245,7 @@ importers:
         version: 5.0.0
       viem:
         specifier: catalog:web3
-        version: 2.54.6(typescript@5.0.4)(zod@3.23.8)
+        version: 2.54.6(typescript@6.0.2)(zod@3.23.8)
       yaml:
         specifier: catalog:create
         version: 2.3.4
@@ -1261,7 +1264,7 @@ importers:
         version: 4.0.2
       abitype:
         specifier: catalog:web3
-        version: 1.0.8(typescript@5.0.4)(zod@3.23.8)
+        version: 1.0.8(typescript@6.0.2)(zod@3.23.8)
       dotenv:
         specifier: catalog:runtime
         version: 16.4.5
@@ -1270,7 +1273,7 @@ importers:
         version: 5.0.5
       tsup:
         specifier: catalog:tooling
-        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.0.4))(typescript@5.0.4)
+        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2))(typescript@6.0.2)
       vitest:
         specifier: catalog:tooling
         version: 1.6.1(@edge-runtime/vm@3.2.0)(@types/node@24.13.3)(lightningcss@1.30.0)
@@ -1324,13 +1327,13 @@ importers:
         version: 24.13.3
       abitype:
         specifier: catalog:web3
-        version: 1.0.8(typescript@5.3.3)(zod@3.23.8)
+        version: 1.0.8(typescript@6.0.2)(zod@3.23.8)
       dotenv:
         specifier: catalog:runtime
         version: 16.4.5
       tsup:
         specifier: catalog:tooling
-        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.3.3))(typescript@5.3.3)
+        version: 8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2))(typescript@6.0.2)
       vitest:
         specifier: catalog:tooling
         version: 1.6.1(@edge-runtime/vm@3.2.0)(@types/node@24.13.3)(lightningcss@1.30.0)
@@ -7848,13 +7851,8 @@ packages:
     engines: {node: '>=4.2.0'}
     hasBin: true
 
-  typescript@5.0.4:
-    resolution: {integrity: sha512-cW9T5W9xY37cc+jfEnaUvX91foxtHkza3Nw3wkoF4sSlKn0MONdkdEndig/qPBWXNkmplh3NzayQzCiHM4/hqw==}
-    engines: {node: '>=12.20'}
-    hasBin: true
-
-  typescript@5.3.3:
-    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
+  typescript@6.0.2:
+    resolution: {integrity: sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -10368,11 +10366,11 @@ snapshots:
       '@shikijs/core': 1.29.2
       '@shikijs/types': 1.29.2
 
-  '@shikijs/twoslash@1.29.2(typescript@5.0.4)':
+  '@shikijs/twoslash@1.29.2(typescript@6.0.2)':
     dependencies:
       '@shikijs/core': 1.29.2
       '@shikijs/types': 1.29.2
-      twoslash: 0.2.12(typescript@5.0.4)
+      twoslash: 0.2.12(typescript@6.0.2)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -10765,10 +10763,10 @@ snapshots:
     dependencies:
       '@types/node': 20.11.24
 
-  '@typescript/vfs@1.6.1(typescript@5.0.4)':
+  '@typescript/vfs@1.6.1(typescript@6.0.2)':
     dependencies:
       debug: 4.4.0
-      typescript: 5.0.4
+      typescript: 6.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -10976,9 +10974,9 @@ snapshots:
       loupe: 2.3.7
       pretty-format: 29.7.0
 
-  '@wagmi/cli@1.5.2(typescript@5.0.4)':
+  '@wagmi/cli@1.5.2(typescript@6.0.2)':
     dependencies:
-      abitype: 0.8.7(typescript@5.0.4)(zod@3.23.8)
+      abitype: 0.8.7(typescript@6.0.2)(zod@3.23.8)
       abort-controller: 3.0.0
       bundle-require: 3.1.2(esbuild@0.16.17)
       cac: 6.7.14
@@ -10998,10 +10996,10 @@ snapshots:
       pathe: 1.1.1
       picocolors: 1.1.1
       prettier: 2.8.8
-      viem: 1.21.4(typescript@5.0.4)(zod@3.23.8)
+      viem: 1.21.4(typescript@6.0.2)(zod@3.23.8)
       zod: 3.23.8
     optionalDependencies:
-      typescript: 5.0.4
+      typescript: 6.0.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -11039,35 +11037,25 @@ snapshots:
 
   abbrev@3.0.1: {}
 
-  abitype@0.8.7(typescript@5.0.4)(zod@3.23.8):
+  abitype@0.8.7(typescript@6.0.2)(zod@3.23.8):
     dependencies:
-      typescript: 5.0.4
+      typescript: 6.0.2
     optionalDependencies:
       zod: 3.23.8
 
-  abitype@0.9.8(typescript@5.0.4)(zod@3.23.8):
+  abitype@0.9.8(typescript@6.0.2)(zod@3.23.8):
     optionalDependencies:
-      typescript: 5.0.4
+      typescript: 6.0.2
       zod: 3.23.8
 
-  abitype@1.0.8(typescript@5.0.4)(zod@3.23.8):
+  abitype@1.0.8(typescript@6.0.2)(zod@3.23.8):
     optionalDependencies:
-      typescript: 5.0.4
+      typescript: 6.0.2
       zod: 3.23.8
 
-  abitype@1.0.8(typescript@5.3.3)(zod@3.23.8):
+  abitype@1.2.3(typescript@6.0.2)(zod@3.23.8):
     optionalDependencies:
-      typescript: 5.3.3
-      zod: 3.23.8
-
-  abitype@1.2.3(typescript@5.0.4)(zod@3.23.8):
-    optionalDependencies:
-      typescript: 5.0.4
-      zod: 3.23.8
-
-  abitype@1.2.3(typescript@5.3.3)(zod@3.23.8):
-    optionalDependencies:
-      typescript: 5.3.3
+      typescript: 6.0.2
       zod: 3.23.8
 
   abort-controller@3.0.0:
@@ -13872,7 +13860,7 @@ snapshots:
 
   outdent@0.5.0: {}
 
-  ox@0.14.30(typescript@5.0.4)(zod@3.23.8):
+  ox@0.14.30(typescript@6.0.2)(zod@3.23.8):
     dependencies:
       '@adraffy/ens-normalize': 1.11.0
       '@noble/ciphers': 1.3.0
@@ -13880,25 +13868,10 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@5.0.4)(zod@3.23.8)
+      abitype: 1.2.3(typescript@6.0.2)(zod@3.23.8)
       eventemitter3: 5.0.1
     optionalDependencies:
-      typescript: 5.0.4
-    transitivePeerDependencies:
-      - zod
-
-  ox@0.14.30(typescript@5.3.3)(zod@3.23.8):
-    dependencies:
-      '@adraffy/ens-normalize': 1.11.0
-      '@noble/ciphers': 1.3.0
-      '@noble/curves': 1.9.1
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@5.3.3)(zod@3.23.8)
-      eventemitter3: 5.0.1
-    optionalDependencies:
-      typescript: 5.3.3
+      typescript: 6.0.2
     transitivePeerDependencies:
       - zod
 
@@ -14171,29 +14144,21 @@ snapshots:
       camelcase-css: 2.0.1
       postcss: 8.5.3
 
-  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@20.11.24)(typescript@5.3.3)):
+  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@20.11.24)(typescript@6.0.2)):
     dependencies:
       lilconfig: 3.1.2
       yaml: 2.3.4
     optionalDependencies:
       postcss: 8.5.3
-      ts-node: 10.9.1(@types/node@20.11.24)(typescript@5.3.3)
+      ts-node: 10.9.1(@types/node@20.11.24)(typescript@6.0.2)
 
-  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.0.4)):
+  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2)):
     dependencies:
       lilconfig: 3.1.2
       yaml: 2.3.4
     optionalDependencies:
       postcss: 8.5.3
-      ts-node: 10.9.1(@types/node@24.13.3)(typescript@5.0.4)
-
-  postcss-load-config@4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.3.3)):
-    dependencies:
-      lilconfig: 3.1.2
-      yaml: 2.3.4
-    optionalDependencies:
-      postcss: 8.5.3
-      ts-node: 10.9.1(@types/node@24.13.3)(typescript@5.3.3)
+      ts-node: 10.9.1(@types/node@24.13.3)(typescript@6.0.2)
 
   postcss-nested@6.0.1(postcss@8.5.3):
     dependencies:
@@ -14962,7 +14927,7 @@ snapshots:
 
   tailwind-merge@3.3.0: {}
 
-  tailwindcss@3.3.5(ts-node@10.9.1(@types/node@20.11.24)(typescript@5.3.3)):
+  tailwindcss@3.3.5(ts-node@10.9.1(@types/node@20.11.24)(typescript@6.0.2)):
     dependencies:
       '@alloc/quick-lru': 5.2.0
       arg: 5.0.2
@@ -14981,7 +14946,7 @@ snapshots:
       postcss: 8.5.3
       postcss-import: 15.1.0(postcss@8.5.3)
       postcss-js: 4.0.1(postcss@8.5.3)
-      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@20.11.24)(typescript@5.3.3))
+      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@20.11.24)(typescript@6.0.2))
       postcss-nested: 6.0.1(postcss@8.5.3)
       postcss-selector-parser: 6.0.15
       resolve: 1.22.8
@@ -15092,7 +15057,7 @@ snapshots:
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
-  ts-node@10.9.1(@types/node@20.11.24)(typescript@5.3.3):
+  ts-node@10.9.1(@types/node@20.11.24)(typescript@6.0.2):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.9
@@ -15106,12 +15071,12 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.3.3
+      typescript: 6.0.2
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
     optional: true
 
-  ts-node@10.9.1(@types/node@24.13.3)(typescript@5.0.4):
+  ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.9
@@ -15125,41 +15090,22 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.0.4
-      v8-compile-cache-lib: 3.0.1
-      yn: 3.1.1
-    optional: true
-
-  ts-node@10.9.1(@types/node@24.13.3)(typescript@5.3.3):
-    dependencies:
-      '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.9
-      '@tsconfig/node12': 1.0.11
-      '@tsconfig/node14': 1.0.3
-      '@tsconfig/node16': 1.0.4
-      '@types/node': 24.13.3
-      acorn: 8.14.1
-      acorn-walk: 8.3.4
-      arg: 4.1.3
-      create-require: 1.1.1
-      diff: 4.0.2
-      make-error: 1.3.6
-      typescript: 5.3.3
+      typescript: 6.0.2
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
     optional: true
 
   ts-toolbelt@6.15.5: {}
 
-  tsconfck@3.0.1(typescript@5.0.4):
+  tsconfck@3.0.1(typescript@6.0.2):
     optionalDependencies:
-      typescript: 5.0.4
+      typescript: 6.0.2
 
   tslib@2.6.2: {}
 
   tslib@2.8.1: {}
 
-  tsup@8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.0.4))(typescript@5.0.4):
+  tsup@8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2))(typescript@6.0.2):
     dependencies:
       bundle-require: 4.0.2(esbuild@0.19.12)
       cac: 6.7.14
@@ -15169,7 +15115,7 @@ snapshots:
       execa: 5.1.1
       globby: 11.1.0
       joycon: 3.1.1
-      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.0.4))
+      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@6.0.2))
       resolve-from: 5.0.0
       rollup: 4.40.2
       source-map: 0.8.0-beta.0
@@ -15177,30 +15123,7 @@ snapshots:
       tree-kill: 1.2.2
     optionalDependencies:
       postcss: 8.5.3
-      typescript: 5.0.4
-    transitivePeerDependencies:
-      - supports-color
-      - ts-node
-
-  tsup@8.0.1(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.3.3))(typescript@5.3.3):
-    dependencies:
-      bundle-require: 4.0.2(esbuild@0.19.12)
-      cac: 6.7.14
-      chokidar: 3.6.0
-      debug: 4.4.0
-      esbuild: 0.19.12
-      execa: 5.1.1
-      globby: 11.1.0
-      joycon: 3.1.1
-      postcss-load-config: 4.0.2(postcss@8.5.3)(ts-node@10.9.1(@types/node@24.13.3)(typescript@5.3.3))
-      resolve-from: 5.0.0
-      rollup: 4.40.2
-      source-map: 0.8.0-beta.0
-      sucrase: 3.35.0
-      tree-kill: 1.2.2
-    optionalDependencies:
-      postcss: 8.5.3
-      typescript: 5.3.3
+      typescript: 6.0.2
     transitivePeerDependencies:
       - supports-color
       - ts-node
@@ -15214,11 +15137,11 @@ snapshots:
 
   twoslash-protocol@0.2.12: {}
 
-  twoslash@0.2.12(typescript@5.0.4):
+  twoslash@0.2.12(typescript@6.0.2):
     dependencies:
-      '@typescript/vfs': 1.6.1(typescript@5.0.4)
+      '@typescript/vfs': 1.6.1(typescript@6.0.2)
       twoslash-protocol: 0.2.12
-      typescript: 5.0.4
+      typescript: 6.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -15238,9 +15161,7 @@ snapshots:
 
   typescript@4.9.5: {}
 
-  typescript@5.0.4: {}
-
-  typescript@5.3.3: {}
+  typescript@6.0.2: {}
 
   ua-parser-js@1.0.40: {}
 
@@ -15380,52 +15301,35 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.2
 
-  viem@1.21.4(typescript@5.0.4)(zod@3.23.8):
+  viem@1.21.4(typescript@6.0.2)(zod@3.23.8):
     dependencies:
       '@adraffy/ens-normalize': 1.10.0
       '@noble/curves': 1.2.0
       '@noble/hashes': 1.3.2
       '@scure/bip32': 1.3.2
       '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.0.4)(zod@3.23.8)
+      abitype: 0.9.8(typescript@6.0.2)(zod@3.23.8)
       isows: 1.0.3(ws@8.13.0)
       ws: 8.13.0
     optionalDependencies:
-      typescript: 5.0.4
+      typescript: 6.0.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
       - zod
 
-  viem@2.54.6(typescript@5.0.4)(zod@3.23.8):
+  viem@2.54.6(typescript@6.0.2)(zod@3.23.8):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@5.0.4)(zod@3.23.8)
+      abitype: 1.2.3(typescript@6.0.2)(zod@3.23.8)
       isows: 1.0.7(ws@8.21.0)
-      ox: 0.14.30(typescript@5.0.4)(zod@3.23.8)
+      ox: 0.14.30(typescript@6.0.2)(zod@3.23.8)
       ws: 8.21.0
     optionalDependencies:
-      typescript: 5.0.4
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-
-  viem@2.54.6(typescript@5.3.3)(zod@3.23.8):
-    dependencies:
-      '@noble/curves': 1.9.1
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@5.3.3)(zod@3.23.8)
-      isows: 1.0.7(ws@8.21.0)
-      ox: 0.14.30(typescript@5.3.3)(zod@3.23.8)
-      ws: 8.21.0
-    optionalDependencies:
-      typescript: 5.3.3
+      typescript: 6.0.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -15488,11 +15392,11 @@ snapshots:
       - tsx
       - yaml
 
-  vite-tsconfig-paths@4.3.1(typescript@5.0.4)(vite@5.4.21(@types/node@24.13.3)(lightningcss@1.30.0)):
+  vite-tsconfig-paths@4.3.1(typescript@6.0.2)(vite@5.4.21(@types/node@24.13.3)(lightningcss@1.30.0)):
     dependencies:
       debug: 4.4.0
       globrex: 0.1.2
-      tsconfck: 3.0.1(typescript@5.0.4)
+      tsconfck: 3.0.1(typescript@6.0.2)
     optionalDependencies:
       vite: 5.4.21(@types/node@24.13.3)(lightningcss@1.30.0)
     transitivePeerDependencies:
@@ -15559,7 +15463,7 @@ snapshots:
       - supports-color
       - terser
 
-  vocs@1.0.11(@types/node@24.13.3)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.40.2)(tsx@4.19.2)(typescript@5.0.4):
+  vocs@1.0.11(@types/node@24.13.3)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.40.2)(tsx@4.19.2)(typescript@6.0.2):
     dependencies:
       '@floating-ui/react': 0.27.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@hono/node-server': 1.19.5(hono@4.7.9)
@@ -15576,7 +15480,7 @@ snapshots:
       '@radix-ui/react-tabs': 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@shikijs/rehype': 1.29.2
       '@shikijs/transformers': 1.29.2
-      '@shikijs/twoslash': 1.29.2(typescript@5.0.4)
+      '@shikijs/twoslash': 1.29.2(typescript@6.0.2)
       '@tailwindcss/vite': 4.0.7(vite@6.3.5(@types/node@24.13.3)(jiti@2.4.2)(lightningcss@1.30.0)(tsx@4.19.2))
       '@vanilla-extract/css': 1.17.1
       '@vanilla-extract/dynamic': 2.1.2
@@ -15624,7 +15528,7 @@ snapshots:
       serve-static: 1.16.2
       shiki: 1.29.2
       toml: 3.0.0
-      twoslash: 0.2.12(typescript@5.0.4)
+      twoslash: 0.2.12(typescript@6.0.2)
       ua-parser-js: 1.0.40
       unified: 11.0.5
       unist-util-visit: 5.0.0

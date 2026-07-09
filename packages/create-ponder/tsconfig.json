@@ -27,6 +27,7 @@
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "target": "ESNext",
+    "types": ["node"],
     "lib": [
       "ES2022" // By using ES2022 we get access to the `.cause` property on `Error` instances.
     ],
@@ -35,7 +36,6 @@
     "skipLibCheck": true,
 
     // File path alias support
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["./src/*"] }
   }
 }

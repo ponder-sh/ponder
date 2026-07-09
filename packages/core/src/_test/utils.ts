@@ -35,6 +35,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import {
   http,
   type Address,
+  type PublicClient,
   type Chain as ViemChain,
   createPublicClient,
   createTestClient,
@@ -83,7 +84,7 @@ export const testClient = createTestClient({
   transport: http(),
 });
 
-export const publicClient = createPublicClient({
+export const publicClient: PublicClient = createPublicClient({
   chain: anvil,
   transport: http(),
 });

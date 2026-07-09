@@ -6,6 +6,7 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "types": ["node", "react", "react-dom"],
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "noEmit": true,

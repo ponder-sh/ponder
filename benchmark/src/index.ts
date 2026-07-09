@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Command } from "commander";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import packageJson from "../../packages/core/package.json" assert {
+import packageJson from "../../packages/core/package.json" with {
   type: "json",
 };
 import { start } from "../../packages/core/src/bin/commands/start.js";

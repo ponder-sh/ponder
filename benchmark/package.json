@@ -7,6 +7,7 @@
     "create:app": "bun run src/create-app.ts"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "commander": "catalog:runtime",
     "drizzle-orm": "catalog:db",
     "pg": "catalog:db",

@@ -49,7 +49,7 @@ import {
   hexToNumber,
   numberToHex,
 } from "viem";
-import packageJson from "../../packages/core/package.json" assert {
+import packageJson from "../../packages/core/package.json" with {
   type: "json",
 };
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";

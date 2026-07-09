@@ -16,9 +16,15 @@ import {
   multicall3Abi,
   numberToHex,
 } from "viem";
-import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json";
-import FactoryBytecode from "./contracts/out/Factory.sol/Factory.json";
-import RevertBytecode from "./contracts/out/Revert.sol/Revert.json";
+import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json" with {
+  type: "json",
+};
+import FactoryBytecode from "./contracts/out/Factory.sol/Factory.json" with {
+  type: "json",
+};
+import RevertBytecode from "./contracts/out/Revert.sol/Revert.json" with {
+  type: "json",
+};
 import { erc20ABI, factoryABI, pairABI, revertABI } from "./generated.js";
 import { anvil, publicClient, testClient } from "./utils.js";
 

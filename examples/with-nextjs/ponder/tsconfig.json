@@ -2,6 +2,7 @@
   "compilerOptions": {
     // Type checking
     "strict": true,
+    "types": ["node"],
     "noUncheckedIndexedAccess": true,
 
     // Interop constraints

@@ -197,7 +197,7 @@ test("buildSchema() error with foreign key", () => {
       balance: p
         .bigint()
         .notNull()
-        .references(() => schema.account.address),
+        .references((): any => schema.account.address),
     })),
   };
 

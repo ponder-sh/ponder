@@ -20,7 +20,7 @@ allowBuilds:
 
 catalog:
   "@types/node": ^24.8.0
-  typescript: 5.0.4
+  typescript: 6.0.2
 
 catalogs:
   tooling:
@@ -129,11 +129,11 @@ catalogs:
     eslint: ">= 3"
     hono: ">=4.5 <5"
     react: ">=18 <20"
-    typescript: ">=5.0.4"
+    typescript: ">=5.0.4 <7"
     viem: ">=2"
 
 peerDependencyRules:
   ignoreMissing:
     - node-fetch
   allowedVersions:
-    typescript: ">=5.0.4"
+    typescript: ">=5.0.4 <7"

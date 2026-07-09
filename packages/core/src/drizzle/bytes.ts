@@ -24,7 +24,7 @@ export type PgBytesBuilderInitial<TName extends string> = PgBytesBuilder<{
 export class PgBytesBuilder<
   T extends ColumnBuilderBaseConfig<"buffer", "PgBytes">,
 > extends PgColumnBuilder<T> {
-  static readonly [entityKind]: string = "PgBytesBuilder";
+  static override readonly [entityKind]: string = "PgBytesBuilder";
 
   constructor(name: T["name"]) {
     super(name, "buffer", "PgBytes");
@@ -52,7 +52,7 @@ export class PgBytesBuilder<
 export class PgBytes<
   T extends ColumnBaseConfig<"buffer", "PgBytes">,
 > extends PgColumn<T> {
-  static readonly [entityKind]: string = "PgBytes";
+  static override readonly [entityKind]: string = "PgBytes";
 
   getSQLType(): string {
     return "bytea";
