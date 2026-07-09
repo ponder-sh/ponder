@@ -48,7 +48,8 @@ import {
   dropLiveQueryTriggers,
   dropTriggers,
 } from "./actions.js";
-import { type QB, createQB, parseDbError } from "./queryBuilder.js";
+import { parseDbError } from "./errors.js";
+import { type QB, createQB } from "./queryBuilder.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;

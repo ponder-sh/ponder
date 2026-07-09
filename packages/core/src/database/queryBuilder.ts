@@ -1,17 +1,6 @@
 import crypto from "node:crypto";
 import type { Common } from "@/internal/common.js";
-import { BaseError } from "@/internal/errors.js";
-import {
-  BigIntSerializationError,
-  CheckConstraintError,
-  DbConnectionError,
-  NonRetryableUserError,
-  NotNullConstraintError,
-  ShutdownError,
-  UniqueConstraintError,
-  getErrorCauseByInstance,
-  getErrorMessageWithCause,
-} from "@/internal/errors.js";
+import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
@@ -26,6 +15,7 @@ import type {
   PgTransactionConfig,
 } from "drizzle-orm/pg-core";
 import type pg from "pg";
+import { parseDbError } from "./errors.js";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
@@ -88,112 +78,6 @@ export type QB<
     | { $dialect: "pglite"; $client: PGlite }
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
-
-const getErrorMessage = (error: unknown) => {
-  if (typeof error === "object" && error !== null) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string") return message;
-  }
-
-  return String(error);
-};
-
-const getErrorCode = (error: unknown) => {
-  if (typeof error === "object" && error !== null) {
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === "string") return code;
-  }
-
-  return undefined;
-};
-
-const getErrorCauseChain = (error: unknown) => {
-  const errors: unknown[] = [];
-  const seen = new Set<object>();
-  let current = error;
-
-  while (current !== undefined && current !== null) {
-    errors.push(current);
-
-    if (typeof current !== "object") break;
-    if (seen.has(current)) break;
-    seen.add(current);
-
-    current = (current as { cause?: unknown }).cause;
-  }
-
-  return errors;
-};
-
-const isDrizzleQueryError = (error: unknown) => {
-  return getErrorMessage(error).startsWith("Failed query:");
-};
-
-const getDbError = (error: unknown) => {
-  const errors = getErrorCauseChain(error);
-
-  return (
-    errors.find((error) => getErrorCode(error) !== undefined) ??
-    errors.find((error) => isDrizzleQueryError(error) === false) ??
-    error
-  );
-};
-
-export const parseDbError = (error: any): Error => {
-  const stack = error.stack;
-  const baseError = getErrorCauseByInstance(error, BaseError);
-  if (baseError !== undefined) return baseError;
-
-  const message = getErrorMessageWithCause(error);
-  const dbError = getDbError(error);
-  const dbCode = getErrorCode(dbError);
-  const dbMessage = getErrorMessage(dbError);
-
-  if (
-    dbCode === "23502" ||
-    dbMessage.includes("violates not-null constraint")
-  ) {
-    error = new NotNullConstraintError(message);
-  } else if (
-    dbCode === "23505" ||
-    dbMessage.includes("violates unique constraint")
-  ) {
-    error = new UniqueConstraintError(message);
-  } else if (
-    dbCode === "23514" ||
-    dbMessage.includes("violates check constraint")
-  ) {
-    error = new CheckConstraintError(message);
-  } else if (
-    // nodejs error message
-    dbMessage.includes("Do not know how to serialize a BigInt") ||
-    // bun error message
-    dbMessage.includes("cannot serialize BigInt")
-  ) {
-    error = new BigIntSerializationError(message);
-    error.meta.push(
-      "Hint:\n  The JSON column type does not support BigInt values. Use the replaceBigInts() helper function before inserting into the database. Docs: https://ponder.sh/docs/api-reference/ponder-utils#replacebigints",
-    );
-  } else if (dbCode === "42P01" || dbMessage.includes("does not exist")) {
-    error = new NonRetryableUserError(message);
-  } else if (dbCode === "42710" || dbMessage.includes("already exists")) {
-    error = new NonRetryableUserError(message);
-  } else if (
-    dbMessage.includes("terminating connection due to administrator command") ||
-    dbMessage.includes("connection to client lost") ||
-    dbMessage.includes("too many clients already") ||
-    dbMessage.includes("Connection terminated unexpectedly") ||
-    dbMessage.includes("ECONNRESET") ||
-    dbMessage.includes("ETIMEDOUT") ||
-    dbMessage.includes("timeout exceeded when trying to connect")
-  ) {
-    error = new DbConnectionError(message);
-  }
-
-  error.stack = stack;
-
-  return error;
-};
 
 /**
  * Create a query builder.

@@ -676,6 +676,8 @@ test("sql with error", async () => {
       .catch((error) => error);
 
     expect(error).toBeInstanceOf(RawSqlError);
+    expect(error.message).not.toContain("Failed query:");
+    expect(error.message).not.toContain("params:");
 
     // next query doesn't error
 
@@ -714,11 +716,18 @@ test("sql preserves store errors", async () => {
   indexingStore.qb = database.userQB;
   indexingStore.isProcessingEvents = false;
 
-  const error = await indexingStore.db.sql
+  const executeError = await indexingStore.db.sql
     .execute("SELECT 1")
     .catch((error) => error);
 
-  expect(error).toBeInstanceOf(NonRetryableUserError);
+  expect(executeError).toBeInstanceOf(NonRetryableUserError);
+
+  const builderError = await indexingStore.db.sql
+    .select()
+    .from(schema.account)
+    .catch((error) => error);
+
+  expect(builderError).toBeInstanceOf(NonRetryableUserError);
 });
 
 test("onchain table", async () => {

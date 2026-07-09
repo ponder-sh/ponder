@@ -1,8 +1,11 @@
-import { type QB, parseDbError } from "@/database/queryBuilder.js";
+import {
+  getPublicErrorMessage,
+  wrapDrizzleQueryErrorBoundary,
+} from "@/database/errors.js";
+import type { QB } from "@/database/queryBuilder.js";
 import { onchain } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
 import {
-  BaseError,
   DbConnectionError,
   InvalidStoreAccessError,
   InvalidStoreMethodError,
@@ -12,7 +15,6 @@ import {
   RetryableError,
   UndefinedTableError,
   UniqueConstraintError,
-  getErrorCauseByInstance,
 } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
@@ -558,87 +560,80 @@ export const createIndexingStore = ({
       }),
       // @ts-ignore
       sql: (() => {
-        const rawSql = drizzle(
-          storeMethodWrapper(async (_sql, params, method, typings) => {
-            const isSelectOnly = await isReadonlySQLQuery(_sql);
+        const rawSql = wrapDrizzleQueryErrorBoundary(
+          drizzle(
+            storeMethodWrapper(async (_sql, params, method, typings) => {
+              const isSelectOnly = await isReadonlySQLQuery(_sql);
 
-            if (isSelectOnly === false) {
-              await indexingCache.flush();
-              indexingCache.invalidate();
-              indexingCache.clear();
-            } else {
-              // Note: Not all nodes are implemented in the parser,
-              // so we need to try/catch to avoid throwing an error.
-              let relations: Set<string> | undefined;
-              try {
-                relations = await getSQLQueryRelations(_sql);
-              } catch {}
-
-              if (
-                Array.from(relations ?? []).some((refName) =>
-                  views.some((view) => getViewName(view) === refName),
-                )
-              ) {
+              if (isSelectOnly === false) {
                 await indexingCache.flush();
+                indexingCache.invalidate();
+                indexingCache.clear();
               } else {
-                await indexingCache.flush({ tableNames: relations });
+                // Note: Not all nodes are implemented in the parser,
+                // so we need to try/catch to avoid throwing an error.
+                let relations: Set<string> | undefined;
+                try {
+                  relations = await getSQLQueryRelations(_sql);
+                } catch {}
+
+                if (
+                  Array.from(relations ?? []).some((refName) =>
+                    views.some((view) => getViewName(view) === refName),
+                  )
+                ) {
+                  await indexingCache.flush();
+                } else {
+                  await indexingCache.flush({ tableNames: relations });
+                }
               }
-            }
 
-            const query: QueryWithTypings = { sql: _sql, params, typings };
-            const endClock = startClock();
+              const query: QueryWithTypings = { sql: _sql, params, typings };
+              const endClock = startClock();
 
-            try {
-              // Note: Use transaction so that user-land queries don't affect the
-              // in-progress transaction.
-              return await qb.transaction(async (tx) => {
-                const result = await tx.wrap((tx) =>
-                  tx._.session
-                    .prepareQuery(query, undefined, undefined, method === "all")
-                    .execute(),
-                );
+              try {
+                // Note: Use transaction so that user-land queries don't affect the
+                // in-progress transaction.
+                return await qb.transaction(async (tx) => {
+                  const result = await tx.wrap((tx) =>
+                    tx._.session
+                      .prepareQuery(
+                        query,
+                        undefined,
+                        undefined,
+                        method === "all",
+                      )
+                      .execute(),
+                  );
 
-                if (method === "all") {
-                  return {
-                    // @ts-ignore
-                    ...result,
-                    // @ts-ignore
-                    rows: result.rows.map((row) => Object.values(row)),
-                  };
+                  if (method === "all") {
+                    return {
+                      // @ts-ignore
+                      ...result,
+                      // @ts-ignore
+                      rows: result.rows.map((row) => Object.values(row)),
+                    };
+                  }
+
+                  return result;
+                });
+              } catch (error) {
+                if (error instanceof DbConnectionError) {
+                  throw error;
                 }
 
-                return result;
-              });
-            } catch (error) {
-              if (error instanceof DbConnectionError) {
-                throw error;
+                throw new RawSqlError(getPublicErrorMessage(error), {
+                  cause: error instanceof Error ? error : undefined,
+                });
+              } finally {
+                common.metrics.ponder_indexing_store_raw_sql_duration.observe(
+                  endClock(),
+                );
               }
-
-              throw new RawSqlError((error as Error).message);
-            } finally {
-              common.metrics.ponder_indexing_store_raw_sql_duration.observe(
-                endClock(),
-              );
-            }
-          }),
-          { schema, casing: "snake_case" },
+            }),
+            { schema, casing: "snake_case" },
+          ),
         );
-
-        const executeRawSql = rawSql.execute.bind(rawSql);
-        rawSql.execute = (async (
-          ...args: Parameters<typeof rawSql.execute>
-        ) => {
-          try {
-            return await executeRawSql(...args);
-          } catch (error) {
-            const baseError = getErrorCauseByInstance(error, BaseError);
-            if (baseError !== undefined) throw baseError;
-
-            const parsedError = parseDbError(error);
-            if (parsedError instanceof DbConnectionError) throw parsedError;
-            throw new RawSqlError(parsedError.message);
-          }
-        }) as typeof rawSql.execute;
 
         return rawSql;
       })(),

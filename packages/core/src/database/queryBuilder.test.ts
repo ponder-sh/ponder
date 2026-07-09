@@ -8,11 +8,13 @@ import {
 } from "@/internal/errors.js";
 import { createPool } from "@/utils/pg.js";
 import { sql } from "drizzle-orm";
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { beforeEach, expect, test, vi } from "vitest";
+import { getPublicErrorMessage, parseDbError } from "./errors.js";
 import { SCHEMATA } from "./index.js";
-import { createQB, parseDbError } from "./queryBuilder.js";
+import { createQB } from "./queryBuilder.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -146,12 +148,24 @@ test("QB parses wrapped error causes", () => {
 test("QB parses wrapped error codes", () => {
   const cause = Object.assign(new Error("driver error"), { code: "23505" });
   const error = parseDbError(
-    new Error("Failed query: INSERT INTO account", { cause }),
+    new DrizzleQueryError("INSERT INTO account", [], cause),
   );
 
   expect(error).toBeInstanceOf(UniqueConstraintError);
   expect(error.message).toContain("Failed query: INSERT INTO account");
   expect(error.message).toContain("driver error");
+});
+
+test("QB public error message omits wrapped query details", () => {
+  const error = new DrizzleQueryError(
+    "SELECT * FROM account WHERE id = $1",
+    ["secret"],
+    new Error('relation "account" does not exist'),
+  );
+
+  expect(getPublicErrorMessage(error)).toBe(
+    'relation "account" does not exist',
+  );
 });
 
 test("QB ignores wrapped query text when parsing errors", () => {

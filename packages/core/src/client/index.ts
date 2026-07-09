@@ -1,6 +1,6 @@
+import { getPublicErrorMessage } from "@/database/errors.js";
 import type { PonderApp6 } from "@/database/index.js";
 import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
-import { getErrorMessageWithCause } from "@/internal/errors.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
 import {
@@ -417,7 +417,7 @@ export const client = ({
         return c.json((await resultPromise) as object);
       } catch (error) {
         (error as Error).stack = undefined;
-        return c.text(getErrorMessageWithCause(error), 500);
+        return c.text(getPublicErrorMessage(error), 500);
       }
     }
 
