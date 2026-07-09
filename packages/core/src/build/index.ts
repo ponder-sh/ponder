@@ -122,6 +122,21 @@ export const createBuild = async ({
     .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
     .replace(/\\/g, "/");
 
+  const isIgnoredIndexingFile = (file: string) => {
+    const normalized = file.replace(/\\/g, "/");
+    return (
+      normalized.includes("/__tests__/") ||
+      /\.(test|spec)(-d)?\.(js|mjs|ts|mts)$/.test(normalized)
+    );
+  };
+
+  const getIndexingFiles = () =>
+    glob
+      .sync(indexingPattern, {
+        ignore: apiPattern,
+      })
+      .filter((file) => isIgnoredIndexingFile(file) === false);
+
   const viteLogger = {
     warnedMessages: new Set<string>(),
     loggedErrors: new WeakSet<Error>(),
@@ -276,9 +291,7 @@ export const createBuild = async ({
       } as const;
     },
     async executeIndexingFunctions(): Promise<IndexingResult> {
-      const files = glob.sync(indexingPattern, {
-        ignore: apiPattern,
-      });
+      const files = getIndexingFiles();
 
       for (const file of files) {
         const executeResult = await executeFileWithTimeout({ file });
@@ -608,7 +621,10 @@ export const createBuild = async ({
         );
 
         const hasIndexingUpdate = Array.from(invalidated).some(
-          (file) => indexingRegex.test(file) && file !== common.options.apiFile,
+          (file) =>
+            indexingRegex.test(file) &&
+            file !== common.options.apiFile &&
+            isIgnoredIndexingFile(file) === false,
         );
         const hasApiUpdate = Array.from(invalidated).some(
           (file) => file === common.options.apiFile,
@@ -653,11 +669,7 @@ export const createBuild = async ({
           viteNodeRunner.moduleCache.invalidateDepTree([
             common.options.schemaFile,
           ]);
-          viteNodeRunner.moduleCache.invalidateDepTree(
-            glob.sync(indexingPattern, {
-              ignore: apiPattern,
-            }),
-          );
+          viteNodeRunner.moduleCache.invalidateDepTree(getIndexingFiles());
           viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
           viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
