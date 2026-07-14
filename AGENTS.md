@@ -31,4 +31,14 @@
 ## Docs, Examples, Releases
 - Docs are a Vocs app in `docs`; use `pnpm --filter ponder-docs dev` or `pnpm --filter ponder-docs build`.
 - CI separately verifies the Next.js frontend example with `pnpm --filter ponder-examples-with-nextjs-frontend build` after `pnpm build`.
-- Changesets are fixed for `ponder`, `create-ponder`, `eslint-config-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Public API or bug-fix PRs normally need a patch changeset.
+
+## Changesets
+- Changesets are fixed for `ponder`, `create-ponder`, `eslint-config-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `pnpm changeset`. Public API or bug-fix PRs normally need a patch changeset.
+- Write changesets in the same voice as `packages/core/CHANGELOG.md`: concise, user-facing, past tense, and focused on observable behavior.
+- Start with the outcome, not the implementation. Prefer phrasing like "Fixed a bug that caused...", "Fixed a regression introduced in `v0.16.0` that caused...", "Improved...", "Added...", "Updated...", or "Removed...".
+- Include concrete symptoms when helpful, especially exact error messages in backticks. Use patterns like "Fixed the error `...`" or "that caused `...`".
+- Name affected APIs, config fields, commands, packages, and options with backticks, such as `ponder.config.ts`, `context.client`, `context.db`, `@ponder/client`, `p.bytes()`, `ordering: "omnichain"`, and `ponder db list`.
+- Use repository vocabulary consistently: Ponder, GraphQL, JSON-RPC, RPC, Postgres, PGlite, backfill, live, crash recovery, factory, and rpc cache.
+- Avoid implementation details, internal refactors, PR narration, and vague language unless the detail explains user impact. Do not write "this PR", "we", "users may notice", "various fixes", or "some improvements".
+- Keep each changeset entry narrow. If a PR includes unrelated user-facing changes, use multiple changesets or multiple short paragraphs so each changelog bullet is easy to scan.
+- For dependency-only updates, only write a custom changeset if there is a user-facing reason, such as a security patch or a fixed runtime error.
