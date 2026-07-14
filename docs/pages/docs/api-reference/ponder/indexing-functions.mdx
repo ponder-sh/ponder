@@ -19,7 +19,7 @@ To register an indexing function, use the `.on(){:ts}` method of the `ponder` ob
 import { ponder } from "ponder:registry";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => { // [!code focus]
-  const { db, chain, client, contracts } = context;
+  const { db, chain, client, contracts, isRealtime } = context;
 
   // ...
 });
@@ -233,8 +233,15 @@ type Context = {
     string,
     { abi: Abi; address?: `0x${string}`; startBlock?: number; endBlock?: number; }
   >;
+  isRealtime: boolean;
 };
 ```
+
+### `isRealtime`
+
+`context.isRealtime` is `true` when the current event is processed by the **live** indexer, and `false` during **historical backfill**. Setup handlers ([`"setup"`](#setup-event)) always see `false`.
+
+Use this when indexing logic should differ between backfill and live (for example, sending webhooks only for new blocks). Note that `true` does **not** mean the indexer is caught up to chain tip—live indexing can still lag behind the remote chain head.
 
 ### Database
 
@@ -337,12 +344,13 @@ A generic type that optionally accepts an event name and returns the `context` o
 import { ponder, type Context } from "ponder:registry";
 
 function helper(context: Context<"Weth:Deposit">) {
-  event;
+  context;
   // ^? {
   //      chain: { name: "mainnet"; id: 1; };
   //      client: ReadonlyClient;
   //      db: { Account: DatabaseModel<{ id: `0x${string}`; balance: bigint; }> };
   //      contracts: { weth9: { abi: ...; address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" } };
+  //      isRealtime: boolean;
   //    }
 }
 ```

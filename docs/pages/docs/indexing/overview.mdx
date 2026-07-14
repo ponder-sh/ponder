@@ -56,3 +56,5 @@ Internally, the indexing engine has two distinct modes – **backfill** and **li
 
 However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
 
+When you need to branch (for example, notify an external service only for live blocks), use [`context.isRealtime`](/docs/api-reference/ponder/indexing-functions#isrealtime) in your handler. It is `false` during backfill and setup, and `true` for events processed by the live indexer. It does not indicate whether you are at chain tip.
+
