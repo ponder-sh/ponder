@@ -19,7 +19,6 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
-import { createTelemetry } from "@/internal/telemetry.js";
 import { buildTable } from "@/ui/app.js";
 import { formatEta } from "@/utils/format.js";
 import type { CliOptions } from "../ponder.js";
@@ -46,12 +45,10 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
 
   const metrics = new MetricsService();
   const shutdown = createShutdown();
-  const telemetry = createTelemetry({ options, logger, shutdown });
   const common = {
     options,
     logger,
     metrics,
-    telemetry,
     shutdown,
     buildShutdown: shutdown,
     apiShutdown: shutdown,

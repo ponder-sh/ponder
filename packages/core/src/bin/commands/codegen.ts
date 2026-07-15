@@ -3,7 +3,6 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
-import { createTelemetry } from "@/internal/telemetry.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -28,23 +27,16 @@ export async function codegen({ cliOptions }: { cliOptions: CliOptions }) {
 
   const metrics = new MetricsService();
   const shutdown = createShutdown();
-  const telemetry = createTelemetry({ options, logger, shutdown });
   const common = {
     options,
     logger,
     metrics,
-    telemetry,
     shutdown,
     buildShutdown: shutdown,
     apiShutdown: shutdown,
   };
 
   const exit = createExit({ common, options });
-
-  telemetry.record({
-    name: "lifecycle:session_start",
-    properties: { cli_command: "codegen" },
-  });
 
   runCodegen({ common });
 

@@ -8,7 +8,6 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
-import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -58,9 +57,6 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     apiShutdown: createShutdown(),
     buildShutdown: createShutdown(),
   } as Common;
-
-  const telemetry = createTelemetry(common);
-  common.telemetry = telemetry;
 
   if (options.version) {
     metrics.ponder_version_info.set(
@@ -319,21 +315,7 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
           return;
         }
 
-        if (isInitialBuild) {
-          isInitialBuild = false;
-
-          telemetry.record({
-            name: "lifecycle:session_start",
-            properties: {
-              cli_command: "dev",
-              ...buildPayload({
-                preBuild: preCompileResult.result,
-                schemaBuild: compileSchemaResult.result,
-                indexingBuild: indexingBuildResult.result,
-              }),
-            },
-          });
-        }
+        isInitialBuild = false;
 
         metrics.resetApiMetrics();
         metrics.ponder_settings_info.set(

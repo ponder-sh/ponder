@@ -67,7 +67,6 @@ export function Footer() {
               >
                 Releases
               </a>
-              <a href="/docs/advanced/telemetry">Telemetry</a>
             </div>
             <div className="flex flex-col gap-3 w-36 md:w-44">
               <h4 className="font-semibold pb-2">Connect</h4>

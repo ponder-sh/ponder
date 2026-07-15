@@ -112,7 +112,6 @@ export const sidebar = {
       text: "Advanced",
       items: [
         { text: "Observability", link: "/docs/advanced/observability" },
-        { text: "Telemetry", link: "/docs/advanced/telemetry" },
       ],
     },
   ],
@@ -244,7 +243,6 @@ export const sidebar = {
       text: "Advanced",
       items: [
         { text: "Observability", link: "/docs/0.15/advanced/observability" },
-        { text: "Telemetry", link: "/docs/0.15/advanced/telemetry" },
       ],
     },
   ],
@@ -372,7 +370,6 @@ export const sidebar = {
       text: "Advanced",
       items: [
         { text: "Observability", link: "/docs/0.14/advanced/observability" },
-        { text: "Telemetry", link: "/docs/0.14/advanced/telemetry" },
       ],
     },
   ],
@@ -499,7 +496,6 @@ export const sidebar = {
       text: "Advanced",
       items: [
         { text: "Observability", link: "/docs/0.12/advanced/observability" },
-        { text: "Telemetry", link: "/docs/0.12/advanced/telemetry" },
       ],
     },
   ],
@@ -626,7 +622,6 @@ export const sidebar = {
       text: "Advanced",
       items: [
         { text: "Observability", link: "/docs/0.11/advanced/observability" },
-        { text: "Telemetry", link: "/docs/0.11/advanced/telemetry" },
       ],
     },
   ],
@@ -752,7 +747,6 @@ export const sidebar = {
       text: "Advanced",
       items: [
         { text: "Observability", link: "/docs/0.10/advanced/observability" },
-        { text: "Telemetry", link: "/docs/0.10/advanced/telemetry" },
       ],
     },
   ],
@@ -931,7 +925,6 @@ const canonicalSubpathsMap0_15: { [key: string]: string | undefined } = {
   "/docs/0.15/api-reference/ponder-react": "/docs/api-reference/ponder-react",
   "/docs/0.15/api-reference/ponder-utils": "/docs/api-reference/ponder-utils",
   "/docs/0.15/advanced/observability": "/docs/advanced/observability",
-  "/docs/0.15/advanced/telemetry": "/docs/advanced/telemetry",
 };
 
 const subpaths0_15 = getNestedSubpaths(sidebar["/docs/0.15/"]);
@@ -990,7 +983,6 @@ const canonicalSubpathsMap0_14: { [key: string]: string | undefined } = {
   "/docs/0.14/api-reference/ponder-react": "/docs/api-reference/ponder-react",
   "/docs/0.14/api-reference/ponder-utils": "/docs/api-reference/ponder-utils",
   "/docs/0.14/advanced/observability": "/docs/advanced/observability",
-  "/docs/0.14/advanced/telemetry": "/docs/advanced/telemetry",
 };
 
 const subpaths0_14 = getNestedSubpaths(sidebar["/docs/0.14/"]);
@@ -1048,7 +1040,6 @@ const canonicalSubpathsMap0_12: { [key: string]: string | undefined } = {
   "/docs/0.12/api-reference/ponder-react": "/docs/api-reference/ponder-react",
   "/docs/0.12/api-reference/ponder-utils": "/docs/api-reference/ponder-utils",
   "/docs/0.12/advanced/observability": "/docs/advanced/observability",
-  "/docs/0.12/advanced/telemetry": "/docs/advanced/telemetry",
 };
 
 const subpaths0_12 = getNestedSubpaths(sidebar["/docs/0.12/"]);
@@ -1106,7 +1097,6 @@ const canonicalSubpathsMap0_11: { [key: string]: string | undefined } = {
   "/docs/0.11/api-reference/ponder-react": "/docs/api-reference/ponder-react",
   "/docs/0.11/api-reference/ponder-utils": "/docs/api-reference/ponder-utils",
   "/docs/0.11/advanced/observability": "/docs/advanced/observability",
-  "/docs/0.11/advanced/telemetry": "/docs/advanced/telemetry",
 };
 
 const subpaths0_11 = getNestedSubpaths(sidebar["/docs/0.11/"]);
@@ -1163,7 +1153,6 @@ const canonicalSubpathsMap0_10: { [key: string]: string | undefined } = {
   "/docs/0.10/api-reference/ponder-react": "/docs/api-reference/ponder-react",
   "/docs/0.10/api-reference/ponder-utils": "/docs/api-reference/ponder-utils",
   "/docs/0.10/advanced/observability": "/docs/advanced/observability",
-  "/docs/0.10/advanced/telemetry": "/docs/advanced/telemetry",
 };
 
 const subpaths0_10 = getNestedSubpaths(sidebar["/docs/0.10/"]);
