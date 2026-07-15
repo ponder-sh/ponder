@@ -175,7 +175,6 @@ export const createIndexingStore = ({
       insert(table: Table) {
         return {
           values: (userValues: any) => {
-            // @ts-expect-error
             const inner = {
               onConflictDoNothing: storeMethodWrapper(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
