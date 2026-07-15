@@ -6,6 +6,7 @@ packages:
   - packages/*
   - tmp/*
 allowBuilds:
+  "@biomejs/biome": true
   esbuild: true
 autoInstallPeers: false
 enablePrePostScripts: true
