@@ -5,6 +5,8 @@ packages:
   - examples/**
   - packages/*
   - tmp/*
+allowBuilds:
+  esbuild: true
 autoInstallPeers: false
 enablePrePostScripts: true
 linkWorkspacePackages: deep
