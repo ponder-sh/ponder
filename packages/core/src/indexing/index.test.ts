@@ -343,7 +343,6 @@ test("processEvent()", async () => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          // @ts-expect-error
           address,
           startBlock: undefined,
           endBlock: undefined,

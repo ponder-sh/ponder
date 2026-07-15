@@ -218,7 +218,6 @@ test("getIntervals() adjacent intervals", async () => {
   await syncStore.insertIntervals({
     intervals: [
       {
-        // @ts-expect-error
         filter: { ...filter, address: undefined },
         interval: [5, 8],
       },

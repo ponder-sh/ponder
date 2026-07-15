@@ -1979,7 +1979,6 @@ test("limit", async () => {
       }
     }
   `);
-  // @ts-expect-error
   expect(result.errors?.[0]?.message).toBe(
     "Invalid limit. Got 1005, expected <=1000.",
   );

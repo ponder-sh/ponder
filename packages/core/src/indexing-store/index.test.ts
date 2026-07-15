@@ -759,7 +759,6 @@ test("missing rows", async () => {
 
     expect(
       await getRejectionValue(
-        // @ts-expect-error
         async () =>
           await indexingStore.db
             .insert(schema.account)

@@ -51,13 +51,6 @@ import {
 } from "viem";
 import packageJson from "../../packages/core/package.json";
 
-assert;
-// biome-ignore lint/complexity/noUselessLoneBlockStatements: Preserve the JSON import assertion workaround.
-{
-  // biome-ignore lint/suspicious/noConfusingLabels: Preserve the JSON import assertion workaround.
-  type: "json";
-}
-
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";

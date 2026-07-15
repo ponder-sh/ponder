@@ -15,13 +15,6 @@ import { default as prompts } from "prompts";
 // @ts-expect-error
 import rootPackageJson from "../package.json";
 
-assert;
-// biome-ignore lint/complexity/noUselessLoneBlockStatements: Preserve the JSON import assertion workaround.
-{
-  // biome-ignore lint/suspicious/noConfusingLabels: Preserve the JSON import assertion workaround.
-  type: "json";
-}
-
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { mergeAbis } from "./helpers/mergeAbis.js";
 import { notifyUpdate } from "./helpers/notifyUpdate.js";
