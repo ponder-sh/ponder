@@ -5,3 +5,7 @@ packages:
   - examples/**
   - packages/*
   - tmp/*
+allowBuilds:
+  '@biomejs/biome': true
+  esbuild: true
+  simple-git-hooks: true

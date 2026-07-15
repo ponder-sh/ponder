@@ -35,7 +35,7 @@
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
   },
-  "packageManager": "pnpm@9.10.0",
+  "packageManager": "pnpm@11.0.0",
   "pnpm": {
     "peerDependencyRules": {
       "ignoreMissing": ["node-fetch"]
