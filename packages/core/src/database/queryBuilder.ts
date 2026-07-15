@@ -324,7 +324,6 @@ export const createQB = <
               Object.assign(tx, { $client: tx.session.client });
 
               // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
-              // @ts-expect-error
               (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
                 if (typeof args[0] === "function") {
                   const [query, context] = args as [
@@ -405,7 +404,6 @@ export const createQB = <
               Object.assign(tx, { $client: tx.session.client });
 
               // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
-              // @ts-expect-error
               (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
                 if (typeof args[0] === "function") {
                   const [query, context] = args as [

@@ -1052,36 +1052,27 @@ const generatePgSnapshot = (
 
   const combinedViews = [...views];
   for (const view of combinedViews) {
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let viewName;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let schema;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let query;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let selectedFields;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let isExisting;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let withOption;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let tablespace;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let using;
-    // @ts-expect-error
     // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let withNoData;
     const materialized: boolean = false;

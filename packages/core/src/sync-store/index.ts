@@ -1476,9 +1476,7 @@ const addressFilter = (
 ): SQL => {
   // `factory` filtering is handled in-memory
   if (isAddressFactory(address)) return sql`true`;
-  // @ts-expect-error
   if (Array.isArray(address)) return inArray(column, address);
-  // @ts-expect-error
   if (typeof address === "string") return eq(column, address);
   return sql`true`;
 };

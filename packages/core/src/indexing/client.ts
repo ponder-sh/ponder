@@ -637,7 +637,6 @@ export const createCachedViemClient = ({
     }
 
     for (const action of retryableActions) {
-      // @ts-expect-error
       actions[action] = getRetryAction(actions[action], action);
     }
 

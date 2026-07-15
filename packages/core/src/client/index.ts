@@ -540,7 +540,6 @@ export const client = ({
             if (_resultHash === resultHash) continue;
             resultHash = _resultHash;
 
-            // @ts-expect-error
             await stream.writeSSE({ data: JSON.stringify(result) });
           } catch {
             stream.abort();

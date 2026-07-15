@@ -403,10 +403,8 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   const schema = globalThis?.PONDER_NAMESPACE_BUILD?.schema;
   const e = pgEnumWithSchema(enumName, values, schema);
 
-  // @ts-expect-error
   e[onchain] = true;
 
-  // @ts-expect-error
   return e;
 };
 

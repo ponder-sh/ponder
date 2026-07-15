@@ -447,7 +447,6 @@ AND checkpoint > '${checkpoint}'`,
   .join(" UNION ALL ")}) AS all_mins;`),
         )
         .then((result) => {
-          // @ts-expect-error
           return result.rows[0]?.operation_id as string | null;
         });
 
@@ -647,7 +646,6 @@ WHERE checkpoint > (
   .join(" UNION ALL ")}) AS all_mins;`),
         )
         .then((result) => {
-          // @ts-expect-error
           return result.rows[0]?.operation_id as string | null;
         });
 

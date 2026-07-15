@@ -168,7 +168,6 @@ export const createClient = <schema extends Schema>(
 
       const onDataListener = async (event: MessageEvent) => {
         try {
-          // @ts-expect-error
           const result = JSON.parse(event.data);
 
           const drizzleShim = drizzle(
@@ -219,7 +218,6 @@ export const createClient = <schema extends Schema>(
                       queryBuilder.schema,
                       // @ts-expect-error
                       queryBuilder.tableConfig,
-                      // @ts-expect-error
                       row,
                       selection,
                       mapColumnValue,

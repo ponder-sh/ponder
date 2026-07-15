@@ -812,7 +812,6 @@ export const syncTransactionToInternal = ({
                 : undefined,
             }
           : {
-              // @ts-expect-error
               type: transaction.type,
             }),
 });

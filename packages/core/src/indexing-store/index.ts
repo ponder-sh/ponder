@@ -160,7 +160,6 @@ export const createIndexingStore = ({
 
   return {
     db: {
-      // @ts-expect-error
       find: storeMethodWrapper(async (table: Table, key) => {
         common.metrics.ponder_indexing_store_queries_total.inc({
           table: getTableName(table),
@@ -547,7 +546,6 @@ export const createIndexingStore = ({
           }),
         };
       },
-      // @ts-expect-error
       delete: storeMethodWrapper(async (table: Table, key) => {
         common.metrics.ponder_indexing_store_queries_total.inc({
           table: getTableName(table),

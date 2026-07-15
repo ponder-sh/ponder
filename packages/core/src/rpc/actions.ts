@@ -1301,7 +1301,6 @@ export const standardizeTransactionReceipts = (
       receipt.root = zeroHash;
     }
     if (receipt.type === undefined) {
-      // @ts-expect-error
       receipt.type = "0x0";
     }
 
