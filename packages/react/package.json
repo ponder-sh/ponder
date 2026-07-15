@@ -43,7 +43,7 @@
     "@ponder/client": ">=0.16.10",
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18",
-    "typescript": ">=5.0.4"
+    "typescript": ">=5.4.0"
   },
   "peerDependenciesMeta": {
     "typescript": {

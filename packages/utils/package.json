@@ -39,7 +39,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.4",
+    "typescript": ">=5.4.0",
     "viem": ">=2.35"
   },
   "peerDependenciesMeta": {

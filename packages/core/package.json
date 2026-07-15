@@ -46,7 +46,7 @@
   },
   "peerDependencies": {
     "hono": ">=4.5",
-    "typescript": ">=5.0.4",
+    "typescript": ">=5.4.0",
     "viem": ">=2.35"
   },
   "peerDependenciesMeta": {
