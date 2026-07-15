@@ -14,7 +14,7 @@
     "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "2.5.4",
     "@changesets/changelog-github": "0.7.0",
     "@changesets/cli": "2.31.0",
     "drizzle-kit": "^0.30.6",
