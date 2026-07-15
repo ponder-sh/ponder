@@ -30,9 +30,10 @@ export function usePonderQuery<
 
   const client = usePonderClient();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: client identity is not expected to change.
   const queryOptions = useMemo(
     () => getPonderQueryOptions(client, params.queryFn),
-    [client, params.queryFn],
+    [params.queryFn],
   );
 
   useEffect(() => {
