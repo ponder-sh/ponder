@@ -5,3 +5,7 @@ packages:
   - examples/**
   - packages/*
   - tmp/*
+autoInstallPeers: false
+enablePrePostScripts: true
+linkWorkspacePackages: deep
+strictPeerDependencies: false

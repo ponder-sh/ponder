@@ -9,7 +9,7 @@
     "format": "biome format . --write",
     "lint": "biome check .",
     "lint:fix": "pnpm lint --write",
-    "prepare": "npx simple-git-hooks",
+    "prepare": "simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
     "test:bun": "pnpm --parallel --no-bail test:bun",
     "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
@@ -33,14 +33,9 @@
     "!(*.ts)": ["biome format --no-errors-on-unmatched --write"]
   },
   "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
+    "pre-commit": "pnpm lint-staged"
   },
-  "packageManager": "pnpm@9.10.0",
-  "pnpm": {
-    "peerDependencyRules": {
-      "ignoreMissing": ["node-fetch"]
-    }
-  },
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=18.14"
   }
