@@ -6,7 +6,7 @@
     "start": "tsx src/index.ts"
   },
   "engines": {
-    "node": ">=18.14"
+    "node": ">=22"
   },
   "dependencies": {
     "@ponder/client": "workspace:*"
