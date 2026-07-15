@@ -2,7 +2,7 @@ import { createConfig } from "ponder";
 import { erc20ABI } from "./abis/erc20ABI";
 
 export default createConfig({
-  // @ts-ignore
+  // @ts-expect-error
   ordering: process.env.ORDERING,
   database: {
     kind: "postgres",

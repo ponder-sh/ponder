@@ -1,7 +1,7 @@
-import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
-import type { LogFactory, LogFilter } from "@/internal/types.js";
 import type { Hex } from "viem";
 import { expect, test } from "vitest";
+import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
+import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { isFilterInBloom, isInBloom } from "./bloom.js";
 
 test("isInBloom", () => {

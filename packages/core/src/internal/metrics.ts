@@ -1,11 +1,11 @@
-import { type Worker, parentPort } from "node:worker_threads";
+import { parentPort, type Worker } from "node:worker_threads";
+import { getTableName, isTable } from "drizzle-orm";
+import prometheus from "prom-client";
 import {
   type PromiseWithResolvers,
   promiseWithResolvers,
 } from "@/utils/promiseWithResolvers.js";
 import { truncate } from "@/utils/truncate.js";
-import { getTableName, isTable } from "drizzle-orm";
-import prometheus from "prom-client";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "./types.js";
 
 const sometimesIODurationMs = [
@@ -970,7 +970,7 @@ function calculateEta(
     0,
   );
 
-  let eta: number | undefined = undefined;
+  let eta: number | undefined;
 
   if (completedSeconds > 0) {
     const currentTimestamp = Date.now();

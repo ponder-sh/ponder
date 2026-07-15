@@ -1,4 +1,8 @@
 import path from "node:path";
+import { createClient } from "@ponder/client";
+import { rimrafSync } from "rimraf";
+import { parseEther, zeroAddress } from "viem";
+import { beforeEach, expect, test } from "vitest";
 import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
@@ -8,10 +12,6 @@ import {
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
-import { createClient } from "@ponder/client";
-import { rimrafSync } from "rimraf";
-import { parseEther, zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
 import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "erc20");

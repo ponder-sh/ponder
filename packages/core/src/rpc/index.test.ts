@@ -1,8 +1,8 @@
+import { beforeEach, expect, test, vi } from "vitest";
 import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import { simulateBlock } from "@/_test/simulate.js";
 import { getChain } from "@/_test/utils.js";
 import { wait } from "@/utils/wait.js";
-import { beforeEach, expect, test, vi } from "vitest";
 import { createRpc } from "./index.js";
 
 beforeEach(setupCommon);

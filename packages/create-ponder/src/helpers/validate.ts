@@ -42,7 +42,9 @@ export async function validateProjectName({
 
 export async function validateProjectPath({
   projectPath,
-}: { projectPath: string }): Promise<ValidationResult> {
+}: {
+  projectPath: string;
+}): Promise<ValidationResult> {
   // Validate project target path
   if (await pathExists(projectPath))
     return {

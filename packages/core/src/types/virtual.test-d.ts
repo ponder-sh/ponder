@@ -1,7 +1,7 @@
-import { createConfig } from "@/config/index.js";
-import { onchainTable } from "@/drizzle/onchain.js";
 import { type Abi, type Address, type Hex, parseAbiItem } from "viem";
 import { assertType, test } from "vitest";
+import { createConfig } from "@/config/index.js";
+import { onchainTable } from "@/drizzle/onchain.js";
 import type { Db } from "./db.js";
 import type {
   Block,

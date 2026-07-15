@@ -4,16 +4,15 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import Conf from "conf";
+import { detect, getNpmVersion, type PM } from "detect-package-manager";
 import type { Options } from "@/internal/options.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
-import Conf from "conf";
-import { type PM, detect, getNpmVersion } from "detect-package-manager";
 import { ShutdownError } from "./errors.js";
 import type { Logger } from "./logger.js";
 import type { Shutdown } from "./shutdown.js";
-import type { IndexingBuild } from "./types.js";
-import type { PreBuild, SchemaBuild } from "./types.js";
+import type { IndexingBuild, PreBuild, SchemaBuild } from "./types.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -67,7 +66,11 @@ export function createTelemetry({
   options,
   logger,
   shutdown,
-}: { options: Options; logger: Logger; shutdown: Shutdown }) {
+}: {
+  options: Options;
+  logger: Logger;
+  shutdown: Shutdown;
+}) {
   if (options.telemetryDisabled) {
     return {
       record: (_event: TelemetryEvent) => {},
@@ -153,7 +156,7 @@ export function createTelemetry({
     };
   };
 
-  let context: Awaited<ReturnType<typeof buildContext>> | undefined = undefined;
+  let context: Awaited<ReturnType<typeof buildContext>> | undefined;
   const contextPromise = buildContext();
 
   const queue = createQueue({
@@ -233,7 +236,7 @@ async function getPackageManager() {
   try {
     packageManager = await detect();
     packageManagerVersion = await getNpmVersion(packageManager);
-  } catch (e) {}
+  } catch (_e) {}
   return { packageManager, packageManagerVersion };
 }
 
@@ -271,7 +274,7 @@ function getPackageJson(rootDir: string) {
     const packageJson = JSON.parse(packageJsonString) as PackageJson;
 
     return packageJson;
-  } catch (e) {
+  } catch (_e) {
     return undefined;
   }
 }

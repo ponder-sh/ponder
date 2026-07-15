@@ -1,16 +1,6 @@
-import type { QB } from "@/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import type { OnchainTable } from "@/drizzle/onchain.js";
-import { normalizeColumn } from "@/indexing-store/utils.js";
-import type { Schema, Status } from "@/internal/types.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
-import { never } from "@/utils/never.js";
 import DataLoader from "dataloader";
 import type { Column, TableRelationalConfig } from "drizzle-orm";
 import {
-  Many,
-  One,
-  SQL,
   and,
   arrayContained,
   arrayContains,
@@ -31,14 +21,20 @@ import {
   like,
   lt,
   lte,
+  Many,
   ne,
   not,
   notIlike,
   notInArray,
   notLike,
+  One,
   or,
+  SQL,
 } from "drizzle-orm";
 import {
+  getViewConfig,
+  isPgEnum,
+  isPgView,
   PgBigInt53,
   type PgColumn,
   type PgEnum,
@@ -47,9 +43,6 @@ import {
   PgSerial,
   type PgTable,
   PgView,
-  getViewConfig,
-  isPgEnum,
-  isPgView,
 } from "drizzle-orm/pg-core";
 import {
   GraphQLBoolean,
@@ -71,6 +64,13 @@ import {
   GraphQLString,
 } from "graphql";
 import superjson from "superjson";
+import type { QB } from "@/database/queryBuilder.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import type { OnchainTable } from "@/drizzle/onchain.js";
+import { normalizeColumn } from "@/indexing-store/utils.js";
+import type { Schema, Status } from "@/internal/types.js";
+import { decodeCheckpoint } from "@/utils/checkpoint.js";
+import { never } from "@/utils/never.js";
 import { GraphQLJSON } from "./json.js";
 
 type Parent = Record<string, any>;
@@ -94,7 +94,9 @@ const MAX_LIMIT = 1000 as const;
 
 export function buildGraphQLSchema({
   schema,
-}: { schema: Schema }): GraphQLSchema {
+}: {
+  schema: Schema;
+}): GraphQLSchema {
   const tablesConfig = extractTablesRelationalConfig(
     schema,
     createTableRelationsHelpers,

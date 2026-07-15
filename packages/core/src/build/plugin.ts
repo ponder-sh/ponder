@@ -1,5 +1,5 @@
-import type { Common } from "@/internal/common.js";
 import type { Plugin } from "vite";
+import type { Common } from "@/internal/common.js";
 
 const virtualModule = () => `export const ponder = {
   fns: [],

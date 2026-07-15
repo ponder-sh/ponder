@@ -1,7 +1,7 @@
-import type { Prettify } from "@/types/utils.js";
-import { formatEta } from "@/utils/format.js";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
+import type { Prettify } from "@/types/utils.js";
+import { formatEta } from "@/utils/format.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
@@ -55,7 +55,10 @@ const INTERNAL_KEYS = [
 export function createLogger({
   level,
   mode = "pretty",
-}: { level: LogLevel; mode?: LogMode }) {
+}: {
+  level: LogLevel;
+  mode?: LogMode;
+}) {
   const stream: DestinationStream = {
     write(logString: string) {
       const log = JSON.parse(logString) as Log;
@@ -71,7 +74,7 @@ export function createLogger({
         printKeys?: (keyof T)[],
       ) {
         if (mode === "pretty" && printKeys) {
-          // @ts-ignore
+          // @ts-expect-error
           options[PRINT_KEYS] = printKeys;
         }
         logger.error(options);
@@ -81,7 +84,7 @@ export function createLogger({
         printKeys?: (keyof T)[],
       ) {
         if (mode === "pretty" && printKeys) {
-          // @ts-ignore
+          // @ts-expect-error
           options[PRINT_KEYS] = printKeys;
         }
         logger.warn(options);
@@ -91,7 +94,7 @@ export function createLogger({
         printKeys?: (keyof T)[],
       ) {
         if (mode === "pretty" && printKeys) {
-          // @ts-ignore
+          // @ts-expect-error
           options[PRINT_KEYS] = printKeys;
         }
         logger.info(options);
@@ -101,7 +104,7 @@ export function createLogger({
         printKeys?: (keyof T)[],
       ) {
         if (mode === "pretty" && printKeys) {
-          // @ts-ignore
+          // @ts-expect-error
           options[PRINT_KEYS] = printKeys;
         }
         logger.debug(options);
@@ -111,7 +114,7 @@ export function createLogger({
         printKeys?: (keyof T)[],
       ) {
         if (mode === "pretty" && printKeys) {
-          // @ts-ignore
+          // @ts-expect-error
           options[PRINT_KEYS] = printKeys;
         }
         logger.trace(options);
@@ -124,7 +127,7 @@ export function createLogger({
 
   const errorSerializer = pino.stdSerializers.wrapErrorSerializer((error) => {
     error.meta = Array.isArray(error.meta) ? error.meta.join("\n") : error.meta;
-    // @ts-ignore
+    // @ts-expect-error
     error.type = undefined;
     return error;
   });

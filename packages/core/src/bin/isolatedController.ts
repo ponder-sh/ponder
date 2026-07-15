@@ -2,6 +2,7 @@ import path from "node:path";
 import url from "node:url";
 import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
+import { isTable, isView, sql } from "drizzle-orm";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
@@ -21,7 +22,6 @@ import { runIsolated } from "@/runtime/isolated.js";
 import { chunk } from "@/utils/chunk.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import { startClock } from "@/utils/timer.js";
-import { isTable, isView, sql } from "drizzle-orm";
 import type { isolatedWorker } from "./isolatedWorker.js";
 
 const __filename = url.fileURLToPath(import.meta.url);

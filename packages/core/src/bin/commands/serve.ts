@@ -1,12 +1,12 @@
+import { eq } from "drizzle-orm";
 import { createBuild } from "@/build/index.js";
-import { SCHEMATA, createDatabase } from "@/database/index.js";
+import { createDatabase, SCHEMATA } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildPayload, createTelemetry } from "@/internal/telemetry.js";
 import { createServer } from "@/server/index.js";
-import { eq } from "drizzle-orm";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 

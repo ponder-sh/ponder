@@ -205,9 +205,17 @@ function VersionPickerDesktop() {
                   },
                 )}
               >
-                <Link to={getBestSubpathForVersion(subpath, activeVersion.key, toVersion.key)}>
+                <Link
+                  to={getBestSubpathForVersion(
+                    subpath,
+                    activeVersion.key,
+                    toVersion.key,
+                  )}
+                >
                   <div className="flex flex-col items-start gap-1 leading-tight">
-                    <span className="vocs_Sidebar_sectionTitle">{toVersion.label}</span>
+                    <span className="vocs_Sidebar_sectionTitle">
+                      {toVersion.label}
+                    </span>
                     <span className="text-[11px] text-[var(--vocs-color_text3)]">
                       {toVersion.patch}
                     </span>
@@ -234,7 +242,11 @@ function VersionPickerMobile() {
     <div className="pt-2 flex flex-col">
       {versions.map((toVersion) => (
         <Link
-          to={getBestSubpathForVersion(subpath, activeVersion.key, toVersion.key)}
+          to={getBestSubpathForVersion(
+            subpath,
+            activeVersion.key,
+            toVersion.key,
+          )}
           key={toVersion.prefix}
           className={cn(
             "flex flex-row items-center justify-between",
@@ -249,7 +261,9 @@ function VersionPickerMobile() {
               {toVersion.patch}
             </span>
           </div>
-          {toVersion.label === activeVersion.label && <CheckIcon className="w-4 h-4" />}
+          {toVersion.label === activeVersion.label && (
+            <CheckIcon className="w-4 h-4" />
+          )}
         </Link>
       ))}
     </div>
@@ -264,8 +278,17 @@ function OutdatedVersionCallout() {
 
   if (activeVersion === undefined || activeVersion.isLatest) return null;
 
-  const latestHref = getCanonicalSubpath(pathname)
-  const latestAnchorTag = latestHref ? <> Visit the <a className="vocs_Anchor" href={latestHref}>latest version</a> of this page.</> : null
+  const latestHref = getCanonicalSubpath(pathname);
+  const latestAnchorTag = latestHref ? (
+    <>
+      {" "}
+      Visit the{" "}
+      <a className="vocs_Anchor" href={latestHref}>
+        latest version
+      </a>{" "}
+      of this page.
+    </>
+  ) : null;
 
   return (
     <aside className="vocs_Aside vocs_Callout vocs_Callout_warning">
@@ -287,8 +310,8 @@ function OutdatedVersionCallout() {
         </svg>
       </div>
       <div className="vocs_Callout_content">
-      <p className="vocs_Paragraph">
-          You are viewing the documentation for an outdated version of Ponder.{' '}
+        <p className="vocs_Paragraph">
+          You are viewing the documentation for an outdated version of Ponder.{" "}
           {latestAnchorTag}
         </p>
       </div>

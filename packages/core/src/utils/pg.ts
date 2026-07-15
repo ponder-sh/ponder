@@ -1,6 +1,6 @@
-import type { Logger } from "@/internal/logger.js";
 import pg, { type PoolConfig } from "pg";
 import parse from "pg-connection-string";
+import type { Logger } from "@/internal/logger.js";
 
 // The default parser for numeric[] (1231) seems to parse values as Number
 // or perhaps through JSON.parse(). Use the int8[] (1016) parser instead,

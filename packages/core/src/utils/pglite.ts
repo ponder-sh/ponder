@@ -1,5 +1,4 @@
 import { mkdirSync } from "node:fs";
-import type { Prettify } from "@/types/utils.js";
 import { type PGliteOptions as Options, PGlite } from "@electric-sql/pglite";
 import {
   CompiledQuery,
@@ -12,6 +11,7 @@ import {
   type QueryResult,
   type TransactionSettings,
 } from "kysely";
+import type { Prettify } from "@/types/utils.js";
 
 export type PGliteOptions = Prettify<Options & { dataDir: string }>;
 
@@ -90,7 +90,7 @@ class PGliteConnection implements DatabaseConnection {
     ]);
   }
 
-  // biome-ignore lint/correctness/useYield: <explanation>
+  // biome-ignore lint/correctness/useYield: PGlite never streams, but the interface requires this method.
   async *streamQuery(): AsyncGenerator<never, void, unknown> {
     throw new Error("PGlite does not support streaming.");
   }

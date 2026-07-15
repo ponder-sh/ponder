@@ -1,6 +1,6 @@
-import { eq, onchainTable, relations } from "@/index.js";
 import { createClient } from "@ponder/client";
 import { expect, test } from "vitest";
+import { eq, onchainTable, relations } from "@/index.js";
 import {
   getSQLQueryRelations,
   parseSQLQuery,

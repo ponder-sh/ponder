@@ -1,5 +1,5 @@
-import { context, setupCommon } from "@/_test/setup.js";
 import { beforeEach, expect, test } from "vitest";
+import { context, setupCommon } from "@/_test/setup.js";
 import { getNextAvailablePort } from "./port.js";
 
 beforeEach(setupCommon);

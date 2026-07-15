@@ -1,20 +1,13 @@
 import {
-  PONDER_CHECKPOINT_TABLE_NAME,
-  PONDER_META_TABLE_NAME,
-} from "@/database/index.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import { getSql } from "@/drizzle/kit/index.js";
-import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
-import { BuildError } from "@/internal/errors.js";
-import type { PreBuild, Schema } from "@/internal/types.js";
-import {
-  SQL,
   getTableColumns,
   getTableName,
   getViewName,
   is,
+  SQL,
 } from "drizzle-orm";
 import {
+  getTableConfig,
+  getViewConfig,
   PgBigSerial53,
   PgBigSerial64,
   PgColumn,
@@ -23,14 +16,24 @@ import {
   PgSmallSerial,
   PgTable,
   PgView,
-  getTableConfig,
-  getViewConfig,
 } from "drizzle-orm/pg-core";
+import {
+  PONDER_CHECKPOINT_TABLE_NAME,
+  PONDER_META_TABLE_NAME,
+} from "@/database/index.js";
+import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import { getSql } from "@/drizzle/kit/index.js";
+import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
+import { BuildError } from "@/internal/errors.js";
+import type { PreBuild, Schema } from "@/internal/types.js";
 
 export const buildSchema = ({
   schema,
   preBuild,
-}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
+}: {
+  schema: Schema;
+  preBuild: Pick<PreBuild, "ordering">;
+}) => {
   const statements = getSql(schema);
 
   const tableNames = new Set<string>();
@@ -331,7 +334,10 @@ export const buildSchema = ({
 export const safeBuildSchema = ({
   schema,
   preBuild,
-}: { schema: Schema; preBuild: Pick<PreBuild, "ordering"> }) => {
+}: {
+  schema: Schema;
+  preBuild: Pick<PreBuild, "ordering">;
+}) => {
   try {
     const result = buildSchema({ schema, preBuild });
 

@@ -30,10 +30,9 @@ export function usePonderQuery<
 
   const client = usePonderClient();
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   const queryOptions = useMemo(
     () => getPonderQueryOptions(client, params.queryFn),
-    [params.queryFn],
+    [client, params.queryFn],
   );
 
   useEffect(() => {

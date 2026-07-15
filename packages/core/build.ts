@@ -52,7 +52,9 @@ async function build() {
       .trim()
       .split("\n")
       .filter(Boolean)
-      .forEach((line) => log.tsc(line));
+      .forEach((line) => {
+        log.tsc(line);
+      });
 
     if (tscResult.exitCode !== 0) {
       log.error("Build failed");

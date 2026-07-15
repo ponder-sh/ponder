@@ -1,4 +1,4 @@
-import { type Transport, type TransportConfig, createTransport } from "viem";
+import { createTransport, type Transport, type TransportConfig } from "viem";
 import { createQueue } from "./utils/queue.js";
 
 /**
@@ -22,10 +22,7 @@ export const rateLimit = (
       concurrency: Math.ceil(requestsPerSecond / 4),
       initialStart: true,
       browser,
-      worker: (body: {
-        method: string;
-        params?: unknown;
-      }) => {
+      worker: (body: { method: string; params?: unknown }) => {
         return transport.request(body);
       },
     });

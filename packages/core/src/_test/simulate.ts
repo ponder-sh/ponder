@@ -1,3 +1,13 @@
+import {
+  type Address,
+  createWalletClient,
+  encodeFunctionData,
+  encodeFunctionResult,
+  type Hex,
+  http,
+  multicall3Abi,
+  numberToHex,
+} from "viem";
 import type {
   SyncBlock,
   SyncLog,
@@ -6,16 +16,6 @@ import type {
   SyncTransactionReceipt,
 } from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import {
-  http,
-  type Address,
-  type Hex,
-  createWalletClient,
-  encodeFunctionData,
-  encodeFunctionResult,
-  multicall3Abi,
-  numberToHex,
-} from "viem";
 import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json";
 import FactoryBytecode from "./contracts/out/Factory.sol/Factory.json";
 import RevertBytecode from "./contracts/out/Revert.sol/Revert.json";
@@ -23,7 +23,9 @@ import { erc20ABI, factoryABI, pairABI, revertABI } from "./generated.js";
 import { anvil, publicClient, testClient } from "./utils.js";
 
 /** Deploy Erc20 contract and mine block. */
-export const deployErc20 = async (params: { sender: Address }): Promise<{
+export const deployErc20 = async (params: {
+  sender: Address;
+}): Promise<{
   address: Address;
 }> => {
   const walletClient = createWalletClient({
@@ -47,7 +49,9 @@ export const deployErc20 = async (params: { sender: Address }): Promise<{
 };
 
 /** Deploy Factory contract and mine block. */
-export const deployFactory = async (params: { sender: Address }): Promise<{
+export const deployFactory = async (params: {
+  sender: Address;
+}): Promise<{
   address: Address;
 }> => {
   const walletClient = createWalletClient({
@@ -70,7 +74,9 @@ export const deployFactory = async (params: { sender: Address }): Promise<{
 };
 
 /** Deploy Revert contract and mine block. */
-export const deployRevert = async (params: { sender: Address }): Promise<{
+export const deployRevert = async (params: {
+  sender: Address;
+}): Promise<{
   address: Address;
 }> => {
   const walletClient = createWalletClient({
@@ -92,7 +98,9 @@ export const deployRevert = async (params: { sender: Address }): Promise<{
   return { address: contractAddress! };
 };
 
-export const deployMulticall = async (params: { sender: Address }): Promise<{
+export const deployMulticall = async (params: {
+  sender: Address;
+}): Promise<{
   address: Address;
 }> => {
   const walletClient = createWalletClient({

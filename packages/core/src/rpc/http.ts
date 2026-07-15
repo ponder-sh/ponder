@@ -1,6 +1,4 @@
 import { URL } from "node:url";
-import type { Common } from "@/internal/common.js";
-import type { Chain } from "@/internal/types.js";
 import { HttpRequestError, RpcRequestError, TimeoutError } from "viem";
 import {
   type HttpRequestParameters,
@@ -8,6 +6,8 @@ import {
   type HttpRpcClientOptions,
   stringify,
 } from "viem/utils";
+import type { Common } from "@/internal/common.js";
+import type { Chain } from "@/internal/types.js";
 
 export type RpcRequest = {
   jsonrpc?: "2.0" | undefined;
@@ -31,7 +31,7 @@ export function getHttpRpcClient(
   let id = 1;
   return {
     async request(params) {
-      // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
+      // biome-ignore lint/suspicious/noAsyncPromiseExecutor: The Promise executor intentionally wraps async request handling.
       return new Promise(async (resolve, reject) => {
         let isTimeoutRejected = false;
         const { body } = params;
@@ -56,7 +56,7 @@ export function getHttpRpcClient(
               chain: chain.name,
               chain_id: chain.id,
               hostname: new URL(url).hostname,
-              // @ts-ignore
+              // @ts-expect-error
               request_id: headers ? headers["X-Request-ID"] : undefined,
               method: body.method,
               request: JSON.stringify(body),
@@ -85,7 +85,11 @@ export function getHttpRpcClient(
           const request = new Request(url, init);
           const response = await fetch(request);
 
-          reader = response.body?.getReader()!;
+          const responseBody = response.body;
+          if (responseBody === null) {
+            throw new Error("Response body is missing.");
+          }
+          reader = responseBody.getReader();
           const chunks: Uint8Array[] = [];
           let totalLength = 0;
 

@@ -21,6 +21,6 @@ export const mergeResults = <const T extends readonly Result<unknown>[]>(
     }
   }
 
-  // @ts-ignore
+  // @ts-expect-error
   return { status: "success", result: results.map((result) => result.result) };
 };

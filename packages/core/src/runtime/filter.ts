@@ -1,3 +1,4 @@
+import { type Address, hexToNumber } from "viem";
 import type {
   BlockFilter,
   Factory,
@@ -30,7 +31,6 @@ import type {
   TransactionReceipt,
 } from "@/types/eth.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { type Address, hexToNumber } from "viem";
 
 /** Returns true if `address` is an address filter. */
 export const isAddressFactory = (
@@ -49,7 +49,10 @@ export const isAddressFactory = (
 export const getChildAddress = ({
   log,
   factory,
-}: { log: SyncLog; factory: Factory }): Address => {
+}: {
+  log: SyncLog;
+  factory: Factory;
+}): Address => {
   if (factory.childAddressLocation.startsWith("offset")) {
     const childAddressOffset = Number(
       factory.childAddressLocation.substring(6),
@@ -121,7 +124,10 @@ const isValueMatched = <T extends string>(
 export const isLogFactoryMatched = ({
   factory,
   log,
-}: { factory: LogFactory; log: InternalLog | SyncLog }): boolean => {
+}: {
+  factory: LogFactory;
+  log: InternalLog | SyncLog;
+}): boolean => {
   if (factory.address !== undefined) {
     const addresses = Array.isArray(factory.address)
       ? factory.address

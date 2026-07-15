@@ -1,3 +1,16 @@
+import {
+  type Abi,
+  type AbiEvent,
+  type AbiFunction,
+  type Address,
+  BlockNotFoundError,
+  type Hex,
+  hexToNumber,
+  type LogTopic,
+  numberToHex,
+  toEventSelector,
+  toFunctionSelector,
+} from "viem";
 import type { Factory } from "@/config/address.js";
 import type { Config } from "@/config/index.js";
 import type { Common } from "@/internal/common.js";
@@ -19,7 +32,7 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import { type Rpc, createRpc } from "@/rpc/index.js";
+import { createRpc, type Rpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -33,19 +46,6 @@ import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { getFinalityBlockCount } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import {
-  type Abi,
-  type AbiEvent,
-  type AbiFunction,
-  type Address,
-  BlockNotFoundError,
-  type Hex,
-  type LogTopic,
-  hexToNumber,
-  numberToHex,
-  toEventSelector,
-  toFunctionSelector,
-} from "viem";
 import { buildLogFactory } from "./factory.js";
 
 const flattenSources = <
@@ -966,7 +966,10 @@ export async function buildIndexingFunctions({
 export function buildConfig({
   common,
   config,
-}: { common: Common; config: Config }): {
+}: {
+  common: Common;
+  config: Config;
+}): {
   chains: Chain[];
   rpcs: Rpc[];
   logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
@@ -1123,7 +1126,10 @@ export async function safeBuildIndexingFunctions({
 export function safeBuildConfig({
   common,
   config,
-}: { common: Common; config: Config }) {
+}: {
+  common: Common;
+  config: Config;
+}) {
   try {
     const result = buildConfig({ common, config });
 

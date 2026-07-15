@@ -1,4 +1,4 @@
-import { type Transport, type TransportConfig, createTransport } from "viem";
+import { createTransport, type Transport, type TransportConfig } from "viem";
 
 /**
  * @description Creates a load balanced transport that spreads requests between child transports using a round robin algorithm.

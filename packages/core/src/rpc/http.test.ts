@@ -1,9 +1,9 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { context, setupCommon } from "@/_test/setup.js";
-import { getChain } from "@/_test/utils.js";
 import { TimeoutError } from "viem";
 import { beforeEach, expect, test } from "vitest";
+import { context, setupCommon } from "@/_test/setup.js";
+import { getChain } from "@/_test/utils.js";
 import { getHttpRpcClient } from "./http.js";
 
 beforeEach(setupCommon);

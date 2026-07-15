@@ -9,7 +9,7 @@ test("usePonderQuery", () => {
   });
 
   if (use.isSuccess) {
-    // @ts-ignore
+    // @ts-expect-error
     type _ = typeof use.data;
     //   ^?
   }

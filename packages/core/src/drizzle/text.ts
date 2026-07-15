@@ -2,9 +2,9 @@ import {
   type ColumnBaseConfig,
   type ColumnBuilderBaseConfig,
   type ColumnBuilderRuntimeConfig,
-  type MakeColumnConfig,
   entityKind,
   getTableName,
+  type MakeColumnConfig,
 } from "drizzle-orm";
 import {
   type AnyPgTable,
@@ -36,7 +36,7 @@ export class PgTextBuilder<
   }
 
   /** @internal */
-  // @ts-ignore
+  // @ts-expect-error
   override build<TTableName extends string>(
     table: AnyPgTable<{ name: TTableName }>,
   ): PgText<MakeColumnConfig<T, TTableName>> {

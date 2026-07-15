@@ -23,7 +23,8 @@
   --vocs-sidebar_width: 260px;
   /* Default: 70ch */
   --vocs-content_width: calc(
-    74ch + (var(--vocs-content_horizontalPadding) * 2)
+    74ch +
+    (var(--vocs-content_horizontalPadding) * 2)
   );
 }
 :root.dark {
@@ -31,18 +32,15 @@
   --vocs-sidebar_width: 260px;
   /* Default: 70ch */
   --vocs-content_width: calc(
-    74ch + (var(--vocs-content_horizontalPadding) * 2)
+    74ch +
+    (var(--vocs-content_horizontalPadding) * 2)
   );
 }
 
 /* HERO TEXTURE */
 .hero-texture {
   background:
-    radial-gradient(
-      91.96% 91.96% at 50% 91.96%,
-      rgba(0, 0, 0, 0) 0%,
-      #fff 100%
-    ),
+    radial-gradient(91.96% 91.96% at 50% 91.96%, rgba(0, 0, 0, 0) 0%, #fff 100%),
     url("/hero.png") lightgray 50% / cover no-repeat;
 }
 .dark .hero-texture {
@@ -60,9 +58,11 @@
   height: 28%; /* Default: 50% */
 }
 .vocs_DesktopTopNav_logo > a {
+  /* biome-ignore lint/complexity/noImportantStyles: override Vocs defaults */
   margin-top: 1.5px !important;
 }
 .vocs_Sidebar_logo {
+  /* biome-ignore lint/complexity/noImportantStyles: override Vocs defaults */
   padding-top: 2px !important;
   padding-bottom: 2px;
 }

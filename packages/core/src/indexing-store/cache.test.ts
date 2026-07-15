@@ -1,3 +1,5 @@
+import { parseEther, zeroAddress } from "viem";
+import { beforeEach, expect, test } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
   context,
@@ -13,8 +15,6 @@ import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import { getEventCount } from "@/indexing/index.js";
 import type { RetryableError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
-import { parseEther, zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache, getCopyText } from "./cache.js";
 import { createIndexingStore } from "./index.js";
 
@@ -500,7 +500,7 @@ test("prefetch() uses profile metadata", async () => {
       })
       .onConflictDoNothing();
 
-    // @ts-ignore
+    // @ts-expect-error
     event.event.args.to = BOB;
 
     await indexingCache.flush();

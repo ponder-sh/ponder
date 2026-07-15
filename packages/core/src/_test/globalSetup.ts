@@ -49,11 +49,11 @@ async function globalSetup() {
 }
 
 function resetPonderGlobals() {
-  // @ts-ignore
+  // @ts-expect-error
   globalThis.PONDER_DATABASE = undefined;
-  // @ts-ignore
+  // @ts-expect-error
   globalThis.PONDER_NAMESPACE_BUILD = undefined;
-  // @ts-ignore
+  // @ts-expect-error
   globalThis.PONDER_INDEXING_BUILD = undefined;
 }
 

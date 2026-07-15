@@ -71,7 +71,7 @@ const possibleContractFilters = [
 
 export default process.env.SEED
   ? createConfig({
-      // @ts-ignore
+      // @ts-expect-error
       ordering: process.env.ORDERING,
       database: {
         kind: "postgres",

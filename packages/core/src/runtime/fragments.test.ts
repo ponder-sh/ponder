@@ -1,3 +1,5 @@
+import { zeroHash } from "viem";
+import { expect, test } from "vitest";
 import {
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,
@@ -6,8 +8,6 @@ import {
   EMPTY_TRANSFER_FILTER,
 } from "@/_test/constants.js";
 import type { Filter } from "@/internal/types.js";
-import { zeroHash } from "viem";
-import { expect, test } from "vitest";
 import {
   decodeFragment,
   encodeFragment,

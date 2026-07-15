@@ -2,9 +2,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Prettify } from "@/types/utils.js";
 import { Command } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
+import type { Prettify } from "@/types/utils.js";
 import { codegen } from "./commands/codegen.js";
 import { createViews } from "./commands/createViews.js";
 import { dev } from "./commands/dev.js";

@@ -7,7 +7,7 @@ import { FileStoreFrontendAbi } from "../abis/FileStoreFrontendAbi";
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
     return JSON.parse(encodedJson);
-  } catch (e) {
+  } catch {
     return defaultValue;
   }
 };

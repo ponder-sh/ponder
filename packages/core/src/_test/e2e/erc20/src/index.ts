@@ -5,11 +5,11 @@ declare const ponder: import("@/index.js").Virtual.Registry<
 
 declare const schema: typeof import("../ponder.schema.js");
 
-// @ts-ignore
-// biome-ignore lint/suspicious/noRedeclare: <explanation>
+// @ts-expect-error
+// biome-ignore lint/suspicious/noRedeclare: Generated registry imports intentionally shadow the local declarations.
 import { ponder } from "ponder:registry";
-// @ts-ignore
-// biome-ignore lint/suspicious/noRedeclare: <explanation>
+// @ts-expect-error
+// biome-ignore lint/suspicious/noRedeclare: Generated registry imports intentionally shadow the local declarations.
 import schema from "ponder:schema";
 
 ponder.on(

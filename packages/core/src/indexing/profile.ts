@@ -1,6 +1,6 @@
+import type { Abi } from "viem";
 import type { Event } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
-import type { Abi } from "viem";
 import type { PonderActions, ProfilePattern, Request } from "./client.js";
 
 export const getProfilePatternKey = (pattern: ProfilePattern): string => {
@@ -736,7 +736,7 @@ export const recoverProfilePattern = (
   } else {
     let _result: unknown = event.event;
     for (const prop of pattern.address.value) {
-      // @ts-ignore
+      // @ts-expect-error
       _result = _result[prop];
     }
     address = _result as `0x${string}`;
@@ -751,7 +751,7 @@ export const recoverProfilePattern = (
       } else {
         let _result: unknown = event.event;
         for (const prop of arg.value) {
-          // @ts-ignore
+          // @ts-expect-error
           _result = _result[prop];
         }
         args.push(_result);

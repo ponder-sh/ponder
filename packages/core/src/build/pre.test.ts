@@ -1,8 +1,8 @@
 import path from "node:path";
+import { expect, test } from "vitest";
 import { withStubbedEnv } from "@/_test/utils.js";
 import { createLogger } from "@/internal/logger.js";
 import type { Options } from "@/internal/options.js";
-import { expect, test } from "vitest";
 import { createConfig } from "../config/index.js";
 import { buildPre } from "./pre.js";
 

@@ -1,5 +1,13 @@
-export { createConfig } from "@/config/index.js";
+export {
+  loadBalance,
+  type MergeAbis,
+  mergeAbis,
+  type ReplaceBigInts,
+  rateLimit,
+  replaceBigInts,
+} from "@ponder/utils";
 export { factory } from "@/config/address.js";
+export { createConfig } from "@/config/index.js";
 export type {
   Block,
   Log,
@@ -7,14 +15,6 @@ export type {
   TransactionReceipt,
 } from "@/types/eth.js";
 export type { Virtual } from "@/types/virtual.js";
-export {
-  type MergeAbis,
-  type ReplaceBigInts,
-  mergeAbis,
-  loadBalance,
-  rateLimit,
-  replaceBigInts,
-} from "@ponder/utils";
 
 import type { Config } from "@/config/index.js";
 import type { Prettify } from "./types/utils.js";
@@ -24,23 +24,45 @@ export type ChainConfig = Prettify<Config["chains"][string]>;
 export type BlockConfig = Prettify<Config["blocks"][string]>;
 export type DatabaseConfig = Prettify<Config["database"]>;
 
-export type { CreateConfigReturnType } from "@/config/index.js";
-export type { GetEventFilter } from "@/config/eventFilter.js";
-export type { AddressConfig, Factory } from "@/config/address.js";
-
 export {
-  onchainTable,
-  onchainView,
-  onchainEnum,
-  primaryKey,
-  hex,
-  bigint,
-} from "@/drizzle/onchain.js";
-
+  and,
+  asc,
+  avg,
+  avgDistinct,
+  between,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  exists,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  lte,
+  max,
+  min,
+  ne,
+  not,
+  notBetween,
+  notExists,
+  notIlike,
+  notInArray,
+  notLike,
+  or,
+  relations,
+  sql,
+  sum,
+  sumDistinct,
+} from "drizzle-orm";
 export type {
   AnyPgColumn,
-  PgColumn,
   ExtraConfigColumn,
+  PgColumn,
   PgColumnBuilder,
   PgColumnBuilderBase,
   PgEnumColumnBuilder,
@@ -51,66 +73,22 @@ export type {
   PgTextConfig,
   TableConfig,
 } from "drizzle-orm/pg-core";
-
-export type {
-  OnchainTable,
-  BuildExtraConfigColumns,
-  PgColumnsBuilders,
-  PrimaryKeyBuilder,
-  OnchainEnum,
-} from "@/drizzle/onchain.js";
-
-export type { ReadonlyDrizzle } from "@/types/db.js";
-
-export { client } from "@/client/index.js";
-
-export { graphql } from "@/graphql/middleware.js";
-
 export {
-  sql,
-  eq,
-  gt,
-  gte,
-  lt,
-  lte,
-  ne,
-  isNull,
-  isNotNull,
-  inArray,
-  notInArray,
-  exists,
-  notExists,
-  between,
-  notBetween,
-  like,
-  notLike,
-  ilike,
-  notIlike,
-  not,
-  asc,
-  desc,
-  and,
-  or,
-  count,
-  countDistinct,
-  avg,
-  avgDistinct,
-  sum,
-  sumDistinct,
-  max,
-  min,
-  relations,
-} from "drizzle-orm";
-
-export {
+  alias,
   bigint as int8,
   boolean,
   char,
   cidr,
   date,
   doublePrecision,
+  except,
+  exceptAll,
+  foreignKey,
+  index,
   inet,
   integer,
+  intersect,
+  intersectAll,
   interval,
   json,
   jsonb,
@@ -124,16 +102,30 @@ export {
   text,
   time,
   timestamp,
-  uuid,
-  varchar,
-  index,
-  uniqueIndex,
-  alias,
-  foreignKey,
   union,
   unionAll,
-  intersect,
-  intersectAll,
-  except,
-  exceptAll,
+  uniqueIndex,
+  uuid,
+  varchar,
 } from "drizzle-orm/pg-core";
+export { client } from "@/client/index.js";
+export type { AddressConfig, Factory } from "@/config/address.js";
+export type { GetEventFilter } from "@/config/eventFilter.js";
+export type { CreateConfigReturnType } from "@/config/index.js";
+export type {
+  BuildExtraConfigColumns,
+  OnchainEnum,
+  OnchainTable,
+  PgColumnsBuilders,
+  PrimaryKeyBuilder,
+} from "@/drizzle/onchain.js";
+export {
+  bigint,
+  hex,
+  onchainEnum,
+  onchainTable,
+  onchainView,
+  primaryKey,
+} from "@/drizzle/onchain.js";
+export { graphql } from "@/graphql/middleware.js";
+export type { ReadonlyDrizzle } from "@/types/db.js";

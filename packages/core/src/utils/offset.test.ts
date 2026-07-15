@@ -1,10 +1,9 @@
-import { expect, test } from "vitest";
-
 import { parseAbiParameter } from "viem";
+import { expect, test } from "vitest";
 import {
-  type TupleAbiParameter,
   getBytesConsumedByParam,
   getNestedParamOffset,
+  type TupleAbiParameter,
 } from "./offset.js";
 
 test("getBytesConsumedByParam returns 32 for static primitive types", () => {

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { run } from "@/index.js";
 import { rimrafSync } from "rimraf";
 import { beforeEach, expect, test } from "vitest";
+import { run } from "@/index.js";
 
 const tempDir = path.join(os.tmpdir(), randomUUID());
 

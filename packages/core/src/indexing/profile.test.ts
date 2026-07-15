@@ -1,10 +1,10 @@
+import { getAbiItem, zeroAddress } from "viem";
+import { expect, test } from "vitest";
 import { ALICE } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { getAbiItem, zeroAddress } from "viem";
-import { expect, test } from "vitest";
 import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() with undefined log event args", () => {

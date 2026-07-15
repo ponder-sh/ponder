@@ -1,8 +1,8 @@
 import path from "node:path";
 import v8 from "node:v8";
-import type { CliOptions } from "@/bin/ponder.js";
 import type { LevelWithSilent } from "pino";
-import { type SemVer, parse } from "semver";
+import { parse, type SemVer } from "semver";
+import type { CliOptions } from "@/bin/ponder.js";
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list" | "prune";

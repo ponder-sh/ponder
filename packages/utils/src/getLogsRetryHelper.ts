@@ -1,10 +1,10 @@
 import {
   type Address,
   type Hex,
-  type LogTopic,
-  type RpcError,
   hexToBigInt,
+  type LogTopic,
   numberToHex,
+  type RpcError,
 } from "viem";
 
 export type GetLogsRetryHelperParameters = {
@@ -477,7 +477,10 @@ const isRangeUnchanged = (
 const chunk = ({
   params,
   range,
-}: { params: GetLogsRetryHelperParameters["params"]; range: bigint }) => {
+}: {
+  params: GetLogsRetryHelperParameters["params"];
+  range: bigint;
+}) => {
   const ranges: { fromBlock: Hex; toBlock: Hex }[] = [];
 
   const fromBlock = hexToBigInt(params[0].fromBlock);

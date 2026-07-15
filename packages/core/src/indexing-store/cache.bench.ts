@@ -1,5 +1,5 @@
-import { onchainTable } from "@/index.js";
 import { bench, run } from "mitata";
+import { onchainTable } from "@/index.js";
 import { getCopyText } from "./cache.js";
 
 const table = onchainTable("account", (t) => ({

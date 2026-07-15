@@ -1,7 +1,15 @@
 import pico from "picocolors";
 import checkForUpdate from "update-check";
 
-import packageJson from "../../package.json" assert { type: "json" };
+import packageJson from "../../package.json";
+
+assert;
+// biome-ignore lint/complexity/noUselessLoneBlockStatements: Preserve the JSON import assertion workaround.
+{
+  // biome-ignore lint/suspicious/noConfusingLabels: Preserve the JSON import assertion workaround.
+  type: "json";
+}
+
 import type { CLIOptions } from "../index.js";
 import { getPackageManager } from "./getPackageManager.js";
 

@@ -1,3 +1,7 @@
+import { and, eq, sql } from "drizzle-orm";
+import { index } from "drizzle-orm/pg-core";
+import { zeroAddress } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getChain } from "@/_test/utils.js";
 import { buildSchema } from "@/build/schema.js";
@@ -12,14 +16,10 @@ import { createShutdown } from "@/internal/shutdown.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
   type Checkpoint,
-  ZERO_CHECKPOINT,
   encodeCheckpoint,
+  ZERO_CHECKPOINT,
 } from "@/utils/checkpoint.js";
 import { wait } from "@/utils/wait.js";
-import { and, eq, sql } from "drizzle-orm";
-import { index } from "drizzle-orm/pg-core";
-import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
 import {
   commitBlock,
   crashRecovery,
@@ -34,12 +34,12 @@ import {
   revertMultichain,
 } from "./actions.js";
 import {
-  type Database,
-  TABLES,
-  VIEWS,
   createDatabase,
+  type Database,
   getPonderCheckpointTable,
   getPonderMetaTable,
+  TABLES,
+  VIEWS,
 } from "./index.js";
 
 beforeEach(setupCommon);
@@ -54,15 +54,15 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
   return encodeCheckpoint({ ...ZERO_CHECKPOINT, ...checkpoint });
 }
 
-const indexingErrorHandler: IndexingErrorHandler = {
+const _indexingErrorHandler: IndexingErrorHandler = {
   getRetryableError: () => {
-    return indexingErrorHandler.error;
+    return _indexingErrorHandler.error;
   },
   setRetryableError: (error: RetryableError) => {
-    indexingErrorHandler.error = error;
+    _indexingErrorHandler.error = error;
   },
   clearRetryableError: () => {
-    indexingErrorHandler.error = undefined;
+    _indexingErrorHandler.error = undefined;
   },
   error: undefined as RetryableError | undefined,
 };

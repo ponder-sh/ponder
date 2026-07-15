@@ -1,9 +1,3 @@
-import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
-import { TEST_POOL_ID } from "@/_test/utils.js";
-import { factory } from "@/config/address.js";
-import { createConfig } from "@/config/index.js";
-import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
-import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   type Address,
   parseAbiItem,
@@ -12,6 +6,12 @@ import {
   zeroAddress,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
+import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
+import { TEST_POOL_ID } from "@/_test/utils.js";
+import { factory } from "@/config/address.js";
+import { createConfig } from "@/config/index.js";
+import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   buildConfig,
   buildIndexingFunctions,
@@ -857,7 +857,7 @@ test("buildIndexingFunctions() block source", async () => {
   expect(eventCallbacks[0]![0]?.chain.name).toBe("mainnet");
   expect(eventCallbacks[0]![0]?.name).toBe("a:block");
   expect(eventCallbacks[0]![0]?.filter.type).toBe("block");
-  // @ts-ignore
+  // @ts-expect-error
   expect(eventCallbacks[0]![0]?.filter.interval).toBe(1);
   expect(eventCallbacks[0]![0]?.filter.fromBlock).toBe(16370000);
   expect(eventCallbacks[0]![0]?.filter.toBlock).toBe(16370020);

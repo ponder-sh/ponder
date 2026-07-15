@@ -1,3 +1,7 @@
+import { and, eq, sql } from "drizzle-orm";
+import { index } from "drizzle-orm/pg-core";
+import { zeroAddress } from "viem";
+import { beforeEach, expect, test } from "vitest";
 import {
   setupCleanup,
   setupCommon,
@@ -16,14 +20,10 @@ import type { RetryableError } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import {
   type Checkpoint,
+  encodeCheckpoint,
   MAX_CHECKPOINT_STRING,
   ZERO_CHECKPOINT,
-  encodeCheckpoint,
 } from "@/utils/checkpoint.js";
-import { and, eq, sql } from "drizzle-orm";
-import { index } from "drizzle-orm/pg-core";
-import { zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
 import {
   commitBlock,
   createIndexes,
@@ -49,15 +49,15 @@ function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
   return encodeCheckpoint({ ...ZERO_CHECKPOINT, ...checkpoint });
 }
 
-const indexingErrorHandler: IndexingErrorHandler = {
+const _indexingErrorHandler: IndexingErrorHandler = {
   getRetryableError: () => {
-    return indexingErrorHandler.error;
+    return _indexingErrorHandler.error;
   },
   setRetryableError: (error: RetryableError) => {
-    indexingErrorHandler.error = error;
+    _indexingErrorHandler.error = error;
   },
   clearRetryableError: () => {
-    indexingErrorHandler.error = undefined;
+    _indexingErrorHandler.error = undefined;
   },
   error: undefined as RetryableError | undefined,
 };

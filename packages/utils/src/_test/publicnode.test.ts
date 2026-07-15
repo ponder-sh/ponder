@@ -1,7 +1,7 @@
 import { numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
+import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
 const request = getRequest("https://ethereum-rpc.publicnode.com");
 const maxBlockRange = 50_000n;

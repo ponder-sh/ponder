@@ -1,5 +1,5 @@
-import type { LogFactory } from "@/internal/types.js";
 import type { AbiEvent, AbiParameter } from "viem";
+import type { LogFactory } from "@/internal/types.js";
 
 // Note: Currently limit the depth to 1 level.
 type ParameterNames<T extends AbiParameter> = T extends {

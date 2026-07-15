@@ -14,7 +14,7 @@ const ALLOW_CACHE = new Map<string, boolean>();
 const RELATIONS_CACHE = new Map<string, Set<string>>();
 
 export const parseSQLQuery = async (sql: string): Promise<Node> => {
-  // @ts-ignore
+  // @ts-expect-error
   const Parser = await import(/* webpackIgnore: true */ "pg-query-emscripten");
 
   if (sql.length > 5_000) {
@@ -85,11 +85,11 @@ export const validateAllowableSQLQuery = async (sql: string) => {
       throw new Error(`${getNodeType(node)} not supported`);
     }
 
-    // @ts-ignore
+    // @ts-expect-error
     ALLOW_LIST.get(getNodeType(node))!.validate?.(node[getNodeType(node)]);
 
     for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
-      // @ts-ignore
+      // @ts-expect-error
       node[getNodeType(node)],
     )) {
       validate(child);
@@ -129,7 +129,7 @@ export const isReadonlySQLQuery = async (sql: string): Promise<boolean> => {
     }
 
     for (const child of ALLOW_LIST.get(getNodeType(node))!.children(
-      // @ts-ignore
+      // @ts-expect-error
       node[getNodeType(node)],
     )) {
       validate(child);
@@ -186,7 +186,7 @@ export const getSQLQueryRelations = async (
     }
 
     for (const child of FIND_LIST.get(getNodeType(node))!.children(
-      // @ts-ignore
+      // @ts-expect-error
       node[getNodeType(node)],
     )) {
       find(child);
@@ -700,7 +700,7 @@ const FUNC_CALL_VALIDATOR: ValidatorNode<"FuncCall"> = {
       node.funcname?.every(
         (name) =>
           getNodeType(name) === "String" &&
-          // @ts-ignore
+          // @ts-expect-error
           ALLOWED_FUNCTIONS.has(name.String.sval),
       )
     ) {
