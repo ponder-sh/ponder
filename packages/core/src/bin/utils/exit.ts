@@ -11,10 +11,7 @@ export const createExit = ({
   common,
   options,
 }: {
-  common: Pick<
-    Common,
-    "logger" | "telemetry" | "shutdown" | "buildShutdown" | "apiShutdown"
-  >;
+  common: Pick<Common, "logger" | "shutdown" | "buildShutdown" | "apiShutdown">;
   options: Options;
 }) => {
   let isShuttingDown = false;
@@ -32,11 +29,6 @@ export const createExit = ({
 
     common.logger.warn({
       msg: "Started shutdown sequence",
-    });
-
-    common.telemetry.record({
-      name: "lifecycle:session_end",
-      properties: { duration_seconds: process.uptime() },
     });
 
     await Promise.all([

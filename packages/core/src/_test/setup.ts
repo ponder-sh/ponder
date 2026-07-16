@@ -8,7 +8,6 @@ import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
-import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   DatabaseConfig,
   EventCallback,
@@ -37,16 +36,14 @@ export function setupCommon() {
     logFormat: "pretty",
     version: "0.0.0",
   } as const;
-  const options = { ...buildOptions({ cliOptions }), telemetryDisabled: true };
+  const options = buildOptions({ cliOptions });
   const logger = createLogger({ level: cliOptions.logLevel });
   const metrics = new MetricsService();
   const shutdown = createShutdown();
-  const telemetry = createTelemetry({ options, logger, shutdown });
   context.common = {
     options,
     logger,
     metrics,
-    telemetry,
     shutdown,
     apiShutdown: shutdown,
     buildShutdown: shutdown,

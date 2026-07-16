@@ -22,10 +22,6 @@
       "destination": "/docs/0.10/advanced/observability"
     },
     {
-      "source": "/0_6/docs/advanced/telemetry",
-      "destination": "/docs/0.10/advanced/telemetry"
-    },
-    {
       "source": "/0_6/docs/api-reference/config",
       "destination": "/docs/0.10/api-reference/ponder/config"
     },
@@ -124,10 +120,6 @@
     {
       "source": "/0_6/docs/why-ponder",
       "destination": "/docs/why-ponder"
-    },
-    {
-      "source": "/api/telemetry",
-      "destination": "/docs/advanced/telemetry"
     },
     {
       "source": "/docs/accounts",

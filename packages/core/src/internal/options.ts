@@ -20,10 +20,6 @@ export type Options = {
   port: number;
   hostname?: string;
 
-  telemetryUrl: string;
-  telemetryDisabled: boolean;
-  telemetryConfigDir: string | undefined;
-
   logLevel: LevelWithSilent;
   logFormat: "json" | "pretty";
 
@@ -92,10 +88,6 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
 
     port,
     hostname,
-
-    telemetryUrl: "https://ponder.sh/api/telemetry",
-    telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
-    telemetryConfigDir: undefined,
 
     logLevel,
     logFormat: cliOptions.logFormat! as Options["logFormat"],

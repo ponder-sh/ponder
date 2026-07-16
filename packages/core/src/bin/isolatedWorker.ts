@@ -5,7 +5,6 @@ import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { IsolatedMetricsService } from "@/internal/metrics.js";
 import { createShutdown } from "@/internal/shutdown.js";
-import { createTelemetry } from "@/internal/telemetry.js";
 import type {
   CrashRecoveryCheckpoint,
   NamespaceBuild,
@@ -44,9 +43,6 @@ export async function isolatedWorker({
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
   chainIds: number[];
 }) {
-  // Note: telemetry is disabled because the main thread will report telemetry
-  options.telemetryDisabled = true;
-
   const logger = createLogger({
     level: options.logLevel,
     mode: options.logFormat,
@@ -54,12 +50,10 @@ export async function isolatedWorker({
 
   const metrics = new IsolatedMetricsService();
   const shutdown = createShutdown();
-  const telemetry = createTelemetry({ options, logger, shutdown });
   const common = {
     options,
     logger,
     metrics,
-    telemetry,
     shutdown,
     buildShutdown: shutdown,
     apiShutdown: shutdown,
