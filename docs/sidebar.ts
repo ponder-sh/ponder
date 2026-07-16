@@ -110,9 +110,7 @@ export const sidebar = {
     },
     {
       text: "Advanced",
-      items: [
-        { text: "Observability", link: "/docs/advanced/observability" },
-      ],
+      items: [{ text: "Observability", link: "/docs/advanced/observability" }],
     },
   ],
   "/docs/0.15/": [
