@@ -1,4 +1,9 @@
 import http from "node:http";
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { createMiddleware } from "hono/factory";
+import { createHttpTerminator } from "http-terminator";
 import {
   type Database,
   getPonderCheckpointTable,
@@ -8,11 +13,6 @@ import type { Common } from "@/internal/common.js";
 import type { ApiBuild, Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
-import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { createMiddleware } from "hono/factory";
-import { createHttpTerminator } from "http-terminator";
 import { onError } from "./error.js";
 
 export type Server = {

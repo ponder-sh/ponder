@@ -1,10 +1,10 @@
-import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { NotNullConstraintError } from "@/internal/errors.js";
-import { createPool } from "@/utils/pg.js";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { beforeEach, expect, test, vi } from "vitest";
+import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
+import { NotNullConstraintError } from "@/internal/errors.js";
+import { createPool } from "@/utils/pg.js";
 import { SCHEMATA } from "./index.js";
 import { createQB } from "./queryBuilder.js";
 

@@ -1,10 +1,3 @@
-import {
-  bigint,
-  hex,
-  onchainEnum,
-  onchainTable,
-  onchainView,
-} from "@/index.js";
 import { count, sql, sum } from "drizzle-orm";
 import {
   check,
@@ -14,6 +7,13 @@ import {
   serial,
 } from "drizzle-orm/pg-core";
 import { expect, test } from "vitest";
+import {
+  bigint,
+  hex,
+  onchainEnum,
+  onchainTable,
+  onchainView,
+} from "@/index.js";
 import { buildSchema } from "./schema.js";
 
 test("buildSchema() success", () => {
@@ -190,7 +190,7 @@ test("buildSchema() error with $onUpdateFn sql", () => {
 });
 
 test("buildSchema() error with foreign key", () => {
-  // @ts-ignore
+  // @ts-expect-error
   const schema = {
     account: onchainTable("account", (p) => ({
       address: p.integer().primaryKey(),

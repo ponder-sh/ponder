@@ -1,11 +1,15 @@
-import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import packageJson from "../../packages/core/package.json" assert {
-  type: "json",
-};
 import { start } from "../../packages/core/src/bin/commands/start.js";
+
+const packageJson = JSON.parse(
+  readFileSync(
+    new URL("../../packages/core/package.json", import.meta.url),
+    "utf8",
+  ),
+) as { version: string };
 
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;

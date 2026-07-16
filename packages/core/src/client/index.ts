@@ -1,3 +1,22 @@
+import {
+  getTableName,
+  getViewName,
+  isTable,
+  isView,
+  type QueryWithTypings,
+} from "drizzle-orm";
+import {
+  getViewConfig,
+  type PgDialect,
+  type PgSession,
+  type PgView,
+  pgSchema,
+  pgTable,
+} from "drizzle-orm/pg-core";
+import { createMiddleware } from "hono/factory";
+import { streamSSE } from "hono/streaming";
+import type * as pg from "pg";
+import superjson from "superjson";
 import type { PonderApp6 } from "@/database/index.js";
 import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
@@ -10,25 +29,6 @@ import {
   getSQLQueryRelations,
   validateAllowableSQLQuery,
 } from "@/utils/sql-parse.js";
-import {
-  type QueryWithTypings,
-  getTableName,
-  getViewName,
-  isTable,
-  isView,
-} from "drizzle-orm";
-import {
-  type PgDialect,
-  type PgSession,
-  type PgView,
-  getViewConfig,
-  pgSchema,
-  pgTable,
-} from "drizzle-orm/pg-core";
-import { createMiddleware } from "hono/factory";
-import { streamSSE } from "hono/streaming";
-import type * as pg from "pg";
-import superjson from "superjson";
 
 type QueryString = string;
 type QueryResult = unknown;
@@ -75,7 +75,10 @@ const getPonderMetaTable = (schema?: string) => {
 export const client = ({
   db,
   schema,
-}: { db: ReadonlyDrizzle<Schema>; schema: Schema }) => {
+}: {
+  db: ReadonlyDrizzle<Schema>;
+  schema: Schema;
+}) => {
   if (
     globalThis.PONDER_COMMON === undefined ||
     globalThis.PONDER_DATABASE === undefined ||
@@ -95,9 +98,9 @@ export const client = ({
   // Note: Add system tables to the live query registry.
   tableNames.add("_ponder_checkpoint");
 
-  // @ts-ignore
+  // @ts-expect-error
   const session: PgSession = db._.session;
-  // @ts-ignore
+  // @ts-expect-error
   const dialect: PgDialect = session.dialect;
   const driver = globalThis.PONDER_DATABASE.driver;
 
@@ -236,7 +239,7 @@ export const client = ({
       let hasRegisteredShutdown = false;
 
       while (globalThis.PONDER_COMMON.apiShutdown.isKilled === false) {
-        // biome-ignore lint/suspicious/noAsyncPromiseExecutor: <explanation>
+        // biome-ignore lint/suspicious/noAsyncPromiseExecutor: This Promise intentionally wraps async connect/retry flow.
         await new Promise<void>(async (resolve) => {
           try {
             client = await driver.admin.connect();
@@ -487,7 +490,7 @@ export const client = ({
 
       let resultHash = crypto
         .createHash("MD5")
-        // @ts-ignore
+        // @ts-expect-error
         .update(JSON.stringify(result.rows))
         .digest("hex")
         .slice(0, 10);
@@ -529,7 +532,7 @@ export const client = ({
 
             const _resultHash = crypto
               .createHash("MD5")
-              // @ts-ignore
+              // @ts-expect-error
               .update(JSON.stringify(result.rows))
               .digest("hex")
               .slice(0, 10);
@@ -537,7 +540,6 @@ export const client = ({
             if (_resultHash === resultHash) continue;
             resultHash = _resultHash;
 
-            // @ts-ignore
             await stream.writeSSE({ data: JSON.stringify(result) });
           } catch {
             stream.abort();

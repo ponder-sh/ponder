@@ -1,3 +1,4 @@
+import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
 import {
   commitBlock,
   createIndexes,
@@ -15,14 +16,14 @@ import {
   getPonderMetaTable,
 } from "@/database/index.js";
 import { getLiveQueryTempTableName } from "@/drizzle/onchain.js";
-import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
   createIndexing,
   getEventCount,
 } from "@/indexing/index.js";
+import { createIndexingCache } from "@/indexing-store/cache.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   InvalidEventAccessError,
@@ -44,9 +45,9 @@ import { splitEvents } from "@/runtime/events.js";
 import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
-  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   min,
+  ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
@@ -55,7 +56,6 @@ import {
 } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
 import {
   getHistoricalEventsMultichain,
   refetchHistoricalEvents,
@@ -63,10 +63,10 @@ import {
 import {
   type CachedIntervals,
   type ChildAddresses,
-  type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
   getLocalSyncProgress,
+  type SyncProgress,
 } from "./index.js";
 import { getRealtimeEventsMultichain } from "./realtime.js";
 

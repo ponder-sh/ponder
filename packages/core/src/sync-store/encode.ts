@@ -1,3 +1,5 @@
+import type { Hex } from "viem";
+import { hexToBigInt, hexToNumber } from "viem";
 import type {
   SyncBlock,
   SyncBlockHeader,
@@ -7,8 +9,6 @@ import type {
   SyncTransactionReceipt,
 } from "@/internal/types.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import type { Hex } from "viem";
-import { hexToBigInt, hexToNumber } from "viem";
 import type * as ponderSyncSchema from "./schema.js";
 
 export const encodeBlock = ({

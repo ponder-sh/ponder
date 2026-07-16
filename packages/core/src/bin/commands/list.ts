@@ -1,5 +1,9 @@
+import { eq, sql } from "drizzle-orm";
+import { unionAll } from "drizzle-orm/pg-core";
 import { createBuild } from "@/build/index.js";
 import {
+  createDatabase,
+  getPonderMetaTable,
   PONDER_META_TABLE_NAME,
   type PonderApp0,
   type PonderApp1,
@@ -8,11 +12,9 @@ import {
   type PonderApp4,
   type PonderApp5,
   type PonderApp6,
+  TABLES,
   VIEWS,
-  createDatabase,
-  getPonderMetaTable,
 } from "@/database/index.js";
-import { TABLES } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
@@ -20,8 +22,6 @@ import { createShutdown } from "@/internal/shutdown.js";
 import { createTelemetry } from "@/internal/telemetry.js";
 import { buildTable } from "@/ui/app.js";
 import { formatEta } from "@/utils/format.js";
-import { eq, sql } from "drizzle-orm";
-import { unionAll } from "drizzle-orm/pg-core";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
@@ -152,7 +152,7 @@ export async function list({ cliOptions }: { cliOptions: CliOptions }) {
   if (queries.length === 1) {
     result = await database.adminQB.wrap(() => queries[0]!);
   } else {
-    // @ts-ignore
+    // @ts-expect-error
     result = await database.adminQB.wrap(() => unionAll(...queries));
   }
 

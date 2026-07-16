@@ -1,5 +1,5 @@
-import type { LightBlock, SyncBlock } from "@/internal/types.js";
 import { hexToBigInt } from "viem";
+import type { LightBlock, SyncBlock } from "@/internal/types.js";
 
 export type Checkpoint = {
   blockTimestamp: bigint;

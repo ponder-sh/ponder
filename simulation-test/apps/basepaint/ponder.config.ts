@@ -3,7 +3,7 @@ import { BasePaintAbi } from "./abis/BasePaintAbi";
 import { BasePaintBrushAbi } from "./abis/BasePaintBrushAbi";
 
 export default createConfig({
-  // @ts-ignore
+  // @ts-expect-error
   ordering: process.env.ORDERING,
   database: {
     kind: "postgres",

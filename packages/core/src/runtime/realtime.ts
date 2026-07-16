@@ -1,3 +1,4 @@
+import { type Address, hexToNumber } from "viem";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
@@ -21,15 +22,15 @@ import {
   syncTransactionToInternal,
 } from "@/runtime/events.js";
 import {
-  type RealtimeSyncEvent,
   createRealtimeSync,
+  type RealtimeSyncEvent,
 } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
-  ZERO_CHECKPOINT_STRING,
   blockToCheckpoint,
   encodeCheckpoint,
   min,
+  ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
 import {
   bufferAsyncGenerator,
@@ -40,7 +41,6 @@ import { type Interval, intervalIntersection } from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
-import { type Address, hexToNumber } from "viem";
 import { getFilterFactories } from "./filter.js";
 import type { ChildAddresses, SyncProgress } from "./index.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
@@ -90,7 +90,7 @@ export async function* getRealtimeEventsOmnichain(params: {
           { chain: chain.name },
           1,
         );
-        return;
+        return undefined;
       }
 
       const rpc =
@@ -255,7 +255,7 @@ export async function* getRealtimeEventsOmnichain(params: {
         if (to <= from) continue;
 
         // index of the first unfinalized event
-        let finalizeIndex: number | undefined = undefined;
+        let finalizeIndex: number | undefined;
         for (const [index, event] of executedEvents.entries()) {
           if (event.checkpoint > to) {
             finalizeIndex = index;
@@ -356,7 +356,7 @@ export async function* getRealtimeEventsMultichain(params: {
           { chain: chain.name },
           1,
         );
-        return;
+        return undefined;
       }
 
       const rpc =
@@ -511,7 +511,7 @@ export async function* getRealtimeEventsMultichain(params: {
         const checkpoint = syncProgress.getCheckpoint({ tag: "finalized" });
 
         // index of the first unfinalized event
-        let finalizeIndex: number | undefined = undefined;
+        let finalizeIndex: number | undefined;
 
         for (const [index, event] of executedEvents.entries()) {
           const _chain = params.indexingBuild.chains.find(
@@ -559,7 +559,7 @@ export async function* getRealtimeEventsMultichain(params: {
         const checkpoint = syncProgress.getCheckpoint({ tag: "current" });
 
         // index of the first reorged event
-        let reorgIndex: number | undefined = undefined;
+        let reorgIndex: number | undefined;
         for (const [index, event] of executedEvents.entries()) {
           if (event.chain.id === chain.id && event.checkpoint > checkpoint) {
             reorgIndex = index;
@@ -1150,9 +1150,7 @@ export async function* mergeAsyncGeneratorsWithRealtimeOrder(
 
       const supremum = min(...blockCheckpoints);
 
-      index = blockCheckpoints.findIndex(
-        (checkpoint) => checkpoint === supremum,
-      );
+      index = blockCheckpoints.indexOf(supremum);
     }
 
     const resultPromise = generators[index]!.next();

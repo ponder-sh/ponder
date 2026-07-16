@@ -1,7 +1,7 @@
-import { RpcRequestError, numberToHex } from "viem";
+import { numberToHex, RpcRequestError } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { getRequest, type Params } from "./utils.js";
 
 const request = getRequest("https://mainnet.optimism.io");
 const fromBlock = 100_000_000n;

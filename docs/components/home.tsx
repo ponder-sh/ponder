@@ -19,12 +19,13 @@ export function Home() {
         <div className="max-w-[1180px] mx-auto md:mt-4">
           <div className="w-full flex flex-col justify-between md:flex-row gap-8 p-4 mb-6 md:p-8 rounded-lg hero-texture">
             <div className="flex flex-col items-start space-y-1.5 max-w-[540px] text-neutral-950 dark:text-neutral-50">
-              <div className="h-5"/>
+              <div className="h-5" />
               <h1 className="text-4xl font-semibold tracking-tight pb-4">
                 Rapid custom indexing for any EVM smart contract
               </h1>
               <p>
-                Ponder is an open-source TypeScript framework for fast, reliable,
+                Ponder is an open-source TypeScript framework for fast,
+                reliable,
                 <br className="hidden lg:inline" />
                 and maintainable EVM data indexing
               </p>

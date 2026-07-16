@@ -1,3 +1,15 @@
+import { getLogsRetryHelper } from "@ponder/utils";
+import {
+  type Address,
+  type Hash,
+  type Hex,
+  hexToNumber,
+  type LogTopic,
+  numberToHex,
+  type RpcError,
+  toHex,
+  zeroHash,
+} from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
@@ -46,26 +58,14 @@ import type {
 import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import {
-  type Interval,
   getChunks,
+  type Interval,
   intervalBounds,
   intervalRange,
 } from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
-import { getLogsRetryHelper } from "@ponder/utils";
-import {
-  type Address,
-  type Hash,
-  type Hex,
-  type LogTopic,
-  type RpcError,
-  hexToNumber,
-  numberToHex,
-  toHex,
-  zeroHash,
-} from "viem";
 
 export type HistoricalSync = {
   /**

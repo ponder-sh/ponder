@@ -1,5 +1,5 @@
-import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import { test } from "vitest";
+import { onchainTable, primaryKey } from "@/drizzle/onchain.js";
 import type { Delete, Find, Insert, Key, Update } from "./db.js";
 
 test("composite primary key", () => {
@@ -15,7 +15,7 @@ test("composite primary key", () => {
     }),
   );
 
-  // @ts-ignore
+  // @ts-expect-error
   type _ = Key<typeof table>;
   //   ^?
 });
@@ -26,10 +26,10 @@ test("find", () => {
     other: t.integer(),
   }));
 
-  // @ts-ignore
+  // @ts-expect-error
   const find: Find = () => {};
   () => {
-    // @ts-ignore
+    // @ts-expect-error
     const _ = find(table, { id: "kevin" });
     //    ^?
   };
@@ -41,33 +41,33 @@ test("insert", () => {
     other: t.integer(),
   }));
 
-  // @ts-ignore
+  // @ts-expect-error
   const insert: Insert = () => {};
   () => {
-    // @ts-ignore
-    const t1 = insert(table).values({ id: "kevin" });
+    // @ts-expect-error
+    const _t1 = insert(table).values({ id: "kevin" });
     //    ^?
 
-    // @ts-ignore
-    const t2 = insert(table).values({ id: "kevin" }).onConflictDoNothing();
+    // @ts-expect-error
+    const _t2 = insert(table).values({ id: "kevin" }).onConflictDoNothing();
     //    ^?
 
-    // @ts-ignore
-    const t3 = insert(table).values({ id: "kevin" }).onConflictDoUpdate({
+    // @ts-expect-error
+    const _t3 = insert(table).values({ id: "kevin" }).onConflictDoUpdate({
       //  ^?
       other: 9,
     });
 
-    // @ts-ignore
-    const t4 = insert(table)
+    // @ts-expect-error
+    const _t4 = insert(table)
       //  ^?
       .values({ id: "kevin" })
       .onConflictDoUpdate((row) => ({
         other: row.other ?? 8,
       }));
 
-    // @ts-ignore
-    const t5 = insert(table)
+    // @ts-expect-error
+    const _t5 = insert(table)
       //  ^?
       .values([{ id: "kevin" }])
       .onConflictDoNothing();
@@ -80,10 +80,10 @@ test("update", () => {
     other: t.integer(),
   }));
 
-  // @ts-ignore
+  // @ts-expect-error
   const update: Update = () => {};
   () => {
-    // @ts-ignore
+    // @ts-expect-error
     const _ = update(table, { id: "kevin" }).set({ other: 52 });
     //    ^?
   };
@@ -95,10 +95,10 @@ test("delete", () => {
     other: t.integer(),
   }));
 
-  // @ts-ignore
+  // @ts-expect-error
   const _delete: Delete = () => {};
   () => {
-    // @ts-ignore
+    // @ts-expect-error
     const _ = _delete(table, { id: "kevin" });
     //    ^?
   };

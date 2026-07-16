@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import { createDatabase, type Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";

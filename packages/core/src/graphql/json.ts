@@ -4,8 +4,8 @@ import {
   GraphQLScalarType,
   Kind,
   type ObjectValueNode,
-  type ValueNode,
   print,
+  type ValueNode,
 } from "graphql";
 
 export const GraphQLJSON = new GraphQLScalarType({

@@ -1,10 +1,10 @@
+import pc from "picocolors";
 import type {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
 } from "@/internal/metrics.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
-import pc from "picocolors";
 
 export type UiState = {
   port: number;

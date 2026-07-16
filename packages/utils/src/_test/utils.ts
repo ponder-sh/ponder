@@ -1,7 +1,7 @@
 import {
-  http,
   type Chain,
   type EIP1193RequestFn,
+  http,
   type PublicRpcSchema,
 } from "viem";
 import { mainnet } from "viem/chains";

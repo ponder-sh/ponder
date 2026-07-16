@@ -5,7 +5,10 @@ import { cn } from "./utils.js";
 export function Benchmarks({
   className,
   flat,
-}: { className?: string; flat?: boolean }) {
+}: {
+  className?: string;
+  flat?: boolean;
+}) {
   return (
     <Card
       className={cn([

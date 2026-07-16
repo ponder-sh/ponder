@@ -1,8 +1,8 @@
 import { getTableColumns } from "drizzle-orm";
 import {
+  getTableConfig,
   type PgColumn,
   type PgTable,
-  getTableConfig,
 } from "drizzle-orm/pg-core";
 import { getColumnCasing } from "./kit/index.js";
 

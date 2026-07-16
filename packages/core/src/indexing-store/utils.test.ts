@@ -1,5 +1,5 @@
-import { onchainTable } from "@/drizzle/onchain.js";
 import { expect, test } from "vitest";
+import { onchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "./utils.js";
 
 test("normalize smallint", () => {

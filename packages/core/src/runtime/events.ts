@@ -1,3 +1,16 @@
+import {
+  type AbiEvent,
+  type AbiFunction,
+  type Address,
+  decodeFunctionData,
+  decodeFunctionResult,
+  type Hash,
+  type Hex,
+  hexToBigInt,
+  hexToNumber,
+  toEventSelector,
+  toFunctionSelector,
+} from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
@@ -30,26 +43,14 @@ import type {
 } from "@/types/eth.js";
 import {
   EVENT_TYPES,
+  encodeCheckpoint,
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
-  encodeCheckpoint,
 } from "@/utils/checkpoint.js";
 import { decodeEventLog } from "@/utils/decodeEventLog.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
-  type AbiEvent,
-  type AbiFunction,
-  type Address,
-  type Hash,
-  type Hex,
-  decodeFunctionData,
-  decodeFunctionResult,
-  hexToBigInt,
-  hexToNumber,
-  toEventSelector,
-  toFunctionSelector,
-} from "viem";
-import {
+  isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
   isLogFilterMatched,
@@ -57,7 +58,6 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "./filter.js";
-import { isAddressFactory } from "./filter.js";
 
 /**
  * Create `RawEvent`s from raw data types
@@ -561,7 +561,7 @@ export const decodeEvents = (
           topics: event.log!.topics,
         });
         logDecodeSuccessCount++;
-      } catch (err) {
+      } catch (_err) {
         logDecodeFailureCount++;
         const selector = toEventSelector(eventCallback.abiItem as AbiEvent);
         if (!logDecodeFailureSelectors.has(selector)) {
@@ -613,7 +613,7 @@ export const decodeEvents = (
           functionName: decodedData.functionName,
         });
         traceDecodeSuccessCount++;
-      } catch (err) {
+      } catch (_err) {
         traceDecodeFailureCount++;
         const selector = toFunctionSelector(
           eventCallback.abiItem as AbiFunction,
@@ -726,7 +726,9 @@ export const decodeEvents = (
 
 export const syncBlockToInternal = ({
   block,
-}: { block: SyncBlock | SyncBlockHeader }): InternalBlock => ({
+}: {
+  block: SyncBlock | SyncBlockHeader;
+}): InternalBlock => ({
   baseFeePerGas: block.baseFeePerGas ? hexToBigInt(block.baseFeePerGas) : null,
   difficulty: hexToBigInt(block.difficulty),
   extraData: block.extraData,
@@ -798,19 +800,18 @@ export const syncTransactionToInternal = ({
           transaction.type === "0x7e"
           ? {
               type: "deposit",
-              // @ts-ignore
+              // @ts-expect-error
               maxFeePerGas: transaction.maxFeePerGas
                 ? // @ts-ignore
                   hexToBigInt(transaction.maxFeePerGas)
                 : undefined,
-              // @ts-ignore
+              // @ts-expect-error
               maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
                 ? // @ts-ignore
                   hexToBigInt(transaction.maxPriorityFeePerGas)
                 : undefined,
             }
           : {
-              // @ts-ignore
               type: transaction.type,
             }),
 });

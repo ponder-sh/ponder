@@ -1,3 +1,5 @@
+import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
+import { beforeEach, expect, test } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
@@ -27,8 +29,6 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
-import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
-import { beforeEach, expect, test } from "vitest";
 import {
   getChildAddress,
   isBlockFilterMatched,

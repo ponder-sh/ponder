@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,7 +45,7 @@ export default defineConfig({
 
     readdirSync(targetPath)
       .filter((d) => d !== "default" && d !== "etherscan")
-      .map((d) => {
+      .forEach((d) => {
         const contents = readFileSync(
           path.join(targetPath, d, "_dot_env.local"),
           "utf-8",

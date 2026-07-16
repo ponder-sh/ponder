@@ -1,5 +1,6 @@
 declare module "ponder:registry" {
   import type { Virtual } from "ponder";
+
   type config = typeof import("ponder:internal").config;
   type schema = typeof import("ponder:internal").schema;
 
@@ -21,6 +22,7 @@ declare module "ponder:registry" {
 
 declare module "ponder:schema" {
   const schema: typeof import("ponder:internal").schema;
+
   export { schema as default };
 }
 

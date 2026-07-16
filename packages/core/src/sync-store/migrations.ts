@@ -1,7 +1,7 @@
-import { type Logger, createNoopLogger } from "@/internal/logger.js";
 import type { Kysely, Migration, MigrationProvider } from "kysely";
 import { sql } from "kysely";
 import { maxUint256 } from "viem";
+import { createNoopLogger, type Logger } from "@/internal/logger.js";
 
 let logger = createNoopLogger();
 

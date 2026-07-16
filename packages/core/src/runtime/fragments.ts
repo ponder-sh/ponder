@@ -1,3 +1,4 @@
+import type { Address, Hex } from "viem";
 import type {
   BlockFilter,
   Factory,
@@ -13,7 +14,6 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
-import type { Address, Hex } from "viem";
 import { isAddressFactory } from "./filter.js";
 
 export const isFragmentAddressFactory = (

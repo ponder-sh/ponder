@@ -11,7 +11,7 @@ export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
 export const copyOnWrite = <T extends object>(obj: T): T => {
   let copiedObject: T | undefined;
 
-  // @ts-ignore
+  // @ts-expect-error
   obj[util.inspect.custom] = () => {
     return copiedObject ?? obj;
   };

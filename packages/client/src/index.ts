@@ -1,20 +1,20 @@
 import {
   type AnyColumn,
   Column,
-  type QueryWithTypings,
-  SQL,
-  type SQLWrapper,
-  type SelectedFieldsOrdered,
-  Table,
   is,
   isTable,
   mapRelationalRow,
+  type QueryWithTypings,
+  type SelectedFieldsOrdered,
+  SQL,
+  type SQLWrapper,
+  Table,
 } from "drizzle-orm";
-import { type PgDialect, isPgEnum } from "drizzle-orm/pg-core";
+import { isPgEnum, type PgDialect } from "drizzle-orm/pg-core";
 import { PgCountBuilder } from "drizzle-orm/pg-core/query-builders/count";
 import { PgRelationalQuery } from "drizzle-orm/pg-core/query-builders/query";
 import { PgRaw } from "drizzle-orm/pg-core/query-builders/raw";
-import { type PgRemoteDatabase, drizzle } from "drizzle-orm/pg-proxy";
+import { drizzle, type PgRemoteDatabase } from "drizzle-orm/pg-proxy";
 import { TypedQueryBuilder } from "drizzle-orm/query-builders/query-builder";
 import { EventSource } from "eventsource";
 import superjson from "superjson";
@@ -96,7 +96,7 @@ const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
   casing: "snake_case",
 });
 
-// @ts-ignore
+// @ts-expect-error
 const dialect: PgDialect = noopDatabase.dialect;
 
 export const compileQuery = (query: SQLWrapper) => {
@@ -168,7 +168,6 @@ export const createClient = <schema extends Schema>(
 
       const onDataListener = async (event: MessageEvent) => {
         try {
-          // @ts-ignore
           const result = JSON.parse(event.data);
 
           const drizzleShim = drizzle(
@@ -197,14 +196,14 @@ export const createClient = <schema extends Schema>(
             data = await drizzleShim._.session
               .prepareQuery(
                 query,
-                // @ts-ignore
+                // @ts-expect-error
                 orderedFields,
                 undefined,
                 false,
               )
               .execute();
           } else if (queryBuilder instanceof PgRelationalQuery) {
-            // @ts-ignore
+            // @ts-expect-error
             const selection = queryBuilder._toSQL().query.selection;
             data = await drizzleShim._.session
               .prepareQuery(
@@ -215,17 +214,16 @@ export const createClient = <schema extends Schema>(
                 (rawRows, mapColumnValue) => {
                   const rows = rawRows.map((row) =>
                     mapRelationalRow(
-                      // @ts-ignore
+                      // @ts-expect-error
                       queryBuilder.schema,
-                      // @ts-ignore
+                      // @ts-expect-error
                       queryBuilder.tableConfig,
-                      // @ts-ignore
                       row,
                       selection,
                       mapColumnValue,
                     ),
                   );
-                  // @ts-ignore
+                  // @ts-expect-error
                   if (queryBuilder.mode === "first") {
                     return rows[0];
                   }
@@ -243,7 +241,7 @@ export const createClient = <schema extends Schema>(
             throw new Error("Unsupported query builder");
           }
 
-          // @ts-ignore
+          // @ts-expect-error
           onData(data);
         } catch (error) {
           onError?.(error as Error);
@@ -276,50 +274,50 @@ export const createClient = <schema extends Schema>(
 };
 
 export {
-  sql,
-  eq,
-  gt,
-  gte,
-  lt,
-  lte,
-  ne,
-  isNull,
-  isNotNull,
-  inArray,
-  notInArray,
-  exists,
-  notExists,
-  between,
-  notBetween,
-  like,
-  notLike,
-  ilike,
-  notIlike,
-  not,
-  asc,
-  desc,
   and,
-  or,
-  count,
-  countDistinct,
+  asc,
   avg,
   avgDistinct,
-  sum,
-  sumDistinct,
+  between,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  exists,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  lte,
   max,
   min,
+  ne,
+  not,
+  notBetween,
+  notExists,
+  notIlike,
+  notInArray,
+  notLike,
+  or,
   relations,
   SQL,
+  sql,
+  sum,
+  sumDistinct,
 } from "drizzle-orm";
 
 export {
   alias,
-  union,
-  unionAll,
-  intersect,
-  intersectAll,
   except,
   exceptAll,
+  intersect,
+  intersectAll,
+  union,
+  unionAll,
 } from "drizzle-orm/pg-core";
 
 export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
@@ -328,10 +326,10 @@ export const setDatabaseSchema = <T extends { [name: string]: unknown }>(
 ) => {
   for (const table of Object.values(schema)) {
     if (isTable(table)) {
-      // @ts-ignore
+      // @ts-expect-error
       table[Table.Symbol.Schema] = schemaName;
     } else if (isPgEnum(table)) {
-      // @ts-ignore
+      // @ts-expect-error
       table.schema = schemaName;
     }
   }
@@ -352,7 +350,7 @@ function orderSelectedFields<TColumn extends AnyColumn>(
         result.push({ path: newPath, field });
       } else if (is(field, Table)) {
         result.push(
-          // @ts-ignore
+          // @ts-expect-error
           ...orderSelectedFields(field[Table.Symbol.Columns], newPath),
         );
       } else {

@@ -1,7 +1,7 @@
 import { InvalidParamsRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
+import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_CHAINSTACK_1!);
 const maxBlockRange = 110n;

@@ -1,7 +1,7 @@
-import { RpcRequestError, numberToHex } from "viem";
+import { numberToHex, RpcRequestError } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { getRequest, type Params } from "./utils.js";
 
 const request = getRequest("https://dream-rpc.somnia.network");
 const fromBlock = 53_580_000n;

@@ -1,3 +1,13 @@
+import {
+  encodeEventTopics,
+  type Hex,
+  padHex,
+  parseEther,
+  toHex,
+  zeroAddress,
+} from "viem";
+import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
+import { beforeEach, expect, test } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import { context, setupCommon } from "@/_test/setup.js";
@@ -16,16 +26,6 @@ import type {
   TransferEvent,
 } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import {
-  type Hex,
-  encodeEventTopics,
-  padHex,
-  parseEther,
-  toHex,
-  zeroAddress,
-} from "viem";
-import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
-import { beforeEach, expect, test } from "vitest";
 import { decodeEvents, splitEvents } from "./events.js";
 
 beforeEach(setupCommon);
@@ -328,7 +328,7 @@ test("decodeEvents() trace w/o output", async () => {
   });
 
   // Remove output from the trace abi
-  // @ts-ignore
+  // @ts-expect-error
   eventCallbacks[0].abiItem.outputs = [];
 
   const rawEvent = {

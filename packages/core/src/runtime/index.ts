@@ -1,3 +1,4 @@
+import { type Address, hexToNumber, numberToHex, toHex } from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
@@ -6,8 +7,8 @@ import type {
   Filter,
   Fragment,
   LightBlock,
+  SyncBlock,
 } from "@/internal/types.js";
-import type { SyncBlock } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import {
@@ -23,9 +24,9 @@ import {
 } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import {
-  MAX_CHECKPOINT,
   blockToCheckpoint,
   encodeCheckpoint,
+  MAX_CHECKPOINT,
 } from "@/utils/checkpoint.js";
 import {
   type Interval,
@@ -36,7 +37,6 @@ import {
   intervalUnion,
   sortIntervals,
 } from "@/utils/interval.js";
-import { type Address, hexToNumber, numberToHex, toHex } from "viem";
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;
@@ -47,7 +47,9 @@ export type SyncProgress = {
   isFinalized: () => boolean;
   getCheckpoint: <tag extends "start" | "end" | "current" | "finalized">({
     tag,
-  }: { tag: tag }) => tag extends "end" ? string | undefined : string;
+  }: {
+    tag: tag;
+  }) => tag extends "end" ? string | undefined : string;
 };
 
 export type ChildAddresses = Map<FactoryId, Map<Address, number>>;

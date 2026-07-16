@@ -1,16 +1,3 @@
-import type { SqlStatements } from "@/drizzle/kit/index.js";
-import type { Rpc } from "@/rpc/index.js";
-import type {
-  Block,
-  Log,
-  Trace,
-  Transaction,
-  TransactionReceipt,
-  Transfer,
-} from "@/types/eth.js";
-import type { PartialExcept, Prettify } from "@/types/utils.js";
-import type { Trace as DebugTrace } from "@/utils/debug.js";
-import type { PGliteOptions } from "@/utils/pglite.js";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Hono } from "hono";
 import type { PoolConfig } from "pg";
@@ -29,6 +16,19 @@ import type {
   Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
+import type { SqlStatements } from "@/drizzle/kit/index.js";
+import type { Rpc } from "@/rpc/index.js";
+import type {
+  Block,
+  Log,
+  Trace,
+  Transaction,
+  TransactionReceipt,
+  Transfer,
+} from "@/types/eth.js";
+import type { PartialExcept, Prettify } from "@/types/utils.js";
+import type { Trace as DebugTrace } from "@/utils/debug.js";
+import type { PGliteOptions } from "@/utils/pglite.js";
 import type { RetryableError } from "./errors.js";
 
 // Database

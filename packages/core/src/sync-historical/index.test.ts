@@ -1,3 +1,6 @@
+import { zeroAddress } from "viem";
+import { parseEther } from "viem/utils";
+import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
   context,
@@ -32,9 +35,6 @@ import {
   getRequiredIntervalsWithFilters,
 } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
-import { zeroAddress } from "viem";
-import { parseEther } from "viem/utils";
-import { beforeEach, expect, test, vi } from "vitest";
 import { createHistoricalSync } from "./index.js";
 
 beforeEach(setupCommon);
@@ -356,7 +356,7 @@ test("sync() with log factory and no address", async () => {
     address,
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   eventCallbacks[0].filter.address.address = undefined;
 
   const historicalSync = createHistoricalSync({
@@ -432,9 +432,9 @@ test("sync() with log factory error", async () => {
     address,
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   eventCallbacks[0].filter.address.address = undefined;
-  // @ts-ignore
+  // @ts-expect-error
   // Invalid child address location causes extracting child address to throw an error
   eventCallbacks[0].filter.address.childAddressLocation = "topic3";
 
@@ -514,7 +514,7 @@ test("sync() with trace filter", async () => {
     chain,
     rpc: {
       ...rpc,
-      // @ts-ignore
+      // @ts-expect-error
       request,
     },
     childAddresses: setupChildAddresses(eventCallbacks),
@@ -668,7 +668,7 @@ test("sync() with transfer filter", async () => {
     chain,
     rpc: {
       ...rpc,
-      // @ts-ignore
+      // @ts-expect-error
       request,
     },
     childAddresses: setupChildAddresses(eventCallbacks),
@@ -941,9 +941,9 @@ test("sync() with partial cache", async () => {
 
   let spy = vi.spyOn(rpc, "request");
 
-  // @ts-ignore
+  // @ts-expect-error
   eventCallbacks[0]!.filter.address = [
-    // @ts-ignore
+    // @ts-expect-error
     eventCallbacks[0]!.filter.address,
     zeroAddress,
   ];

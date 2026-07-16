@@ -1,6 +1,6 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import { createDatabase, type Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -87,7 +87,7 @@ export async function start({
 
   const build = await createBuild({ common, cliOptions });
 
-  // biome-ignore lint/style/useConst: <explanation>
+  // biome-ignore lint/style/useConst: `database` is assigned in later startup branches.
   let database: Database | undefined;
 
   const namespaceResult = build.namespaceCompile();

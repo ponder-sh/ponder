@@ -1,13 +1,3 @@
-import type { Common } from "@/internal/common.js";
-import type { Chain, IndexingBuild, SetupEvent } from "@/internal/types.js";
-import type { Event } from "@/internal/types.js";
-import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import { dedupe } from "@/utils/dedupe.js";
-import { toLowerCase } from "@/utils/lowercase.js";
-import { orderObject } from "@/utils/order.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
 import {
   type Abi,
   type Account,
@@ -16,6 +6,12 @@ import {
   type ContractFunctionArgs,
   type ContractFunctionName,
   type ContractFunctionParameters,
+  createClient,
+  custom,
+  decodeFunctionData,
+  decodeFunctionResult,
+  encodeFunctionData,
+  encodeFunctionResult,
   type GetBlockReturnType,
   type GetTransactionConfirmationsParameters,
   type GetTransactionConfirmationsReturnType,
@@ -23,13 +19,17 @@ import {
   type GetTransactionReceiptParameters,
   type GetTransactionReceiptReturnType,
   type GetTransactionReturnType,
+  getAbiItem,
   type Hash,
   type Hex,
+  hexToNumber,
   type MulticallParameters,
   type MulticallReturnType,
+  multicall3Abi,
   type Prettify,
   type PublicActions,
   type PublicRpcSchema,
+  publicActions,
   type ReadContractParameters,
   type ReadContractReturnType,
   type SimulateContractParameters,
@@ -37,20 +37,24 @@ import {
   TransactionNotFoundError,
   TransactionReceiptNotFoundError,
   type Transport,
-  type Chain as ViemChain,
-  createClient,
-  custom,
-  decodeFunctionData,
-  decodeFunctionResult,
-  encodeFunctionData,
-  encodeFunctionResult,
-  getAbiItem,
-  hexToNumber,
-  multicall3Abi,
-  publicActions,
   toFunctionSelector,
   toHex,
+  type Chain as ViemChain,
 } from "viem";
+import type { Common } from "@/internal/common.js";
+import type {
+  Chain,
+  Event,
+  IndexingBuild,
+  SetupEvent,
+} from "@/internal/types.js";
+import type { RequestParameters, Rpc } from "@/rpc/index.js";
+import type { SyncStore } from "@/sync-store/index.js";
+import { dedupe } from "@/utils/dedupe.js";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { orderObject } from "@/utils/order.js";
+import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import {
   getProfilePatternKey,
   recordProfilePattern,
@@ -59,9 +63,7 @@ import {
 
 export type CachedViemClient = {
   getClient: (chain: Chain) => ReadonlyClient;
-  prefetch: (params: {
-    events: Event[];
-  }) => Promise<void>;
+  prefetch: (params: { events: Event[] }) => Promise<void>;
   clear: () => void;
   event: Event | SetupEvent | undefined;
 };
@@ -413,7 +415,7 @@ export const decodeResponse = (response: Response) => {
   // Note: I don't actually remember why we had to add the try catch.
   try {
     return JSON.parse(response);
-  } catch (error) {
+  } catch (_error) {
     return response;
   }
 };
@@ -451,7 +453,10 @@ export const createCachedViemClient = ({
     const addProfilePattern = ({
       pattern,
       hasConstant,
-    }: { pattern: ProfilePattern; hasConstant: boolean }) => {
+    }: {
+      pattern: ProfilePattern;
+      hasConstant: boolean;
+    }) => {
       const profilePatternKey = getProfilePatternKey(pattern);
       const eventName = (event as Event).eventCallback.name;
 
@@ -563,7 +568,7 @@ export const createCachedViemClient = ({
         const BASE_DURATION = 125;
         for (let i = 0; i <= RETRY_COUNT; i++) {
           try {
-            // @ts-ignore
+            // @ts-expect-error
             return await action(...args);
           } catch (error) {
             const eventName =
@@ -622,30 +627,29 @@ export const createCachedViemClient = ({
     }
 
     for (const action of nonBlockDependentActions) {
-      // @ts-ignore
+      // @ts-expect-error
       actions[action] = _publicActions[action];
     }
 
     for (const action of blockRequiredActions) {
-      // @ts-ignore
+      // @ts-expect-error
       actions[action] = _publicActions[action];
     }
 
     for (const action of retryableActions) {
-      // @ts-ignore
       actions[action] = getRetryAction(actions[action], action);
     }
 
     const actionsWithMetrics = {} as PonderActions;
 
     for (const [action, actionFn] of Object.entries(actions)) {
-      // @ts-ignore
+      // @ts-expect-error
       actionsWithMetrics[action] = async (
         ...args: Parameters<PonderActions[keyof PonderActions]>
       ) => {
         const endClock = startClock();
         try {
-          // @ts-ignore
+          // @ts-expect-error
           return await actionFn(...args);
         } finally {
           common.metrics.ponder_indexing_rpc_action_duration.observe(
@@ -661,8 +665,7 @@ export const createCachedViemClient = ({
 
   return {
     getClient(chain) {
-      const rpc =
-        indexingBuild.rpcs[indexingBuild.chains.findIndex((n) => n === chain)]!;
+      const rpc = indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!;
 
       return createClient({
         transport: cachedTransport({
@@ -834,7 +837,7 @@ export const cachedTransport =
           method === "eth_call" &&
           params[0]?.data?.startsWith(MULTICALL_SELECTOR)
         ) {
-          let blockNumber: Hex | "latest" | undefined = undefined;
+          let blockNumber: Hex | "latest" | undefined;
           [, blockNumber] = params;
 
           const multicallRequests = decodeFunctionData({
@@ -1032,7 +1035,7 @@ export const cachedTransport =
               functionName: "aggregate3",
               result: resultsToEncode,
             });
-          } catch (e) {
+          } catch (_e) {
             return encodeFunctionResult({
               abi: multicall3Abi,
               functionName: "aggregate3",
@@ -1152,7 +1155,7 @@ export const cachedTransport =
     })({ chain: viemChain, retryCount: 0 });
 
 export const extractBlockNumberParam = (request: RequestParameters) => {
-  let blockNumber: Hex | "latest" | undefined = undefined;
+  let blockNumber: Hex | "latest" | undefined;
 
   switch (request.method) {
     case "eth_getBlockByNumber":

@@ -1,3 +1,12 @@
+import {
+  decodeFunctionResult,
+  encodeFunctionData,
+  type Hex,
+  multicall3Abi,
+  parseEther,
+  toHex,
+} from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE } from "@/_test/constants.js";
 import { erc20ABI, revertABI } from "@/_test/generated.js";
 import {
@@ -23,15 +32,6 @@ import {
   publicClient,
 } from "@/_test/utils.js";
 import { createRpc } from "@/rpc/index.js";
-import {
-  type Hex,
-  decodeFunctionResult,
-  encodeFunctionData,
-  multicall3Abi,
-  parseEther,
-} from "viem";
-import { toHex } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
 import { createCachedViemClient } from "./client.js";
 import { getEventCount } from "./index.js";
 

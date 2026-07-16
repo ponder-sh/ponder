@@ -21,8 +21,6 @@ import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { Command } from "commander";
 import {
-  type SQL,
-  Table,
   and,
   eq,
   exists,
@@ -36,22 +34,23 @@ import {
   lte,
   not,
   or,
+  type SQL,
   sql,
+  Table,
 } from "drizzle-orm";
-import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import seedrandom from "seedrandom";
 import {
   type Address,
-  type RpcBlock,
   custom,
   hexToNumber,
   numberToHex,
+  type RpcBlock,
 } from "viem";
-import packageJson from "../../packages/core/package.json" assert {
-  type: "json",
-};
+import packageJson from "../../packages/core/package.json";
+
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
@@ -1259,7 +1258,7 @@ const onBuild = async (app: PonderApp) => {
         // the finalized block >= crash recovery checkpoint.
 
         const {
-          // @ts-ignore
+          // @ts-expect-error
           rows: [{ latest_checkpoint }],
         } = await APP_DB.execute(
           `SELECT latest_checkpoint FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
@@ -1307,7 +1306,7 @@ const onBuild = async (app: PonderApp) => {
     });
 
     chains.set(chain.id, {
-      // @ts-ignore
+      // @ts-expect-error
       request: rpc.request,
       interval: [
         hexToNumber(app.indexingBuild.finalizedBlocks[i]!.number) + 1,
@@ -1462,7 +1461,6 @@ const compareTables = async (
         }
       }
 
-      // biome-ignore lint/performance/noDelete: <explanation>
       delete row.set;
     }
 

@@ -1,7 +1,7 @@
 import { InvalidInputRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, fromBlock, getRequest } from "./utils.js";
+import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
 const request = getRequest("https://1rpc.io/eth");
 const maxBlockRange = 1_000n;

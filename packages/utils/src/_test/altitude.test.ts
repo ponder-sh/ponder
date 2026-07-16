@@ -1,7 +1,7 @@
 import { HttpRequestError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { getRequest, type Params } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_ALTITUDE_999!);
 const fromBlock = 9419400;

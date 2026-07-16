@@ -1,7 +1,7 @@
-import { RpcError, numberToHex } from "viem";
+import { numberToHex, RpcError } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { getRequest, type Params } from "./utils.js";
 
 const request = getRequest("https://zkevm-rpc.com");
 

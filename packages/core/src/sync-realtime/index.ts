@@ -1,3 +1,10 @@
+import {
+  type Address,
+  type Hash,
+  hexToNumber,
+  numberToHex,
+  zeroHash,
+} from "viem";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
 import type {
@@ -49,13 +56,6 @@ import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
-import {
-  type Address,
-  type Hash,
-  hexToNumber,
-  numberToHex,
-  zeroHash,
-} from "viem";
 import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
 
 export type RealtimeSync = {

@@ -1,12 +1,12 @@
-import { graphiQLHtml } from "@/graphql/graphiql.html.js";
-import type { Schema } from "@/internal/types.js";
-import type { ReadonlyDrizzle } from "@/types/db.js";
 import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { type GraphQLSchema, printSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
+import { graphiQLHtml } from "@/graphql/graphiql.html.js";
+import type { Schema } from "@/internal/types.js";
+import type { ReadonlyDrizzle } from "@/types/db.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**
@@ -98,7 +98,9 @@ export const graphql = (
 
 async function generateSchema({
   graphqlSchema,
-}: { graphqlSchema: GraphQLSchema }) {
+}: {
+  graphqlSchema: GraphQLSchema;
+}) {
   const fs = await import(/* webpackIgnore: true */ "node:fs");
   const path = await import(/* webpackIgnore: true */ "node:path");
 

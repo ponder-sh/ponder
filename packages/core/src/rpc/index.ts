@@ -1,22 +1,18 @@
 import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
-import type { Common } from "@/internal/common.js";
-import type { Logger } from "@/internal/logger.js";
-import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
-import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
-import { createQueue } from "@/utils/queue.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
   BlockNotFoundError,
+  custom,
   type EIP1193Parameters,
   type EIP1193RequestFn,
   type Hash,
   HttpRequestError,
+  hexToNumber,
+  isHex,
   JsonRpcVersionUnsupportedError,
   MethodNotFoundRpcError,
   MethodNotSupportedRpcError,
@@ -25,12 +21,16 @@ import {
   type RpcError,
   type RpcTransactionReceipt,
   TimeoutError,
-  custom,
-  hexToNumber,
-  isHex,
   webSocket,
 } from "viem";
 import { WebSocket } from "ws";
+import type { Common } from "@/internal/common.js";
+import type { Logger } from "@/internal/logger.js";
+import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
+import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
+import { createQueue } from "@/utils/queue.js";
+import { startClock } from "@/utils/timer.js";
+import { wait } from "@/utils/wait.js";
 import type { DebugRpcSchema } from "../utils/debug.js";
 import { getHttpRpcClient } from "./http.js";
 
@@ -170,7 +170,11 @@ export const createRpc = ({
   common,
   chain,
   concurrency = 25,
-}: { common: Common; chain: Chain; concurrency?: number }): Rpc => {
+}: {
+  common: Common;
+  chain: Chain;
+  concurrency?: number;
+}): Rpc => {
   let backends: { request: EIP1193RequestFn<RpcSchema>; hostname: string }[];
 
   let requestId: UUID | undefined;
@@ -511,7 +515,7 @@ export const createRpc = ({
           ) {
             // Note: Throwing this error will cause the request to be retried.
             throw new BlockNotFoundError({
-              // @ts-ignore
+              // @ts-expect-error
               blockNumber: body.params[0],
             });
           }
@@ -576,7 +580,7 @@ export const createRpc = ({
 
               throw error;
             } else {
-              // @ts-ignore
+              // @ts-expect-error
               error.meta = [
                 "Tip: Use the ethGetLogsBlockRange option to override the default behavior for this chain",
               ];
@@ -586,9 +590,9 @@ export const createRpc = ({
           addLatency(bucket, endClock(), false);
 
           if (
-            // @ts-ignore
+            // @ts-expect-error
             error.code === 429 ||
-            // @ts-ignore
+            // @ts-expect-error
             error.status === 429 ||
             error instanceof TimeoutError
           ) {
@@ -695,7 +699,7 @@ export const createRpc = ({
 
   const rpc: Rpc = {
     hostnames: backends.map((backend) => backend.hostname),
-    // @ts-ignore
+    // @ts-expect-error
     request: (parameters, context) => queue.add({ body: parameters, context }),
     subscribe({ onBlock, onError }) {
       (async () => {

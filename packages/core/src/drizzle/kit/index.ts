@@ -1,7 +1,13 @@
-import { SQL, is, sql } from "drizzle-orm";
+import { is, SQL, sql } from "drizzle-orm";
 import { CasingCache, toCamelCase, toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgTable,
+  getTableConfig,
+  getViewConfig,
+  index,
+  integer,
+  isPgEnum,
+  isPgSequence,
   PgColumn,
   PgDialect,
   type PgEnum,
@@ -11,12 +17,6 @@ import {
   type PgSequence,
   PgTable,
   PgView,
-  getTableConfig,
-  getViewConfig,
-  index,
-  integer,
-  isPgEnum,
-  isPgSequence,
   pgSchema,
   pgTable,
   varchar,
@@ -82,13 +82,13 @@ export const getSql = (schema: { [name: string]: unknown }): SqlStatements => {
   const jsonCreateIndexesForCreatedTables = Object.values(
     squashed.tables,
   ).flatMap((it) => {
-    // @ts-ignore
+    // @ts-expect-error
     return preparePgCreateIndexesJson(it.name, it.schema, it.indexes);
   });
 
   const jsonCreateEnums =
     Object.values(squashed.enums).map((it) => {
-      // @ts-ignore
+      // @ts-expect-error
       return prepareCreateEnumJson(it.name, it.schema, it.values);
     }) ?? [];
 
@@ -178,7 +178,7 @@ const createReorgTableStatement = (statement: JsonCreateTableStatement) => {
         "snake_case",
       ),
     ).tables,
-    //@ts-ignore
+    //@ts-expect-error
   )[0]!.columns;
 
   reorgStatement.columns.push(...Object.values(reorgColumns));
@@ -504,7 +504,7 @@ class PgCreateTableConvertor extends Convertor {
     if (typeof compositePKs !== "undefined" && compositePKs.length > 0) {
       statement += ",\n";
       const compositePK = PgSquasher.unsquashPK(compositePKs[0]!);
-      statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")`;
+      statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY("${compositePK.columns.join(`","`)}")`;
       // statement += `\n`;
     }
 
@@ -664,8 +664,7 @@ class CreatePgIndexConvertor extends Convertor {
     function reverseLogic(mappedWith: Record<string, string>): string {
       let reversedString = "";
       for (const key in mappedWith) {
-        // biome-ignore lint/suspicious/noPrototypeBuiltins: <explanation>
-        if (mappedWith.hasOwnProperty(key)) {
+        if (Object.hasOwn(mappedWith, key)) {
           reversedString += `${key}=${mappedWith[key]},`;
         }
       }
@@ -958,7 +957,7 @@ const generatePgSnapshot = (
       columnsObject[name] = columnToSet;
     });
 
-    primaryKeys.map((pk) => {
+    primaryKeys.forEach((pk) => {
       const originalColumnNames = pk.columns.map((c) => c.name);
       const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
@@ -1003,9 +1002,9 @@ const generatePgSnapshot = (
             return {
               expression: getColumnCasing(it as IndexedColumn, casing),
               isExpression: false,
-              // @ts-ignore
+              // @ts-expect-error
               asc: it.indexConfig?.order === "asc",
-              // @ts-ignore
+              // @ts-expect-error
               nulls: it.indexConfig?.nulls
                 ? // @ts-ignore
                   it.indexConfig?.nulls
@@ -1013,7 +1012,7 @@ const generatePgSnapshot = (
                   it.indexConfig?.order === "desc"
                   ? "first"
                   : "last",
-              // @ts-ignore
+              // @ts-expect-error
               opclass: it.indexConfig?.opClass,
             };
           }
@@ -1053,41 +1052,28 @@ const generatePgSnapshot = (
 
   const combinedViews = [...views];
   for (const view of combinedViews) {
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
+    // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let viewName;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
+    // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let schema;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
+    // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let query;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let selectedFields;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
+    // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let isExisting;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
+    // biome-ignore lint/style/useConst: The value is assigned once from the view config destructuring.
     let withOption;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let tablespace;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let using;
-    // @ts-ignore
-    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
-    // biome-ignore lint/style/useConst: <explanation>
+    // biome-ignore lint/suspicious/noImplicitAnyLet: The view config is assigned below to shared variables.
     let withNoData;
     const materialized: boolean = false;
 

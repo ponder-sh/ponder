@@ -1,18 +1,16 @@
 import path from "node:path";
+import { createClient } from "@ponder/client";
+import { rimrafSync } from "rimraf";
+import { beforeEach, expect, test } from "vitest";
 import { ALICE } from "@/_test/constants.js";
 import {
   setupAnvil,
   setupCommon,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployFactory } from "@/_test/simulate.js";
-import { createPair } from "@/_test/simulate.js";
-import { swapPair } from "@/_test/simulate.js";
+import { createPair, deployFactory, swapPair } from "@/_test/simulate.js";
 import { getFreePort, waitForIndexedBlock } from "@/_test/utils.js";
 import { start } from "@/bin/commands/start.js";
-import { createClient } from "@ponder/client";
-import { rimrafSync } from "rimraf";
-import { beforeEach, expect, test } from "vitest";
 import * as schema from "./ponder.schema.js";
 
 const rootDir = path.join(".", "src", "_test", "e2e", "factory");

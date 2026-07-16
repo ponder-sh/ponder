@@ -1,3 +1,5 @@
+import { type Hex, parseEther } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
   context,
@@ -28,9 +30,7 @@ import type { LogFactory, LogFilter } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import { type Hex, parseEther } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
-import { type RealtimeSyncEvent, createRealtimeSync } from "./index.js";
+import { createRealtimeSync, type RealtimeSyncEvent } from "./index.js";
 
 const staleLogsBloom = `0x${"0".repeat(511)}1` as Hex;
 
@@ -837,7 +837,7 @@ test("handleBlock() block event with transfer", async () => {
     common,
     chain,
     rpc: {
-      // @ts-ignore
+      // @ts-expect-error
       request,
     },
     eventCallbacks,
@@ -938,7 +938,7 @@ test("handleBlock() block event with trace", async () => {
     chain,
     rpc: {
       ...rpc,
-      // @ts-ignore
+      // @ts-expect-error
       request,
     },
     eventCallbacks,

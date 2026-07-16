@@ -1,3 +1,5 @@
+import { parseEther, toHex, zeroAddress } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
@@ -15,17 +17,15 @@ import {
   getSimulatedEvent,
 } from "@/_test/utils.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import { createCachedViemClient } from "@/indexing/client.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
-import { createCachedViemClient } from "@/indexing/client.js";
 import {
   InvalidEventAccessError,
   type RetryableError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
-import { parseEther, toHex, zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
 import {
   type Context,
   createColumnAccessPattern,
@@ -343,7 +343,6 @@ test("processEvent()", async () => {
       contracts: {
         Erc20: {
           abi: expect.any(Object),
-          // @ts-ignore
           address,
           startBlock: undefined,
           endBlock: undefined,
@@ -719,7 +718,7 @@ test("executeSetup() error", async () => {
     eventCount,
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   setupCallbacks[0]!.fn.mockRejectedValue(new Error());
 
   await expect(indexing.processSetupEvents()).rejects.toThrowError();
@@ -1049,7 +1048,7 @@ test("processEvents() error", async () => {
     eventCount,
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   eventCallbacks[0]!.fn.mockRejectedValue(new Error());
 
   const event = getSimulatedEvent({
@@ -1089,8 +1088,10 @@ test("processEvents() error with missing event object properties", async () => {
 
   eventCallbacks[0]!.fn = async ({
     event,
-  }: { event: any; context: Context }) => {
-    // biome-ignore lint/performance/noDelete: <explanation>
+  }: {
+    event: any;
+    context: Context;
+  }) => {
     delete event.transaction;
     throw new Error("empty transaction");
   };
@@ -1174,7 +1175,10 @@ test("processEvents() column selection", async () => {
 
   eventCallbacks[0]!.fn = async ({
     event,
-  }: { event: any; context: Context }) => {
+  }: {
+    event: any;
+    context: Context;
+  }) => {
     event.transaction.gas;
     event.transaction.maxFeePerGas;
     if (count++ === 1001) {
@@ -1257,8 +1261,7 @@ test("processEvents() column selection", async () => {
   `);
 
   // Remove accessed property to simulate resolved column selection
-  // @ts-ignore
-  // biome-ignore lint/performance/noDelete: <explanation>
+  // @ts-expect-error
   delete event.event.transaction.maxPriorityFeePerGas;
 
   await expect(

@@ -1,3 +1,16 @@
+import {
+  and,
+  eq,
+  getTableColumns,
+  getTableName,
+  getViewName,
+  lte,
+  type SQL,
+  sql,
+  type Table,
+  type View,
+} from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
@@ -20,24 +33,11 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import { MAX_CHECKPOINT_STRING, decodeCheckpoint } from "@/utils/checkpoint.js";
+import { decodeCheckpoint, MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import {
-  type SQL,
-  type Table,
-  type View,
-  and,
-  eq,
-  getTableColumns,
-  getTableName,
-  getViewName,
-  lte,
-  sql,
-} from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/pg-core";
-import {
+  getPonderCheckpointTable,
   PONDER_CHECKPOINT_TABLE_NAME,
   PONDER_META_TABLE_NAME,
-  getPonderCheckpointTable,
 } from "./index.js";
 import type { QB } from "./queryBuilder.js";
 
@@ -404,7 +404,7 @@ WITH reverted1 AS (
 ), ${getRevertSql({ table })};`),
         );
 
-        // @ts-ignore
+        // @ts-expect-error
         counts.push(result.rows[0]!.count);
       }
 
@@ -447,7 +447,6 @@ AND checkpoint > '${checkpoint}'`,
   .join(" UNION ALL ")}) AS all_mins;`),
         )
         .then((result) => {
-          // @ts-ignore
           return result.rows[0]?.operation_id as string | null;
         });
 
@@ -474,7 +473,7 @@ WITH reverted1 AS (
 ), ${getRevertSql({ table })};`),
         );
 
-        // @ts-ignore
+        // @ts-expect-error
         counts.push(result.rows[0]!.count);
       }
 
@@ -525,7 +524,7 @@ WITH reverted1 AS (
 ), ${getRevertSql({ table })};`),
         );
 
-        // @ts-ignore
+        // @ts-expect-error
         counts.push(result.rows[0]!.count);
       }
 
@@ -647,7 +646,6 @@ WHERE checkpoint > (
   .join(" UNION ALL ")}) AS all_mins;`),
         )
         .then((result) => {
-          // @ts-ignore
           return result.rows[0]?.operation_id as string | null;
         });
 

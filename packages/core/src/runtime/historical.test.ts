@@ -1,11 +1,12 @@
+import { beforeEach, expect, test, vi } from "vitest";
 import {
   context,
+  setupAnvil,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { setupAnvil } from "@/_test/setup.js";
 import { getBlocksIndexingBuild, getChain, testClient } from "@/_test/utils.js";
 import type { Chain } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
@@ -13,7 +14,6 @@ import { createRpc } from "@/rpc/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
 import { MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import { beforeEach, expect, test, vi } from "vitest";
 import {
   getHistoricalEventsMultichain,
   getLocalEventGenerator,
@@ -22,10 +22,10 @@ import {
 import {
   type CachedIntervals,
   type ChildAddresses,
-  type SyncProgress,
   getCachedIntervals,
   getChildAddresses,
   getLocalSyncProgress,
+  type SyncProgress,
 } from "./index.js";
 
 beforeEach(setupCommon);

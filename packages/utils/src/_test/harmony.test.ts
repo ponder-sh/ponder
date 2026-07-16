@@ -2,7 +2,7 @@ import { InvalidInputRpcError, numberToHex } from "viem";
 import { harmonyOne } from "viem/chains";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { getRequest, type Params } from "./utils.js";
 
 const request = getRequest("https://api.harmony.one", harmonyOne);
 const fromBlock = 70_000_000n;

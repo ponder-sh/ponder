@@ -1,3 +1,14 @@
+import {
+  type Column,
+  getTableName,
+  getViewName,
+  isTable,
+  isView,
+  type QueryWithTypings,
+  type Table,
+} from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
+import { drizzle } from "drizzle-orm/pg-proxy";
 import type { QB } from "@/database/queryBuilder.js";
 import { onchain } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
@@ -12,25 +23,17 @@ import {
   UndefinedTableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type { Schema } from "@/internal/types.js";
-import type { IndexingErrorHandler, SchemaBuild } from "@/internal/types.js";
+import type {
+  IndexingErrorHandler,
+  Schema,
+  SchemaBuild,
+} from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
 import { copy, copyOnWrite } from "@/utils/copy.js";
 import { createLock } from "@/utils/mutex.js";
 import { prettyPrint } from "@/utils/print.js";
 import { getSQLQueryRelations, isReadonlySQLQuery } from "@/utils/sql-parse.js";
 import { startClock } from "@/utils/timer.js";
-import {
-  type Column,
-  type QueryWithTypings,
-  type Table,
-  getTableName,
-  getViewName,
-  isTable,
-  isView,
-} from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/pg-core";
-import { drizzle } from "drizzle-orm/pg-proxy";
 import type { IndexingCache, Row } from "./cache.js";
 import { getPrimaryKeyCache } from "./utils.js";
 
@@ -157,7 +160,6 @@ export const createIndexingStore = ({
 
   return {
     db: {
-      // @ts-ignore
       find: storeMethodWrapper(async (table: Table, key) => {
         common.metrics.ponder_indexing_store_queries_total.inc({
           table: getTableName(table),
@@ -169,11 +171,10 @@ export const createIndexingStore = ({
         const userRow = ponderRow === null ? null : copyOnWrite(ponderRow);
         return userRow;
       }),
-      // @ts-ignore
+      // @ts-expect-error
       insert(table: Table) {
         return {
           values: (userValues: any) => {
-            // @ts-ignore
             const inner = {
               onConflictDoNothing: storeMethodWrapper(async () => {
                 common.metrics.ponder_indexing_store_queries_total.inc({
@@ -363,7 +364,7 @@ export const createIndexingStore = ({
                   }
                 },
               ),
-              // biome-ignore lint/suspicious/noThenProperty: <explanation>
+              // biome-ignore lint/suspicious/noThenProperty: The returned object is intentionally thenable for the query API.
               then: (onFulfilled, onRejected) =>
                 storeMethodWrapper(async () => {
                   common.metrics.ponder_indexing_store_queries_total.inc({
@@ -472,7 +473,7 @@ export const createIndexingStore = ({
                     throw reason;
                   },
                 ),
-              // @ts-ignore
+              // @ts-expect-error
             } satisfies ReturnType<
               ReturnType<IndexingStore["db"]["insert"]>["values"]
             >;
@@ -481,7 +482,7 @@ export const createIndexingStore = ({
           },
         };
       },
-      // @ts-ignore
+      // @ts-expect-error
       update(table: Table, key) {
         return {
           set: storeMethodWrapper(async (userValues: any) => {
@@ -544,7 +545,6 @@ export const createIndexingStore = ({
           }),
         };
       },
-      // @ts-ignore
       delete: storeMethodWrapper(async (table: Table, key) => {
         common.metrics.ponder_indexing_store_queries_total.inc({
           table: getTableName(table),
@@ -554,7 +554,7 @@ export const createIndexingStore = ({
         checkTableAccess(table, "delete", key, chainId);
         return indexingCache.delete({ table, key });
       }),
-      // @ts-ignore
+      // @ts-expect-error
       sql: drizzle(
         storeMethodWrapper(async (_sql, params, method, typings) => {
           const isSelectOnly = await isReadonlySQLQuery(_sql);
@@ -597,9 +597,9 @@ export const createIndexingStore = ({
 
               if (method === "all") {
                 return {
-                  // @ts-ignore
+                  // @ts-expect-error
                   ...result,
-                  // @ts-ignore
+                  // @ts-expect-error
                   rows: result.rows.map((row) => Object.values(row)),
                 };
               }

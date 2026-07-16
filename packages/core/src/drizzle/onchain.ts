@@ -1,15 +1,15 @@
-import type { PonderTypeError } from "@/types/utils.js";
 import {
   type BuildColumns,
   type ColumnBuilderBase,
+  getTableName,
   Table,
   type Writable,
-  getTableName,
 } from "drizzle-orm";
 import { toSnakeCase } from "drizzle-orm/casing";
 import {
   type AnyPgColumn,
   type PrimaryKeyBuilder as DrizzlePrimaryKeyBuilder,
+  primaryKey as drizzlePrimaryKey,
   type ExtraConfigColumn,
   ManualViewBuilder,
   type PgColumnBuilder,
@@ -22,12 +22,12 @@ import {
   type PgTextConfig,
   type TableConfig,
   ViewBuilder,
-  primaryKey as drizzlePrimaryKey,
 } from "drizzle-orm/pg-core";
 import {
   type PgColumnsBuilders as _PgColumnsBuilders,
   getPgColumnBuilders,
 } from "drizzle-orm/pg-core/columns/all";
+import type { PonderTypeError } from "@/types/utils.js";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
 import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
@@ -73,7 +73,10 @@ export const getLiveQueryTempTableName = () => {
 export const getLiveQueryNotifyProcedureSql = ({
   schema,
   channel,
-}: { schema: string; channel: string }) => {
+}: {
+  schema: string;
+  channel: string;
+}) => {
   const tempTableName = getLiveQueryTempTableName();
 
   return `
@@ -144,7 +147,7 @@ function getColumnNameAndConfig<
   };
 }
 
-// @ts-ignore
+// @ts-expect-error
 export function hex(): PgHexBuilderInitial<"">;
 export function hex<name extends string>(
   columnName: name,
@@ -153,7 +156,7 @@ export function hex(columnName?: string) {
   return new PgHexBuilder(columnName ?? "");
 }
 
-// @ts-ignore
+// @ts-expect-error
 export function bigint(): PgBigintBuilderInitial<"">;
 export function bigint<name extends string>(
   columnName: name,
@@ -178,7 +181,7 @@ export function jsonb(name?: string) {
   return new PgJsonbBuilder(name ?? "");
 }
 
-// @ts-ignore
+// @ts-expect-error
 export function bytes(): PgBytesBuilderInitial<"">;
 export function bytes<name extends string>(
   columnName: name,
@@ -218,7 +221,10 @@ export const primaryKey = <
 >({
   name,
   columns,
-}: { name?: string; columns: [column, ...columns] }) =>
+}: {
+  name?: string;
+  columns: [column, ...columns];
+}) =>
   drizzlePrimaryKey({ name, columns }) as PrimaryKeyBuilder<
     column[" name"] | columns[number][" name"]
   >;
@@ -328,10 +334,10 @@ export const onchainTable = <
   const schema = globalThis?.PONDER_NAMESPACE_BUILD?.schema;
   const table = pgTableWithSchema(name, columns, extraConfig as any, schema);
 
-  // @ts-ignore
+  // @ts-expect-error
   table[onchain] = true;
 
-  // @ts-ignore
+  // @ts-expect-error
   return table;
 };
 
@@ -366,7 +372,7 @@ export function onchainView(
 
   const view = pgViewWithSchema(name, columns, schema);
 
-  // @ts-ignore
+  // @ts-expect-error
   view[onchain] = true;
 
   return view;
@@ -397,10 +403,8 @@ export const onchainEnum = <U extends string, T extends Readonly<[U, ...U[]]>>(
   const schema = globalThis?.PONDER_NAMESPACE_BUILD?.schema;
   const e = pgEnumWithSchema(enumName, values, schema);
 
-  // @ts-ignore
   e[onchain] = true;
 
-  // @ts-ignore
   return e;
 };
 
@@ -440,13 +444,13 @@ function pgTableWithSchema<
   const builtColumns = Object.fromEntries(
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase;
-      // @ts-ignore
+      // @ts-expect-error
       colBuilder.setName(toSnakeCase(name));
-      // @ts-ignore
+      // @ts-expect-error
       const column = colBuilder.build(rawTable);
-      // @ts-ignore
+      // @ts-expect-error
       rawTable[Symbol.for("drizzle:PgInlineForeignKeys")].push(
-        // @ts-ignore
+        // @ts-expect-error
         ...colBuilder.buildForeignKeys(column, rawTable),
       );
       return [name, column];
@@ -456,9 +460,9 @@ function pgTableWithSchema<
   const builtColumnsForExtraConfig = Object.fromEntries(
     Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
       const colBuilder = colBuilderBase as PgColumnBuilder;
-      //@ts-ignore
+      //@ts-expect-error
       colBuilder.setName(toSnakeCase(name));
-      //@ts-ignore
+      //@ts-expect-error
       const column = colBuilder.buildExtraConfigColumn(rawTable);
       return [name, column];
     }),
@@ -466,19 +470,19 @@ function pgTableWithSchema<
 
   const table = Object.assign(rawTable, builtColumns);
 
-  //@ts-ignore
+  //@ts-expect-error
   table[Table.Symbol.Columns] = builtColumns;
-  //@ts-ignore
+  //@ts-expect-error
   table[Table.Symbol.ExtraConfigColumns] = builtColumnsForExtraConfig;
 
   if (extraConfig) {
-    //@ts-ignore
+    //@ts-expect-error
     table[PgTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
   }
 
   return Object.assign(table, {
     enableRLS: () => {
-      // @ts-ignore
+      // @ts-expect-error
       table[PgTable.Symbol.EnableRLS] = true;
       return table as PgTableWithColumns<{
         name: name;

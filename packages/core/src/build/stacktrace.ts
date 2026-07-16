@@ -34,8 +34,8 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
       .split("\n")
       .slice(1)
       .map((message) => {
-        let location: string | undefined = undefined;
-        let detail: string | undefined = undefined;
+        let location: string | undefined;
+        let detail: string | undefined;
         if (message.includes(": ERROR: ")) {
           // /path/to/file.ts:11:9: ERROR: Expected ")" but found ";"
           const s = message.split(": ERROR: ");
@@ -98,7 +98,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
   if (resolvedError.stack) {
     const userStackFrames = parseStackTrace(resolvedError.stack);
 
-    let codeFrame: string | undefined = undefined;
+    let codeFrame: string | undefined;
     for (const { file, lineNumber, column } of userStackFrames) {
       if (file !== null && lineNumber !== null) {
         try {
@@ -109,7 +109,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
             { highlightCode: true },
           );
           break;
-        } catch (err) {
+        } catch (_err) {
           // No-op.
         }
       }
@@ -131,7 +131,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
   // This can throw with "Cannot set property message of [object Object] which has only a getter"
   try {
     resolvedError.message = `Error while ${verb} ${file}: ${resolvedError.message}`;
-  } catch (e) {}
+  } catch (_e) {}
 
   return resolvedError;
 }

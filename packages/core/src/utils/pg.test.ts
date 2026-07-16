@@ -1,6 +1,6 @@
+import { beforeEach, expect, test } from "vitest";
 import { setupCommon } from "@/_test/setup.js";
 import { withStubbedEnv } from "@/_test/utils.js";
-import { beforeEach, expect, test } from "vitest";
 import { getDatabaseName } from "./pg.js";
 
 beforeEach(setupCommon);

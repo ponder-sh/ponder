@@ -1,5 +1,8 @@
+import type { PGlite } from "@electric-sql/pglite";
+import pg from "pg";
+import { afterAll } from "vitest";
 import { buildSchema } from "@/build/schema.js";
-import { type Database, createDatabase } from "@/database/index.js";
+import { createDatabase, type Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
@@ -16,11 +19,8 @@ import type {
 import { getFilterFactories, isAddressFactory } from "@/runtime/filter.js";
 import { getFactoryFragments, getFragments } from "@/runtime/fragments.js";
 import type { CachedIntervals, ChildAddresses } from "@/runtime/index.js";
-import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
+import { createSyncStore, type SyncStore } from "@/sync-store/index.js";
 import { createPglite } from "@/utils/pglite.js";
-import type { PGlite } from "@electric-sql/pglite";
-import pg from "pg";
-import { afterAll } from "vitest";
 import { IS_BUN_TEST, TEST_POOL_ID, testClient } from "./utils.js";
 
 export const context = {} as {

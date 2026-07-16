@@ -30,7 +30,7 @@ export function buildPre({
 
   if (config.database?.kind) {
     if (config.database.kind === "postgres") {
-      let connectionString: string | undefined = undefined;
+      let connectionString: string | undefined;
 
       if (config.database.connectionString) {
         connectionString = config.database.connectionString;
@@ -64,7 +64,7 @@ export function buildPre({
       databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
     }
   } else {
-    let connectionString: string | undefined = undefined;
+    let connectionString: string | undefined;
     if (process.env.DATABASE_PRIVATE_URL) {
       connectionString = process.env.DATABASE_PRIVATE_URL;
     } else if (process.env.DATABASE_URL) {

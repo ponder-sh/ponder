@@ -1,10 +1,10 @@
+import type { Column, Table } from "drizzle-orm";
+import { zeroAddress } from "viem";
+import { expect, test } from "vitest";
 import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import type { Column, Table } from "drizzle-orm";
-import { zeroAddress } from "viem";
-import { expect, test } from "vitest";
 import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() no pattern", () => {

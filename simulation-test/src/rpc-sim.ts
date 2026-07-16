@@ -6,16 +6,16 @@ import { and, eq } from "drizzle-orm";
 import seedrandom from "seedrandom";
 import {
   type Address,
+  custom,
   type Hash,
+  hexToNumber,
   type RpcBlock,
   type RpcLog,
   type Transport,
-  custom,
-  hexToNumber,
   toHex,
 } from "viem";
 import * as RPC_SCHEMA from "../schema.js";
-import { APP, DB, IS_REALTIME, SEED, SIM_PARAMS, restart } from "./index.js";
+import { APP, DB, IS_REALTIME, restart, SEED, SIM_PARAMS } from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -339,7 +339,7 @@ export const sim =
             result = receipt.body;
           } else {
             result = await _request(body);
-            // @ts-ignore
+            // @ts-expect-error
             result.logs = undefined;
 
             await DB.insert(RPC_SCHEMA.transactionReceipts)
@@ -369,7 +369,7 @@ export const sim =
             result = receipt.body;
           } else {
             result = await _request(body);
-            // @ts-ignore
+            // @ts-expect-error
             for (const receipt of result) {
               receipt.logs = undefined;
             }

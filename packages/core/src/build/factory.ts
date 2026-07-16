@@ -1,13 +1,13 @@
+import { type Address, toEventSelector } from "viem";
 import type { Factory as FactoryConfig } from "@/config/address.js";
 import type { LogFactory } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import {
-  type TupleAbiParameter,
   getBytesConsumedByParam,
   getNestedParamOffset,
+  type TupleAbiParameter,
 } from "@/utils/offset.js";
-import { type Address, toEventSelector } from "viem";
 
 export function buildLogFactory({
   chainId,

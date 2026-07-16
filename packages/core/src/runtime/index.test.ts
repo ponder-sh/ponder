@@ -1,3 +1,5 @@
+import { parseEther, zeroAddress } from "viem";
+import { beforeEach, expect, test } from "vitest";
 import {
   ALICE,
   EMPTY_BLOCK_FILTER,
@@ -5,12 +7,12 @@ import {
 } from "@/_test/constants.js";
 import {
   context,
+  setupAnvil,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { setupAnvil } from "@/_test/setup.js";
 import { deployErc20, mintErc20 } from "@/_test/simulate.js";
 import {
   getBlocksIndexingBuild,
@@ -31,8 +33,6 @@ import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { parseEther, zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
 import {
   syncBlockToInternal,
   syncLogToInternal,
@@ -295,7 +295,7 @@ test("getCachedBlock() with factory", async () => {
     toBlock: 20,
   } satisfies LogFilter;
 
-  // @ts-ignore
+  // @ts-expect-error
   let cachedIntervals: CachedIntervals = new Map([
     [filter, [{ fragment: {} as Fragment, intervals: [[10, 20]] }]],
     [filter.address, []],
@@ -308,7 +308,7 @@ test("getCachedBlock() with factory", async () => {
 
   expect(cachedBlock).toBe(1);
 
-  // @ts-ignore
+  // @ts-expect-error
   cachedIntervals = new Map([
     [
       filter,
@@ -550,7 +550,7 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
   const fragments = getFragments(filter);
   const factoryFragments = getFactoryFragments(filter.address);
 
-  // @ts-ignore
+  // @ts-expect-error
   const cachedIntervals: CachedIntervals = new Map([
     [filter, [{ fragment: fragments[0]!.fragment, intervals: [[10, 24]] }]],
     [filter.address, [{ fragment: factoryFragments[0]!, intervals: [[3, 5]] }]],
@@ -638,7 +638,7 @@ test("getRequiredIntervals() with factory", async () => {
     toBlock: 20,
   } satisfies LogFilter;
 
-  // @ts-ignore
+  // @ts-expect-error
   let cachedIntervals: CachedIntervals = new Map([
     [filter, [{ fragment: {} as Fragment, intervals: [[10, 18]] }]],
     [
@@ -662,7 +662,7 @@ test("getRequiredIntervals() with factory", async () => {
     ]
   `);
 
-  // @ts-ignore
+  // @ts-expect-error
   cachedIntervals = new Map([
     [filter, [{ fragment: {} as Fragment, intervals: [[10, 18]] }]],
     [filter.address, [{ fragment: {} as Fragment, intervals: [[2, 4]] }]],

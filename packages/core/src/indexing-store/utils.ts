@@ -1,20 +1,20 @@
+import {
+  and,
+  type Column,
+  eq,
+  getTableColumns,
+  getTableName,
+  type SQL,
+  type SQLWrapper,
+  type Table,
+} from "drizzle-orm";
+import { PgArray } from "drizzle-orm/pg-core";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import {
   BigIntSerializationError,
   NotNullConstraintError,
 } from "@/internal/errors.js";
 import { prettyPrint } from "@/utils/print.js";
-import {
-  type Column,
-  type SQL,
-  type SQLWrapper,
-  type Table,
-  and,
-  eq,
-  getTableColumns,
-  getTableName,
-} from "drizzle-orm";
-import { PgArray } from "drizzle-orm/pg-core";
 
 /**
  * Returns true if the column has a "default" value that is used when no value is passed.
@@ -156,7 +156,7 @@ export const getWhereCondition = (table: Table, key: Object): SQL<unknown> => {
   const conditions: SQLWrapper[] = [];
 
   for (const { js } of getPrimaryKeyColumns(table)) {
-    // @ts-ignore
+    // @ts-expect-error
     conditions.push(eq(table[js]!, key[js]));
   }
 

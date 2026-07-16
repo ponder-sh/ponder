@@ -1,5 +1,5 @@
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { expect, test } from "vitest";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import {
   bufferAsyncGenerator,
   createCallbackGenerator,

@@ -1,7 +1,16 @@
 import crypto from "node:crypto";
+import { PGlite } from "@electric-sql/pglite";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
+import type {
+  PgDatabase,
+  PgQueryResultHKT,
+  PgTransaction,
+  PgTransactionConfig,
+} from "drizzle-orm/pg-core";
+import type pg from "pg";
 import type { Common } from "@/internal/common.js";
-import { BaseError } from "@/internal/errors.js";
 import {
+  BaseError,
   BigIntSerializationError,
   CheckConstraintError,
   DbConnectionError,
@@ -15,15 +24,6 @@ import type { Schema } from "@/internal/types.js";
 import type { Drizzle } from "@/types/db.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
-import { PGlite } from "@electric-sql/pglite";
-import type { ExtractTablesWithRelations } from "drizzle-orm";
-import type {
-  PgDatabase,
-  PgQueryResultHKT,
-  PgTransaction,
-  PgTransactionConfig,
-} from "drizzle-orm/pg-core";
-import type pg from "pg";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
@@ -293,7 +293,7 @@ export const createQB = <
   // Add QB methods to the transaction object
   const addQBMethods = (db: PgDatabase<PgQueryResultHKT, TSchema>) => {
     const _transaction = db.transaction.bind(db);
-    // @ts-ignore
+    // @ts-expect-error
     db.transaction = async (...args) => {
       if (typeof args[0] === "function") {
         const [callback, config, transactionContext] = args as unknown as [
@@ -324,7 +324,6 @@ export const createQB = <
               Object.assign(tx, { $client: tx.session.client });
 
               // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
-              // @ts-ignore
               (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
                 if (typeof args[0] === "function") {
                   const [query, context] = args as [
@@ -405,7 +404,6 @@ export const createQB = <
               Object.assign(tx, { $client: tx.session.client });
 
               // Note: `tx.wrap` should not retry errors, because the transaction will be aborted
-              // @ts-ignore
               (tx as unknown as QB<TSchema, TClient>).wrap = (...args) => {
                 if (typeof args[0] === "function") {
                   const [query, context] = args as [
@@ -464,7 +462,7 @@ export const createQB = <
   if (dialect === "postgres") {
     addQBMethods(db);
   } else {
-    // @ts-ignore
+    // @ts-expect-error
     db.transaction = async (...args) => {
       if (typeof args[0] === "function") {
         const [callback, context] = args as [

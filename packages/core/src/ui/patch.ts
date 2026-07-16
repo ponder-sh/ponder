@@ -123,8 +123,7 @@ export function patchWriteStreams({ getLines }: { getLines: () => string[] }) {
     const makeConsoleWriter =
       (stream: NodeJS.WriteStream, _: typeof originalStdoutWrite) =>
       (...args: unknown[]) => {
-        // biome-ignore lint/style/useTemplate:
-        const formatted = util.format(...args) + "\n";
+        const formatted = `${util.format(...args)}\n`;
 
         // handleOutput so TUI is cleared + re-rendered
         handleOutput.call(stream, formatted, "utf8", undefined);

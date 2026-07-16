@@ -1,5 +1,5 @@
-import { partition } from "@/utils/partition.js";
 import { expect, test } from "vitest";
+import { partition } from "@/utils/partition.js";
 
 test("partition", () => {
   let [left, right] = partition([1, 2, 3, 4, 5], (n) => n <= 2);

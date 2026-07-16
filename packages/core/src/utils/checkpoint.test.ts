@@ -2,14 +2,14 @@ import { expect, test } from "vitest";
 
 import {
   type Checkpoint,
-  MAX_CHECKPOINT,
-  MAX_CHECKPOINT_STRING,
   checkpointMax,
   checkpointMin,
   decodeCheckpoint,
   encodeCheckpoint,
   isCheckpointEqual,
   isCheckpointGreaterThan,
+  MAX_CHECKPOINT,
+  MAX_CHECKPOINT_STRING,
 } from "./checkpoint.js";
 
 test("encodeCheckpoint produces expected encoding", () => {
@@ -25,7 +25,6 @@ test("encodeCheckpoint produces expected encoding", () => {
   const encoded = encodeCheckpoint(checkpoint);
 
   const expectedEncoding =
-    // biome-ignore lint: string concat is more readable than template literal here
     "1".padStart(10, "0") +
     "1".toString().padStart(16, "0") +
     "1".toString().padStart(16, "0") +
@@ -38,7 +37,6 @@ test("encodeCheckpoint produces expected encoding", () => {
 
 test("decodeCheckpoint produces expected object", () => {
   const encoded =
-    // biome-ignore lint: string concat is more readable than template literal here
     "1".padStart(10, "0") +
     "1".toString().padStart(16, "0") +
     "1".toString().padStart(16, "0") +

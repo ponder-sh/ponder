@@ -1,3 +1,12 @@
+import { count, relations } from "drizzle-orm";
+import {
+  type ExecutionResult,
+  execute,
+  type GraphQLType,
+  parse,
+} from "graphql";
+import { toBytes, zeroAddress } from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 import {
   setupCleanup,
   setupCommon,
@@ -12,16 +21,6 @@ import {
   primaryKey,
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { count, relations } from "drizzle-orm";
-import {
-  type ExecutionResult,
-  type GraphQLType,
-  execute,
-  parse,
-} from "graphql";
-import { toBytes } from "viem";
-import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 beforeEach(setupCommon);
@@ -1791,7 +1790,7 @@ test("filter and/or", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  // @ts-ignore
+  // @ts-expect-error
   expect(result.data.pets.items).toMatchObject([
     { id: "id1", name: "Skip", bigAge: "105" },
     { id: "id2", name: "Foo", bigAge: "10" },
@@ -1953,7 +1952,7 @@ test("limit", async () => {
   `);
 
   expect(result.errors?.[0]?.message).toBeUndefined();
-  // @ts-ignore
+  // @ts-expect-error
   expect(result.data.persons.items).toHaveLength(50);
 
   // Custom limit (below max)
@@ -1967,7 +1966,7 @@ test("limit", async () => {
     }
   `);
   expect(result.errors?.[0]?.message).toBeUndefined();
-  // @ts-ignore
+  // @ts-expect-error
   expect(result.data.persons.items).toHaveLength(75);
 
   // Custom limit (above max)
@@ -1980,7 +1979,6 @@ test("limit", async () => {
       }
     }
   `);
-  // @ts-ignore
   expect(result.errors?.[0]?.message).toBe(
     "Invalid limit. Got 1005, expected <=1000.",
   );
@@ -2060,7 +2058,7 @@ test("cursor pagination ascending", async () => {
     },
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   const endCursor = result.data.pets.pageInfo.endCursor;
 
   result = await query(`
@@ -2100,7 +2098,7 @@ test("cursor pagination ascending", async () => {
     },
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   const startCursor = result.data.pets.pageInfo.startCursor;
 
   result = await query(`
@@ -2200,7 +2198,7 @@ test("cursor pagination descending", async () => {
     },
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   const endCursor = result.data.pets.pageInfo.endCursor;
 
   result = await query(`
@@ -2239,7 +2237,7 @@ test("cursor pagination descending", async () => {
     },
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   const startCursor = result.data.pets.pageInfo.startCursor;
 
   result = await query(`
@@ -2387,7 +2385,7 @@ test("cursor pagination has previous page", async () => {
 
   expect(result.errors?.[0]?.message).toBeUndefined();
 
-  // @ts-ignore
+  // @ts-expect-error
   const endCursor = result.data.pets.pageInfo.endCursor;
 
   result = await query(`
@@ -2495,7 +2493,7 @@ test("cursor pagination composite primary key", async () => {
     },
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   const endCursor = result.data.allowances.pageInfo.endCursor;
 
   result = await query(`
@@ -2534,7 +2532,7 @@ test("cursor pagination composite primary key", async () => {
     },
   });
 
-  // @ts-ignore
+  // @ts-expect-error
   const startCursor = result.data.allowances.pageInfo.startCursor;
 
   result = await query(`
@@ -2664,7 +2662,7 @@ test("cursor pagination with date order", async () => {
     }
   `);
 
-  // @ts-ignore
+  // @ts-expect-error
   const endCursor = result.data.pets.pageInfo.endCursor;
 
   result = await query(`

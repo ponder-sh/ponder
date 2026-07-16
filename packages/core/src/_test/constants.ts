@@ -1,3 +1,4 @@
+import { zeroHash } from "viem";
 import type {
   BlockFilter,
   LogFilter,
@@ -5,7 +6,6 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { zeroHash } from "viem";
 
 // Test accounts
 export const ACCOUNTS = [

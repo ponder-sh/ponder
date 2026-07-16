@@ -1,5 +1,4 @@
-import { expect } from "vitest";
-import { test } from "vitest";
+import { expect, test } from "vitest";
 import { truncate } from "./truncate.js";
 
 test("truncates a long string correctly", () => {

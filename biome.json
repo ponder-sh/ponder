@@ -1,24 +1,23 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.4.1/schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "files": {
-    "ignore": [
-      "**/node_modules",
-      "CHANGELOG.md",
-      "generated.ts",
-      "**/dist",
-      "**/.next",
-      "**/generated",
-      "**/cache",
-      "**/out",
-      "**/.ponder",
-      "docs/",
-      "benchmarks/apps/subgraph-*",
-      "pnpm-lock.yaml",
-      "**/*.sol",
-      "tsconfig.base.json"
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/CHANGELOG.md",
+      "!**/generated.ts",
+      "!**/dist",
+      "!**/.next",
+      "!**/generated",
+      "!**/cache",
+      "!**/out",
+      "!**/.ponder",
+      "!**/docs/",
+      "!**/benchmarks/apps/subgraph-*",
+      "!**/pnpm-lock.yaml",
+      "!**/*.sol",
+      "!**/tsconfig.base.json"
     ]
   },
   "formatter": {
@@ -28,10 +27,20 @@
     "indentWidth": 2,
     "lineWidth": 80
   },
+  "overrides": [
+    {
+      "includes": ["docs/styles.css"],
+      "css": {
+        "parser": {
+          "tailwindDirectives": true
+        }
+      }
+    }
+  ],
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "noNonNullAssertion": "off",
         "noUselessElse": "off",

@@ -1,7 +1,8 @@
 import util from "node:util";
+import type { Abi, Address } from "viem";
+import type { CachedViemClient } from "@/indexing/client.js";
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
-import type { CachedViemClient } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
 import {
   BaseError,
@@ -49,14 +50,13 @@ import type {
 } from "@/types/eth.js";
 import type { DeepPartial } from "@/types/utils.js";
 import {
-  ZERO_CHECKPOINT,
   decodeCheckpoint,
   encodeCheckpoint,
+  ZERO_CHECKPOINT,
 } from "@/utils/checkpoint.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { startClock } from "@/utils/timer.js";
-import type { Abi, Address } from "viem";
 import { addStackTrace } from "./addStackTrace.js";
 import type { ReadonlyClient } from "./client.js";
 
@@ -276,7 +276,7 @@ export const createIndexing = ({
 
         lastChainId = event.chain.id;
       }
-      // @ts-ignore
+      // @ts-expect-error
       indexingFunctionArg.event = event.event;
 
       const endClock = startClock();

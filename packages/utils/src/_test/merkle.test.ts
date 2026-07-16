@@ -1,7 +1,7 @@
-import { RpcError, numberToHex } from "viem";
+import { numberToHex, RpcError } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, UNI, WETH, fromBlock, getRequest } from "./utils.js";
+import { fromBlock, getRequest, type Params, UNI, WETH } from "./utils.js";
 
 const request = getRequest("https://eth.merkle.io");
 const maxBlockRange10k = 10_000n;

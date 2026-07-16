@@ -1,3 +1,13 @@
+import {
+  BlockNotFoundError,
+  type Hex,
+  hexToBigInt,
+  hexToNumber,
+  isHex,
+  TransactionReceiptNotFoundError,
+  zeroAddress,
+  zeroHash,
+} from "viem";
 import { RpcProviderError } from "@/internal/errors.js";
 import type {
   LightBlock,
@@ -11,16 +21,6 @@ import type {
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
-import {
-  BlockNotFoundError,
-  type Hex,
-  TransactionReceiptNotFoundError,
-  hexToBigInt,
-  hexToNumber,
-  isHex,
-  zeroAddress,
-  zeroHash,
-} from "viem";
 
 /**
  * Helper function for "eth_getBlockByNumber" request.
@@ -43,7 +43,7 @@ export const eth_getBlockByNumber = <
         if (isHex(params[0])) {
           blockNumber = hexToBigInt(params[0]);
         } else {
-          // @ts-ignore `BlockNotFoundError` expects a bigint, but it also just passes
+          // @ts-expect-error `BlockNotFoundError` expects a bigint, but it also just passes
           // the `blockNumber` directly to the error message, so breaking the type constraint is fine.
           blockNumber = params[0];
         }
@@ -203,9 +203,9 @@ export const debug_traceBlockByNumber = (
             failedTraces.set(frame, error);
           }
 
-          // @ts-ignore
+          // @ts-expect-error
           frame.index = index;
-          // @ts-ignore
+          // @ts-expect-error
           frame.subcalls = frame.calls?.length ?? 0;
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
@@ -280,9 +280,9 @@ export const debug_traceBlockByHash = (
             failedTraces.set(frame, error);
           }
 
-          // @ts-ignore
+          // @ts-expect-error
           frame.index = index;
-          // @ts-ignore
+          // @ts-expect-error
           frame.subcalls = frame.calls?.length ?? 0;
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
@@ -886,7 +886,7 @@ export const standardizeTransactions = (
       transaction.v = "0x0";
     }
     if (transaction.type === undefined) {
-      // @ts-ignore
+      // @ts-expect-error
       transaction.type = "0x0";
     }
     if (transaction.gas === undefined) {
@@ -1301,7 +1301,6 @@ export const standardizeTransactionReceipts = (
       receipt.root = zeroHash;
     }
     if (receipt.type === undefined) {
-      // @ts-ignore
       receipt.type = "0x0";
     }
 

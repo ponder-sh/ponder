@@ -1,3 +1,4 @@
+import { hexToNumber, numberToHex } from "viem";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
@@ -14,13 +15,13 @@ import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
-import { type SyncStore, createSyncStore } from "@/sync-store/index.js";
+import { createSyncStore, type SyncStore } from "@/sync-store/index.js";
 import {
-  MAX_CHECKPOINT,
-  ZERO_CHECKPOINT,
   decodeCheckpoint,
   encodeCheckpoint,
+  MAX_CHECKPOINT,
   min,
+  ZERO_CHECKPOINT,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
 import { formatPercentage } from "@/utils/format.js";
@@ -33,13 +34,12 @@ import { type Interval, intervalSum } from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
-import { hexToNumber, numberToHex } from "viem";
 import {
   type CachedIntervals,
   type ChildAddresses,
-  type SyncProgress,
   getRequiredIntervals,
   getRequiredIntervalsWithFilters,
+  type SyncProgress,
 } from "./index.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";
 
@@ -1243,7 +1243,10 @@ export async function* getLocalSyncGenerator(params: {
   async function syncInterval({
     interval,
     promise,
-  }: { interval: Interval; promise: Promise<void> }): Promise<boolean> {
+  }: {
+    interval: Interval;
+    promise: Promise<void>;
+  }): Promise<boolean> {
     const endClock = startClock();
 
     const isSyncComplete = interval[1] === hexToNumber(last.number);

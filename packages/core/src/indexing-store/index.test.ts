@@ -1,3 +1,7 @@
+import { eq } from "drizzle-orm";
+import { pgTable } from "drizzle-orm/pg-core";
+import { toBytes, zeroAddress } from "viem";
+import { beforeEach, expect, test } from "vitest";
 import { ALICE } from "@/_test/constants.js";
 import {
   context,
@@ -15,10 +19,6 @@ import {
   type RetryableError,
 } from "@/internal/errors.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
-import { eq } from "drizzle-orm";
-import { pgTable } from "drizzle-orm/pg-core";
-import { toBytes, zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
 import { createIndexingCache } from "./cache.js";
 import { createIndexingStore } from "./index.js";
 
@@ -569,7 +569,7 @@ test("sql", async () => {
     expect(
       await getRejectionValue(
         async () =>
-          // @ts-ignore
+          // @ts-expect-error
           await indexingStore.db.sql.insert(schema.account).values({
             address: "0x0000000000000000000000000000000000000001",
             balance: undefined,
@@ -720,7 +720,7 @@ test("onchain table", async () => {
       await getRejectionValue(
         async () =>
           await indexingStore.db
-            // @ts-ignore
+            // @ts-expect-error
             .find(schema.account, { address: zeroAddress }),
       ),
     ).toBeTruthy();
@@ -759,11 +759,10 @@ test("missing rows", async () => {
 
     expect(
       await getRejectionValue(
-        // @ts-ignore
         async () =>
           await indexingStore.db
             .insert(schema.account)
-            // @ts-ignore
+            // @ts-expect-error
             .values({ address: zeroAddress }),
       ),
     ).toBeTruthy();
@@ -876,7 +875,7 @@ test("notNull", async () => {
     // error
 
     schema = {
-      // @ts-ignore
+      // @ts-expect-error
       account: onchainTable("account", (p) => ({
         address: p.hex().primaryKey(),
         balance: p.bigint().notNull(),

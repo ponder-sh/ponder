@@ -1,4 +1,16 @@
 import { type AddressInfo, createServer } from "node:net";
+import {
+  type Address,
+  createPublicClient,
+  createTestClient,
+  getAbiItem,
+  http,
+  toEventSelector,
+  toFunctionSelector,
+  type Chain as ViemChain,
+} from "viem";
+import { mainnet } from "viem/chains";
+import { vi } from "vitest";
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Common } from "@/internal/common.js";
@@ -32,18 +44,6 @@ import {
   defaultTransferFilterInclude,
 } from "@/runtime/filter.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import {
-  http,
-  type Address,
-  type Chain as ViemChain,
-  createPublicClient,
-  createTestClient,
-  getAbiItem,
-  toEventSelector,
-  toFunctionSelector,
-} from "viem";
-import { mainnet } from "viem/chains";
-import { vi } from "vitest";
 import { erc20ABI, factoryABI, pairABI } from "./generated.js";
 import type {
   mintErc20,
@@ -116,7 +116,7 @@ export function stubGlobal<Key extends keyof typeof globalThis>(
 ): () => void {
   const g = globalThis as any;
 
-  const hadOwnProperty = Object.prototype.hasOwnProperty.call(g, key);
+  const hadOwnProperty = Object.hasOwn(g, key);
   const original = g[key];
 
   g[key] = value;
@@ -301,7 +301,7 @@ export const getErc20IndexingBuild = <
     },
   };
 
-  // @ts-ignore
+  // @ts-expect-error
   return { eventCallbacks, setupCallbacks, indexingFunctions, contracts };
 };
 
@@ -470,7 +470,7 @@ export const getPairWithFactoryIndexingBuild = <
     },
   };
 
-  // @ts-ignore
+  // @ts-expect-error
   return { eventCallbacks, setupCallbacks, indexingFunctions, contracts };
 };
 
@@ -622,23 +622,23 @@ export const getSimulatedEvent = ({
   const rawEvents = buildEvents({
     eventCallbacks: [eventCallback],
     blocks: [syncBlockToInternal({ block: blockData.block })],
-    // @ts-ignore
+    // @ts-expect-error
     logs: blockData.log ? [syncLogToInternal({ log: blockData.log })] : [],
-    // @ts-ignore
+    // @ts-expect-error
     transactions: blockData.transaction
       ? // @ts-ignore
         [syncTransactionToInternal({ transaction: blockData.transaction })]
       : [],
-    // @ts-ignore
+    // @ts-expect-error
     transactionReceipts: blockData.transactionReceipt
       ? [
           syncTransactionReceiptToInternal({
-            // @ts-ignore
+            // @ts-expect-error
             transactionReceipt: blockData.transactionReceipt,
           }),
         ]
       : [],
-    // @ts-ignore
+    // @ts-expect-error
     traces: blockData.trace
       ? // @ts-ignore
         [syncTraceToInternal({ trace: blockData.trace })]
@@ -661,9 +661,7 @@ export const getSimulatedEvent = ({
   return events[0]!;
 };
 
-export const getChain = (params?: {
-  finalityBlockCount?: number;
-}) => {
+export const getChain = (params?: { finalityBlockCount?: number }) => {
   return {
     name: "mainnet",
     id: 1,

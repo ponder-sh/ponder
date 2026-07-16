@@ -1,5 +1,5 @@
-import { factory } from "@/config/address.js";
 import { getAbiItem } from "viem";
+import { factory } from "@/config/address.js";
 import { createConfig } from "../../../config/index.js";
 import { factoryABI, pairABI } from "../../generated.js";
 

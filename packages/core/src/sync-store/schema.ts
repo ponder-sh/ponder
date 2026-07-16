@@ -1,4 +1,3 @@
-import type { Factory, FragmentId } from "@/internal/types.js";
 import {
   customType,
   index,
@@ -7,6 +6,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { Address, Hash, Hex } from "viem";
+import type { Factory, FragmentId } from "@/internal/types.js";
 
 const nummultirange = customType<{ data: string }>({
   dataType() {

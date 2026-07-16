@@ -83,7 +83,7 @@ export const createQueue = <returnType, taskType = void>({
     CreateQueueParameters<unknown, unknown>,
     "frequency" | "concurrency"
   > = _parameters;
-  let queue = new Array<InnerQueue<returnType, taskType>[number]>();
+  let queue: InnerQueue<returnType, taskType>[number][] = [];
   let pending = 0;
   let timestamp = 0;
   let requests = 0;
@@ -93,10 +93,10 @@ export const createQueue = <returnType, taskType = void>({
 
   let emptyPromiseWithResolvers:
     | (PromiseWithResolvers<void> & { completed: boolean })
-    | undefined = undefined;
+    | undefined;
   let idlePromiseWithResolvers:
     | (PromiseWithResolvers<void> & { completed: boolean })
-    | undefined = undefined;
+    | undefined;
 
   const next = () => {
     if (!isStarted) return;
@@ -191,7 +191,7 @@ export const createQueue = <returnType, taskType = void>({
         }
       }
 
-      queue = new Array<InnerQueue<returnType, taskType>[number]>();
+      queue = [] as InnerQueue<returnType, taskType>[number][];
       clearTimeout(timer);
       timer = undefined;
     },

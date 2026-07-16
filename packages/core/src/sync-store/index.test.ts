@@ -1,3 +1,12 @@
+import { sql } from "drizzle-orm";
+import {
+  getAbiItem,
+  hexToBigInt,
+  hexToNumber,
+  parseEther,
+  zeroAddress,
+} from "viem";
+import { beforeEach, expect, test } from "vitest";
 import {
   ALICE,
   BOB,
@@ -30,15 +39,6 @@ import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Factory, LogFilter } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
-import { sql } from "drizzle-orm";
-import {
-  getAbiItem,
-  hexToBigInt,
-  hexToNumber,
-  parseEther,
-  zeroAddress,
-} from "viem";
-import { beforeEach, expect, test } from "vitest";
 import * as ponderSyncSchema from "./schema.js";
 
 beforeEach(setupCommon);
@@ -218,7 +218,6 @@ test("getIntervals() adjacent intervals", async () => {
   await syncStore.insertIntervals({
     intervals: [
       {
-        // @ts-ignore
         filter: { ...filter, address: undefined },
         interval: [5, 8],
       },
@@ -1039,7 +1038,7 @@ test("insertRpcRequestResults() ", async () => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
@@ -1063,7 +1062,7 @@ test("insertRpcRequestResults() hash matches postgres", async () => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
@@ -1093,7 +1092,7 @@ test("getRpcRequestResults()", async () => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
@@ -1103,9 +1102,9 @@ test("getRpcRequestResults()", async () => {
   });
   const result = await syncStore.getRpcRequestResults({
     requests: [
-      // @ts-ignore
+      // @ts-expect-error
       { method: "eth_call", params: ["0x1"] },
-      // @ts-ignore
+      // @ts-expect-error
       { method: "eth_call", params: ["0x2"] },
     ],
     chainId: 1,
@@ -1172,25 +1171,25 @@ test("pruneRpcRequestResult", async () => {
   await syncStore.insertRpcRequestResults({
     requests: [
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x1"] },
         blockNumber: 1,
         result: "0x1",
       },
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x2"] },
         blockNumber: 2,
         result: "0x2",
       },
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x3"] },
         blockNumber: 3,
         result: "0x3",
       },
       {
-        // @ts-ignore
+        // @ts-expect-error
         request: { method: "eth_call", params: ["0x4"] },
         blockNumber: 4,
         result: "0x4",

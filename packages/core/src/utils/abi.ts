@@ -1,4 +1,3 @@
-import { getDuplicateElements } from "@/utils/duplicates.js";
 import {
   type Abi,
   type AbiEvent,
@@ -6,12 +5,13 @@ import {
   formatAbiItem,
 } from "abitype";
 import {
-  type GetEventArgs,
-  type Hex,
   encodeEventTopics,
+  type GetEventArgs,
   getAbiItem,
+  type Hex,
   parseAbiItem,
 } from "viem";
+import { getDuplicateElements } from "@/utils/duplicates.js";
 import type { Config } from "../config/index.js";
 
 /**
@@ -27,7 +27,10 @@ declare global {
 export const toSafeName = ({
   abi,
   item,
-}: { abi: Abi; item: AbiEvent | AbiFunction }) => {
+}: {
+  abi: Abi;
+  item: AbiEvent | AbiFunction;
+}) => {
   if (item.type === "event") {
     const abiEvents = abi
       .filter((item): item is AbiEvent => item.type === "event")

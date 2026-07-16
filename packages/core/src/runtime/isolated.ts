@@ -1,3 +1,4 @@
+import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import {
   commitBlock,
   createLiveQueryTriggers,
@@ -9,14 +10,14 @@ import {
 } from "@/database/actions.js";
 import { type Database, getPonderCheckpointTable } from "@/database/index.js";
 import { getLiveQueryTempTableName } from "@/drizzle/onchain.js";
-import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
 import { createCachedViemClient } from "@/indexing/client.js";
 import {
   createColumnAccessPattern,
   createIndexing,
   getEventCount,
 } from "@/indexing/index.js";
+import { createIndexingCache } from "@/indexing-store/cache.js";
+import { createIndexingStore } from "@/indexing-store/index.js";
 import type { Common } from "@/internal/common.js";
 import {
   InvalidEventAccessError,
@@ -36,9 +37,9 @@ import { splitEvents } from "@/runtime/events.js";
 import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
-  ZERO_CHECKPOINT_STRING,
   decodeCheckpoint,
   min,
+  ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
 import {
   bufferAsyncGenerator,
@@ -46,7 +47,6 @@ import {
 } from "@/utils/generators.js";
 import { never } from "@/utils/never.js";
 import { startClock } from "@/utils/timer.js";
-import { eq, getTableName, isTable, sql } from "drizzle-orm";
 import {
   getHistoricalEventsIsolated,
   refetchHistoricalEvents,

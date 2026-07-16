@@ -2,7 +2,7 @@ import { LimitExceededRpcError, numberToHex } from "viem";
 import { aurora } from "viem/chains";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
-import { type Params, getRequest } from "./utils.js";
+import { getRequest, type Params } from "./utils.js";
 
 const request = getRequest("https://mainnet.aurora.dev", aurora);
 const fromBlock = 57_600_000n;

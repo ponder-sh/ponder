@@ -1,6 +1,6 @@
+import type { Column, Table } from "drizzle-orm";
 import type { Event } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
-import type { Column, Table } from "drizzle-orm";
 import type { ProfilePattern, Row } from "./cache.js";
 import { getCacheKey } from "./utils.js";
 
@@ -42,7 +42,7 @@ export const recordProfilePattern = (
   const result: ProfilePattern = {};
 
   for (const [js] of cache.get(table)!) {
-    // @ts-ignore
+    // @ts-expect-error
     const value = key[js]!;
 
     const pattern = matchEventParameters(event, value);
@@ -519,7 +519,7 @@ export const recoverProfilePattern = (
       } else {
         let _result: unknown = event.event;
         for (const prop of value) {
-          // @ts-ignore
+          // @ts-expect-error
           _result = _result[prop];
         }
 
@@ -538,7 +538,7 @@ export const recoverProfilePattern = (
           } else {
             let _result: unknown = event.event;
             for (const prop of value) {
-              // @ts-ignore
+              // @ts-expect-error
               _result = _result[prop];
             }
 
