@@ -34,6 +34,7 @@
 
 ## Changesets
 - Changesets are fixed for `ponder`, `create-ponder`, `eslint-config-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `pnpm changeset`. Public API or bug-fix PRs normally need a patch changeset.
+- Changesets has a bug for fixed packages at pre-`1.0.0` versions with a minor component of `10` or greater: a `minor` changeset incorrectly produces `1.0.0`. Manually correct the generated release PR to the next `0.x` minor version (for example, `0.16.10` to `0.17.0`) before merging.
 - Write changesets in the same voice as `packages/core/CHANGELOG.md`: concise, user-facing, past tense, and focused on observable behavior.
 - Start with the outcome, not the implementation. Prefer phrasing like "Fixed a bug that caused...", "Fixed a regression introduced in `v0.16.0` that caused...", "Improved...", "Added...", "Updated...", or "Removed...".
 - Include concrete symptoms when helpful, especially exact error messages in backticks. Use patterns like "Fixed the error `...`" or "that caused `...`".

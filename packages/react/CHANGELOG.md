@@ -1,5 +1,16 @@
 # @ponder/react
 
+## 0.17.0
+
+### Minor Changes
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum supported TypeScript version to `5.4.0`. Newly created Ponder projects now use TypeScript `5.4.0`.
+
+### Patch Changes
+
+- Updated dependencies [[`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12)]:
+- @ponder/client@0.17.0
+
 ## 0.16.10
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @ponder/utils
 
+## 0.3.0
+
+### Minor Changes
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`8f19332`](https://github.com/ponder-sh/ponder/commit/8f19332664f808b974c2b9c01bb555c3c1c358b3) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum supported `viem` version to `2.35.0` for ENSv2 Universal Resolver support.
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum supported TypeScript version to `5.4.0`. Newly created Ponder projects now use TypeScript `5.4.0`.
+
 ## 0.2.18
 
 ### Patch Changes

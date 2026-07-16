@@ -1,5 +1,13 @@
 # create-ponder
 
+## 0.17.0
+
+### Minor Changes
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum supported TypeScript version to `5.4.0`. Newly created Ponder projects now use TypeScript `5.4.0`.
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum required Node.js version from `18.14` to `22`. Running `ponder dev`, `ponder start`, `ponder serve`, `ponder codegen`, or `create-ponder` on older Node.js versions now exits with the error `Invalid Node.js version`.
+
 ## 0.16.10
 
 ## 0.16.9

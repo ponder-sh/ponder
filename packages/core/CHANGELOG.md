@@ -1,5 +1,28 @@
 # ponder
 
+## 0.17.0
+
+### Minor Changes
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`8f19332`](https://github.com/ponder-sh/ponder/commit/8f19332664f808b974c2b9c01bb555c3c1c358b3) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum supported `viem` version to `2.35.0` for ENSv2 Universal Resolver support.
+
+- [#2330](https://github.com/ponder-sh/ponder/pull/2330) [`5b8db80`](https://github.com/ponder-sh/ponder/commit/5b8db80769f315fd47aba5b1306bf3a59fef5647) Thanks [@kyscott18](https://github.com/kyscott18)! - Added support for co-located test files in the indexing directory. Files matching `*.test.{ts,js,mts,mjs}` and `*.spec.{ts,js,mts,mjs}` are now ignored when loading indexing functions.
+
+- [#2328](https://github.com/ponder-sh/ponder/pull/2328) [`425cc94`](https://github.com/ponder-sh/ponder/commit/425cc944198d32665c242fb46ebed2f3d6c2a36c) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused apps with factories to miss historical events after updating factory config. Affected apps that updated from `v0.14` will refetch block data automatically.
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum supported TypeScript version to `5.4.0`. Newly created Ponder projects now use TypeScript `5.4.0`.
+
+- [#2333](https://github.com/ponder-sh/ponder/pull/2333) [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated the minimum required Node.js version from `18.14` to `22`. Running `ponder dev`, `ponder start`, `ponder serve`, `ponder codegen`, or `create-ponder` on older Node.js versions now exits with the error `Invalid Node.js version`.
+
+### Patch Changes
+
+- [#2336](https://github.com/ponder-sh/ponder/pull/2336) [`76b8214`](https://github.com/ponder-sh/ponder/commit/76b8214e0fa70cff66ce31b5be3fabc3d471e495) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that mutated the PGlite `dataDir` option when using the in-memory database.
+
+- [#2334](https://github.com/ponder-sh/ponder/pull/2334) [`59a1b4c`](https://github.com/ponder-sh/ponder/commit/59a1b4c987fe6c8f65fb9ebbff05f5f60a872720) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed anonymous telemetry collection from Ponder.
+
+- Updated dependencies [[`8f19332`](https://github.com/ponder-sh/ponder/commit/8f19332664f808b974c2b9c01bb555c3c1c358b3), [`4fffd3f`](https://github.com/ponder-sh/ponder/commit/4fffd3f8fd1d8a4cb2b65ab26f20fc83cb764d12)]:
+  - @ponder/utils@0.3.0
+
 ## 0.16.10
 
 ### Patch Changes
