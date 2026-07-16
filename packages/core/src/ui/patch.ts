@@ -61,7 +61,7 @@ export function patchWriteStreams({ getLines }: { getLines: () => string[] }) {
     this: NodeJS.WriteStream,
     buffer: string | Uint8Array,
     encoding?: BufferEncoding,
-    cb?: (err?: Error) => void,
+    cb?: (err?: Error | null) => void,
   ) {
     const originalWrite =
       this === process.stderr ? originalStderrWrite : originalStdoutWrite;

@@ -554,7 +554,8 @@ export const createIndexing = ({
           1,
         );
         columnAccessPattern.get(event.eventCallback.name)!.count++;
-        eventCount[event.eventCallback.name]++;
+        eventCount[event.eventCallback.name] =
+          eventCount[event.eventCallback.name]! + 1;
 
         const now = performance.now();
 
@@ -719,7 +720,8 @@ export const createIndexing = ({
           { event: event.eventCallback.name },
           1,
         );
-        eventCount[event.eventCallback.name]++;
+        eventCount[event.eventCallback.name] =
+          eventCount[event.eventCallback.name]! + 1;
       }
     },
   };

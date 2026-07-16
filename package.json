@@ -9,39 +9,22 @@
     "format": "biome format . --write",
     "lint": "biome check .",
     "lint:fix": "pnpm lint --write",
-    "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
     "test:bun": "pnpm --parallel --no-bail test:bun",
     "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@changesets/changelog-github": "0.6.0",
-    "@changesets/cli": "^2.30.0",
+    "@changesets/changelog-github": "0.7.0",
+    "@changesets/cli": "2.31.0",
     "drizzle-kit": "^0.30.6",
     "hono": "4.5.0",
-    "lint-staged": "^15.1.0",
-    "simple-git-hooks": "^2.9.0",
-    "typescript": "5.0.4",
-    "viem": "2.30.1"
+    "typescript": "5.4.5",
+    "viem": "2.35.0"
   },
-  "lint-staged": {
-    "*.ts": [
-      "biome format --no-errors-on-unmatched --write",
-      "biome check --no-errors-on-unmatched"
-    ],
-    "!(*.ts)": ["biome format --no-errors-on-unmatched --write"]
-  },
-  "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
-  },
-  "packageManager": "pnpm@9.10.0",
-  "pnpm": {
-    "peerDependencyRules": {
-      "ignoreMissing": ["node-fetch"]
-    }
-  },
+  "packageManager": "pnpm@11.0.0",
   "engines": {
-    "node": ">=18.14"
+    "node": ">=22",
+    "pnpm": ">=11"
   }
 }

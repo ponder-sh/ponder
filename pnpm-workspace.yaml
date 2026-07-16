@@ -5,3 +5,11 @@ packages:
   - examples/**
   - packages/*
   - tmp/*
+allowBuilds:
+  "@biomejs/biome": true
+  esbuild: true
+autoInstallPeers: false
+enablePrePostScripts: true
+linkWorkspacePackages: deep
+strictPeerDependencies: false
+provenance: true

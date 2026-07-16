@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Repository Shape
-- This is a pnpm `9.10.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=18.14`; CI currently uses Node `24.8` and a pinned Foundry nightly.
+- This is a pnpm `11.0.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI currently uses Node `24.8` and a pinned Foundry nightly.
 - Workspace packages are `packages/*`, `docs`, `examples/**`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
 - `packages/core` and `packages/react` build with custom `build.ts` scripts. `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.

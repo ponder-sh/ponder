@@ -7,7 +7,7 @@
 - The goal is to catch regressions in sync, indexing, realtime, crash recovery, and database behavior before they reach users.
 
 ## Prerequisites
-- Use the repository toolchain from the root `AGENTS.md`: pnpm `9.10.0`, Node `>=18.14`, and Bun for this package's scripts.
+- Use the repository toolchain from the root `AGENTS.md`: pnpm `11.0.0`, Node `>=22`, and Bun for this package's scripts.
 - Install workspace dependencies from the repository root with `pnpm install`.
 - Build the publishable packages before running simulations with `pnpm build`; the simulation apps depend on the workspace `ponder` package.
 - Provide a Postgres server connection in `DATABASE_URL`. The URL should omit the app/run database name because scripts append database names themselves, for example `postgresql://postgres@localhost:55432`.

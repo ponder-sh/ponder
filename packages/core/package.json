@@ -46,8 +46,8 @@
   },
   "peerDependencies": {
     "hono": ">=4.5",
-    "typescript": ">=5.0.4",
-    "viem": ">=2"
+    "typescript": ">=5.4.0",
+    "viem": ">=2.35"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -76,7 +76,7 @@
     "graphql-yoga": "5.17.1",
     "http-terminator": "^3.2.0",
     "kysely": "^0.26.3",
-    "pg": "^8.11.3",
+    "pg": "^8.16.2",
     "pg-connection-string": "^2.6.2",
     "pg-copy-streams": "^6.0.6",
     "pg-query-emscripten": "5.1.0",
@@ -97,7 +97,7 @@
     "@ponder/client": "workspace:*",
     "@types/babel__code-frame": "^7.0.6",
     "@types/glob": "^8.1.0",
-    "@types/node": "^20.10.0",
+    "@types/node": "^22.0.0",
     "@types/pg": "^8.10.9",
     "@types/pg-copy-streams": "^1.2.5",
     "@types/semver": "^7.5.8",
@@ -112,6 +112,6 @@
     "vitest": "1.6.1"
   },
   "engines": {
-    "node": ">=18.14"
+    "node": ">=22"
   }
 }

@@ -24,7 +24,7 @@ export type PgBigintBuilderInitial<TName extends string> = PgBigintBuilder<{
 export class PgBigintBuilder<
   T extends ColumnBuilderBaseConfig<"bigint", "PgEvmBigint">,
 > extends PgColumnBuilder<T> {
-  static readonly [entityKind]: string = "PgEvmBigintBuilder";
+  static override readonly [entityKind]: string = "PgEvmBigintBuilder";
 
   constructor(name: T["name"]) {
     super(name, "bigint", "PgEvmBigint");
@@ -45,7 +45,7 @@ export class PgBigintBuilder<
 export class PgBigint<
   T extends ColumnBaseConfig<"bigint", "PgEvmBigint">,
 > extends PgColumn<T> {
-  static readonly [entityKind]: string = "PgEvmBigint";
+  static override readonly [entityKind]: string = "PgEvmBigint";
 
   getSQLType(): string {
     return "numeric(78)";

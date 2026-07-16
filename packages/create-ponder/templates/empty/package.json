@@ -12,17 +12,17 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "ponder": "^0.0.95",
+    "ponder": "^0.16.10",
     "hono": "^4.5.0",
-    "viem": "^2.21.3"
+    "viem": "2.35.0"
   },
   "devDependencies": {
-    "@types/node": "^20.9.0",
-    "eslint": "^8.53.0",
-    "eslint-config-ponder": "^0.0.95",
-    "typescript": "^5.2.2"
+    "@types/node": "^22.0.0",
+    "eslint": "^8.54.0",
+    "eslint-config-ponder": "^0.16.10",
+    "typescript": "^5.4.0"
   },
   "engines": {
-    "node": ">=18.14"
+    "node": ">=22"
   }
 }

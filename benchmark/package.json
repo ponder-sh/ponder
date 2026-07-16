@@ -9,7 +9,7 @@
   "devDependencies": {
     "commander": "^12.0.0",
     "drizzle-orm": "0.41.0",
-    "pg": "^8.15.6",
+    "pg": "^8.16.2",
     "ponder": "workspace:*"
   }
 }

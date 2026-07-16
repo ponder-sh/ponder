@@ -33,14 +33,12 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     mode: options.logFormat,
   });
 
-  const [major, minor, _patch] = process.versions.node
-    .split(".")
-    .map(Number) as [number, number, number];
-  if (major < 18 || (major === 18 && minor < 14)) {
+  const major = Number(process.versions.node.split(".")[0]);
+  if (major < 22) {
     logger.error({
       msg: "Invalid Node.js version",
       version: process.versions.node,
-      expected: "18.14",
+      expected: "22",
     });
     process.exit(1);
   }

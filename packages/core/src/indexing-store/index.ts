@@ -459,8 +459,9 @@ export const createIndexingStore = ({
                     );
                   }
                 })().then(onFulfilled, onRejected),
-              catch: (onRejected) => inner.then(undefined, onRejected),
-              finally: (onFinally) =>
+              catch: (onRejected): Promise<any> =>
+                inner.then(undefined, onRejected),
+              finally: (onFinally): Promise<any> =>
                 inner.then(
                   (value: any) => {
                     onFinally?.();

@@ -39,8 +39,8 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.4",
-    "viem": ">=2"
+    "typescript": ">=5.4.0",
+    "viem": ">=2.35"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -48,7 +48,7 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
+    "@types/node": "^22.0.0",
     "abitype": "^1.0.1",
     "dotenv": "^16.3.1",
     "tsup": "^8.0.1",

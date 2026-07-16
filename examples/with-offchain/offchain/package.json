@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {},
   "engines": {
-    "node": ">=18.14"
+    "node": ">=22"
   },
   "dependencies": {
     "@ponder/client": "workspace:*",
@@ -13,6 +13,6 @@
   },
   "devDependencies": {
     "@types/pg": "^8.10.9",
-    "drizzle-kit": "0.30.1"
+    "drizzle-kit": "^0.30.6"
   }
 }

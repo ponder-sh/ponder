@@ -13,12 +13,12 @@
   "devDependencies": {
     "@commander-js/extra-typings": "^12.0.1",
     "@types/bun": "^1.2.14",
-    "@types/node": "^24.6.0",
+    "@types/node": "^22.0.0",
     "@types/pg": "^8.10.9",
     "@types/seedrandom": "^3.0.8",
     "commander": "^12.0.0",
     "drizzle-orm": "0.41.0",
-    "pg": "^8.15.6",
+    "pg": "^8.16.2",
     "ponder": "workspace:*",
     "seedrandom": "^3.0.5"
   }
