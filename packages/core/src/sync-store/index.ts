@@ -1501,6 +1501,9 @@ const addressFilter = (
   return sql`true`;
 };
 
+/**
+ * @dev It's an invariant that the returned `fromBlock <= toBlock`.
+ */
 export const getFilterBlockRange = ({
   filters,
   fromBlock,
@@ -1512,7 +1515,6 @@ export const getFilterBlockRange = ({
 }) => {
   if (filters.length === 0) return { fromBlock, toBlock };
 
-  // Callers prefilter these to filters that overlap the pagination range.
   const ranges = filters.map((filter) => ({
     fromBlock: Math.max(fromBlock, filter.fromBlock ?? fromBlock),
     toBlock: Math.min(toBlock, filter.toBlock ?? toBlock),
