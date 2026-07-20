@@ -1066,21 +1066,26 @@ test("getEventData() applies one block range to logs and traces queries", async 
     limit: 10,
   });
 
-  const logsQuery = querySpy.mock.calls.find(([query]) =>
-    query.includes('from "ponder_sync"."logs"'),
+  const queries = querySpy.mock.calls.map(([query, params]) =>
+    typeof query === "string"
+      ? { text: query, values: params }
+      : (query as { text: string; values: unknown[] }),
   );
-  const tracesQuery = querySpy.mock.calls.find(([query]) =>
-    query.includes('from "ponder_sync"."traces"'),
+  const logsQuery = queries.find(({ text }) =>
+    text.includes('from "ponder_sync"."logs"'),
+  );
+  const tracesQuery = queries.find(({ text }) =>
+    text.includes('from "ponder_sync"."traces"'),
   );
 
   expect(logsQuery).toBeDefined();
-  expect(logsQuery![0].match(/"block_number" >=/g)).toHaveLength(1);
-  expect(logsQuery![0].match(/"block_number" <=/g)).toHaveLength(1);
-  expect(logsQuery![1]).toEqual(expect.arrayContaining([10n, 90n]));
+  expect(logsQuery!.text.match(/"block_number" >=/g)).toHaveLength(1);
+  expect(logsQuery!.text.match(/"block_number" <=/g)).toHaveLength(1);
+  expect(logsQuery!.values).toEqual(expect.arrayContaining([10n, 90n]));
   expect(tracesQuery).toBeDefined();
-  expect(tracesQuery![0].match(/"block_number" >=/g)).toHaveLength(1);
-  expect(tracesQuery![0].match(/"block_number" <=/g)).toHaveLength(1);
-  expect(tracesQuery![1]).toEqual(expect.arrayContaining([30n, 70n]));
+  expect(tracesQuery!.text.match(/"block_number" >=/g)).toHaveLength(1);
+  expect(tracesQuery!.text.match(/"block_number" <=/g)).toHaveLength(1);
+  expect(tracesQuery!.values).toEqual(expect.arrayContaining([30n, 70n]));
 });
 
 test("getEventBlockData() pagination", async () => {
