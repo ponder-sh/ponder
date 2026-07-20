@@ -1025,25 +1025,11 @@ test("getFilterBlockRange() merges filter and pagination bounds", () => {
 
   expect(
     getFilterBlockRange({
-      filters: [
-        { fromBlock: 0, toBlock: 30 },
-        { fromBlock: 100, toBlock: 110 },
-      ],
+      filters: [{ fromBlock: 0, toBlock: 30 }],
       fromBlock: 20,
       toBlock: 90,
     }),
   ).toEqual({ fromBlock: 20, toBlock: 30 });
-
-  expect(
-    getFilterBlockRange({
-      filters: [
-        { fromBlock: 0, toBlock: 10 },
-        { fromBlock: 100, toBlock: 110 },
-      ],
-      fromBlock: 20,
-      toBlock: 90,
-    }),
-  ).toEqual({ fromBlock: 91, toBlock: 90 });
 
   expect(
     getFilterBlockRange({ filters: [], fromBlock: 20, toBlock: 90 }),

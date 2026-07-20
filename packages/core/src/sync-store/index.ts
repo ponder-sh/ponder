@@ -1512,14 +1512,11 @@ export const getFilterBlockRange = ({
 }) => {
   if (filters.length === 0) return { fromBlock, toBlock };
 
-  const ranges = filters
-    .map((filter) => ({
-      fromBlock: Math.max(fromBlock, filter.fromBlock ?? fromBlock),
-      toBlock: Math.min(toBlock, filter.toBlock ?? toBlock),
-    }))
-    .filter((range) => range.fromBlock <= range.toBlock);
-
-  if (ranges.length === 0) return { fromBlock: toBlock + 1, toBlock };
+  // Callers prefilter these to filters that overlap the pagination range.
+  const ranges = filters.map((filter) => ({
+    fromBlock: Math.max(fromBlock, filter.fromBlock ?? fromBlock),
+    toBlock: Math.min(toBlock, filter.toBlock ?? toBlock),
+  }));
 
   return {
     fromBlock: Math.min(...ranges.map((range) => range.fromBlock)),
