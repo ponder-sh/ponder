@@ -6,12 +6,13 @@ import {
   parseEther,
   zeroAddress,
 } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import {
   ALICE,
   BOB,
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,
+  EMPTY_TRACE_FILTER,
 } from "@/_test/constants.js";
 import { factoryABI } from "@/_test/generated.js";
 import {
@@ -39,6 +40,7 @@ import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Factory, LogFilter } from "@/internal/types.js";
 import { orderObject } from "@/utils/order.js";
+import { getFilterBlockRange } from "./index.js";
 import * as ponderSyncSchema from "./schema.js";
 
 beforeEach(setupCommon);
@@ -996,6 +998,89 @@ test("getEventBlockData() returns events", async () => {
   });
 
   expect(blocks).toHaveLength(1);
+});
+
+test("getFilterBlockRange() merges filter and pagination bounds", () => {
+  expect(
+    getFilterBlockRange({
+      filters: [
+        { fromBlock: 10, toBlock: 80 },
+        { fromBlock: 20, toBlock: 90 },
+      ],
+      fromBlock: 0,
+      toBlock: 100,
+    }),
+  ).toEqual({ fromBlock: 10, toBlock: 90 });
+
+  expect(
+    getFilterBlockRange({
+      filters: [
+        { fromBlock: 10, toBlock: 80 },
+        { fromBlock: undefined, toBlock: undefined },
+      ],
+      fromBlock: 20,
+      toBlock: 70,
+    }),
+  ).toEqual({ fromBlock: 20, toBlock: 70 });
+
+  expect(
+    getFilterBlockRange({
+      filters: [
+        { fromBlock: 0, toBlock: 30 },
+        { fromBlock: 100, toBlock: 110 },
+      ],
+      fromBlock: 20,
+      toBlock: 90,
+    }),
+  ).toEqual({ fromBlock: 20, toBlock: 30 });
+
+  expect(
+    getFilterBlockRange({
+      filters: [
+        { fromBlock: 0, toBlock: 10 },
+        { fromBlock: 100, toBlock: 110 },
+      ],
+      fromBlock: 20,
+      toBlock: 90,
+    }),
+  ).toEqual({ fromBlock: 91, toBlock: 90 });
+
+  expect(
+    getFilterBlockRange({ filters: [], fromBlock: 20, toBlock: 90 }),
+  ).toEqual({ fromBlock: 20, toBlock: 90 });
+});
+
+test("getEventData() applies one block range to logs and traces queries", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
+  const querySpy = vi.spyOn(database.syncQB.$client, "query");
+
+  await syncStore.getEventData({
+    filters: [
+      { ...EMPTY_LOG_FILTER, fromBlock: 10, toBlock: 80 },
+      { ...EMPTY_LOG_FILTER, fromBlock: 20, toBlock: 90 },
+      { ...EMPTY_TRACE_FILTER, fromBlock: 30, toBlock: 70 },
+    ],
+    fromBlock: 0,
+    toBlock: 100,
+    chainId: 1,
+    limit: 10,
+  });
+
+  const logsQuery = querySpy.mock.calls.find(([query]) =>
+    query.includes('from "ponder_sync"."logs"'),
+  );
+  const tracesQuery = querySpy.mock.calls.find(([query]) =>
+    query.includes('from "ponder_sync"."traces"'),
+  );
+
+  expect(logsQuery).toBeDefined();
+  expect(logsQuery![0].match(/"block_number" >=/g)).toHaveLength(1);
+  expect(logsQuery![0].match(/"block_number" <=/g)).toHaveLength(1);
+  expect(logsQuery![1]).toEqual(expect.arrayContaining([10n, 90n]));
+  expect(tracesQuery).toBeDefined();
+  expect(tracesQuery![0].match(/"block_number" >=/g)).toHaveLength(1);
+  expect(tracesQuery![0].match(/"block_number" <=/g)).toHaveLength(1);
+  expect(tracesQuery![1]).toEqual(expect.arrayContaining([30n, 70n]));
 });
 
 test("getEventBlockData() pagination", async () => {

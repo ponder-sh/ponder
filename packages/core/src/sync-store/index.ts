@@ -748,18 +748,32 @@ export const createSyncStore = ({
       traces: InternalTrace[];
       cursor: number;
     }> => {
-      const logFilters = filters.filter(
+      const activeFilters = filters.filter((filter) =>
+        isFilterInBlockRange({ filter, fromBlock, toBlock }),
+      );
+      const logFilters = activeFilters.filter(
         (f): f is LogFilter => f.type === "log",
       );
-      const transactionFilters = filters.filter(
+      const transactionFilters = activeFilters.filter(
         (f): f is TransactionFilter => f.type === "transaction",
       );
-      const traceFilters = filters.filter(
+      const traceFilters = activeFilters.filter(
         (f): f is TraceFilter => f.type === "trace",
       );
-      const transferFilters = filters.filter(
+      const transferFilters = activeFilters.filter(
         (f): f is TransferFilter => f.type === "transfer",
       );
+
+      const logBlockRange = getFilterBlockRange({
+        filters: logFilters,
+        fromBlock,
+        toBlock,
+      });
+      const traceBlockRange = getFilterBlockRange({
+        filters: [...traceFilters, ...transferFilters],
+        fromBlock,
+        toBlock,
+      });
 
       const shouldQueryBlocks = true;
       const shouldQueryLogs = logFilters.length > 0;
@@ -767,7 +781,7 @@ export const createSyncStore = ({
         traceFilters.length > 0 || transferFilters.length > 0;
       const shouldQueryTransactions =
         transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
-      const shouldQueryTransactionReceipts = filters.some(
+      const shouldQueryTransactionReceipts = activeFilters.some(
         (filter) => filter.hasTransactionReceipt,
       );
 
@@ -913,8 +927,14 @@ export const createSyncStore = ({
         .where(
           and(
             eq(PONDER_SYNC.traces.chainId, BigInt(chainId)),
-            gte(PONDER_SYNC.traces.blockNumber, BigInt(fromBlock)),
-            lte(PONDER_SYNC.traces.blockNumber, BigInt(toBlock)),
+            gte(
+              PONDER_SYNC.traces.blockNumber,
+              BigInt(traceBlockRange.fromBlock),
+            ),
+            lte(
+              PONDER_SYNC.traces.blockNumber,
+              BigInt(traceBlockRange.toBlock),
+            ),
             or(
               ...traceFilters.map((filter) => traceFilter(filter)),
               ...transferFilters.map((filter) => transferFilter(filter)),
@@ -944,8 +964,8 @@ export const createSyncStore = ({
         .where(
           and(
             eq(PONDER_SYNC.logs.chainId, BigInt(chainId)),
-            gte(PONDER_SYNC.logs.blockNumber, BigInt(fromBlock)),
-            lte(PONDER_SYNC.logs.blockNumber, BigInt(toBlock)),
+            gte(PONDER_SYNC.logs.blockNumber, BigInt(logBlockRange.fromBlock)),
+            lte(PONDER_SYNC.logs.blockNumber, BigInt(logBlockRange.toBlock)),
             or(...logFilters.map((filter) => logFilter(filter))),
           ),
         )
@@ -1481,6 +1501,44 @@ const addressFilter = (
   return sql`true`;
 };
 
+export const getFilterBlockRange = ({
+  filters,
+  fromBlock,
+  toBlock,
+}: {
+  filters: Pick<Filter, "fromBlock" | "toBlock">[];
+  fromBlock: number;
+  toBlock: number;
+}) => {
+  if (filters.length === 0) return { fromBlock, toBlock };
+
+  const ranges = filters
+    .map((filter) => ({
+      fromBlock: Math.max(fromBlock, filter.fromBlock ?? fromBlock),
+      toBlock: Math.min(toBlock, filter.toBlock ?? toBlock),
+    }))
+    .filter((range) => range.fromBlock <= range.toBlock);
+
+  if (ranges.length === 0) return { fromBlock: toBlock + 1, toBlock };
+
+  return {
+    fromBlock: Math.min(...ranges.map((range) => range.fromBlock)),
+    toBlock: Math.max(...ranges.map((range) => range.toBlock)),
+  };
+};
+
+const isFilterInBlockRange = ({
+  filter,
+  fromBlock,
+  toBlock,
+}: {
+  filter: Pick<Filter, "fromBlock" | "toBlock">;
+  fromBlock: number;
+  toBlock: number;
+}) =>
+  (filter.fromBlock ?? Number.NEGATIVE_INFINITY) <= toBlock &&
+  (filter.toBlock ?? Number.POSITIVE_INFINITY) >= fromBlock;
+
 export const logFilter = (filter: LogFilter): SQL => {
   const conditions: SQL[] = [];
 
@@ -1498,15 +1556,6 @@ export const logFilter = (filter: LogFilter): SQL => {
 
   conditions.push(addressFilter(filter.address, PONDER_SYNC.logs.address));
 
-  if (filter.fromBlock !== undefined) {
-    conditions.push(
-      gte(PONDER_SYNC.logs.blockNumber, BigInt(filter.fromBlock!)),
-    );
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(lte(PONDER_SYNC.logs.blockNumber, BigInt(filter.toBlock!)));
-  }
-
   return and(...conditions)!;
 };
 
@@ -1516,13 +1565,6 @@ export const blockFilter = (filter: BlockFilter): SQL => {
   conditions.push(
     sql`(blocks.number - ${filter.offset}) % ${filter.interval} = 0`,
   );
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock!)));
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock!)));
-  }
 
   return and(...conditions)!;
 };
@@ -1535,17 +1577,6 @@ export const transactionFilter = (filter: TransactionFilter): SQL => {
   );
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.transactions.to));
 
-  if (filter.fromBlock !== undefined) {
-    conditions.push(
-      gte(PONDER_SYNC.transactions.blockNumber, BigInt(filter.fromBlock!)),
-    );
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(
-      lte(PONDER_SYNC.transactions.blockNumber, BigInt(filter.toBlock!)),
-    );
-  }
-
   return and(...conditions)!;
 };
 
@@ -1557,17 +1588,6 @@ export const transferFilter = (filter: TransferFilter): SQL => {
 
   if (filter.includeReverted === false) {
     conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(
-      gte(PONDER_SYNC.traces.blockNumber, BigInt(filter.fromBlock!)),
-    );
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(
-      lte(PONDER_SYNC.traces.blockNumber, BigInt(filter.toBlock!)),
-    );
   }
 
   return and(...conditions)!;
@@ -1590,17 +1610,6 @@ export const traceFilter = (filter: TraceFilter): SQL => {
   if (filter.functionSelector !== undefined) {
     conditions.push(
       eq(sql`substring(traces.input from 1 for 10)`, filter.functionSelector),
-    );
-  }
-
-  if (filter.fromBlock !== undefined) {
-    conditions.push(
-      gte(PONDER_SYNC.traces.blockNumber, BigInt(filter.fromBlock!)),
-    );
-  }
-  if (filter.toBlock !== undefined) {
-    conditions.push(
-      lte(PONDER_SYNC.traces.blockNumber, BigInt(filter.toBlock!)),
     );
   }
 
