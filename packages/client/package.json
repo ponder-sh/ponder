@@ -1,6 +1,6 @@
 {
   "name": "@ponder/client",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "Client library for Ponder SQL over HTTP queries",
   "license": "MIT",
   "type": "module",

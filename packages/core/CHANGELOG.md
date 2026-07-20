@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.1
+
+### Patch Changes
+
+- [#2338](https://github.com/ponder-sh/ponder/pull/2338) [`1aedab8`](https://github.com/ponder-sh/ponder/commit/1aedab815eb4e304b9c0a928e014307c5d71e333) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved sync performance by removing redundant block range constraints from event queries.
+
 ## 0.17.0
 
 ### Minor Changes
