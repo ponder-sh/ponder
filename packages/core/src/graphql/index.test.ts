@@ -21,7 +21,11 @@ import {
   primaryKey,
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
+import {
+  buildDataLoaderCache,
+  buildGraphQLSchema,
+  buildManyDataLoaderCache,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -30,7 +34,8 @@ beforeEach(setupCleanup);
 function buildContextValue(database: Database) {
   const qb = database.readonlyQB;
   const getDataLoader = buildDataLoaderCache(qb);
-  return { qb, getDataLoader };
+  const getManyDataLoader = buildManyDataLoaderCache(qb);
+  return { qb, getDataLoader, getManyDataLoader };
 }
 
 test("metadata", async () => {
@@ -671,6 +676,80 @@ test("singular with many relation", async () => {
       pets: { items: [{ id: "dog1" }, { id: "dog2" }] },
     },
   });
+});
+
+test("plural many relations are request-scoped batched", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer().notNull(),
+    ownerId: t.text().notNull(),
+  }));
+  const personRelations = relations(person, ({ many }) => ({
+    pets: many(pet),
+  }));
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, { fields: [pet.ownerId], references: [person.id] }),
+  }));
+  const schema = { person, personRelations, pet, petRelations };
+  const { database } = await setupDatabaseServices({ schemaBuild: { schema } });
+
+  await database.userQB.raw.insert(person).values([
+    { id: "a" },
+    { id: "b" },
+    { id: "c" },
+  ]);
+  await database.userQB.raw.insert(pet).values([
+    { id: "a1", age: 1, ownerId: "a" },
+    { id: "a2", age: 2, ownerId: "a" },
+    { id: "b1", age: 3, ownerId: "b" },
+  ]);
+
+  const querySpy = vi.spyOn(database.readonlyQB.raw.$client, "query");
+  const result = await execute({
+    schema: buildGraphQLSchema({ schema }),
+    contextValue: buildContextValue(database),
+    document: parse(`{
+      persons { items { id pets(limit: 1, orderBy: "age", orderDirection: "desc") {
+        items { id age } totalCount pageInfo { hasNextPage }
+      } } }
+    }`),
+  });
+
+  expect(result.errors).toBeUndefined();
+  expect(result.data).toMatchObject({
+    persons: {
+      items: [
+        {
+          id: "a",
+          pets: {
+            items: [{ id: "a2", age: 2 }],
+            totalCount: 2,
+            pageInfo: { hasNextPage: true },
+          },
+        },
+        {
+          id: "b",
+          pets: {
+            items: [{ id: "b1", age: 3 }],
+            totalCount: 1,
+            pageInfo: { hasNextPage: false },
+          },
+        },
+        {
+          id: "c",
+          pets: {
+            items: [],
+            totalCount: 0,
+            pageInfo: { hasNextPage: false },
+          },
+        },
+      ],
+    },
+  });
+  expect(querySpy).toHaveBeenCalledTimes(2);
 });
 
 test("singular with many relation using camel case 'references' column name", async () => {

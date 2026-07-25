@@ -7,7 +7,11 @@ import { createMiddleware } from "hono/factory";
 import { graphiQLHtml } from "@/graphql/graphiql.html.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
-import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
+import {
+  buildDataLoaderCache,
+  buildGraphQLSchema,
+  buildManyDataLoaderCache,
+} from "./index.js";
 
 /**
  * Middleware for GraphQL with an interactive web view.
@@ -62,8 +66,15 @@ export const graphql = (
       const getDataLoader = buildDataLoaderCache(
         globalThis.PONDER_DATABASE.readonlyQB,
       );
+      const getManyDataLoader = buildManyDataLoaderCache(
+        globalThis.PONDER_DATABASE.readonlyQB,
+      );
 
-      return { qb: globalThis.PONDER_DATABASE.readonlyQB, getDataLoader };
+      return {
+        qb: globalThis.PONDER_DATABASE.readonlyQB,
+        getDataLoader,
+        getManyDataLoader,
+      };
     },
     maskedErrors: process.env.NODE_ENV === "production",
     logging: false,

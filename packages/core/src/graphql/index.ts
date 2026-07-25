@@ -29,6 +29,7 @@ import {
   notLike,
   One,
   or,
+  sql,
   SQL,
 } from "drizzle-orm";
 import {
@@ -77,6 +78,7 @@ type Parent = Record<string, any>;
 type Context = {
   qb: QB<{ [key: string]: OnchainTable }>;
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
+  getManyDataLoader?: ReturnType<typeof buildManyDataLoaderCache>;
 };
 
 type PluralArgs = {
@@ -429,17 +431,42 @@ export function buildGraphQLSchema({
                 offset: { type: GraphQLInt },
               },
               resolve: (parent, args: PluralArgs, context, info) => {
+                const includeTotalCount = selectionIncludesField(
+                  info,
+                  "totalCount",
+                );
+
+                // Cursor pagination and composite relations retain the existing
+                // query path. The common single-column, first-page case can be
+                // safely coalesced across all parents in this request.
+                if (
+                  context.getManyDataLoader !== undefined &&
+                  fields.length === 1 &&
+                  references.length === 1 &&
+                  args.after === undefined &&
+                  args.before === undefined &&
+                  (args.offset === undefined || args.offset === 0)
+                ) {
+                  const value = parent[getColumnTsName(references[0]!)];
+                  if (value !== null && value !== undefined) {
+                    return context
+                      .getManyDataLoader({
+                        relation: schema[referencedTable.tsName] as PgTable,
+                        table: referencedTable,
+                        relationColumn: fields[0]!,
+                        args,
+                        includeTotalCount,
+                      })
+                      .load(value);
+                  }
+                }
+
                 const relationalConditions = [];
                 for (let i = 0; i < references.length; i++) {
                   const column = fields[i]!;
                   const value = parent[getColumnTsName(references[i]!)];
                   relationalConditions.push(eq(column, value));
                 }
-
-                const includeTotalCount = selectionIncludesField(
-                  info,
-                  "totalCount",
-                );
 
                 return executePluralQuery(
                   schema[referencedTable.tsName] as PgTable,
@@ -1363,6 +1390,109 @@ export function buildDataLoaderCache(qb: QB) {
     }
 
     return dataLoader;
+  };
+}
+
+export function buildManyDataLoaderCache(qb: QB) {
+  const loaders = new Map<string, DataLoader<unknown, any>>();
+
+  return ({
+    relation,
+    table,
+    relationColumn,
+    args,
+    includeTotalCount,
+  }: {
+    relation: PgTable;
+    table: TableRelationalConfig;
+    relationColumn: Column;
+    args: PluralArgs;
+    includeTotalCount: boolean;
+  }) => {
+    const key = superjson.stringify({
+      table: table.tsName,
+      column: relationColumn.name,
+      args,
+      includeTotalCount,
+    });
+    let loader = loaders.get(key);
+    if (loader !== undefined) return loader;
+
+    loader = new DataLoader(
+      async (values) => {
+        const limit = args.limit ?? DEFAULT_LIMIT;
+        if (limit > MAX_LIMIT) {
+          throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
+        }
+
+        const orderBySchema = buildOrderBySchema(relation, args);
+        const orderBy = orderBySchema.map(([columnName, direction]) => {
+          const column = table.columns[columnName];
+          if (column === undefined) {
+            throw new Error(
+              `Unknown column "${columnName}" used in orderBy argument`,
+            );
+          }
+          return direction === "asc" ? asc(column) : desc(column);
+        });
+        const whereConditions = buildWhereConditions(args.where, table.columns);
+        const relationColumnName = getColumnTsName(relationColumn);
+        const ranked = qb.raw
+          .select({
+            ...getTableColumns(relation),
+            __ponderRowNumber:
+              sql<number>`row_number() over (partition by ${relationColumn} order by ${sql.join(orderBy, sql`, `)})`
+                .mapWith(Number)
+                .as("__ponder_row_number"),
+            __ponderTotalCount:
+              sql<number>`count(*) over (partition by ${relationColumn})`
+                .mapWith(Number)
+                .as("__ponder_total_count"),
+          })
+          .from(relation)
+          .where(and(...whereConditions, inArray(relationColumn, [...values])))
+          .as("__ponder_many_ranked");
+        const rows = await qb.raw
+          .select()
+          .from(ranked)
+          .where(lte(ranked.__ponderRowNumber, limit + 1));
+
+        return values.map((value) => {
+          const matching = rows
+            .filter(
+              (row) =>
+                (row as Record<string, unknown>)[relationColumnName] === value,
+            )
+            .sort((a, b) => a.__ponderRowNumber - b.__ponderRowNumber);
+          const items = matching.slice(0, limit).map((row) => {
+            const {
+              __ponderRowNumber: _,
+              __ponderTotalCount: __,
+              ...item
+            } = row;
+            return item;
+          });
+          const totalCount = matching[0]?.__ponderTotalCount ?? 0;
+          return {
+            items,
+            totalCount: includeTotalCount ? totalCount : null,
+            pageInfo: {
+              hasNextPage: totalCount > limit,
+              hasPreviousPage: false,
+              startCursor:
+                items.length > 0 ? encodeCursor(orderBySchema, items[0]!) : null,
+              endCursor:
+                items.length > 0
+                  ? encodeCursor(orderBySchema, items[items.length - 1]!)
+                  : null,
+            },
+          };
+        });
+      },
+      { maxBatchSize: 1_000 },
+    );
+    loaders.set(key, loader);
+    return loader;
   };
 }
 
