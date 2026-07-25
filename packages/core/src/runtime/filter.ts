@@ -84,14 +84,8 @@ export const isAddressMatched = ({
   childAddresses: Map<Address, number>;
 }) => {
   if (address === undefined) return false;
-  if (
-    childAddresses.has(toLowerCase(address)) &&
-    childAddresses.get(toLowerCase(address))! <= blockNumber
-  ) {
-    return true;
-  }
-
-  return false;
+  const childBlock = childAddresses.get(toLowerCase(address));
+  return childBlock !== undefined && childBlock <= blockNumber;
 };
 
 const isValueMatched = <T extends string>(
@@ -104,18 +98,15 @@ const isValueMatched = <T extends string>(
   // missing value
   if (eventValue === undefined) return false;
 
+  const normalizedEventValue = toLowerCase(eventValue);
+
   // array
-  if (
-    Array.isArray(filterValue) &&
-    filterValue.some((v) => v === toLowerCase(eventValue))
-  ) {
-    return true;
+  if (Array.isArray(filterValue)) {
+    return filterValue.some((value) => value === normalizedEventValue);
   }
 
   // single
-  if (filterValue === toLowerCase(eventValue)) return true;
-
-  return false;
+  return filterValue === normalizedEventValue;
 };
 
 /**
@@ -132,8 +123,9 @@ export const isLogFactoryMatched = ({
     const addresses = Array.isArray(factory.address)
       ? factory.address
       : [factory.address];
+    const address = toLowerCase(log.address);
 
-    if (addresses.every((address) => address !== toLowerCase(log.address))) {
+    if (addresses.every((factoryAddress) => factoryAddress !== address)) {
       return false;
     }
   }

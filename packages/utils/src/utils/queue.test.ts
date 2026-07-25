@@ -54,6 +54,34 @@ test("size", async () => {
   expect(queue.size()).toBe(0);
 });
 
+test("drains in FIFO order and reports logical size", async () => {
+  const first = promiseWithResolvers<void>();
+  const tasks: number[] = [];
+  const queue = createQueue({
+    concurrency: 1,
+    browser: false,
+    worker: async (task: number) => {
+      tasks.push(task);
+      if (task === 1) await first.promise;
+    },
+  });
+
+  queue.add(1);
+  queue.add(2);
+  queue.add(3);
+
+  await queue.start();
+
+  expect(tasks).toStrictEqual([1]);
+  expect(queue.size()).toBe(2);
+
+  first.resolve();
+  await queue.onIdle();
+
+  expect(tasks).toStrictEqual([1, 2, 3]);
+  expect(queue.size()).toBe(0);
+});
+
 test("pending", async () => {
   const { promise, resolve } = promiseWithResolvers<void>();
 
