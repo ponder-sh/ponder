@@ -424,6 +424,40 @@ test("getIntervals() returns factory intervals when factory_log rows exist", asy
   expect(intervals.get(factory)![0]!.intervals).toEqual([[10, 20]]);
 });
 
+test("getIntervals() retrieves many fragments in one statement", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: Array.from(
+      { length: 100 },
+      (_, index) => `0x${index.toString(16).padStart(40, "0")}` as const,
+    ),
+  } satisfies LogFilter;
+
+  await syncStore.insertIntervals({
+    intervals: [{ filter, interval: [0, 10] }],
+    factoryIntervals: [],
+    chainId: 1,
+  });
+
+  const wrap = vi.spyOn(database.syncQB, "wrap");
+  const intervals = await syncStore.getIntervals({ filters: [filter] });
+
+  expect(
+    wrap.mock.calls.filter(
+      ([options]) =>
+        typeof options === "object" &&
+        options !== null &&
+        "label" in options &&
+        options.label === "select_intervals",
+    ),
+  ).toHaveLength(1);
+  expect(intervals.get(filter)).toHaveLength(100);
+  expect(intervals.get(filter)!.map(({ intervals }) => intervals)).toEqual(
+    Array.from({ length: 100 }, () => [[0, 10]]),
+  );
+});
+
 test("insertIntervals() merges duplicates", async () => {
   const { syncStore } = await setupDatabaseServices();
 

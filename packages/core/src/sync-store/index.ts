@@ -13,11 +13,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
-import {
-  type PgColumn,
-  type PgSelectBase,
-  unionAll,
-} from "drizzle-orm/pg-core";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { type Address, hexToNumber, isHex } from "viem";
 import type { QB } from "@/database/queryBuilder.js";
 import { extractBlockNumberParam } from "@/indexing/client.js";
@@ -280,97 +276,90 @@ export const createSyncStore = ({
       }
     },
     getIntervals: async ({ filters }, context) => {
-      const queries: PgSelectBase<
-        "unnested",
-        {
-          mergedBlocks: SQL.Aliased<string>;
-          fragment: SQL.Aliased<unknown>;
-        },
-        "partial"
-      >[] = [];
-      let index = 0;
+      const requests: {
+        fragmentIds: FragmentId[];
+        fragment: Fragment;
+      }[] = [];
 
       for (const filter of filters) {
-        const fragments = getFragments(filter);
-
-        for (const fragment of fragments) {
-          queries.push(
-            qb.raw
-              .select({
-                mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
-                  "merged_blocks",
-                ),
-                fragment: sql.raw(`'${index++}'`).as("fragment"),
-              })
-              .from(
-                qb.raw
-                  .select({ blocks: sql.raw("unnest(blocks)").as("blocks") })
-                  .from(PONDER_SYNC.intervals)
-                  .where(
-                    sql.raw(
-                      `fragment_id IN (${fragment.adjacentIds.map((id) => `'${id}'`).join(", ")})`,
-                    ),
-                  )
-                  .as("unnested"),
-              ),
-          );
+        for (const fragment of getFragments(filter)) {
+          requests.push({
+            fragmentIds: fragment.adjacentIds,
+            fragment: fragment.fragment,
+          });
         }
 
         for (const factory of getFilterFactories(filter)) {
           for (const fragment of getFactoryFragments(factory)) {
-            queries.push(
-              qb.raw
-                .select({
-                  mergedBlocks: sql<string>`range_agg(unnested.blocks)`.as(
-                    "merged_blocks",
-                  ),
-                  fragment: sql.raw(`'${index++}'`).as("fragment"),
-                })
-                .from(
-                  qb.raw
-                    .select({
-                      blocks: sql.raw("unnest(blocks)").as("blocks"),
-                    })
-                    .from(PONDER_SYNC.intervals)
-                    .where(
-                      sql.raw(`fragment_id = '${encodeFragment(fragment)}'`),
-                    )
-                    .as("unnested"),
-                ),
-            );
+            requests.push({
+              fragmentIds: [encodeFragment(fragment)],
+              fragment,
+            });
           }
         }
       }
 
-      let rows: Awaited<(typeof queries)[number]> = [];
+      const intervalsByRequest: Interval[][] = Array.from(
+        { length: requests.length },
+        () => [],
+      );
+      const maxMappings = Math.floor(
+        common.options.databaseMaxQueryParameters / 2,
+      );
 
-      if (queries.length > 1) {
-        // Note: This query has no parameters, but there is a bug with
-        // drizzle causing a "maximum call stack size exceeded" error.
-        // Related: https://github.com/drizzle-team/drizzle-orm/issues/1740
-        const batchSize = 200;
+      for (let start = 0; start < requests.length; ) {
+        let end = start;
+        let mappingCount = 0;
 
-        for (let i = 0; i < queries.length; i += batchSize) {
-          const _rows = await qb.wrap(
-            { label: "select_intervals" },
-            () =>
-              // @ts-expect-error
-              unionAll(...queries.slice(i, i + batchSize)),
-            context,
-          );
-
-          if (i === 0) {
-            rows = _rows;
-          } else {
-            rows.push(..._rows);
-          }
+        while (end < requests.length) {
+          const nextCount = requests[end]!.fragmentIds.length;
+          if (end > start && mappingCount + nextCount > maxMappings) break;
+          mappingCount += nextCount;
+          end++;
         }
-      } else {
-        rows = await qb.wrap(
+
+        const mappings = requests
+          .slice(start, end)
+          .flatMap((request, offset) =>
+            request.fragmentIds.map(
+              (fragmentId) => sql`(${start + offset}, ${fragmentId})`,
+            ),
+          );
+        const query = sql<{
+          requestId: number;
+          mergedBlocks: string | null;
+        }>`
+          WITH requests(request_id, fragment_id) AS (
+            VALUES ${sql.join(mappings, sql`, `)}
+          )
+          SELECT
+            requests.request_id AS "requestId",
+            range_agg(unnested.block) AS "mergedBlocks"
+          FROM requests
+          LEFT JOIN ${PONDER_SYNC.intervals}
+            ON ${PONDER_SYNC.intervals.fragmentId} = requests.fragment_id
+          LEFT JOIN LATERAL unnest(${PONDER_SYNC.intervals.blocks}) AS unnested(block)
+            ON true
+          GROUP BY requests.request_id
+          ORDER BY requests.request_id
+        `;
+        const { rows } = (await qb.wrap(
           { label: "select_intervals" },
-          () => queries[0]!.execute(),
+          (db) => db.execute(query),
           context,
-        );
+        )) as {
+          rows: { requestId: number; mergedBlocks: string | null }[];
+        };
+
+        for (const row of rows) {
+          intervalsByRequest[row.requestId] = row.mergedBlocks
+            ? (
+                JSON.parse(`[${row.mergedBlocks.slice(1, -1)}]`) as Interval[]
+              ).map((interval) => [interval[0], interval[1] - 1] as Interval)
+            : [];
+        }
+
+        start = end;
       }
 
       const result = new Map<
@@ -381,46 +370,27 @@ export const createSyncStore = ({
       // NOTE: `interval[1]` must be rounded down in order to offset the previous
       // rounding.
 
-      index = 0;
-
+      let index = 0;
       for (const filter of filters) {
-        const fragments = getFragments(filter);
         result.set(filter, []);
-
-        for (const fragment of fragments) {
-          const intervals = rows
-            .filter((row) => row.fragment === `${index}`)
-            .map((row) =>
-              (row.mergedBlocks
-                ? (JSON.parse(
-                    `[${row.mergedBlocks.slice(1, -1)}]`,
-                  ) as Interval[])
-                : []
-              ).map((interval) => [interval[0], interval[1] - 1] as Interval),
-            )[0]!;
-
-          index += 1;
-
-          result.get(filter)!.push({ fragment: fragment.fragment, intervals });
+        for (let i = 0; i < getFragments(filter).length; i++) {
+          const { fragment } = requests[index]!;
+          result.get(filter)!.push({
+            fragment,
+            intervals: intervalsByRequest[index]!,
+          });
+          index++;
         }
 
         for (const factory of getFilterFactories(filter)) {
           result.set(factory, []);
-          for (const fragment of getFactoryFragments(factory)) {
-            const intervals = rows
-              .filter((row) => row.fragment === `${index}`)
-              .map((row) =>
-                (row.mergedBlocks
-                  ? (JSON.parse(
-                      `[${row.mergedBlocks.slice(1, -1)}]`,
-                    ) as Interval[])
-                  : []
-                ).map((interval) => [interval[0], interval[1] - 1] as Interval),
-              )[0]!;
-
-            index += 1;
-
-            result.get(factory)!.push({ fragment, intervals });
+          for (let i = 0; i < getFactoryFragments(factory).length; i++) {
+            const { fragment } = requests[index]!;
+            result.get(factory)!.push({
+              fragment,
+              intervals: intervalsByRequest[index]!,
+            });
+            index++;
           }
         }
       }
