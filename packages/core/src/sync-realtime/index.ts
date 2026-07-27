@@ -128,6 +128,7 @@ export const createRealtimeSync = (
   const realtimeSyncLock = createLock();
 
   const factories: Factory[] = [];
+  const factoryIds = new Set<FactoryId>();
   const logFilters: LogFilter[] = [];
   const traceFilters: TraceFilter[] = [];
   const transactionFilters: TransactionFilter[] = [];
@@ -163,6 +164,8 @@ export const createRealtimeSync = (
         continue;
       }
 
+      if (factoryIds.has(factory.id)) continue;
+      factoryIds.add(factory.id);
       factories.push(factory);
     }
   }
@@ -706,14 +709,14 @@ export const createRealtimeSync = (
   } => {
     // Update `childAddresses`
     for (const factory of factories) {
-      const factoryId = factory.id;
-      for (const address of blockChildAddresses.get(factory)!) {
-        if (childAddresses.get(factoryId)!.has(address) === false) {
-          childAddresses
-            .get(factoryId)!
-            .set(address, hexToNumber(block.number));
+      const knownAddresses = childAddresses.get(factory.id)!;
+      const blockAddresses = blockChildAddresses.get(factory)!;
+      for (const address of blockAddresses) {
+        // Retain only addresses first discovered in this block in the persistence and reorg delta.
+        if (knownAddresses.has(address)) {
+          blockAddresses.delete(address);
         } else {
-          blockChildAddresses.get(factory)!.delete(address);
+          knownAddresses.set(address, hexToNumber(block.number));
         }
       }
     }
