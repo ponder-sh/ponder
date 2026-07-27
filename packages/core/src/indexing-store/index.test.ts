@@ -79,7 +79,7 @@ test("find", async () => {
 
     // with entry
 
-    await indexingStore.db
+    const insertResult = await indexingStore.db
       .insert(schema.account)
       .values({ address: zeroAddress, balance: 10n });
 
@@ -91,6 +91,33 @@ test("find", async () => {
       address: "0x0000000000000000000000000000000000000000",
       balance: 10n,
     });
+
+    // writes do not mutate previous results
+
+    const upsertResult = await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 20n })
+      .onConflictDoUpdate({ balance: 20n });
+
+    expect(insertResult.balance).toBe(10n);
+    expect(result?.balance).toBe(10n);
+
+    result = await indexingStore.db.find(schema.account, {
+      address: zeroAddress,
+    });
+
+    const updateResult = await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set({ balance: 30n });
+
+    expect(upsertResult.balance).toBe(20n);
+    expect(result?.balance).toBe(20n);
+
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set({ balance: 40n });
+
+    expect(updateResult.balance).toBe(30n);
 
     // force db query
 
@@ -237,7 +264,7 @@ test("insert", async () => {
 
     // on conflict do update
 
-    await indexingStore.db
+    const singleUpsertResult = await indexingStore.db
       .insert(schema.account)
       .values({
         address: "0x0000000000000000000000000000000000000001",
@@ -265,6 +292,8 @@ test("insert", async () => {
       .onConflictDoUpdate((row) => ({
         balance: row.balance + 16n,
       }));
+
+    expect(singleUpsertResult.balance).toBe(16n);
 
     result = await indexingStore.db.find(schema.account, {
       address: "0x0000000000000000000000000000000000000001",

@@ -242,12 +242,13 @@ export const createIndexingStore = ({
                     const ponderRows: Row[] = [];
                     for (const value of userValues) {
                       checkTableAccess(table, "insert", value, chainId);
-                      const ponderRowUpdate = await indexingCache.get({
+                      let ponderRowUpdate = await indexingCache.get({
                         table,
                         key: value,
                       });
 
                       if (ponderRowUpdate) {
+                        ponderRowUpdate = copy(ponderRowUpdate);
                         if (typeof userUpdateValues === "function") {
                           const userRowUpdate = copyOnWrite(ponderRowUpdate);
                           const userSet = userUpdateValues(userRowUpdate);
@@ -306,12 +307,13 @@ export const createIndexingStore = ({
                     return userRows;
                   } else {
                     checkTableAccess(table, "insert", userValues, chainId);
-                    const ponderRowUpdate = await indexingCache.get({
+                    let ponderRowUpdate = await indexingCache.get({
                       table,
                       key: userValues,
                     });
 
                     if (ponderRowUpdate) {
+                      ponderRowUpdate = copy(ponderRowUpdate);
                       if (typeof userUpdateValues === "function") {
                         const userRowUpdate = copyOnWrite(ponderRowUpdate);
                         const userSet = userUpdateValues(userRowUpdate);
@@ -493,7 +495,7 @@ export const createIndexingStore = ({
             checkOnchainTable(table, "update");
             checkTableAccess(table, "update", key, chainId);
 
-            const ponderRowUpdate = await indexingCache.get({ table, key });
+            let ponderRowUpdate = await indexingCache.get({ table, key });
 
             if (ponderRowUpdate === null) {
               const error = new RecordNotFoundError(
@@ -504,6 +506,8 @@ export const createIndexingStore = ({
               );
               throw error;
             }
+
+            ponderRowUpdate = copy(ponderRowUpdate);
 
             if (typeof userValues === "function") {
               const userRow = copyOnWrite(ponderRowUpdate);
