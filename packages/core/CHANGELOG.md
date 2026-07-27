@@ -1,5 +1,13 @@
 # ponder
 
+## 0.17.2
+
+### Patch Changes
+
+- [#2341](https://github.com/ponder-sh/ponder/pull/2341) [`702d406`](https://github.com/ponder-sh/ponder/commit/702d406aa612bd0867e83fab3be5743ce5f0fdeb) Thanks [@hellowodl](https://github.com/hellowodl)! - Fixed a bug that caused rows returned by `context.db.find()`, `context.db.insert()`, and `context.db.update()` to be mutated by subsequent writes to the same row.
+
+- [#2347](https://github.com/ponder-sh/ponder/pull/2347) [`55643fd`](https://github.com/ponder-sh/ponder/commit/55643fd33fb965fc795d27965184841128c648e7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused realtime-discovered factory child addresses to be omitted from `ponder_sync.factory_addresses` when a factory was shared across multiple event handlers.
+
 ## 0.17.1
 
 ### Patch Changes
