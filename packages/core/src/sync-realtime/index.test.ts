@@ -1,9 +1,11 @@
-import { type Hex, parseEther } from "viem";
+import { getAbiItem, type Hex, parseEther } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import {
   context,
   setupAnvil,
+  setupChildAddresses,
   setupCleanup,
   setupCommon,
   setupDatabaseServices,
@@ -26,7 +28,8 @@ import {
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
-import type { LogFactory, LogFilter } from "@/internal/types.js";
+import { buildLogFactory } from "@/build/factory.js";
+import type { EventCallback, LogFactory, LogFilter } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
@@ -461,6 +464,86 @@ test("handleBlock() block event with log factory", async () => {
 
   expect(data[0]?.transactions).toHaveLength(0);
   expect(data[1]?.transactions).toHaveLength(1);
+});
+
+test("handleBlock() block event with factories shared by callbacks", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { block: finalizedBlock } = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const { block } = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: 1n,
+    sender: ALICE,
+  });
+
+  const event = getAbiItem({ abi: erc20ABI, name: "Transfer" });
+  const fromFactory = buildLogFactory({
+    address,
+    event,
+    parameter: "from",
+    chainId: chain.id,
+    sourceId: "From",
+    fromBlock: undefined,
+    toBlock: undefined,
+  });
+  const toFactory = buildLogFactory({
+    address,
+    event,
+    parameter: "to",
+    chainId: chain.id,
+    sourceId: "To",
+    fromBlock: undefined,
+    toBlock: undefined,
+  });
+
+  const { eventCallbacks: templateCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+  const templateCallback = templateCallbacks[0];
+  const templateFilter = templateCallback.filter as LogFilter;
+  const fromCallback = {
+    ...templateCallback,
+    filter: { ...templateFilter, address: fromFactory },
+  } satisfies EventCallback;
+  const eventCallbacks = [
+    fromCallback,
+    { ...fromCallback, name: `${fromCallback.name}:duplicate` },
+    {
+      ...templateCallback,
+      filter: { ...templateFilter, address: toFactory },
+    },
+  ] satisfies EventCallback[];
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: setupChildAddresses(eventCallbacks),
+  });
+
+  const [blockEvent] = (await drainAsyncGenerator(
+    realtimeSync.sync(block),
+  )) as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  expect(blockEvent?.childAddresses.get(fromFactory)).toEqual(
+    new Set([ALICE.toLowerCase()]),
+  );
+  expect(blockEvent?.childAddresses.get(toFactory)).toEqual(
+    new Set([BOB.toLowerCase()]),
+  );
 });
 
 test("handleBlock() block event with log factory and no address", async () => {
