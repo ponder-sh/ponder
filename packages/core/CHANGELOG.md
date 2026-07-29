@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.3
+
+### Patch Changes
+
+- [#2350](https://github.com/ponder-sh/ponder/pull/2350) [`80dd936`](https://github.com/ponder-sh/ponder/commit/80dd936636c65ed199202ae2dd3e2bc81c33e252) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused realtime sync to retain unfiltered block transactions in memory until finalization. Memory usage for live indexing improved >10%.
+
 ## 0.17.2
 
 ### Patch Changes
