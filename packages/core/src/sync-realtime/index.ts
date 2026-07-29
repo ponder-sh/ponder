@@ -1138,7 +1138,7 @@ export const createRealtimeSync = (
 
     // Make sure `transactions` can be garbage collected
     blockWithEventData.block.transactions =
-      blockWithFilteredEventData.block.transactions;
+      blockWithFilteredEventData.transactions;
 
     yield {
       type: "block",
