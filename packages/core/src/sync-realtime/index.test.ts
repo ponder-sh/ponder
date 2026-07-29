@@ -882,6 +882,7 @@ test("handleBlock() block event with transaction", async () => {
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[0]?.transactionReceipts).toHaveLength(1);
+  expect(data[0]?.block.transactions).toBe(data[0]?.transactions);
 });
 
 test("handleBlock() block event with transfer", async () => {
