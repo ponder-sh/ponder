@@ -1,5 +1,6 @@
 import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
+import type { QueryRpcSchema } from "@monad-crypto/query";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
@@ -38,6 +39,7 @@ import { getHttpRpcClient } from "./http.js";
 export type RpcSchema = [
   ...PublicRpcSchema,
   ...DebugRpcSchema,
+  ...QueryRpcSchema,
   /**
    * @description Returns the receipts of a block specified by hash
    *
