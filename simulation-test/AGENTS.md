@@ -95,6 +95,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - If a run fails validation, the runner prints a table comparing expected rows and actual rows for the first mismatches.
 - A validation failure usually means Ponder indexed data differently from the known-good expected tables for that app template and seed.
 - A simulated RPC or DB error is not automatically a test failure; Ponder is expected to recover from many injected transient failures.
+- Treat any CI job cancelled because of a timeout as a test failure.
 - On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
 
