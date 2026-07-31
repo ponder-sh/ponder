@@ -1077,9 +1077,10 @@ test("getEventData() applies one block range to logs and traces queries", async 
 test("getEventData() skips unused log transaction data", async () => {
   const { database, syncStore } = await setupDatabaseServices();
   const querySpy = vi.spyOn(database.syncQB.$client, "query");
+  querySpy.mockClear();
 
   const result = await syncStore.getEventData({
-    filters: [EMPTY_LOG_FILTER],
+    filters: [{ ...EMPTY_LOG_FILTER, include: [] }],
     fromBlock: 0,
     toBlock: 100,
     chainId: 1,
