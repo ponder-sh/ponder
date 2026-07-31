@@ -7,51 +7,9 @@ export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
 
 const copyOnWriteCopies = new WeakMap<object, object>();
 
-function inspectCopyOnWrite(
-  this: object,
-  _depth: number,
-  options: util.InspectOptionsStylized,
-) {
-  const value = copyOnWriteCopies.get(this) ?? this;
-
-  if (
-    value instanceof Date ||
-    value instanceof Map ||
-    value instanceof Set ||
-    value instanceof RegExp ||
-    value instanceof ArrayBuffer ||
-    ArrayBuffer.isView(value)
-  ) {
-    return util.inspect(structuredClone(value), options);
-  }
-
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  Reflect.deleteProperty(descriptors, util.inspect.custom);
-
-  const inspectedValue = Array.isArray(value)
-    ? []
-    : Object.create(Object.getPrototypeOf(value));
-  Object.setPrototypeOf(inspectedValue, Object.getPrototypeOf(value));
-  Object.defineProperties(inspectedValue, descriptors);
-  return util.inspect(inspectedValue, options);
+function inspectCopyOnWrite(this: object) {
+  return copyOnWriteCopies.get(this) ?? (this as any)[COPY_ON_WRITE] ?? this;
 }
-
-const cloneCopyOnWrite = <T extends object>(obj: T): T => {
-  const clonedObject = structuredClone(obj);
-  Object.setPrototypeOf(clonedObject, Object.getPrototypeOf(obj));
-
-  for (const symbol of Object.getOwnPropertySymbols(obj)) {
-    if (symbol === util.inspect.custom) continue;
-
-    const descriptor = Object.getOwnPropertyDescriptor(obj, symbol)!;
-    if ("value" in descriptor && typeof descriptor.value === "object") {
-      descriptor.value = structuredClone(descriptor.value);
-    }
-    Object.defineProperty(clonedObject, symbol, descriptor);
-  }
-
-  return clonedObject;
-};
 
 /**
  * Create a copy-on-write proxy for an object.
@@ -59,17 +17,10 @@ const cloneCopyOnWrite = <T extends object>(obj: T): T => {
 export const copyOnWrite = <T extends object>(obj: T): T => {
   let copiedObject: T | undefined;
 
-  // @ts-expect-error
-  obj[util.inspect.custom] = inspectCopyOnWrite;
-
-  const getCopiedObject = () => {
-    if (copiedObject === undefined) {
-      copiedObject = cloneCopyOnWrite(obj);
-      copyOnWriteCopies.set(obj, copiedObject);
-      copyOnWriteCopies.set(proxy, copiedObject);
-    }
-    return copiedObject;
-  };
+  Object.defineProperty(obj, util.inspect.custom, {
+    value: inspectCopyOnWrite,
+    configurable: true,
+  });
 
   const proxy = new Proxy<T>(obj, {
     get(target, prop, receiver) {
@@ -83,20 +34,33 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
         result !== null &&
         copiedObject === undefined
       ) {
-        copiedObject = getCopiedObject();
+        copiedObject = structuredClone(target);
+        copyOnWriteCopies.set(proxy, copiedObject);
         result = Reflect.get(copiedObject, prop, receiver);
       }
 
       return result;
     },
-    set(_target, prop, newValue, receiver) {
-      return Reflect.set(getCopiedObject(), prop, newValue, receiver);
+    set(target, prop, newValue, receiver) {
+      if (copiedObject === undefined) {
+        copiedObject = structuredClone(target);
+        copyOnWriteCopies.set(proxy, copiedObject);
+      }
+      return Reflect.set(copiedObject, prop, newValue, receiver);
     },
-    deleteProperty(_target, prop) {
-      return Reflect.deleteProperty(getCopiedObject(), prop);
+    deleteProperty(target, prop) {
+      if (copiedObject === undefined) {
+        copiedObject = structuredClone(target);
+        copyOnWriteCopies.set(proxy, copiedObject);
+      }
+      return Reflect.deleteProperty(copiedObject, prop);
     },
-    defineProperty(_target, prop, descriptor) {
-      return Reflect.defineProperty(getCopiedObject(), prop, descriptor);
+    defineProperty(target, prop, descriptor) {
+      if (copiedObject === undefined) {
+        copiedObject = structuredClone(target);
+        copyOnWriteCopies.set(proxy, copiedObject);
+      }
+      return Reflect.defineProperty(copiedObject, prop, descriptor);
     },
     ownKeys(target) {
       return Reflect.ownKeys(copiedObject ?? target);
