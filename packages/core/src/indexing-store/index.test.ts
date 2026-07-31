@@ -132,6 +132,122 @@ test("find", async () => {
   });
 });
 
+test("update mutable values", async () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      metadata: p
+        .json()
+        .$type<{ count: number; nested: { value: string } }>()
+        .notNull(),
+      values: p.integer().array().notNull(),
+      calldata: p.bytes().notNull(),
+      timestamp: p.timestamp().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.db.insert(schema.account).values({
+      address: zeroAddress,
+      metadata: { count: 1, nested: { value: "one" } },
+      values: [1],
+      calldata: new Uint8Array([1]),
+      timestamp: new Date(1_000),
+    });
+
+    const previous = await indexingStore.db.find(schema.account, {
+      address: zeroAddress,
+    });
+    const metadata = { count: 2, nested: { value: "two" } };
+    const values = [2];
+    const calldata = new Uint8Array([2]);
+    const timestamp = new Date(2_000);
+    const upserted = await indexingStore.db
+      .insert(schema.account)
+      .values({
+        address: zeroAddress,
+        metadata,
+        values,
+        calldata,
+        timestamp,
+      })
+      .onConflictDoUpdate({ metadata, values, calldata, timestamp });
+
+    metadata.nested.value = "mutated input";
+    values.push(9);
+    calldata[0] = 9;
+    timestamp.setTime(9_000);
+    upserted.metadata.nested.value = "mutated result";
+    upserted.values.push(9);
+    upserted.calldata[0] = 9;
+    upserted.timestamp.setTime(9_000);
+
+    expect(previous).toMatchObject({
+      metadata: { count: 1, nested: { value: "one" } },
+      values: [1],
+      calldata: new Uint8Array([1]),
+      timestamp: new Date(1_000),
+    });
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({
+      metadata: { count: 2, nested: { value: "two" } },
+      values: [2],
+      calldata: new Uint8Array([2]),
+      timestamp: new Date(2_000),
+    });
+
+    const updated = await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set((row) => ({
+        metadata: {
+          count: row.metadata.count + 1,
+          nested: { value: "three" },
+        },
+        values: [...row.values, 3],
+        calldata: new Uint8Array([3]),
+        timestamp: new Date(3_000),
+      }));
+
+    updated.metadata.nested.value = "mutated update result";
+    updated.values.push(9);
+    updated.calldata[0] = 9;
+    updated.timestamp.setTime(9_000);
+
+    await indexingCache.flush();
+    indexingCache.clear();
+    indexingCache.invalidate();
+
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({
+      metadata: { count: 3, nested: { value: "three" } },
+      values: [2, 3],
+      calldata: new Uint8Array([3]),
+      timestamp: new Date(3_000),
+    });
+  });
+});
+
 test("insert", async () => {
   const { database } = await setupDatabaseServices();
 
