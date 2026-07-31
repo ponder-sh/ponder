@@ -502,6 +502,7 @@ export const createIndexingCache = ({
       return result;
     },
     set({ table, key, row: _row, isUpdate }) {
+      // Updates arrive pre-normalized: the base row is already normalized and only the changed fields are normalized (via `normalizeUpdateSet`), so re-normalizing the full row here would be redundant.
       const row = isUpdate ? _row : normalizeRow(table, _row, false);
       const ck = getCacheKey(table, key, primaryKeyCache);
 
