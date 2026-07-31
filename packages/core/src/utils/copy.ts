@@ -5,6 +5,54 @@ import util from "node:util";
  */
 export const COPY_ON_WRITE = Symbol.for("ponder:copyOnWrite");
 
+const copyOnWriteCopies = new WeakMap<object, object>();
+
+function inspectCopyOnWrite(
+  this: object,
+  _depth: number,
+  options: util.InspectOptionsStylized,
+) {
+  const value = copyOnWriteCopies.get(this) ?? this;
+
+  if (
+    value instanceof Date ||
+    value instanceof Map ||
+    value instanceof Set ||
+    value instanceof RegExp ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value)
+  ) {
+    return util.inspect(structuredClone(value), options);
+  }
+
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  Reflect.deleteProperty(descriptors, util.inspect.custom);
+
+  const inspectedValue = Array.isArray(value)
+    ? []
+    : Object.create(Object.getPrototypeOf(value));
+  Object.setPrototypeOf(inspectedValue, Object.getPrototypeOf(value));
+  Object.defineProperties(inspectedValue, descriptors);
+  return util.inspect(inspectedValue, options);
+}
+
+const cloneCopyOnWrite = <T extends object>(obj: T): T => {
+  const clonedObject = structuredClone(obj);
+  Object.setPrototypeOf(clonedObject, Object.getPrototypeOf(obj));
+
+  for (const symbol of Object.getOwnPropertySymbols(obj)) {
+    if (symbol === util.inspect.custom) continue;
+
+    const descriptor = Object.getOwnPropertyDescriptor(obj, symbol)!;
+    if ("value" in descriptor && typeof descriptor.value === "object") {
+      descriptor.value = structuredClone(descriptor.value);
+    }
+    Object.defineProperty(clonedObject, symbol, descriptor);
+  }
+
+  return clonedObject;
+};
+
 /**
  * Create a copy-on-write proxy for an object.
  */
@@ -12,11 +60,18 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
   let copiedObject: T | undefined;
 
   // @ts-expect-error
-  obj[util.inspect.custom] = () => {
-    return copiedObject ?? obj;
+  obj[util.inspect.custom] = inspectCopyOnWrite;
+
+  const getCopiedObject = () => {
+    if (copiedObject === undefined) {
+      copiedObject = cloneCopyOnWrite(obj);
+      copyOnWriteCopies.set(obj, copiedObject);
+      copyOnWriteCopies.set(proxy, copiedObject);
+    }
+    return copiedObject;
   };
 
-  return new Proxy<T>(obj, {
+  const proxy = new Proxy<T>(obj, {
     get(target, prop, receiver) {
       if (prop === COPY_ON_WRITE) {
         return target;
@@ -28,29 +83,20 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
         result !== null &&
         copiedObject === undefined
       ) {
-        copiedObject = structuredClone(target);
+        copiedObject = getCopiedObject();
         result = Reflect.get(copiedObject, prop, receiver);
       }
 
       return result;
     },
-    set(target, prop, newValue, receiver) {
-      if (copiedObject === undefined) {
-        copiedObject = structuredClone(target);
-      }
-      return Reflect.set(copiedObject!, prop, newValue, receiver);
+    set(_target, prop, newValue, receiver) {
+      return Reflect.set(getCopiedObject(), prop, newValue, receiver);
     },
-    deleteProperty(target, prop) {
-      if (copiedObject === undefined) {
-        copiedObject = structuredClone(target);
-      }
-      return Reflect.deleteProperty(copiedObject!, prop);
+    deleteProperty(_target, prop) {
+      return Reflect.deleteProperty(getCopiedObject(), prop);
     },
-    defineProperty(target, prop, descriptor) {
-      if (copiedObject === undefined) {
-        copiedObject = structuredClone(target);
-      }
-      return Reflect.defineProperty(copiedObject!, prop, descriptor);
+    defineProperty(_target, prop, descriptor) {
+      return Reflect.defineProperty(getCopiedObject(), prop, descriptor);
     },
     ownKeys(target) {
       return Reflect.ownKeys(copiedObject ?? target);
@@ -62,6 +108,8 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
       return Reflect.getOwnPropertyDescriptor(copiedObject ?? target, prop);
     },
   });
+
+  return proxy;
 };
 
 /**
