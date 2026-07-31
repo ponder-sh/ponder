@@ -84,6 +84,92 @@ test("flush() insert", async () => {
   });
 });
 
+test("flush() releases write-only inserts", async () => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: ALICE, balance: 10n });
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: BOB, balance: 10n });
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
+
+    await indexingStore.db.find(schema.account, { address: BOB });
+    await indexingCache.flush();
+
+    expect(
+      await indexingStore.db
+        .insert(schema.account)
+        .values({ address: ALICE, balance: 0n })
+        .onConflictDoNothing(),
+    ).toBeNull();
+    expect(
+      await indexingStore.db.find(schema.account, { address: BOB }),
+    ).toMatchObject({ balance: 10n });
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ address: zeroAddress, balance: 10n });
+
+    const alice = await indexingStore.db
+      .insert(schema.account)
+      .values({ address: ALICE, balance: 0n })
+      .onConflictDoUpdate((row) => ({ balance: row.balance + 1n }));
+
+    expect(alice.balance).toBe(11n);
+
+    await indexingCache.flush();
+    expect(
+      await indexingStore.db.find(schema.account, { address: ALICE }),
+    ).toMatchObject({ balance: 11n });
+
+    const cacheRequests = (
+      await context.common.metrics.ponder_indexing_cache_requests_total.get()
+    ).values;
+    expect(
+      cacheRequests.find(
+        ({ labels }) => labels.table === "account" && labels.type === "miss",
+      )?.value,
+    ).toBe(2);
+    expect(
+      cacheRequests.find(
+        ({ labels }) => labels.table === "account" && labels.type === "hit",
+      )?.value,
+    ).toBe(3);
+  });
+});
+
 test("flush() update", async () => {
   const schema = {
     account: onchainTable("account", (p) => ({

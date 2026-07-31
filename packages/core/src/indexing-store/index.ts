@@ -200,6 +200,7 @@ export const createIndexingStore = ({
                           key: value,
                           row: value,
                           isUpdate: false,
+                          shouldCache: true,
                         }),
                       );
                     }
@@ -224,6 +225,7 @@ export const createIndexingStore = ({
                     key: ponderValues,
                     row: ponderValues,
                     isUpdate: false,
+                    shouldCache: true,
                   });
 
                   const userRow = copyOnWrite(ponderRow);
@@ -287,6 +289,7 @@ export const createIndexingStore = ({
                             key: ponderRowUpdate,
                             row: ponderRowUpdate,
                             isUpdate: true,
+                            shouldCache: true,
                           }),
                         );
                       } else {
@@ -297,6 +300,7 @@ export const createIndexingStore = ({
                             key: ponderValue,
                             row: ponderValue,
                             isUpdate: false,
+                            shouldCache: true,
                           }),
                         );
                       }
@@ -347,6 +351,7 @@ export const createIndexingStore = ({
                         key: ponderRowUpdate,
                         row: ponderRowUpdate,
                         isUpdate: true,
+                        shouldCache: true,
                       });
                       const userRow = copyOnWrite(ponderRow);
                       return userRow;
@@ -359,6 +364,7 @@ export const createIndexingStore = ({
                       key: ponderValues,
                       row: ponderValues,
                       isUpdate: false,
+                      shouldCache: true,
                     });
 
                     const userRow = copyOnWrite(ponderRowInsert);
@@ -398,6 +404,7 @@ export const createIndexingStore = ({
                               key: value,
                               row: value,
                               isUpdate: false,
+                              shouldCache: true,
                             }),
                           );
                         }
@@ -411,6 +418,7 @@ export const createIndexingStore = ({
                             key: value,
                             row: value,
                             isUpdate: false,
+                            shouldCache: false,
                           }),
                         );
                       }
@@ -442,6 +450,7 @@ export const createIndexingStore = ({
                           key: ponderValues,
                           row: ponderValues,
                           isUpdate: false,
+                          shouldCache: true,
                         });
                       }
                     } else {
@@ -453,6 +462,7 @@ export const createIndexingStore = ({
                         key: ponderValues,
                         row: ponderValues,
                         isUpdate: false,
+                        shouldCache: false,
                       });
                     }
                     const userRow = copyOnWrite(ponderRow);
@@ -543,6 +553,7 @@ export const createIndexingStore = ({
               key: ponderRowUpdate,
               row: ponderRowUpdate,
               isUpdate: true,
+              shouldCache: true,
             });
             const userRow = copyOnWrite(ponderRow);
             return userRow;
