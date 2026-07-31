@@ -60,7 +60,7 @@ test("copyOnWrite nested array", () => {
 test("copy", () => {
   const obj = { a: 1, b: 2 };
   const copiedObj = copyOnWrite(obj);
-  const copiedObj2 = copy(copiedObj);
+  const copiedObj2 = copy(copiedObj, false);
 
   expect(copiedObj.a).toBe(1);
   expect(copiedObj.b).toBe(2);
@@ -76,12 +76,12 @@ test("copy", () => {
   expect(copiedObj.a).toBe(3);
   expect(copiedObj.b).toBe(2);
 
-  copy([copiedObj]);
+  copy([copiedObj], false);
 });
 
 test("copy shallow", () => {
   const obj = { a: 1, b: "value", c: 2n, d: true };
-  const copiedObj = copy(obj, "shallow");
+  const copiedObj = copy(obj, true);
 
   expect(copiedObj).toEqual(obj);
   expect(copiedObj).not.toBe(obj);
@@ -93,7 +93,7 @@ test("copy bytes", () => {
     calldata: toBytes(zeroAddress),
   };
   const copiedObj = copyOnWrite(obj);
-  const copiedObj2 = copy(copiedObj);
+  const copiedObj2 = copy(copiedObj, false);
 
   expect(copiedObj.calldata).toMatchInlineSnapshot(`
     Uint8Array [
@@ -155,7 +155,7 @@ test("copy timestamp", () => {
     timestamp: new Date(1742925862000),
   };
 
-  const copiedObj = copy(obj);
+  const copiedObj = copy(obj, false);
 
   expect(copiedObj.timestamp).toBeInstanceOf(Date);
 });
