@@ -1,5 +1,17 @@
 # ponder
 
+## 0.17.4
+
+### Patch Changes
+
+- [#2353](https://github.com/ponder-sh/ponder/pull/2353) [`a0a91c3`](https://github.com/ponder-sh/ponder/commit/a0a91c33039ec4d29173af22f59394cfc2c346c2) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by batching internal metrics updates.
+
+- [#2356](https://github.com/ponder-sh/ponder/pull/2356) [`13d34ee`](https://github.com/ponder-sh/ponder/commit/13d34ee70f45117636a4dfa7e7a74e3a7d195462) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by using schema-aware copying.
+
+- [#2355](https://github.com/ponder-sh/ponder/pull/2355) [`d34cf7e`](https://github.com/ponder-sh/ponder/commit/d34cf7e56579001ec1a814a974444a11f18adb1b) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by normalizing only changed row fields during updates.
+
+- [#2352](https://github.com/ponder-sh/ponder/pull/2352) [`0183ecc`](https://github.com/ponder-sh/ponder/commit/0183eccf50e72be5ad5a321a0ad436649d5fbb50) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved indexing performance by reducing copy-on-write row memory usage.
+
 ## 0.17.3
 
 ### Patch Changes
