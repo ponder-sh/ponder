@@ -35,7 +35,7 @@ import { prettyPrint } from "@/utils/print.js";
 import { getSQLQueryRelations, isReadonlySQLQuery } from "@/utils/sql-parse.js";
 import { startClock } from "@/utils/timer.js";
 import type { IndexingCache, Row } from "./cache.js";
-import { getPrimaryKeyCache } from "./utils.js";
+import { getPrimaryKeyCache, normalizeUpdateSet } from "./utils.js";
 
 export type IndexingStore = {
   db: Db<Schema>;
@@ -259,6 +259,7 @@ export const createIndexingStore = ({
                             ponderRowUpdate,
                             primaryKeyCache,
                           );
+                          normalizeUpdateSet(table, ponderSet);
                           for (const [key, value] of Object.entries(
                             ponderSet,
                           )) {
@@ -274,6 +275,7 @@ export const createIndexingStore = ({
                             ponderRowUpdate,
                             primaryKeyCache,
                           );
+                          normalizeUpdateSet(table, ponderSet);
                           for (const [key, value] of Object.entries(
                             ponderSet,
                           )) {
@@ -324,6 +326,7 @@ export const createIndexingStore = ({
                           ponderRowUpdate,
                           primaryKeyCache,
                         );
+                        normalizeUpdateSet(table, ponderSet);
                         for (const [key, value] of Object.entries(ponderSet)) {
                           if (value === undefined) continue;
                           ponderRowUpdate[key] = value;
@@ -337,6 +340,7 @@ export const createIndexingStore = ({
                           ponderRowUpdate,
                           primaryKeyCache,
                         );
+                        normalizeUpdateSet(table, ponderSet);
                         for (const [key, value] of Object.entries(ponderSet)) {
                           if (value === undefined) continue;
                           ponderRowUpdate[key] = value;
@@ -519,6 +523,7 @@ export const createIndexingStore = ({
                 ponderRowUpdate,
                 primaryKeyCache,
               );
+              normalizeUpdateSet(table, ponderSet);
               for (const [key, value] of Object.entries(ponderSet)) {
                 if (value === undefined) continue;
                 ponderRowUpdate[key] = value;
@@ -532,6 +537,7 @@ export const createIndexingStore = ({
                 ponderRowUpdate,
                 primaryKeyCache,
               );
+              normalizeUpdateSet(table, ponderSet);
               for (const [key, value] of Object.entries(ponderSet)) {
                 if (value === undefined) continue;
                 ponderRowUpdate[key] = value;

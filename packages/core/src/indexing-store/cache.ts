@@ -502,7 +502,7 @@ export const createIndexingCache = ({
       return result;
     },
     set({ table, key, row: _row, isUpdate }) {
-      const row = normalizeRow(table, _row, isUpdate);
+      const row = isUpdate ? _row : normalizeRow(table, _row, false);
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       if (isUpdate) {

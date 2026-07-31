@@ -16,6 +16,21 @@ import {
 } from "@/internal/errors.js";
 import { prettyPrint } from "@/utils/print.js";
 
+const tableColumnCache = new WeakMap<
+  Table,
+  { columns: Record<string, Column>; entries: [string, Column][] }
+>();
+
+const getCachedTableColumns = (table: Table) => {
+  let cached = tableColumnCache.get(table);
+  if (cached === undefined) {
+    const columns = getTableColumns(table);
+    cached = { columns, entries: Object.entries(columns) };
+    tableColumnCache.set(table, cached);
+  }
+  return cached;
+};
+
 /**
  * Returns true if the column has a "default" value that is used when no value is passed.
  * Handles `.default`, `.$defaultFn()`, `.$onUpdateFn()`.
@@ -102,7 +117,7 @@ export const normalizeRow = (
   row: { [key: string]: unknown },
   isUpdate: boolean,
 ) => {
-  for (const [columnName, column] of Object.entries(getTableColumns(table))) {
+  for (const [columnName, column] of getCachedTableColumns(table).entries) {
     // not-null constraint
     if (
       isUpdate === false &&
@@ -124,6 +139,19 @@ export const normalizeRow = (
     row[columnName] = normalizeColumn(column, row[columnName], isUpdate);
   }
 
+  return row;
+};
+
+export const normalizeUpdateSet = (
+  table: Table,
+  row: { [key: string]: unknown },
+) => {
+  const { columns } = getCachedTableColumns(table);
+  for (const [columnName, value] of Object.entries(row)) {
+    const column = columns[columnName];
+    if (value === undefined || column === undefined) continue;
+    row[columnName] = normalizeColumn(column, value, true);
+  }
   return row;
 };
 
