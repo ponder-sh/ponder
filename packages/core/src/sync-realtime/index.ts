@@ -1,6 +1,12 @@
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   type Address,
   type Hash,
+  type Hex,
+  type RpcError,
   hexToNumber,
   numberToHex,
   zeroHash,
@@ -53,6 +59,7 @@ import {
 } from "@/runtime/filter.js";
 import type { SyncProgress } from "@/runtime/index.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
+import { getChunks } from "@/utils/interval.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
@@ -184,11 +191,19 @@ export const createRealtimeSync = (
     traceFilters.length === 0 &&
     transactionFilters.length === 0 &&
     transferFilters.length === 0 &&
-    blockFilters.length === 0;
+    blockFilters.length === 0 &&
+    // A filter that matches all addresses would make every scan an unfiltered
+    // chain-wide `eth_getLogs` over the unfinalized window, which is both
+    // slower and more expensive than the default per-block sync.
+    logFilters.every(
+      (filter) =>
+        filter.address !== undefined &&
+        isAddressFactory(filter.address) === false,
+    );
 
   if (args.chain.experimentalRangeScan && canRangeScan === false) {
     args.common.logger.warn({
-      msg: "Ignoring 'experimentalRangeScan' because the chain has factory, block, transaction, trace, or transfer sources. Using the default per-block realtime sync.",
+      msg: "Ignoring 'experimentalRangeScan' because the chain has factory, block, transaction, trace, or transfer sources, or a log source that matches all addresses. Using the default per-block realtime sync.",
       chain: args.chain.name,
       chain_id: args.chain.id,
     });
@@ -205,25 +220,55 @@ export const createRealtimeSync = (
   const scannedBlockHashes = new Map<number, Hash>();
 
   /**
-   * Build the `address` argument for the range-scan `eth_getLogs` request as the
-   * union of all log filter addresses, or `undefined` if any filter matches all
-   * addresses. Topics are intentionally not merged; logs are filtered precisely
-   * client-side.
+   * `address` and `topics` for the range-scan `eth_getLogs` request: the union
+   * of every log filter's address and `topic0`.
+   *
+   * @dev The union matches a superset of each individual filter — `(A₁ ∪ A₂) ∧
+   * (T₁ ∪ T₂)` contains everything `(A₁ ∧ T₁)` and `(A₂ ∧ T₂)` match — so it is
+   * safe to filter precisely client-side afterwards. Constraining the request
+   * matters because the response covers the entire unfinalized window.
    */
-  const getRangeScanAddress = (): Address | Address[] | undefined => {
+  const rangeScanParams = (() => {
     const addresses = new Set<Address>();
+    const topic0s = new Set<Hex>();
+    let hasAllTopic0s = true;
+
     for (const filter of logFilters) {
-      if (filter.address === undefined || isAddressFactory(filter.address)) {
-        return undefined;
-      }
-      if (Array.isArray(filter.address)) {
-        for (const address of filter.address) addresses.add(address);
+      // Note: `canRangeScan` guarantees a non-factory, defined address.
+      const address = filter.address as Address | Address[];
+      if (Array.isArray(address)) {
+        for (const _address of address) addresses.add(_address);
       } else {
-        addresses.add(filter.address);
+        addresses.add(address);
+      }
+
+      if (filter.topic0 === undefined || filter.topic0 === null) {
+        hasAllTopic0s = false;
+      } else {
+        topic0s.add(filter.topic0);
       }
     }
-    return Array.from(addresses);
-  };
+
+    // Note: the `topics` field is fragile for many rpc providers, so only the
+    // first position is included and it is omitted entirely when unconstrained.
+    return {
+      addresses: Array.from(addresses),
+      topics: hasAllTopic0s ? [Array.from(topic0s)] : undefined,
+    };
+  })();
+
+  /**
+   * Maximum number of addresses in a single range-scan `eth_getLogs` request.
+   * Matches the batch size used by the historical sync.
+   */
+  const RANGE_SCAN_ADDRESS_BATCH_SIZE = 50;
+
+  /**
+   * Maximum block range for a range-scan `eth_getLogs` request. Starts at the
+   * user-provided value (if any) and is narrowed when a provider rejects a
+   * request for being too wide, so the same error isn't repeated every poll.
+   */
+  let rangeScanBlockRange: number | undefined = args.chain.ethGetLogsBlockRange;
 
   const syncTransactionReceipts = async (
     block: SyncBlock,
@@ -1259,8 +1304,12 @@ export const createRealtimeSync = (
   };
 
   /**
-   * Fetch all matching logs in `[fromBlock, toBlock]` with a single ranged
-   * `eth_getLogs` request (chunked by `ethGetLogsBlockRange` if configured).
+   * Fetch all logs matching the union of the log filters in
+   * `[fromBlock, toBlock]`.
+   *
+   * Requests are batched by address and chunked by block range. A request
+   * rejected for being too wide is split into the ranges suggested by the
+   * error and retried, and the narrower range is remembered for later polls.
    */
   const getRangeScanLogs = async (
     fromBlock: number,
@@ -1269,29 +1318,82 @@ export const createRealtimeSync = (
     const context = {
       logger: args.common.logger.child({ action: "fetch_block_data" }),
     };
-    const address = getRangeScanAddress();
-    const chunkSize =
-      args.chain.ethGetLogsBlockRange ?? toBlock - fromBlock + 1;
 
-    const requests: Promise<SyncLog[]>[] = [];
-    for (let from = fromBlock; from <= toBlock; from += chunkSize) {
-      const to = Math.min(from + chunkSize - 1, toBlock);
-      requests.push(
-        eth_getLogs(
-          args.rpc,
-          [
-            {
-              address,
-              fromBlock: numberToHex(from),
-              toBlock: numberToHex(to),
-            },
-          ],
-          context,
-        ),
+    const addressBatches: Address[][] = [];
+    for (
+      let i = 0;
+      i < rangeScanParams.addresses.length;
+      i += RANGE_SCAN_ADDRESS_BATCH_SIZE
+    ) {
+      addressBatches.push(
+        rangeScanParams.addresses.slice(i, i + RANGE_SCAN_ADDRESS_BATCH_SIZE),
       );
     }
 
-    const results = await Promise.all(requests);
+    const request = async (
+      address: Address[],
+      from: number,
+      to: number,
+    ): Promise<SyncLog[]> => {
+      const params: Parameters<typeof eth_getLogs>[1] = [
+        {
+          address,
+          topics: rangeScanParams.topics,
+          fromBlock: numberToHex(from),
+          toBlock: numberToHex(to),
+        },
+      ];
+
+      return eth_getLogs(args.rpc, params, context).catch((error) => {
+        // Note: skip the range retry logic if the chain has a custom block
+        // range, matching the historical sync.
+        if (args.chain.ethGetLogsBlockRange !== undefined) throw error;
+        if (from === to) throw error;
+
+        const getLogsErrorResponse = getLogsRetryHelper({
+          params: params as GetLogsRetryHelperParameters["params"],
+          error: error as RpcError,
+        });
+
+        if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+        const range =
+          hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+          hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
+          1;
+
+        // Remember the narrower range so that the next poll doesn't repeat the
+        // same failing request.
+        if (rangeScanBlockRange === undefined || range < rangeScanBlockRange) {
+          rangeScanBlockRange = range;
+
+          args.common.logger.debug({
+            msg: "Updated range scan 'eth_getLogs' range",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            range,
+          });
+        }
+
+        return Promise.all(
+          getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
+            request(address, hexToNumber(fromBlock), hexToNumber(toBlock)),
+          ),
+        ).then((logs) => logs.flat());
+      });
+    };
+
+    const chunks = getChunks({
+      interval: [fromBlock, toBlock],
+      maxChunkSize: rangeScanBlockRange ?? toBlock - fromBlock + 1,
+    });
+
+    const results = await Promise.all(
+      chunks.flatMap(([from, to]) =>
+        addressBatches.map((address) => request(address, from, to)),
+      ),
+    );
+
     return results.flat();
   };
 
@@ -1388,8 +1490,8 @@ export const createRealtimeSync = (
     }
 
     // Scan the entire unfinalized window. Used both for reorg detection
-    // (comparing block hashes of previously matched blocks) and to discover
-    // new matched blocks.
+    // (comparing block hashes against the blocks already processed) and to
+    // discover new matched blocks.
     const rangeLogs = await getRangeScanLogs(windowFrom, headNumber);
 
     const logsByBlockNumber = new Map<
@@ -1402,6 +1504,19 @@ export const createRealtimeSync = (
         logsByBlockNumber.set(number, { hash: log.blockHash, logs: [] });
       }
       logsByBlockNumber.get(number)!.logs.push(log);
+    }
+
+    // The request used the union of every filter's address and `topic0`, and
+    // logs from different address batches arrive out of order. Filter each
+    // block's logs precisely and restore `logIndex` order.
+    for (const [number, { logs }] of logsByBlockNumber) {
+      const matchedLogs = logs
+        .filter((log) =>
+          logFilters.some((filter) => isLogFilterMatched({ filter, log })),
+        )
+        .sort((a, b) => hexToNumber(a.logIndex) - hexToNumber(b.logIndex));
+
+      logsByBlockNumber.get(number)!.logs = matchedLogs;
     }
 
     // --- Reorg detection ---
@@ -1501,13 +1616,26 @@ export const createRealtimeSync = (
     // are unchanged in the common case (their hash is already recorded), so
     // this doesn't refetch anything, but it does pick up blocks that a reorg
     // rewound above.
-    const newMatchedNumbers = Array.from(logsByBlockNumber.entries())
+    const newNumbers = Array.from(logsByBlockNumber.entries())
       .filter(
         ([number, { hash }]) =>
           number <= headNumber && scannedBlockHashes.get(number) !== hash,
       )
       .map(([number]) => number)
       .sort((a, b) => a - b);
+
+    // Blocks whose logs were all dropped by client-side filtering are recorded
+    // without being fetched. They must still be recorded, otherwise they would
+    // look like a reorg on every later poll.
+    const newMatchedNumbers: number[] = [];
+    for (const number of newNumbers) {
+      const { hash, logs } = logsByBlockNumber.get(number)!;
+      if (logs.length === 0) {
+        scannedBlockHashes.set(number, hash);
+      } else {
+        newMatchedNumbers.push(number);
+      }
+    }
 
     const matchedBlocks = await Promise.all(
       newMatchedNumbers.map((number) => {
@@ -1524,9 +1652,8 @@ export const createRealtimeSync = (
       const filtered = filterBlockEventData(blockWithEventData);
       const block = filtered.block;
 
-      // Record every block the scan processed, including blocks whose logs were
-      // all dropped by client-side filtering. Recording only matched blocks
-      // would make an unmatched block look like a reorg on every later poll.
+      // Note: recorded after the fetch succeeds, so that a failed poll is
+      // retried from scratch rather than skipping the block.
       scannedBlockHashes.set(hexToNumber(block.number), block.hash);
 
       if (filtered.matchedFilters.size === 0) continue;

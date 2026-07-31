@@ -1,4 +1,4 @@
-import { getAbiItem, type Hex, parseEther } from "viem";
+import { getAbiItem, type Hex, parseEther, RpcRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
@@ -1480,6 +1480,163 @@ test("sync() range scan does not re-emit already scanned blocks", async () => {
     (call) => (call[0] as { method: string }).method,
   );
   expect(methods.filter((m) => m === "eth_getBlockByHash")).toHaveLength(0);
+});
+
+test("sync() range scan constrains eth_getLogs by address and topic", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  // Finalize at block 2 (deploy + mint).
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
+
+  const head = await eth_getBlockByNumber(rpc, ["0x3", true]);
+
+  const requestSpy = vi.spyOn(rpc, "request");
+  await drainAsyncGenerator(realtimeSync.sync(head));
+
+  const getLogsRequests = requestSpy.mock.calls
+    .map((call) => call[0] as { method: string; params: unknown[] })
+    .filter((body) => body.method === "eth_getLogs");
+
+  expect(getLogsRequests).toHaveLength(1);
+
+  const params = getLogsRequests[0]!.params[0] as {
+    address: `0x${string}`[];
+    topics: `0x${string}`[][];
+    fromBlock: `0x${string}`;
+    toBlock: `0x${string}`;
+  };
+
+  // The request is constrained to the union of the filters' address and
+  // `topic0`, not an unfiltered chain-wide scan.
+  expect(params.address).toStrictEqual([address]);
+  expect(params.topics).toStrictEqual([
+    [(eventCallbacks[0].filter as LogFilter).topic0],
+  ]);
+  expect(params.fromBlock).toBe("0x3");
+  expect(params.toBlock).toBe("0x3");
+});
+
+test("sync() range scan splits eth_getLogs when the range is too wide", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  // Finalize at block 2 (deploy + mint).
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  // Block 3: matched. Block 4: empty. Block 5: matched.
+  await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
+  await simulateBlock();
+  await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
+
+  const head5 = await eth_getBlockByNumber(rpc, ["0x5", true]);
+
+  // Reject the first (three block wide) request the way a provider with a
+  // block range cap would.
+  const originalRequest = rpc.request.bind(rpc);
+  let hasRejected = false;
+
+  const requestSpy = vi
+    .spyOn(rpc, "request")
+    // @ts-ignore
+    .mockImplementation(async (body, context) => {
+      if (body.method === "eth_getLogs" && hasRejected === false) {
+        hasRejected = true;
+        throw new RpcRequestError({
+          body,
+          error: { code: -32000, message: "Max range: 1" },
+          url: "http://localhost:8545",
+        });
+      }
+      // @ts-ignore
+      return originalRequest(body, context);
+    });
+
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(head5));
+
+  const blocks = syncResult.filter(
+    (event) => event.type === "block",
+  ) as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  // Both matched blocks are ingested despite the rejected request.
+  expect(blocks).toHaveLength(2);
+  expect(blocks[0]!.block.number).toBe("0x3");
+  expect(blocks[0]!.logs).toHaveLength(1);
+  expect(blocks[1]!.block.number).toBe("0x5");
+  expect(blocks[1]!.logs).toHaveLength(1);
+
+  // The rejected request is retried as one request per block.
+  const getLogsRanges = () =>
+    requestSpy.mock.calls
+      .map(
+        (call) => call[0] as { method: string; params: { toBlock: string }[] },
+      )
+      .filter((body) => body.method === "eth_getLogs")
+      .map((body) => body.params[0]!.toBlock);
+
+  expect(getLogsRanges()).toStrictEqual(["0x5", "0x3", "0x4", "0x5"]);
+
+  // The narrowed range is remembered, so the next poll doesn't repeat the
+  // failing request.
+  requestSpy.mockClear();
+  await simulateBlock();
+
+  const head6 = await eth_getBlockByNumber(rpc, ["0x6", true]);
+  await drainAsyncGenerator(realtimeSync.sync(head6));
+
+  expect(getLogsRanges()).toStrictEqual(["0x3", "0x4", "0x5", "0x6"]);
 });
 
 test("sync() ignores range scan when a block filter is present", async () => {
