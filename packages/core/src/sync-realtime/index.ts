@@ -194,8 +194,15 @@ export const createRealtimeSync = (
     });
   }
 
-  /** Hashes of unfinalized blocks that have matched a filter (range-scan path). */
-  const rangeMatchedHashes = new Set<Hash>();
+  /**
+   * Block hashes of unfinalized blocks that the range scan has already
+   * processed, keyed by block number (range-scan path).
+   *
+   * @dev Includes blocks that produced no events after client-side filtering.
+   * A block that was scanned but not emitted must still be recorded, otherwise
+   * it would be re-detected as a reorg on every subsequent poll.
+   */
+  const scannedBlockHashes = new Map<number, Hash>();
 
   /**
    * Build the `address` argument for the range-scan `eth_getLogs` request as the
@@ -1357,8 +1364,9 @@ export const createRealtimeSync = (
   /**
    * Reconcile the chain up to `headBlock` by scanning the entire unfinalized
    * window with a single ranged `eth_getLogs` request. Reorgs are detected by
-   * diffing the block hashes of previously-emitted matched blocks against the
-   * rescan, so blocks without matching events are never fetched.
+   * diffing the block hashes reported by the rescan against the blocks the
+   * scan has already processed, so blocks without matching events are never
+   * fetched.
    *
    * @dev Only used when `canRangeScan` is true.
    */
@@ -1397,16 +1405,65 @@ export const createRealtimeSync = (
     }
 
     // --- Reorg detection ---
-    // Find the lowest previously-emitted matched block whose hash no longer
-    // matches the rescan (changed hash or disappeared).
+    // Find the lowest block at or below the local tip where the rescan
+    // disagrees with what has already been processed. Three cases, all of
+    // which must rewind:
+    //
+    // 1. A processed block has a different hash in the rescan.
+    // 2. A processed block that had matching logs no longer has any.
+    // 3. A block that previously had no matching logs now has some. This is
+    //    the case that a matched-blocks-only diff misses: because the head is
+    //    emitted as an empty block every poll, the local tip advances past
+    //    event-free blocks, and logs introduced into them by a reorg would
+    //    otherwise never be ingested.
+    const tipNumberBeforeReorg = hexToNumber(
+      getLatestUnfinalizedBlock().number,
+    );
+
     let reorgFromNumber: number | undefined;
-    for (const stored of unfinalizedBlocks) {
-      if (rangeMatchedHashes.has(stored.hash) === false) continue;
-      const rescan = logsByBlockNumber.get(hexToNumber(stored.number));
-      if (rescan === undefined || rescan.hash !== stored.hash) {
-        reorgFromNumber = hexToNumber(stored.number);
-        break;
+    const setReorgFrom = (number: number) => {
+      if (reorgFromNumber === undefined || number < reorgFromNumber) {
+        reorgFromNumber = number;
       }
+    };
+
+    for (const [number, hash] of scannedBlockHashes) {
+      if (number > tipNumberBeforeReorg) continue;
+      if (logsByBlockNumber.get(number)?.hash !== hash) setReorgFrom(number);
+    }
+    for (const [number, { hash }] of logsByBlockNumber) {
+      if (number > tipNumberBeforeReorg) continue;
+      if (scannedBlockHashes.get(number) !== hash) setReorgFrom(number);
+    }
+
+    // The head itself may be a reorged replacement of a block that was already
+    // emitted, or may not descend from the local tip. Both are free to check.
+    const storedHeadHash = unfinalizedBlocks.find(
+      (lb) => hexToNumber(lb.number) === headNumber,
+    )?.hash;
+    if (storedHeadHash !== undefined && storedHeadHash !== headBlock.hash) {
+      setReorgFrom(headNumber);
+    } else if (
+      headNumber === tipNumberBeforeReorg + 1 &&
+      headBlock.parentHash !== getLatestUnfinalizedBlock().hash
+    ) {
+      if (unfinalizedBlocks.length === 0) {
+        // The local chain is empty, so the head's parent is the finalized
+        // block. A mismatch means the reorg is beyond the finalized block.
+        args.common.logger.warn({
+          msg: "Encountered unrecoverable reorg",
+          chain: args.chain.name,
+          chain_id: args.chain.id,
+          finalized_block: hexToNumber(finalizedBlock.number),
+          duration: endClock(),
+        });
+
+        throw new Error(
+          `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`,
+        );
+      }
+
+      setReorgFrom(tipNumberBeforeReorg);
     }
 
     if (reorgFromNumber !== undefined) {
@@ -1417,8 +1474,12 @@ export const createRealtimeSync = (
         (lb) => hexToNumber(lb.number) < reorgFromNumber!,
       );
       for (const block of reorgedBlocks) {
-        rangeMatchedHashes.delete(block.hash);
         childAddressesPerBlock.delete(hexToNumber(block.number));
+      }
+      // Forget every scanned block at or above the fork point so that the
+      // replacement blocks are ingested below rather than treated as seen.
+      for (const number of scannedBlockHashes.keys()) {
+        if (number >= reorgFromNumber) scannedBlockHashes.delete(number);
       }
 
       const commonAncestor = getLatestUnfinalizedBlock();
@@ -1435,9 +1496,17 @@ export const createRealtimeSync = (
     }
 
     // --- Ingest new matched blocks ---
-    const localTipNumber = hexToNumber(getLatestUnfinalizedBlock().number);
-    const newMatchedNumbers = Array.from(logsByBlockNumber.keys())
-      .filter((number) => number > localTipNumber && number <= headNumber)
+    // Ingest every block in the scan that hasn't already been processed at this
+    // hash, rather than only blocks above the local tip. Blocks below the tip
+    // are unchanged in the common case (their hash is already recorded), so
+    // this doesn't refetch anything, but it does pick up blocks that a reorg
+    // rewound above.
+    const newMatchedNumbers = Array.from(logsByBlockNumber.entries())
+      .filter(
+        ([number, { hash }]) =>
+          number <= headNumber && scannedBlockHashes.get(number) !== hash,
+      )
+      .map(([number]) => number)
       .sort((a, b) => a - b);
 
     const matchedBlocks = await Promise.all(
@@ -1455,6 +1524,11 @@ export const createRealtimeSync = (
       const filtered = filterBlockEventData(blockWithEventData);
       const block = filtered.block;
 
+      // Record every block the scan processed, including blocks whose logs were
+      // all dropped by client-side filtering. Recording only matched blocks
+      // would make an unmatched block look like a reorg on every later poll.
+      scannedBlockHashes.set(hexToNumber(block.number), block.hash);
+
       if (filtered.matchedFilters.size === 0) continue;
 
       unfinalizedBlocks.push({
@@ -1463,7 +1537,6 @@ export const createRealtimeSync = (
         number: block.number,
         timestamp: block.timestamp,
       });
-      rangeMatchedHashes.add(block.hash);
 
       blockWithEventData.block.transactions = filtered.block.transactions;
 
@@ -1542,8 +1615,10 @@ export const createRealtimeSync = (
         (lb) => hexToNumber(lb.number) > pendingFinalizedNumber,
       );
       for (const block of finalizedBlocks) {
-        rangeMatchedHashes.delete(block.hash);
         childAddressesPerBlock.delete(hexToNumber(block.number));
+      }
+      for (const number of scannedBlockHashes.keys()) {
+        if (number <= pendingFinalizedNumber) scannedBlockHashes.delete(number);
       }
 
       finalizedBlock = pendingFinalizedBlock;
