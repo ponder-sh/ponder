@@ -60,6 +60,7 @@ export type IndexingCache = {
     key: object;
     row: Row;
     isUpdate: boolean;
+    shouldCache: boolean;
   }) => Row;
   /**
    * Deletes the entry for `table` with `key`.
@@ -185,6 +186,7 @@ type Buffer = Map<
     {
       row: Row;
       metadata: { event: Event | undefined };
+      shouldCache: boolean;
     }
   >
 >;
@@ -435,6 +437,7 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.get(ck) ?? insertBuffer.get(table)!.get(ck);
 
       if (bufferEntry) {
+        bufferEntry.shouldCache = true;
         common.metrics.ponder_indexing_cache_requests_total.inc({
           table: getTableName(table),
           type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
@@ -501,14 +504,18 @@ export const createIndexingCache = ({
       );
       return result;
     },
-    set({ table, key, row: _row, isUpdate }) {
+    set({ table, key, row: _row, isUpdate, shouldCache }) {
       const row = normalizeRow(table, _row, isUpdate);
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       if (isUpdate) {
-        updateBuffer.get(table)!.set(ck, { row, metadata: { event } });
+        updateBuffer
+          .get(table)!
+          .set(ck, { row, metadata: { event }, shouldCache });
       } else {
-        insertBuffer.get(table)!.set(ck, { row, metadata: { event } });
+        insertBuffer
+          .get(table)!
+          .set(ck, { row, metadata: { event }, shouldCache });
       }
 
       return row;
@@ -586,12 +593,19 @@ export const createIndexingCache = ({
 
           let bytes = 0;
           for (const [key, entry] of insertBuffer.get(table)!) {
-            if (shouldRecordBytes && tableCache.cache.has(key) === false) {
-              bytes += getBytes(entry.row) + getBytes(key);
+            if (qb.$dialect === "postgres" && entry.shouldCache === false) {
+              // An omitted database row makes cache absence inconclusive.
+              tableCache.cache.delete(key);
+              tableCache.isCacheComplete = false;
+              tableCache.bytes = 0;
+            } else {
+              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                bytes += getBytes(entry.row) + getBytes(key);
+              }
+              tableCache.cache.set(key, entry.row);
             }
-            tableCache.cache.set(key, entry.row);
           }
-          tableCache.bytes += bytes;
+          if (tableCache.isCacheComplete) tableCache.bytes += bytes;
           insertBuffer.get(table)!.clear();
 
           await new Promise(setImmediate);
