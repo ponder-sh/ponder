@@ -82,7 +82,7 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
  * @dev This function supports copying objects that
  * have been created with `copyOnWrite`.
  */
-export const copy = <T>(obj: T, mode: "auto" | "shallow" = "auto"): T => {
+export const copy = <T>(obj: T, fast: boolean): T => {
   if (obj === null || typeof obj !== "object") {
     return obj;
   }
@@ -91,53 +91,10 @@ export const copy = <T>(obj: T, mode: "auto" | "shallow" = "auto"): T => {
   const proxy = obj[COPY_ON_WRITE];
   if (proxy !== undefined) return proxy;
 
-  if (mode === "shallow") {
+  if (fast) {
+    // Note: spread operator is significantly faster than `structuredClone`
     return (Array.isArray(obj) ? [...obj] : { ...obj }) as T;
   }
-
-  const hasProxy = (obj: any): boolean => {
-    if (obj === null || typeof obj !== "object") {
-      return false;
-    }
-
-    if (obj[COPY_ON_WRITE] !== undefined) {
-      return true;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.some((element) => hasProxy(element));
-    }
-
-    for (const value of Object.values(obj)) {
-      if (hasProxy(value)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  const isDeeplyNested = (obj: any, depth = 0): boolean => {
-    if (obj === null || typeof obj !== "object") {
-      return false;
-    }
-
-    if (depth > 0) {
-      return true;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.some((element) => isDeeplyNested(element, depth + 1));
-    }
-
-    for (const value of Object.values(obj)) {
-      if (isDeeplyNested(value, depth + 1)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
 
   if (Array.isArray(obj)) {
     if (hasProxy(obj)) {
@@ -159,7 +116,50 @@ export const copy = <T>(obj: T, mode: "auto" | "shallow" = "auto"): T => {
     return result;
   }
 
-  // Note: spread operator is significantly faster than `structuredClone`
   if (isDeeplyNested(obj)) return structuredClone(obj);
   return { ...obj };
+};
+
+const hasProxy = (obj: any): boolean => {
+  if (obj === null || typeof obj !== "object") {
+    return false;
+  }
+
+  if (obj[COPY_ON_WRITE] !== undefined) {
+    return true;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.some((element) => hasProxy(element));
+  }
+
+  for (const value of Object.values(obj)) {
+    if (hasProxy(value)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const isDeeplyNested = (obj: any, depth = 0): boolean => {
+  if (obj === null || typeof obj !== "object") {
+    return false;
+  }
+
+  if (depth > 0) {
+    return true;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.some((element) => isDeeplyNested(element, depth + 1));
+  }
+
+  for (const value of Object.values(obj)) {
+    if (isDeeplyNested(value, depth + 1)) {
+      return true;
+    }
+  }
+
+  return false;
 };

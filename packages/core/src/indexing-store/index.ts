@@ -118,21 +118,14 @@ export const createIndexingStore = ({
   const tables = Object.values(schema).filter(isTable);
   const views = Object.values(schema).filter(isView);
   const primaryKeyCache = getPrimaryKeyCache(tables);
-  const copyModes = new Map(
+  const isCopyFast = new Map(
     tables.map((table) => [
       table,
       Object.values(getTableColumns(table)).every((column) =>
         ["string", "number", "boolean", "bigint"].includes(column.dataType),
-      )
-        ? ("shallow" as const)
-        : ("auto" as const),
+      ),
     ]),
   );
-  const copyRow = <T>(table: Table, row: T) => copy(row, copyModes.get(table));
-  const copyRows = <T>(table: Table, rows: T | T[]) =>
-    Array.isArray(rows)
-      ? rows.map((row) => copyRow(table, row))
-      : copyRow(table, rows);
 
   const lock = createLock();
 
@@ -199,7 +192,11 @@ export const createIndexingStore = ({
                 );
                 checkOnchainTable(table, "insert");
 
-                const ponderValues = copyRows(table, userValues);
+                const ponderValues = Array.isArray(userValues)
+                  ? userValues.map((value) =>
+                      copy(value, isCopyFast.get(table)!),
+                    )
+                  : copy(userValues, isCopyFast.get(table)!);
 
                 if (Array.isArray(ponderValues)) {
                   const ponderRows = [];
@@ -264,11 +261,17 @@ export const createIndexingStore = ({
                       });
 
                       if (ponderRowUpdate) {
-                        ponderRowUpdate = copyRow(table, ponderRowUpdate);
+                        ponderRowUpdate = copy(
+                          ponderRowUpdate,
+                          isCopyFast.get(table)!,
+                        );
                         if (typeof userUpdateValues === "function") {
                           const userRowUpdate = copyOnWrite(ponderRowUpdate);
                           const userSet = userUpdateValues(userRowUpdate);
-                          const ponderSet = copyRow(table, userSet);
+                          const ponderSet = copy(
+                            userSet,
+                            isCopyFast.get(table)!,
+                          );
                           validateUpdateSet(
                             table,
                             ponderSet,
@@ -284,7 +287,10 @@ export const createIndexingStore = ({
                           }
                         } else {
                           const userSet = userUpdateValues;
-                          const ponderSet = copyRow(table, userSet);
+                          const ponderSet = copy(
+                            userSet,
+                            isCopyFast.get(table)!,
+                          );
                           validateUpdateSet(
                             table,
                             ponderSet,
@@ -308,7 +314,7 @@ export const createIndexingStore = ({
                           }),
                         );
                       } else {
-                        const ponderValue = copyRow(table, value);
+                        const ponderValue = copy(value, isCopyFast.get(table)!);
                         ponderRows.push(
                           indexingCache.set({
                             table,
@@ -331,11 +337,14 @@ export const createIndexingStore = ({
                     });
 
                     if (ponderRowUpdate) {
-                      ponderRowUpdate = copyRow(table, ponderRowUpdate);
+                      ponderRowUpdate = copy(
+                        ponderRowUpdate,
+                        isCopyFast.get(table)!,
+                      );
                       if (typeof userUpdateValues === "function") {
                         const userRowUpdate = copyOnWrite(ponderRowUpdate);
                         const userSet = userUpdateValues(userRowUpdate);
-                        const ponderSet = copyRow(table, userSet);
+                        const ponderSet = copy(userSet, isCopyFast.get(table)!);
                         validateUpdateSet(
                           table,
                           ponderSet,
@@ -349,7 +358,7 @@ export const createIndexingStore = ({
                         }
                       } else {
                         const userSet = userUpdateValues;
-                        const ponderSet = copyRow(table, userSet);
+                        const ponderSet = copy(userSet, isCopyFast.get(table)!);
                         validateUpdateSet(
                           table,
                           ponderSet,
@@ -372,7 +381,10 @@ export const createIndexingStore = ({
                       return userRow;
                     }
 
-                    const ponderValues = copyRow(table, userValues);
+                    const ponderValues = copy(
+                      userValues,
+                      isCopyFast.get(table)!,
+                    );
 
                     const ponderRowInsert = indexingCache.set({
                       table,
@@ -394,7 +406,11 @@ export const createIndexingStore = ({
                     "insert",
                   );
                   checkOnchainTable(table, "insert");
-                  const ponderValues = copyRows(table, userValues);
+                  const ponderValues = Array.isArray(userValues)
+                    ? userValues.map((value) =>
+                        copy(value, isCopyFast.get(table)!),
+                      )
+                    : copy(userValues, isCopyFast.get(table)!);
 
                   if (Array.isArray(ponderValues)) {
                     const ponderRows = [];
@@ -527,12 +543,12 @@ export const createIndexingStore = ({
               throw error;
             }
 
-            ponderRowUpdate = copyRow(table, ponderRowUpdate);
+            ponderRowUpdate = copy(ponderRowUpdate, isCopyFast.get(table)!);
 
             if (typeof userValues === "function") {
               const userRow = copyOnWrite(ponderRowUpdate);
               const userSet = userValues(userRow);
-              const ponderSet = copyRow(table, userSet);
+              const ponderSet = copy(userSet, isCopyFast.get(table)!);
               validateUpdateSet(
                 table,
                 ponderSet,
@@ -546,7 +562,7 @@ export const createIndexingStore = ({
               }
             } else {
               const userSet = userValues;
-              const ponderSet = copyRow(table, userSet);
+              const ponderSet = copy(userSet, isCopyFast.get(table)!);
               validateUpdateSet(
                 table,
                 ponderSet,
