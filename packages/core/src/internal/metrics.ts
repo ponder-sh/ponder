@@ -25,6 +25,9 @@ const httpRequestSizeBytes = [
 const GET_METRICS_REQ = "prom-client:getMetricsReq";
 const GET_METRICS_RES = "prom-client:getMetricsRes";
 
+type IndexingCacheRequestType = "complete" | "hit" | "miss" | "prefetch";
+type IndexingStoreMethod = "find" | "insert" | "update" | "delete";
+
 export class MetricsService {
   registry: prometheus.Registry;
   start_timestamp: number;
@@ -111,6 +114,16 @@ export class MetricsService {
   ponder_postgres_query_total: prometheus.Counter<"pool">;
   ponder_postgres_query_queue_size: prometheus.Gauge<"pool"> = null!;
   ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
+
+  private indexingCompletedEvents = new Map<string, number>();
+  private indexingCacheRequests = new Map<
+    string,
+    Map<IndexingCacheRequestType, number>
+  >();
+  private indexingStoreQueries = new Map<
+    string,
+    Map<IndexingStoreMethod, number>
+  >();
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -206,6 +219,7 @@ export class MetricsService {
       labelNames: ["chain", "event"] as const,
       registers: [this.registry],
       aggregator: "sum",
+      collect: () => this.flushIndexingCompletedEvents(),
     });
     this.ponder_indexing_timestamp = new prometheus.Gauge({
       name: "ponder_indexing_timestamp",
@@ -258,6 +272,7 @@ export class MetricsService {
       labelNames: ["table", "type"] as const,
       registers: [this.registry],
       aggregator: "sum",
+      collect: () => this.flushIndexingCacheRequests(),
     });
     this.ponder_indexing_store_queries_total = new prometheus.Counter({
       name: "ponder_indexing_store_queries_total",
@@ -265,6 +280,7 @@ export class MetricsService {
       labelNames: ["table", "method"] as const,
       registers: [this.registry],
       aggregator: "sum",
+      collect: () => this.flushIndexingStoreQueries(),
     });
     this.ponder_indexing_store_raw_sql_duration = new prometheus.Histogram({
       name: "ponder_indexing_store_raw_sql_duration",
@@ -449,6 +465,70 @@ export class MetricsService {
     return this.registry;
   }
 
+  incrementIndexingCompletedEvents(event: string, value = 1) {
+    this.indexingCompletedEvents.set(
+      event,
+      (this.indexingCompletedEvents.get(event) ?? 0) + value,
+    );
+  }
+
+  incrementIndexingCacheRequests(
+    table: string,
+    type: IndexingCacheRequestType,
+    value = 1,
+  ) {
+    let requests = this.indexingCacheRequests.get(table);
+    if (requests === undefined) {
+      requests = new Map();
+      this.indexingCacheRequests.set(table, requests);
+    }
+    requests.set(type, (requests.get(type) ?? 0) + value);
+  }
+
+  incrementIndexingStoreQueries(
+    table: string,
+    method: IndexingStoreMethod,
+    value = 1,
+  ) {
+    let queries = this.indexingStoreQueries.get(table);
+    if (queries === undefined) {
+      queries = new Map();
+      this.indexingStoreQueries.set(table, queries);
+    }
+    queries.set(method, (queries.get(method) ?? 0) + value);
+  }
+
+  flushIndexingMetrics() {
+    this.flushIndexingCompletedEvents();
+    this.flushIndexingCacheRequests();
+    this.flushIndexingStoreQueries();
+  }
+
+  private flushIndexingCompletedEvents() {
+    for (const [event, value] of this.indexingCompletedEvents) {
+      this.ponder_indexing_completed_events.inc({ event }, value);
+    }
+    this.indexingCompletedEvents.clear();
+  }
+
+  private flushIndexingCacheRequests() {
+    for (const [table, requests] of this.indexingCacheRequests) {
+      for (const [type, value] of requests) {
+        this.ponder_indexing_cache_requests_total.inc({ table, type }, value);
+      }
+    }
+    this.indexingCacheRequests.clear();
+  }
+
+  private flushIndexingStoreQueries() {
+    for (const [table, queries] of this.indexingStoreQueries) {
+      for (const [method, value] of queries) {
+        this.ponder_indexing_store_queries_total.inc({ table, method }, value);
+      }
+    }
+    this.indexingStoreQueries.clear();
+  }
+
   initializeIndexingMetrics({
     indexingBuild,
     schemaBuild,
@@ -480,6 +560,7 @@ export class MetricsService {
   }
 
   resetIndexingMetrics() {
+    this.flushIndexingMetrics();
     this.start_timestamp = Date.now();
     this.rps = {};
     this.progressMetadata = {

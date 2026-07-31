@@ -435,10 +435,10 @@ export const createIndexingCache = ({
         updateBuffer.get(table)!.get(ck) ?? insertBuffer.get(table)!.get(ck);
 
       if (bufferEntry) {
-        common.metrics.ponder_indexing_cache_requests_total.inc({
-          table: getTableName(table),
-          type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
-        });
+        common.metrics.incrementIndexingCacheRequests(
+          getTableName(table),
+          cache.get(table)!.isCacheComplete ? "complete" : "hit",
+        );
         return bufferEntry.row;
       }
 
@@ -452,29 +452,29 @@ export const createIndexingCache = ({
           cache.get(table)!.spillover.add(ck);
         }
 
-        common.metrics.ponder_indexing_cache_requests_total.inc({
-          table: getTableName(table),
-          type: cache.get(table)!.isCacheComplete ? "complete" : "hit",
-        });
+        common.metrics.incrementIndexingCacheRequests(
+          getTableName(table),
+          cache.get(table)!.isCacheComplete ? "complete" : "hit",
+        );
         return entry;
       }
 
       cache.get(table)!.diskReads++;
 
       if (cache.get(table)!.isCacheComplete) {
-        common.metrics.ponder_indexing_cache_requests_total.inc({
-          table: getTableName(table),
-          type: "complete",
-        });
+        common.metrics.incrementIndexingCacheRequests(
+          getTableName(table),
+          "complete",
+        );
         return null;
       }
 
       cache.get(table)!.spillover.add(ck);
 
-      common.metrics.ponder_indexing_cache_requests_total.inc({
-        table: getTableName(table),
-        type: "miss",
-      });
+      common.metrics.incrementIndexingCacheRequests(
+        getTableName(table),
+        "miss",
+      );
 
       const endClock = startClock();
 
@@ -964,11 +964,9 @@ export const createIndexingCache = ({
       }
 
       for (const [table, tablePredictions] of prediction) {
-        common.metrics.ponder_indexing_cache_requests_total.inc(
-          {
-            table: getTableName(table),
-            type: "prefetch",
-          },
+        common.metrics.incrementIndexingCacheRequests(
+          getTableName(table),
+          "prefetch",
           tablePredictions.size,
         );
       }

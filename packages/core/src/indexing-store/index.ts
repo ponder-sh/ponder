@@ -161,10 +161,10 @@ export const createIndexingStore = ({
   return {
     db: {
       find: storeMethodWrapper(async (table: Table, key) => {
-        common.metrics.ponder_indexing_store_queries_total.inc({
-          table: getTableName(table),
-          method: "find",
-        });
+        common.metrics.incrementIndexingStoreQueries(
+          getTableName(table),
+          "find",
+        );
         checkOnchainTable(table, "find");
         checkTableAccess(table, "find", key, chainId);
         const ponderRow = await indexingCache.get({ table, key });
@@ -177,10 +177,10 @@ export const createIndexingStore = ({
           values: (userValues: any) => {
             const inner = {
               onConflictDoNothing: storeMethodWrapper(async () => {
-                common.metrics.ponder_indexing_store_queries_total.inc({
-                  table: getTableName(table),
-                  method: "insert",
-                });
+                common.metrics.incrementIndexingStoreQueries(
+                  getTableName(table),
+                  "insert",
+                );
                 checkOnchainTable(table, "insert");
 
                 const ponderValues = copy(userValues);
@@ -232,10 +232,10 @@ export const createIndexingStore = ({
               }),
               onConflictDoUpdate: storeMethodWrapper(
                 async (userUpdateValues: any) => {
-                  common.metrics.ponder_indexing_store_queries_total.inc({
-                    table: getTableName(table),
-                    method: "insert",
-                  });
+                  common.metrics.incrementIndexingStoreQueries(
+                    getTableName(table),
+                    "insert",
+                  );
                   checkOnchainTable(table, "insert");
 
                   if (Array.isArray(userValues)) {
@@ -369,10 +369,10 @@ export const createIndexingStore = ({
               // biome-ignore lint/suspicious/noThenProperty: The returned object is intentionally thenable for the query API.
               then: (onFulfilled, onRejected) =>
                 storeMethodWrapper(async () => {
-                  common.metrics.ponder_indexing_store_queries_total.inc({
-                    table: getTableName(table),
-                    method: "insert",
-                  });
+                  common.metrics.incrementIndexingStoreQueries(
+                    getTableName(table),
+                    "insert",
+                  );
                   checkOnchainTable(table, "insert");
                   const ponderValues = copy(userValues);
 
@@ -488,10 +488,10 @@ export const createIndexingStore = ({
       update(table: Table, key) {
         return {
           set: storeMethodWrapper(async (userValues: any) => {
-            common.metrics.ponder_indexing_store_queries_total.inc({
-              table: getTableName(table),
-              method: "update",
-            });
+            common.metrics.incrementIndexingStoreQueries(
+              getTableName(table),
+              "update",
+            );
             checkOnchainTable(table, "update");
             checkTableAccess(table, "update", key, chainId);
 
@@ -550,10 +550,10 @@ export const createIndexingStore = ({
         };
       },
       delete: storeMethodWrapper(async (table: Table, key) => {
-        common.metrics.ponder_indexing_store_queries_total.inc({
-          table: getTableName(table),
-          method: "delete",
-        });
+        common.metrics.incrementIndexingStoreQueries(
+          getTableName(table),
+          "delete",
+        );
         checkOnchainTable(table, "delete");
         checkTableAccess(table, "delete", key, chainId);
         return indexingCache.delete({ table, key });

@@ -470,6 +470,7 @@ export async function runOmnichain({
           );
           endClock = startClock();
         } catch (error) {
+          common.metrics.flushIndexingMetrics();
           for (const value of initialCompletedEvents.values) {
             common.metrics.ponder_indexing_completed_events.set(
               value.labels,
