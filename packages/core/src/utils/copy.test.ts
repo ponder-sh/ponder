@@ -79,6 +79,14 @@ test("copy", () => {
   copy([copiedObj]);
 });
 
+test("copy shallow", () => {
+  const obj = { a: 1, b: "value", c: 2n, d: true };
+  const copiedObj = copy(obj, "shallow");
+
+  expect(copiedObj).toEqual(obj);
+  expect(copiedObj).not.toBe(obj);
+});
+
 test("copy bytes", () => {
   const obj = {
     address: zeroAddress,

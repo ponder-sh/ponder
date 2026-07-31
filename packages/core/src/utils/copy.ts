@@ -82,9 +82,17 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
  * @dev This function supports copying objects that
  * have been created with `copyOnWrite`.
  */
-export const copy = <T>(obj: T): T => {
+export const copy = <T>(obj: T, mode: "auto" | "shallow" = "auto"): T => {
   if (obj === null || typeof obj !== "object") {
     return obj;
+  }
+
+  // @ts-expect-error
+  const proxy = obj[COPY_ON_WRITE];
+  if (proxy !== undefined) return proxy;
+
+  if (mode === "shallow") {
+    return (Array.isArray(obj) ? [...obj] : { ...obj }) as T;
   }
 
   const hasProxy = (obj: any): boolean => {
@@ -131,33 +139,27 @@ export const copy = <T>(obj: T): T => {
     return false;
   };
 
-  // @ts-expect-error
-  const proxy = obj[COPY_ON_WRITE];
-  if (proxy === undefined) {
-    if (Array.isArray(obj)) {
-      if (hasProxy(obj)) {
-        // @ts-expect-error
-        return obj.map((element) => copy(element));
-      }
-
-      if (isDeeplyNested(obj)) return structuredClone(obj);
-      return [...obj] as T;
-    }
-
+  if (Array.isArray(obj)) {
     if (hasProxy(obj)) {
-      const result = {} as T;
-      for (const [key, value] of Object.entries(obj)) {
-        // @ts-expect-error
-        result[key] = copy(value);
-      }
-
-      return result;
+      // @ts-expect-error
+      return obj.map((element) => copy(element));
     }
 
-    // Note: spread operator is significantly faster than `structuredClone`
     if (isDeeplyNested(obj)) return structuredClone(obj);
-    return { ...obj };
+    return [...obj] as T;
   }
 
-  return proxy;
+  if (hasProxy(obj)) {
+    const result = {} as T;
+    for (const [key, value] of Object.entries(obj)) {
+      // @ts-expect-error
+      result[key] = copy(value);
+    }
+
+    return result;
+  }
+
+  // Note: spread operator is significantly faster than `structuredClone`
+  if (isDeeplyNested(obj)) return structuredClone(obj);
+  return { ...obj };
 };
