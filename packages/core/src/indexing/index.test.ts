@@ -1249,11 +1249,6 @@ test("processEvents() column selection", async () => {
       "log.logIndex",
       "log.removed",
       "log.topics",
-      "transaction.transactionIndex",
-      "transaction.from",
-      "transaction.to",
-      "transaction.hash",
-      "transaction.type",
       "block.timestamp",
       "block.number",
       "block.hash",
@@ -1272,6 +1267,39 @@ test("processEvents() column selection", async () => {
   ).rejects.toThrowError(
     new InvalidEventAccessError("transaction.maxPriorityFeePerGas"),
   );
+
+  eventCallbacks[0]!.fn = async ({ event }: { event: any }) => {
+    event.transaction.from;
+  };
+
+  const skippedTransactionEvent = {
+    ...event,
+    isTransactionDataSkipped: true,
+    event: { ...event.event, transaction: undefined },
+  } as unknown as typeof event;
+
+  await expect(
+    indexing.processHistoricalEvents({
+      events: [skippedTransactionEvent],
+      updateIndexingSeconds: vi.fn(),
+    }),
+  ).rejects.toThrowError(new InvalidEventAccessError("transaction.from"));
+
+  eventCallbacks[0]!.fn = async ({ event }: { event: any }) => {
+    event.transaction?.from;
+  };
+
+  const missingTransactionEvent = {
+    ...event,
+    event: { ...event.event, transaction: undefined },
+  } as unknown as typeof event;
+
+  await expect(
+    indexing.processHistoricalEvents({
+      events: [missingTransactionEvent],
+      updateIndexingSeconds: vi.fn(),
+    }),
+  ).resolves.toBeUndefined();
 });
 
 test("ponderActions getBalance()", async () => {

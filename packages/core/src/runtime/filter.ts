@@ -566,7 +566,6 @@ export const defaultLogFilterInclude: LogFilter["include"] = [
 
 export const requiredLogFilterInclude: LogFilter["include"] = [
   ...requiredLogInclude.map((value) => `log.${value}` as const),
-  ...requiredTransactionInclude.map((value) => `transaction.${value}` as const),
   ...requiredBlockInclude.map((value) => `block.${value}` as const),
 ];
 

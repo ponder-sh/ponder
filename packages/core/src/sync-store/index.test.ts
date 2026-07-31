@@ -1074,6 +1074,49 @@ test("getEventData() applies one block range to logs and traces queries", async 
   expect(tracesQuery!.values).toEqual(expect.arrayContaining([30n, 70n]));
 });
 
+test("getEventData() skips unused log transaction data", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
+  const querySpy = vi.spyOn(database.syncQB.$client, "query");
+
+  const result = await syncStore.getEventData({
+    filters: [EMPTY_LOG_FILTER],
+    fromBlock: 0,
+    toBlock: 100,
+    chainId: 1,
+    limit: 10,
+  });
+
+  expect(result.isTransactionDataSkipped).toBe(true);
+  expect(
+    querySpy.mock.calls.some(([query]) =>
+      (typeof query === "string"
+        ? query
+        : (query as { text: string }).text
+      ).includes('from "ponder_sync"."transactions"'),
+    ),
+  ).toBe(false);
+
+  querySpy.mockClear();
+
+  const resultWithTransaction = await syncStore.getEventData({
+    filters: [{ ...EMPTY_LOG_FILTER, include: ["transaction.hash"] }],
+    fromBlock: 0,
+    toBlock: 100,
+    chainId: 1,
+    limit: 10,
+  });
+
+  expect(resultWithTransaction.isTransactionDataSkipped).toBe(false);
+  expect(
+    querySpy.mock.calls.some(([query]) =>
+      (typeof query === "string"
+        ? query
+        : (query as { text: string }).text
+      ).includes('from "ponder_sync"."transactions"'),
+    ),
+  ).toBe(true);
+});
+
 test("getEventBlockData() pagination", async () => {
   const { syncStore } = await setupDatabaseServices();
 

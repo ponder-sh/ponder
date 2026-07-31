@@ -934,6 +934,7 @@ export async function refetchLocalEvents(params: {
       transactions,
       transactionReceipts,
       traces,
+      isTransactionDataSkipped,
       cursor: queryCursor,
     } = await params.syncStore.getEventData({
       filters: params.eventCallbacks.map(({ filter }) => filter),
@@ -951,6 +952,7 @@ export async function refetchLocalEvents(params: {
       transactions,
       transactionReceipts,
       traces,
+      isTransactionDataSkipped,
       childAddresses: params.childAddresses,
       chainId: params.chain.id,
     });
@@ -1030,6 +1032,7 @@ export async function* getLocalEventGenerator(params: {
         transactions,
         transactionReceipts,
         traces,
+        isTransactionDataSkipped,
         cursor: queryCursor,
       } = await syncStore.getEventData({
         filters: params.eventCallbacks.map(({ filter }) => filter),
@@ -1047,6 +1050,7 @@ export async function* getLocalEventGenerator(params: {
         transactions,
         transactionReceipts,
         traces,
+        isTransactionDataSkipped,
         childAddresses: params.childAddresses,
         chainId: params.chain.id,
       });

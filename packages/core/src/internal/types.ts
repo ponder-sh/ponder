@@ -497,6 +497,7 @@ export type RawEvent = {
   checkpoint: string;
   chainId: number;
   eventCallbackIndex: number;
+  isTransactionDataSkipped?: true;
   log?: UserLog;
   block: UserBlock;
   transaction?: UserTransaction;
@@ -568,6 +569,7 @@ export type LogEvent = {
   checkpoint: string;
   chain: Chain;
   eventCallback: EventCallback;
+  isTransactionDataSkipped?: true;
 
   event: {
     id: string;

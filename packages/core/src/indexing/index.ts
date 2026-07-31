@@ -526,10 +526,13 @@ export const createIndexing = ({
             blockProxy.underlying = event.event.block as Block;
             proxyEvent.block = blockProxy.proxy;
 
-            if (event.event.transaction !== undefined) {
+            if (
+              event.event.transaction !== undefined ||
+              event.isTransactionDataSkipped
+            ) {
               transactionProxy.eventName = event.eventCallback.name;
-              transactionProxy.underlying = event.event
-                .transaction as Transaction;
+              transactionProxy.underlying =
+                (event.event.transaction as Transaction) ?? ({} as Transaction);
               // @ts-expect-error
               proxyEvent.transaction = transactionProxy.proxy;
             }

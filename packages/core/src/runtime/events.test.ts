@@ -26,7 +26,7 @@ import type {
   TransferEvent,
 } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { decodeEvents, splitEvents } from "./events.js";
+import { buildEvents, decodeEvents, splitEvents } from "./events.js";
 
 beforeEach(setupCommon);
 
@@ -139,6 +139,55 @@ test("decodeEvents() log", async () => {
     to: ALICE.toLowerCase(),
     amount: parseEther("1"),
   });
+});
+
+test("buildEvents() distinguishes skipped and missing log transactions", () => {
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address: zeroAddress,
+  });
+
+  const topics = encodeEventTopics({
+    abi: erc20ABI,
+    eventName: "Transfer",
+    args: {
+      from: zeroAddress,
+      to: ALICE,
+    },
+  });
+  const data = padHex(toHex(parseEther("1")), { size: 32 });
+  const params = {
+    eventCallbacks,
+    blocks: [{ number: 1n, hash: `0x${"0".repeat(64)}`, timestamp: 1n }],
+    logs: [
+      {
+        address: zeroAddress,
+        blockNumber: 1,
+        data,
+        logIndex: 0,
+        removed: false,
+        topics,
+        transactionIndex: 0,
+      },
+    ],
+    transactions: [],
+    transactionReceipts: [],
+    traces: [],
+    childAddresses: new Map(),
+    chainId: 1,
+  } as unknown as Parameters<typeof buildEvents>[0];
+
+  const [skippedTransactionEvent] = buildEvents({
+    ...params,
+    isTransactionDataSkipped: true,
+  });
+  const [missingTransactionEvent] = buildEvents(params);
+
+  expect(skippedTransactionEvent).toMatchObject({
+    isTransactionDataSkipped: true,
+    transaction: undefined,
+  });
+  expect(missingTransactionEvent?.isTransactionDataSkipped).toBeUndefined();
+  expect(missingTransactionEvent?.transaction).toBeUndefined();
 });
 
 test("decodeEvents() log error", async () => {

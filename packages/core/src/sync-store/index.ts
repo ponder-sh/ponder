@@ -166,6 +166,7 @@ export type SyncStore = {
     transactions: InternalTransaction[];
     transactionReceipts: InternalTransactionReceipt[];
     traces: InternalTrace[];
+    isTransactionDataSkipped: boolean;
     cursor: number;
   }>;
   insertRpcRequestResults(
@@ -746,6 +747,7 @@ export const createSyncStore = ({
       transactions: InternalTransaction[];
       transactionReceipts: InternalTransactionReceipt[];
       traces: InternalTrace[];
+      isTransactionDataSkipped: boolean;
       cursor: number;
     }> => {
       const activeFilters = filters.filter((filter) =>
@@ -779,8 +781,11 @@ export const createSyncStore = ({
       const shouldQueryLogs = logFilters.length > 0;
       const shouldQueryTraces =
         traceFilters.length > 0 || transferFilters.length > 0;
+      const transactionInclude = unionFilterIncludeTransaction(filters);
       const shouldQueryTransactions =
-        transactionFilters.length > 0 || shouldQueryLogs || shouldQueryTraces;
+        transactionFilters.length > 0 ||
+        shouldQueryTraces ||
+        (shouldQueryLogs && transactionInclude.length > 0);
       const shouldQueryTransactionReceipts = activeFilters.some(
         (filter) => filter.hasTransactionReceipt,
       );
@@ -852,7 +857,7 @@ export const createSyncStore = ({
         type: PONDER_SYNC.transactions.type,
       };
 
-      for (const column of unionFilterIncludeTransaction(filters)) {
+      for (const column of transactionInclude) {
         // @ts-expect-error
         transactionSelect[column] = PONDER_SYNC.transactions[column];
       }
@@ -1240,6 +1245,7 @@ export const createSyncStore = ({
         transactionReceipts:
           transactionReceiptsRows as InternalTransactionReceipt[],
         traces: tracesRows as InternalTrace[],
+        isTransactionDataSkipped: shouldQueryLogs && !shouldQueryTransactions,
         cursor,
       };
     },

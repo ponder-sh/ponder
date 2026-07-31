@@ -71,6 +71,7 @@ export const buildEvents = ({
   traces,
   childAddresses,
   chainId,
+  isTransactionDataSkipped = false,
 }: {
   eventCallbacks: EventCallback[];
   blocks: InternalBlock[];
@@ -80,6 +81,7 @@ export const buildEvents = ({
   traces: InternalTrace[];
   childAddresses: Map<FactoryId, Map<Address, number>>;
   chainId: number;
+  isTransactionDataSkipped?: boolean;
 }) => {
   const events: RawEvent[] = [];
 
@@ -480,6 +482,7 @@ export const buildEvents = ({
         events.push({
           chainId: filter.chainId,
           eventCallbackIndex: logEventCallbackIndex,
+          isTransactionDataSkipped: isTransactionDataSkipped || undefined,
           checkpoint: encodeCheckpoint({
             blockTimestamp: block.timestamp,
             chainId: filter.chainId,
@@ -585,6 +588,7 @@ export const decodeEvents = (
         checkpoint: event.checkpoint,
         chain,
         eventCallback,
+        isTransactionDataSkipped: event.isTransactionDataSkipped,
 
         event: {
           id: event.checkpoint,
