@@ -398,6 +398,7 @@ export async function runIsolated({
         } catch (error) {
           // Note: This can cause a bug with "dev" command, because there are multiple instances
           // updating the same metric.
+          common.metrics.flushIndexingMetrics();
           for (const value of initialCompletedEvents.values) {
             common.metrics.ponder_indexing_completed_events.set(
               value.labels,

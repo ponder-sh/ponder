@@ -549,9 +549,8 @@ export const createIndexing = ({
         // @ts-expect-error
         await executeEvent({ ...event, event: proxyEvent });
 
-        common.metrics.ponder_indexing_completed_events.inc(
-          { event: event.eventCallback.name },
-          1,
+        common.metrics.incrementIndexingCompletedEvents(
+          event.eventCallback.name,
         );
         columnAccessPattern.get(event.eventCallback.name)!.count++;
         eventCount[event.eventCallback.name] =
@@ -716,9 +715,8 @@ export const createIndexing = ({
 
         await executeEvent(event);
 
-        common.metrics.ponder_indexing_completed_events.inc(
-          { event: event.eventCallback.name },
-          1,
+        common.metrics.incrementIndexingCompletedEvents(
+          event.eventCallback.name,
         );
         eventCount[event.eventCallback.name] =
           eventCount[event.eventCallback.name]! + 1;
