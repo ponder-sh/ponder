@@ -1639,6 +1639,105 @@ test("sync() range scan splits eth_getLogs when the range is too wide", async ()
   expect(getLogsRanges()).toStrictEqual(["0x3", "0x4", "0x5", "0x6"]);
 });
 
+test("sync() range scan warns when the polling interval is too short", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
+  // One block per poll, which is not enough for the scan to pay off.
+  for (let i = 0; i < 12; i++) {
+    const { block } = await simulateBlock();
+    await drainAsyncGenerator(realtimeSync.sync(block));
+  }
+
+  const warnings = warnSpy.mock.calls.filter((call) =>
+    (call[0] as { msg: string }).msg.includes(
+      "unlikely to reduce RPC usage at this 'pollingInterval'",
+    ),
+  );
+
+  // Warns exactly once, not on every poll.
+  expect(warnings).toHaveLength(1);
+  expect((warnings[0]![0] as { blocks_per_poll: number }).blocks_per_poll).toBe(
+    1,
+  );
+});
+
+test("sync() range scan does not warn when enough blocks elapse per poll", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({
+    finalityBlockCount: 2,
+    experimentalRangeScan: true,
+  });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
+  // Five blocks per poll.
+  for (let i = 0; i < 12; i++) {
+    await testClient.mine({ blocks: 5 });
+    const block = await eth_getBlockByNumber(rpc, ["latest", true]);
+    await drainAsyncGenerator(realtimeSync.sync(block));
+  }
+
+  const warnings = warnSpy.mock.calls.filter((call) =>
+    (call[0] as { msg: string }).msg.includes(
+      "unlikely to reduce RPC usage at this 'pollingInterval'",
+    ),
+  );
+
+  expect(warnings).toHaveLength(0);
+});
+
 test("sync() ignores range scan when a block filter is present", async () => {
   const { common } = context;
   await setupDatabaseServices();

@@ -270,6 +270,63 @@ export const createRealtimeSync = (
    */
   let rangeScanBlockRange: number | undefined = args.chain.ethGetLogsBlockRange;
 
+  /**
+   * Average number of blocks that must elapse per poll for the range scan to use
+   * fewer RPC credits than the default per-block sync.
+   *
+   * @dev Each scan costs about two requests (the head header and one
+   * `eth_getLogs`) no matter how many blocks elapsed, whereas the per-block sync
+   * costs about one request per block. Break-even is therefore around four
+   * blocks per poll, using Alchemy's compute unit costs. Below that, a larger
+   * `pollingInterval` is the only thing that helps.
+   */
+  const MIN_RANGE_SCAN_BLOCKS_PER_POLL = 4;
+  /** Number of polls to average before checking the polling interval. */
+  const RANGE_SCAN_SAMPLE_POLLS = 10;
+
+  let rangeScanPollCount = 0;
+  let rangeScanBlockCount = 0;
+  let hasCheckedRangeScanInterval = false;
+
+  /**
+   * Warn once if `pollingInterval` is too short for the range scan to reduce RPC
+   * usage on this chain.
+   *
+   * @dev Measured from observed blocks per poll rather than a configured block
+   * time, so it reflects what the chain is actually doing.
+   */
+  const recordRangeScanPoll = (headNumber: number) => {
+    if (hasCheckedRangeScanInterval) return;
+
+    const tipNumber = hexToNumber(getLatestUnfinalizedBlock().number);
+
+    // Skip the first poll, which covers the gap left by the historical sync
+    // rather than one polling interval.
+    if (rangeScanPollCount === 0 && unfinalizedBlocks.length === 0) {
+      rangeScanPollCount = 1;
+      return;
+    }
+
+    rangeScanPollCount += 1;
+    rangeScanBlockCount += Math.max(headNumber - tipNumber, 0);
+
+    if (rangeScanPollCount <= RANGE_SCAN_SAMPLE_POLLS) return;
+
+    hasCheckedRangeScanInterval = true;
+
+    const blocksPerPoll = rangeScanBlockCount / RANGE_SCAN_SAMPLE_POLLS;
+
+    if (blocksPerPoll < MIN_RANGE_SCAN_BLOCKS_PER_POLL) {
+      args.common.logger.warn({
+        msg: `The 'experimentalRangeScan' option is unlikely to reduce RPC usage at this 'pollingInterval'. Only ${blocksPerPoll.toFixed(1)} blocks elapse per poll on average, but each scan costs about two requests regardless. Increase 'pollingInterval' to at least ${MIN_RANGE_SCAN_BLOCKS_PER_POLL} times the block time, or disable 'experimentalRangeScan'.`,
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        polling_interval: args.chain.pollingInterval,
+        blocks_per_poll: blocksPerPoll,
+      });
+    }
+  };
+
   const syncTransactionReceipts = async (
     block: SyncBlock,
     transactionHashes: Set<Hash>,
@@ -1479,6 +1536,8 @@ export const createRealtimeSync = (
     const endClock = startClock();
     const headNumber = hexToNumber(headBlock.number);
     const windowFrom = hexToNumber(finalizedBlock.number) + 1;
+
+    recordRangeScanPoll(headNumber);
 
     // We already saw this head, or it is at/under the finalized block. No-op.
     if (

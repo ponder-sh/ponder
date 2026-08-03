@@ -201,6 +201,8 @@ export default createConfig({
 
 This option only applies to chains whose indexed sources are exclusively `log` events with a static `address`. Chains that use factory, block, transaction, trace, or transfer sources — or a `log` source that matches every address — fall back to the default per-block realtime sync.
 
+Each scan costs about two requests no matter how many blocks elapsed, so this option only reduces RPC usage when `pollingInterval` is several times the chain's block time — roughly 4x or more. Below that it can cost *more* than the default per-block sync, which is why it is not useful on chains with slow blocks. Ponder logs a warning if it observes too few blocks per poll.
+
 This option also ignores the [`ws`](#websocket) option. A `newHeads` subscription delivers every block, which would run one scan per block and cost more than the default per-block sync. Polling bounds the scan rate to `pollingInterval`.
 
 :::warning
