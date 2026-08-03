@@ -6,9 +6,9 @@ import {
   type Address,
   type Hash,
   type Hex,
-  type RpcError,
   hexToNumber,
   numberToHex,
+  type RpcError,
   zeroHash,
 } from "viem";
 import type { Common } from "@/internal/common.js";
@@ -126,6 +126,12 @@ export const createRealtimeSync = (
    * waiting to be finalized. It is an invariant that
    * all blocks are linked to each other,
    * `parentHash` => `hash`.
+   *
+   * @dev The range-scan path is the exception: it only ingests blocks that
+   * contain matching logs, plus one head block per poll, so the list is sparse
+   * and not parent-linked. Consumers key on block number
+   * (`runtime/realtime.ts`), so this only matters for code that walks the list
+   * by hash.
    */
   let unfinalizedBlocks: LightBlock[] = [];
   /** Closest-to-tip block that has been fetched but not yet reconciled. */
@@ -179,10 +185,16 @@ export const createRealtimeSync = (
 
   /**
    * Experimental range-scan fast path. When enabled, each polling interval is
-   * scanned with a single ranged `eth_getLogs` request rather than fetching
-   * every block, so a `pollingInterval` larger than the chain's block time
-   * reduces RPC usage. Only supported when all indexed sources are non-factory
-   * `log` filters; otherwise the default per-block sync is used.
+   * scanned with a ranged `eth_getLogs` request rather than fetching every
+   * block, so a `pollingInterval` larger than the chain's block time reduces RPC
+   * usage. Only supported when all indexed sources are non-factory `log`
+   * filters; otherwise the default per-block sync is used.
+   *
+   * @dev The comparison against the default path assumes its `logsBloom` check
+   * (see `fetchBlockEventData`), which skips `eth_getLogs` for blocks whose
+   * bloom doesn't match any filter. Without it the default path would cost two
+   * requests per block rather than one, and the range scan would win by a much
+   * wider margin than it actually does.
    */
   const canRangeScan =
     args.chain.experimentalRangeScan &&
@@ -231,7 +243,6 @@ export const createRealtimeSync = (
   const rangeScanParams = (() => {
     const addresses = new Set<Address>();
     const topic0s = new Set<Hex>();
-    let hasAllTopic0s = true;
 
     for (const filter of logFilters) {
       // Note: `canRangeScan` guarantees a non-factory, defined address.
@@ -242,18 +253,16 @@ export const createRealtimeSync = (
         addresses.add(address);
       }
 
-      if (filter.topic0 === undefined || filter.topic0 === null) {
-        hasAllTopic0s = false;
-      } else {
-        topic0s.add(filter.topic0);
-      }
+      // Note: `LogFilter["topic0"]` is always defined, one event selector per
+      // log filter.
+      topic0s.add(filter.topic0);
     }
 
     // Note: the `topics` field is fragile for many rpc providers, so only the
-    // first position is included and it is omitted entirely when unconstrained.
+    // first position is included.
     return {
       addresses: Array.from(addresses),
-      topics: hasAllTopic0s ? [Array.from(topic0s)] : undefined,
+      topics: [Array.from(topic0s)],
     };
   })();
 
@@ -269,60 +278,94 @@ export const createRealtimeSync = (
    * request for being too wide, so the same error isn't repeated every poll.
    */
   let rangeScanBlockRange: number | undefined = args.chain.ethGetLogsBlockRange;
+  /** `true` if `rangeScanBlockRange` came from a limit stated by the provider. */
+  let isRangeScanBlockRangeConfirmed =
+    args.chain.ethGetLogsBlockRange !== undefined;
 
   /**
-   * Average number of blocks that must elapse per poll for the range scan to use
-   * fewer RPC credits than the default per-block sync.
+   * Approximate compute unit costs, used only to decide whether to warn that
+   * the range scan isn't paying off. Taken from Alchemy's published table.
    *
-   * @dev Each scan costs about two requests (the head header and one
-   * `eth_getLogs`) no matter how many blocks elapsed, whereas the per-block sync
-   * costs about one request per block. Break-even is therefore around four
-   * blocks per poll, using Alchemy's compute unit costs. Below that, a larger
-   * `pollingInterval` is the only thing that helps.
+   * @dev Providers price differently, so these are indicative. What matters is
+   * the ratio: an `eth_getLogs` costs about three block requests.
    */
-  const MIN_RANGE_SCAN_BLOCKS_PER_POLL = 4;
-  /** Number of polls to average before checking the polling interval. */
+  const CU_BLOCK_REQUEST = 20;
+  const CU_GET_LOGS_REQUEST = 60;
+  /** Number of polls to sample before comparing the two strategies. */
   const RANGE_SCAN_SAMPLE_POLLS = 10;
 
-  let rangeScanPollCount = 0;
-  let rangeScanBlockCount = 0;
-  let hasCheckedRangeScanInterval = false;
+  let rangeScanSampledPolls = 0;
+  let rangeScanSampledBlocks = 0;
+  let rangeScanSampledRequests = 0;
+  let rangeScanSampledMatchedBlocks = 0;
+  let hasSkippedFirstRangeScanPoll = false;
+  let hasCheckedRangeScanCost = false;
 
   /**
-   * Warn once if `pollingInterval` is too short for the range scan to reduce RPC
-   * usage on this chain.
+   * Warn once if the range scan is using more RPC credits than the default
+   * per-block sync would have.
    *
-   * @dev Measured from observed blocks per poll rather than a configured block
-   * time, so it reflects what the chain is actually doing.
+   * @dev Break-even is not a fixed number of blocks per poll: it depends on how
+   * many `eth_getLogs` requests each scan takes (the unfinalized window grows to
+   * `2 * finalityBlockCount` blocks and may be split by block range or address
+   * batch) and on how many blocks contain a matching event. Both are measured
+   * here rather than assumed.
+   *
+   * The per-block path fetches every block and, thanks to the `logsBloom` check
+   * in `fetchBlockEventData`, only issues `eth_getLogs` for blocks whose bloom
+   * matches a filter. Bloom matches aren't observable from this path, so they
+   * are approximated by the number of blocks that had a matching log. That
+   * understates the per-block cost, which makes this warning conservative.
    */
-  const recordRangeScanPoll = (headNumber: number) => {
-    if (hasCheckedRangeScanInterval) return;
-
-    const tipNumber = hexToNumber(getLatestUnfinalizedBlock().number);
+  const recordRangeScanPoll = ({
+    blocks,
+    requests,
+    matchedBlocks,
+  }: {
+    blocks: number;
+    requests: number;
+    matchedBlocks: number;
+  }) => {
+    if (hasCheckedRangeScanCost) return;
 
     // Skip the first poll, which covers the gap left by the historical sync
     // rather than one polling interval.
-    if (rangeScanPollCount === 0 && unfinalizedBlocks.length === 0) {
-      rangeScanPollCount = 1;
+    if (hasSkippedFirstRangeScanPoll === false) {
+      hasSkippedFirstRangeScanPoll = true;
       return;
     }
 
-    rangeScanPollCount += 1;
-    rangeScanBlockCount += Math.max(headNumber - tipNumber, 0);
+    rangeScanSampledPolls += 1;
+    rangeScanSampledBlocks += blocks;
+    rangeScanSampledRequests += requests;
+    rangeScanSampledMatchedBlocks += matchedBlocks;
 
-    if (rangeScanPollCount <= RANGE_SCAN_SAMPLE_POLLS) return;
+    if (rangeScanSampledPolls < RANGE_SCAN_SAMPLE_POLLS) return;
 
-    hasCheckedRangeScanInterval = true;
+    hasCheckedRangeScanCost = true;
 
-    const blocksPerPoll = rangeScanBlockCount / RANGE_SCAN_SAMPLE_POLLS;
+    // Note: a poll where no block elapsed still costs one block request on
+    // either path, hence the `max`.
+    const rangeScanCost =
+      rangeScanSampledPolls * CU_BLOCK_REQUEST +
+      rangeScanSampledRequests * CU_GET_LOGS_REQUEST +
+      rangeScanSampledMatchedBlocks * CU_BLOCK_REQUEST;
+    const perBlockCost =
+      Math.max(rangeScanSampledBlocks, rangeScanSampledPolls) *
+        CU_BLOCK_REQUEST +
+      rangeScanSampledMatchedBlocks * CU_GET_LOGS_REQUEST;
 
-    if (blocksPerPoll < MIN_RANGE_SCAN_BLOCKS_PER_POLL) {
+    if (rangeScanCost >= perBlockCost) {
+      const blocksPerPoll = rangeScanSampledBlocks / rangeScanSampledPolls;
+      const requestsPerPoll = rangeScanSampledRequests / rangeScanSampledPolls;
+
       args.common.logger.warn({
-        msg: `The 'experimentalRangeScan' option is unlikely to reduce RPC usage at this 'pollingInterval'. Only ${blocksPerPoll.toFixed(1)} blocks elapse per poll on average, but each scan costs about two requests regardless. Increase 'pollingInterval' to at least ${MIN_RANGE_SCAN_BLOCKS_PER_POLL} times the block time, or disable 'experimentalRangeScan'.`,
+        msg: `The 'experimentalRangeScan' option is not reducing RPC usage on this chain. Over ${rangeScanSampledPolls} polls it used about ${rangeScanCost} credits versus ${perBlockCost} for the default per-block sync, with ${blocksPerPoll.toFixed(1)} blocks and ${requestsPerPoll.toFixed(1)} 'eth_getLogs' requests per poll. Increase 'pollingInterval', or disable 'experimentalRangeScan'.`,
         chain: args.chain.name,
         chain_id: args.chain.id,
         polling_interval: args.chain.pollingInterval,
         blocks_per_poll: blocksPerPoll,
+        requests_per_poll: requestsPerPoll,
       });
     }
   };
@@ -1371,10 +1414,13 @@ export const createRealtimeSync = (
   const getRangeScanLogs = async (
     fromBlock: number,
     toBlock: number,
-  ): Promise<SyncLog[]> => {
+  ): Promise<{ logs: SyncLog[]; requestCount: number }> => {
     const context = {
       logger: args.common.logger.child({ action: "fetch_block_data" }),
     };
+
+    let requestCount = 0;
+    let didSplit = false;
 
     const addressBatches: Address[][] = [];
     for (
@@ -1401,6 +1447,8 @@ export const createRealtimeSync = (
         },
       ];
 
+      requestCount += 1;
+
       return eth_getLogs(args.rpc, params, context).catch((error) => {
         // Note: skip the range retry logic if the chain has a custom block
         // range, matching the historical sync.
@@ -1413,6 +1461,9 @@ export const createRealtimeSync = (
         });
 
         if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+        didSplit = true;
+        isRangeScanBlockRangeConfirmed = getLogsErrorResponse.isSuggestedRange;
 
         const range =
           hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
@@ -1451,7 +1502,19 @@ export const createRealtimeSync = (
       ),
     );
 
-    return results.flat();
+    // A range narrowed from an error that didn't state a limit may be smaller
+    // than the provider actually allows, and every extra chunk is an extra
+    // request. Grow it back slowly, the same way the historical sync does.
+    if (
+      didSplit === false &&
+      rangeScanBlockRange !== undefined &&
+      isRangeScanBlockRangeConfirmed === false &&
+      args.chain.ethGetLogsBlockRange === undefined
+    ) {
+      rangeScanBlockRange = Math.round(rangeScanBlockRange * 1.05);
+    }
+
+    return { logs: results.flat(), requestCount };
   };
 
   /**
@@ -1537,13 +1600,14 @@ export const createRealtimeSync = (
     const headNumber = hexToNumber(headBlock.number);
     const windowFrom = hexToNumber(finalizedBlock.number) + 1;
 
-    recordRangeScanPoll(headNumber);
+    const tipNumberBeforeScan = hexToNumber(getLatestUnfinalizedBlock().number);
 
     // We already saw this head, or it is at/under the finalized block. No-op.
     if (
       getLatestUnfinalizedBlock().hash === headBlock.hash ||
       headNumber < windowFrom
     ) {
+      recordRangeScanPoll({ blocks: 0, requests: 0, matchedBlocks: 0 });
       blockCallback?.(false);
       return;
     }
@@ -1551,7 +1615,10 @@ export const createRealtimeSync = (
     // Scan the entire unfinalized window. Used both for reorg detection
     // (comparing block hashes against the blocks already processed) and to
     // discover new matched blocks.
-    const rangeLogs = await getRangeScanLogs(windowFrom, headNumber);
+    const { logs: rangeLogs, requestCount } = await getRangeScanLogs(
+      windowFrom,
+      headNumber,
+    );
 
     const logsByBlockNumber = new Map<
       number,
@@ -1590,9 +1657,7 @@ export const createRealtimeSync = (
     //    emitted as an empty block every poll, the local tip advances past
     //    event-free blocks, and logs introduced into them by a reorg would
     //    otherwise never be ingested.
-    const tipNumberBeforeReorg = hexToNumber(
-      getLatestUnfinalizedBlock().number,
-    );
+    const tipNumberBeforeReorg = tipNumberBeforeScan;
 
     let reorgFromNumber: number | undefined;
     const setReorgFrom = (number: number) => {
@@ -1696,6 +1761,12 @@ export const createRealtimeSync = (
       }
     }
 
+    recordRangeScanPoll({
+      blocks: Math.max(headNumber - tipNumberBeforeScan, 0),
+      requests: requestCount,
+      matchedBlocks: newMatchedNumbers.length,
+    });
+
     const matchedBlocks = await Promise.all(
       newMatchedNumbers.map((number) => {
         const { hash } = logsByBlockNumber.get(number)!;
@@ -1741,6 +1812,14 @@ export const createRealtimeSync = (
     // --- Advance to the head block ---
     // Emit the head as an empty block (if it wasn't already emitted as matched)
     // so the realtime checkpoint advances to the tip every poll.
+    //
+    // @dev These blocks are not added to `scannedBlockHashes`, because the scan
+    // never observed them — they contain no matching logs. A reorg that replaces
+    // a log-free head with another log-free block is therefore not detected, and
+    // `syncProgress.current` can briefly hold a non-canonical hash and timestamp.
+    // No events are affected: `hasMatchedFilter: false` blocks are never
+    // persisted, and the next poll's scan re-derives the tip. A reorg that gives
+    // any of these blocks a matching log *is* detected, by case 3 above.
     if (hexToNumber(getLatestUnfinalizedBlock().number) < headNumber) {
       unfinalizedBlocks.push({
         hash: headBlock.hash,
