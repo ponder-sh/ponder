@@ -1778,6 +1778,8 @@ export const createRealtimeSync = (
       }),
     );
 
+    const blockEvents: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
+
     for (const blockWithEventData of matchedBlocks) {
       const filtered = filterBlockEventData(blockWithEventData);
       const block = filtered.block;
@@ -1797,7 +1799,7 @@ export const createRealtimeSync = (
 
       blockWithEventData.block.transactions = filtered.block.transactions;
 
-      yield {
+      blockEvents.push({
         type: "block",
         hasMatchedFilter: true,
         block: filtered.block,
@@ -1806,7 +1808,7 @@ export const createRealtimeSync = (
         transactionReceipts: filtered.transactionReceipts,
         traces: filtered.traces,
         childAddresses: filtered.childAddresses,
-      };
+      });
     }
 
     // --- Advance to the head block ---
@@ -1828,7 +1830,7 @@ export const createRealtimeSync = (
         timestamp: headBlock.timestamp,
       });
 
-      yield {
+      blockEvents.push({
         type: "block",
         hasMatchedFilter: false,
         block: headBlock,
@@ -1837,10 +1839,23 @@ export const createRealtimeSync = (
         transactionReceipts: [],
         traces: [],
         childAddresses: new Map(),
-      };
+      });
     }
 
-    blockCallback?.(true);
+    // `blockCallback` signals that the head has been fully processed. It must be
+    // attached to the last emitted block event so that the runtime calls it
+    // *after* indexing that block's events, exactly as `reconcileBlock` does.
+    // Calling it here instead reports completion while events are still pending,
+    // which drops them when the chain reaches its end block.
+    if (blockEvents.length === 0) {
+      blockCallback?.(false);
+    } else {
+      for (const [index, blockEvent] of blockEvents.entries()) {
+        yield index === blockEvents.length - 1
+          ? { ...blockEvent, blockCallback }
+          : blockEvent;
+      }
+    }
 
     args.common.logger.debug(
       {
