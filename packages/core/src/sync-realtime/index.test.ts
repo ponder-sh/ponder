@@ -1799,13 +1799,15 @@ test("sync() range scan finalize event", async () => {
     (event) => event.type === "finalize",
   ) as Extract<RealtimeSyncEvent, { type: "finalize" }>;
 
-  // Finalizes to head - finalityBlockCount, and prunes the finalized blocks
-  // from the local chain.
+  // Finalizes to the highest local block at or below head - finalityBlockCount,
+  // and prunes the finalized blocks from the local chain. The boundary itself
+  // (block 4) is not in the local chain, because the scan only ingests blocks
+  // with matching logs plus one head block per poll — so block 3 is finalized.
   expect(finalize).toBeDefined();
-  expect(finalize.block.number).toBe("0x4");
+  expect(finalize.block.number).toBe("0x3");
   expect(
     realtimeSync.unfinalizedBlocks.every(
-      (block) => hexToNumber(block.number) > 4,
+      (block) => hexToNumber(block.number) > 3,
     ),
   ).toBe(true);
 });

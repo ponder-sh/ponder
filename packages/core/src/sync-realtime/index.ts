@@ -1876,29 +1876,35 @@ export const createRealtimeSync = (
     ) {
       const pendingFinalizedNumber = headNumber - args.chain.finalityBlockCount;
 
-      // The finalized boundary block may have no events, so fetch it directly.
-      const pendingFinalizedBlock: LightBlock = await eth_getBlockByNumber(
-        args.rpc,
-        [numberToHex(pendingFinalizedNumber), false],
-        { logger: args.common.logger.child({ action: "finalize" }) },
-      ).then((block) => ({
-        hash: block.hash,
-        parentHash: block.parentHash,
-        number: block.number,
-        timestamp: block.timestamp,
-      }));
-
-      const finalizedBlocks = unfinalizedBlocks.filter(
+      // Finalize to the highest local block at or below the boundary rather
+      // than fetching the boundary block itself.
+      //
+      // @dev The local chain is sparse on this path, so the boundary block is
+      // often absent. Finalizing short of it is always safe, and a head block is
+      // appended every poll, so the window stays bounded. Fetching the boundary
+      // block instead would cost a request per finalization and, because it only
+      // needs a header, would return a block without full transactions.
+      const pendingFinalizedBlock = unfinalizedBlocks.findLast(
         (lb) => hexToNumber(lb.number) <= pendingFinalizedNumber,
       );
+
+      // Note: `blockCallback` has already been settled above, so finalization
+      // is simply skipped until a local block falls below the boundary.
+      if (pendingFinalizedBlock === undefined) return;
+
+      const finalizedNumber = hexToNumber(pendingFinalizedBlock.number);
+
+      const finalizedBlocks = unfinalizedBlocks.filter(
+        (lb) => hexToNumber(lb.number) <= finalizedNumber,
+      );
       unfinalizedBlocks = unfinalizedBlocks.filter(
-        (lb) => hexToNumber(lb.number) > pendingFinalizedNumber,
+        (lb) => hexToNumber(lb.number) > finalizedNumber,
       );
       for (const block of finalizedBlocks) {
         childAddressesPerBlock.delete(hexToNumber(block.number));
       }
       for (const number of scannedBlockHashes.keys()) {
-        if (number <= pendingFinalizedNumber) scannedBlockHashes.delete(number);
+        if (number <= finalizedNumber) scannedBlockHashes.delete(number);
       }
 
       finalizedBlock = pendingFinalizedBlock;
