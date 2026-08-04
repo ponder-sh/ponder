@@ -1,5 +1,6 @@
 import { count, sql, sum } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   check,
   index,
   pgSequence,
@@ -196,7 +197,7 @@ test("buildSchema() error with foreign key", () => {
       balance: p
         .bigint()
         .notNull()
-        .references((): any => schema.account.address),
+        .references((): AnyPgColumn => schema.account.address),
     })),
   };
 
