@@ -1021,6 +1021,12 @@ const queryTransactionToSyncTransactionReceipt = (
   const transactionReceipt = transaction as SyncTransactionReceipt;
 
   transactionReceipt.transactionHash = transaction.hash;
+
+  // TODO: Remove this temporary fallback once eth_query responses include status.
+  if (transactionReceipt.status === undefined) {
+    transactionReceipt.status = "0x1";
+  }
+
   return transactionReceipt;
 };
 
