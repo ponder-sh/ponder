@@ -1126,9 +1126,6 @@ export const standardizeTransactionReceipts = (
     }
 
     // non-required properties
-    if (receipt.logs === undefined) {
-      receipt.logs = [];
-    }
     if (receipt.logsBloom === undefined) {
       receipt.logsBloom = zeroLogsBloom;
     }
@@ -1172,6 +1169,63 @@ export const standardizeTransactionReceipts = (
     }
   }
   return receipts;
+};
+
+const queryRelationKey = (row: object, fields: readonly string[]) =>
+  JSON.stringify(
+    fields.map((field) => (row as Record<string, unknown>)[field]),
+  );
+
+const validateQueryRelation = (
+  children: readonly object[],
+  childFields: readonly string[],
+  parents: readonly object[] | undefined,
+  parentFields: readonly string[],
+  childName: string,
+  parentName: string,
+  request: { method: string; params: any[] },
+) => {
+  if (!Array.isArray(parents)) {
+    const error = new RpcProviderError(
+      `Invalid RPC response: 'data.${parentName}s' is a required property`,
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      requestText(request),
+    ];
+    error.stack = undefined;
+    throw error;
+  }
+
+  const parentByKey = new Map(
+    parents.map(
+      (parent) => [queryRelationKey(parent, parentFields), parent] as const,
+    ),
+  );
+
+  for (const [index, child] of children.entries()) {
+    if (parentByKey.has(queryRelationKey(child, childFields))) continue;
+
+    const childKeyText = childFields
+      .map(
+        (field) =>
+          `'${childName}.${field}' of ${(child as Record<string, unknown>)[field]}`,
+      )
+      .join(" and ");
+    const parentKeyText = parentFields
+      .map((field) => `'${parentName}.${field}'`)
+      .join(" and ");
+
+    const error = new RpcProviderError(
+      `Inconsistent RPC response data. The ${childName} at array index ${index} has ${childKeyText}, but the associated 'data.${parentName}s' array does not contain a ${parentName} matching ${parentKeyText}.`,
+    );
+    error.meta = [
+      "Please report this error to the RPC operator.",
+      requestText(request),
+    ];
+    error.stack = undefined;
+    throw error;
+  }
 };
 
 export const standardizeQueryBlocks = (
@@ -1424,7 +1478,6 @@ export const standardizeQueryTransactions = (
   for (const transaction of response.data.transactions) {
     for (const property of [
       "hash",
-      "transactionHash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
@@ -1512,6 +1565,18 @@ export const standardizeQueryTransactions = (
     }
   }
 
+  if (request.params[0].fields?.blocks !== undefined) {
+    validateQueryRelation(
+      response.data.transactions,
+      ["blockNumber"],
+      response.data.blocks,
+      ["number"],
+      "transaction",
+      "block",
+      request,
+    );
+  }
+
   return response;
 };
 
@@ -1597,12 +1662,34 @@ export const standardizeQueryLogs = (
     if (block.difficulty === undefined) block.difficulty = "0x0";
     if (block.totalDifficulty === undefined) block.totalDifficulty = "0x0";
     if (block.extraData === undefined) block.extraData = "0x";
+
+    if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'block.number' (${hexToBigInt(block.number)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'block.timestamp' (${hexToBigInt(block.timestamp)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
   }
 
   for (const transaction of response.data?.transactions ?? []) {
     for (const property of [
       "hash",
-      "transactionHash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
@@ -1645,6 +1732,40 @@ export const standardizeQueryLogs = (
       transaction.effectiveGasPrice = "0x0";
     }
     if (transaction.root === undefined) transaction.root = zeroHash;
+
+    if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.blockNumber' (${hexToBigInt(transaction.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.transactionIndex' (${hexToBigInt(transaction.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.nonce' (${hexToBigInt(transaction.nonce)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
   }
 
   if (response.data?.logs === undefined) {
@@ -1729,6 +1850,29 @@ export const standardizeQueryLogs = (
     }
   }
 
+  if (request.params[0].fields?.blocks !== undefined) {
+    validateQueryRelation(
+      response.data.logs,
+      ["blockNumber"],
+      response.data.blocks,
+      ["number"],
+      "log",
+      "block",
+      request,
+    );
+  }
+  if (request.params[0].fields?.transactions !== undefined) {
+    validateQueryRelation(
+      response.data.logs,
+      ["blockNumber", "transactionIndex"],
+      response.data.transactions,
+      ["blockNumber", "transactionIndex"],
+      "log",
+      "transaction",
+      request,
+    );
+  }
+
   return response;
 };
 
@@ -1810,11 +1954,33 @@ export const standardizeQueryTraces = (
     if (block.difficulty === undefined) block.difficulty = "0x0";
     if (block.totalDifficulty === undefined) block.totalDifficulty = "0x0";
     if (block.extraData === undefined) block.extraData = "0x";
+
+    if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'block.number' (${hexToBigInt(block.number)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'block.timestamp' (${hexToBigInt(block.timestamp)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
   }
   for (const transaction of response.data?.transactions ?? []) {
     for (const property of [
       "hash",
-      "transactionHash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
@@ -1853,6 +2019,40 @@ export const standardizeQueryTraces = (
     if (transaction.effectiveGasPrice === undefined)
       transaction.effectiveGasPrice = "0x0";
     if (transaction.root === undefined) transaction.root = zeroHash;
+
+    if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.blockNumber' (${hexToBigInt(transaction.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.transactionIndex' (${hexToBigInt(transaction.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.nonce' (${hexToBigInt(transaction.nonce)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
   }
   if (response.data?.traces === undefined) {
     const error = new RpcProviderError(
@@ -1867,7 +2067,12 @@ export const standardizeQueryTraces = (
   }
   for (const trace of response.data.traces) {
     for (const property of [
+      "blockHash",
+      "blockNumber",
       "transactionHash",
+      "transactionIndex",
+      "traceAddress",
+      "status",
       "type",
       "from",
       "input",
@@ -1889,7 +2094,6 @@ export const standardizeQueryTraces = (
     for (const [property, maximum] of [
       ["blockNumber", PG_BIGINT_MAX],
       ["transactionIndex", BigInt(PG_INTEGER_MAX)],
-      ["subcalls", BigInt(PG_INTEGER_MAX)],
     ] as const) {
       if (
         trace[property] !== undefined &&
@@ -1907,6 +2111,29 @@ export const standardizeQueryTraces = (
       }
     }
   }
+  if (request.params[0].fields?.blocks !== undefined) {
+    validateQueryRelation(
+      response.data.traces,
+      ["blockNumber"],
+      response.data.blocks,
+      ["number"],
+      "trace",
+      "block",
+      request,
+    );
+  }
+  if (request.params[0].fields?.transactions !== undefined) {
+    validateQueryRelation(
+      response.data.traces,
+      ["blockNumber", "transactionIndex"],
+      response.data.transactions,
+      ["blockNumber", "transactionIndex"],
+      "trace",
+      "transaction",
+      request,
+    );
+  }
+
   return response;
 };
 
@@ -1988,11 +2215,33 @@ export const standardizeQueryTransfers = (
     if (block.difficulty === undefined) block.difficulty = "0x0";
     if (block.totalDifficulty === undefined) block.totalDifficulty = "0x0";
     if (block.extraData === undefined) block.extraData = "0x";
+
+    if (hexToBigInt(block.number) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'block.number' (${hexToBigInt(block.number)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(block.timestamp) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'block.timestamp' (${hexToBigInt(block.timestamp)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
   }
   for (const transaction of response.data?.transactions ?? []) {
     for (const property of [
       "hash",
-      "transactionHash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
@@ -2031,6 +2280,40 @@ export const standardizeQueryTransfers = (
     if (transaction.effectiveGasPrice === undefined)
       transaction.effectiveGasPrice = "0x0";
     if (transaction.root === undefined) transaction.root = zeroHash;
+
+    if (hexToBigInt(transaction.blockNumber) > PG_BIGINT_MAX) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.blockNumber' (${hexToBigInt(transaction.blockNumber)}) is larger than the maximum allowed value (${PG_BIGINT_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(transaction.transactionIndex) > BigInt(PG_INTEGER_MAX)) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.transactionIndex' (${hexToBigInt(transaction.transactionIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
+    if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
+      const error = new RpcProviderError(
+        `Invalid RPC response: 'transaction.nonce' (${hexToBigInt(transaction.nonce)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(request),
+      ];
+      error.stack = undefined;
+      throw error;
+    }
   }
   if (response.data?.transfers === undefined) {
     const error = new RpcProviderError(
@@ -2044,7 +2327,16 @@ export const standardizeQueryTransfers = (
     throw error;
   }
   for (const transfer of response.data.transfers) {
-    for (const property of ["transactionHash", "from", "value"] as const) {
+    for (const property of [
+      "blockHash",
+      "blockNumber",
+      "transactionHash",
+      "transactionIndex",
+      "traceAddress",
+      "from",
+      "value",
+      "status",
+    ] as const) {
       if (transfer[property] === undefined) {
         const error = new RpcProviderError(
           `Invalid RPC response: 'transfer.${property}' is a required property`,
@@ -2077,6 +2369,29 @@ export const standardizeQueryTransfers = (
       }
     }
   }
+  if (request.params[0].fields?.blocks !== undefined) {
+    validateQueryRelation(
+      response.data.transfers,
+      ["blockNumber"],
+      response.data.blocks,
+      ["number"],
+      "transfer",
+      "block",
+      request,
+    );
+  }
+  if (request.params[0].fields?.transactions !== undefined) {
+    validateQueryRelation(
+      response.data.transfers,
+      ["blockNumber", "transactionIndex"],
+      response.data.transactions,
+      ["blockNumber", "transactionIndex"],
+      "transfer",
+      "transaction",
+      request,
+    );
+  }
+
   return response;
 };
 
