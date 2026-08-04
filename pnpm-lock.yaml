@@ -322,6 +322,31 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  examples/feature-rpc-query:
+    dependencies:
+      hono:
+        specifier: ^4.5.0
+        version: 4.5.0
+      ponder:
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: 2.35.0
+        version: 2.35.0(typescript@5.4.5)(zod@3.23.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      eslint:
+        specifier: ^8.54.0
+        version: 8.56.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.4.0
+        version: 5.4.5
+
   examples/project-friendtech:
     dependencies:
       hono:
@@ -770,6 +795,9 @@ importers:
       '@hono/node-server':
         specifier: 1.19.5
         version: 1.19.5(hono@4.7.9)
+      '@monad-crypto/query':
+        specifier: link:../../../monad-ts/packages/query
+        version: link:../../../monad-ts/packages/query
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
