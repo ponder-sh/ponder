@@ -98,12 +98,14 @@ type ChainConfig<chain> = {
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /**
-   * Maximum number of RPC requests per second.
+   * Maximum number of JSON-RPC requests per second.
    * @deprecated Handled automatically instead.
    */
   maxRequestsPerSecond?: number;
-  /** Disable RPC request caching. Default: `false`. */
+  /** Disable JSON-RPC request caching. Default: `false`. */
   disableCache?: boolean;
+  /** Use the `eth_query*` JSON-RPC methods for faster backfill data fetching. Default: `false`. */
+  experimental_rpcQuery?: boolean;
   /**
    * Maximum block range for eth_getLogs. If undefined, Ponder will
    * attempt to determine the block range automatically based on error messages.

@@ -177,7 +177,7 @@ export const eth_queryBlocks = (
   rpc: Rpc,
   params: Extract<RequestParameters, { method: "eth_queryBlocks" }>["params"],
   context?: Parameters<Rpc["request"]>[1],
-) => {
+): Promise<RequestReturnType<"eth_queryBlocks">> => {
   const request = { method: "eth_queryBlocks", params } as const;
   return rpc
     .request(request, context)
@@ -191,7 +191,7 @@ export const eth_queryTransactions = (
     { method: "eth_queryTransactions" }
   >["params"],
   context?: Parameters<Rpc["request"]>[1],
-) => {
+): Promise<RequestReturnType<"eth_queryTransactions">> => {
   const request = { method: "eth_queryTransactions", params } as const;
   return rpc
     .request(request, context)
@@ -202,7 +202,7 @@ export const eth_queryLogs = (
   rpc: Rpc,
   params: Extract<RequestParameters, { method: "eth_queryLogs" }>["params"],
   context?: Parameters<Rpc["request"]>[1],
-) => {
+): Promise<RequestReturnType<"eth_queryLogs">> => {
   const request = { method: "eth_queryLogs", params } as const;
   return rpc
     .request(request, context)
@@ -213,7 +213,7 @@ export const eth_queryTraces = (
   rpc: Rpc,
   params: Extract<RequestParameters, { method: "eth_queryTraces" }>["params"],
   context?: Parameters<Rpc["request"]>[1],
-) => {
+): Promise<RequestReturnType<"eth_queryTraces">> => {
   const request = { method: "eth_queryTraces", params } as const;
   return rpc
     .request(request, context)
@@ -227,7 +227,7 @@ export const eth_queryTransfers = (
     { method: "eth_queryTransfers" }
   >["params"],
   context?: Parameters<Rpc["request"]>[1],
-) => {
+): Promise<RequestReturnType<"eth_queryTransfers">> => {
   const request = { method: "eth_queryTransfers", params } as const;
   return rpc
     .request(request, context)

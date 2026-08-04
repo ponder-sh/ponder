@@ -79,6 +79,7 @@ export type HistoricalSync = {
   }): Promise<SyncLog[]>;
   /**
    * Sync block data that must be queried for a single block (block, transactions, receipts, traces).
+   * @returns Closest-to-tip synced block.
    */
   syncBlockData(params: {
     interval: Interval;
