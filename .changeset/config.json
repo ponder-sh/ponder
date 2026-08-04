@@ -25,6 +25,7 @@
     "ponder-examples-feature-call-traces",
     "ponder-examples-feature-proxy",
     "ponder-examples-feature-read-contract",
+    "ponder-examples-feature-rpc-query",
     "ponder-examples-project-friendtech",
     "ponder-examples-project-uniswap-v3-flash",
     "ponder-examples-reference-erc20",
