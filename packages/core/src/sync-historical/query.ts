@@ -1,6 +1,5 @@
 import {
   isLastPage,
-  pinRequestRange,
   type QueryBlocksRequest,
   type QueryLogsRequest,
   type QueryTracesRequest,
@@ -12,12 +11,11 @@ import {
   type RpcTransactionResponse,
   updateRequestPagination,
 } from "@monad-crypto/query";
-import { type Address, type Hex, numberToHex } from "viem";
+import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
   Factory,
-  LogFilter,
   SyncBlockHeader,
   SyncLog,
   SyncTrace,
@@ -33,15 +31,18 @@ import {
 } from "@/rpc/actions.js";
 import type { RequestReturnType, Rpc } from "@/rpc/index.js";
 import {
+  getChildAddress,
   isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
+  isLogFactoryMatched,
   isLogFilterMatched,
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
 import type {
+  ChildAddresses,
   IntervalWithFactory,
   IntervalWithFilter,
 } from "@/runtime/index.js";
@@ -100,9 +101,26 @@ const mergeFilterValue = <value extends Hex>(
 export const createQueryHistoricalSync = (
   params: CreateQueryHistoricalSyncParams,
 ): QueryHistoricalSync => {
+  const getQueryRequestAddress = (
+    value: Address | Address[] | Factory | undefined,
+    childAddresses: Map<string, Map<Address, number>>,
+  ) => {
+    if (isAddressFactory(value)) {
+      const factoryChildAddresses = childAddresses.get(value.id)!;
+      if (
+        factoryChildAddresses.size >
+        params.common.options.factoryAddressCountThreshold
+      ) {
+        return undefined;
+      }
+      return Array.from(factoryChildAddresses.keys());
+    }
+
+    return value;
+  };
+
   return {
     async syncIntervalBlockData({
-      interval,
       requiredIntervals,
       requiredFactoryIntervals,
       syncStore,
@@ -111,10 +129,127 @@ export const createQueryHistoricalSync = (
         logger: params.common.logger.child({ action: "fetch_block_data" }),
       };
 
-      void interval;
-      void requiredFactoryIntervals;
+      const factoryIntervalsById: Map<
+        Factory["id"],
+        { factory: Factory; interval: Interval }
+      > = new Map();
 
-      // TODO(kyle) factory logic
+      for (const { factory, interval } of requiredFactoryIntervals) {
+        if (factoryIntervalsById.has(factory.id)) {
+          const existingInterval = factoryIntervalsById.get(
+            factory.id,
+          )!.interval;
+
+          factoryIntervalsById.get(factory.id)!.interval = intervalBounds([
+            existingInterval,
+            interval,
+          ]);
+        } else {
+          factoryIntervalsById.set(factory.id, { factory, interval });
+        }
+      }
+
+      requiredFactoryIntervals = Array.from(factoryIntervalsById.values());
+      const childAddressesByFactoryId: ChildAddresses = new Map();
+
+      for (const {
+        factory,
+        interval: filterInterval,
+      } of requiredFactoryIntervals) {
+        const factoryLogRequestParams = {
+          fromBlock: numberToHex(filterInterval[0]),
+          toBlock: numberToHex(filterInterval[1]),
+          filter: {
+            address: factory.address,
+            topics: [factory.eventSelector],
+          },
+          fields: { logs: true }, // TODO(kyle) column selection: blockNumber, logIndex, address
+        } as const satisfies QueryRequestWithFilter<RpcQueryLogsRequest>;
+
+        const factoryResponse = await drainAsyncGenerator(
+          paginateQueryRequest(
+            params.rpc,
+            "eth_queryLogs",
+            factoryLogRequestParams,
+            context,
+          ),
+        );
+
+        const childAddresses = new Map<Address, number>();
+        const factoryChildAddresses = params.childAddresses.get(factory.id)!;
+        childAddressesByFactoryId.set(factory.id, childAddresses);
+
+        const childAddressDecodeFailureIds = new Set<string>();
+        let childAddressDecodeFailureCount = 0;
+        let childAddressDecodeSuccessCount = 0;
+
+        for (const response of factoryResponse) {
+          for (const queryLog of response.data.logs) {
+            const log = queryLogToSyncLog(queryLog);
+            if (isLogFactoryMatched({ factory, log })) {
+              let address: Address;
+              try {
+                address = getChildAddress({ log, factory });
+                childAddressDecodeSuccessCount++;
+              } catch (error) {
+                if (factory.address === undefined) {
+                  childAddressDecodeFailureCount++;
+                  if (childAddressDecodeFailureIds.has(factory.id) === false) {
+                    childAddressDecodeFailureIds.add(factory.id);
+                    params.common.logger.debug({
+                      msg: "Failed to extract child address from log matched by factory using the provided ABI item",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      factory: factory.sourceId,
+                      block_number: hexToNumber(log.blockNumber),
+                      log_index: hexToNumber(log.logIndex),
+                      data: log.data,
+                      topics: JSON.stringify(log.topics),
+                    });
+                  }
+                  continue;
+                } else {
+                  throw error;
+                }
+              }
+              const existingBlockNumber = factoryChildAddresses.get(address);
+              const newBlockNumber = hexToNumber(log.blockNumber);
+
+              if (
+                existingBlockNumber === undefined ||
+                existingBlockNumber > newBlockNumber
+              ) {
+                childAddresses.set(address, newBlockNumber);
+                factoryChildAddresses.set(address, newBlockNumber);
+              }
+            }
+          }
+        }
+
+        if (childAddressDecodeFailureCount > 0) {
+          params.common.logger.debug({
+            msg: "Logs matched by factory contained child addresses that could not be extracted",
+            failure_count: childAddressDecodeFailureCount,
+            success_count: childAddressDecodeSuccessCount,
+          });
+        }
+
+        childAddressesByFactoryId.set(factory.id, childAddresses);
+      }
+
+      await promiseAllSettledWithThrow(
+        Array.from(childAddressesByFactoryId.entries()).map(
+          ([factoryId, childAddresses]) =>
+            syncStore.insertChildAddresses(
+              {
+                factory: factoryIntervalsById.get(factoryId)!.factory,
+                childAddresses,
+                chainId: params.chain.id,
+              },
+              context,
+            ),
+        ),
+      );
 
       const queryFilterKeys = {
         eth_queryTransactions: ["from", "to"],
@@ -148,8 +283,14 @@ export const createQueryHistoricalSync = (
           }
           case "transaction": {
             const transactionRequestFilter = {
-              from: queryAddress(filter.fromAddress, params.childAddresses),
-              to: queryAddress(filter.toAddress, params.childAddresses),
+              from: getQueryRequestAddress(
+                filter.fromAddress,
+                params.childAddresses,
+              ),
+              to: getQueryRequestAddress(
+                filter.toAddress,
+                params.childAddresses,
+              ),
             };
 
             let isMerged = false;
@@ -205,15 +346,35 @@ export const createQueryHistoricalSync = (
             break;
           }
           case "log": {
-            if (isAddressFactory(filter.address)) {
-              // Factory addresses are resolved before normal requests are
-              // built. Keep this branch separate until that phase is added.
-              break;
+            const topics = [
+              filter.topic0,
+              filter.topic1,
+              filter.topic2,
+              filter.topic3,
+            ];
+
+            // Note: the `topics` field is very fragile for many rpc providers, and
+            // cannot handle extra "null" topics
+
+            if (topics[3] === null) {
+              topics.pop();
+              if (topics[2] === null) {
+                topics.pop();
+                if (topics[1] === null) {
+                  topics.pop();
+                  if (topics[0] === null) {
+                    topics.pop();
+                  }
+                }
+              }
             }
 
             const logRequestFilter = {
-              address: filter.address,
-              topics: topics(filter),
+              address: getQueryRequestAddress(
+                filter.address,
+                params.childAddresses,
+              ),
+              topics,
             };
 
             let isMerged = false;
@@ -279,8 +440,14 @@ export const createQueryHistoricalSync = (
           }
           case "trace": {
             const traceRequestFilter = {
-              from: queryAddress(filter.fromAddress, params.childAddresses),
-              to: queryAddress(filter.toAddress, params.childAddresses),
+              from: getQueryRequestAddress(
+                filter.fromAddress,
+                params.childAddresses,
+              ),
+              to: getQueryRequestAddress(
+                filter.toAddress,
+                params.childAddresses,
+              ),
               selector: filter.functionSelector,
             };
 
@@ -325,8 +492,14 @@ export const createQueryHistoricalSync = (
           }
           case "transfer": {
             const transferRequestFilter = {
-              from: queryAddress(filter.fromAddress, params.childAddresses),
-              to: queryAddress(filter.toAddress, params.childAddresses),
+              from: getQueryRequestAddress(
+                filter.fromAddress,
+                params.childAddresses,
+              ),
+              to: getQueryRequestAddress(
+                filter.toAddress,
+                params.childAddresses,
+              ),
             };
 
             let isMerged = false;
@@ -371,6 +544,8 @@ export const createQueryHistoricalSync = (
           }
         }
       }
+
+      // TODO(kyle) chunk large address arrays into multiple requests
 
       const [
         blockResponses,
@@ -978,28 +1153,6 @@ export const createQueryHistoricalSync = (
   };
 };
 
-const address = (value: Address | Address[] | Factory | undefined) => {
-  if (isAddressFactory(value)) return value.address;
-  return value;
-};
-
-const queryAddress = (
-  value: Address | Address[] | Factory | undefined,
-  childAddresses: Map<string, Map<Address, number>>,
-) =>
-  // TODO(kyle) childAddress with size over limit should use "null"
-  isAddressFactory(value)
-    ? Array.from(childAddresses.get(value.id)?.keys() ?? [])
-    : address(value);
-
-const topics = (filter: LogFilter | Factory) => {
-  if ("eventSelector" in filter) return [filter.eventSelector];
-
-  const result = [filter.topic0, filter.topic1, filter.topic2, filter.topic3];
-  while (result.at(-1) === null || result.at(-1) === undefined) result.pop();
-  return result;
-};
-
 const queryBlockToSyncBlockHeader = (
   block: RpcBlockResponse,
 ): SyncBlockHeader => ({
@@ -1049,7 +1202,6 @@ const queryTraceToSyncTrace = (
   // @ts-expect-error
   trace.traceAddress = undefined;
 
-  // TODO(kyle) use traceAddress to determine a unique traceIndex
   syncTrace.index = index;
   syncTrace.subcalls = 0;
 
@@ -1124,7 +1276,6 @@ async function* paginateQueryRequest<
     yield response;
 
     if (isLastPage(response)) break;
-    pinRequestRange(params, response);
     updateRequestPagination(params, response);
   }
 }

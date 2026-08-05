@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { Common } from "@/internal/common.js";
-import type { Filter } from "@/internal/types.js";
+import type { Factory, Filter } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { createQueryHistoricalSync } from "./query.js";
@@ -22,11 +22,77 @@ const block = {
 };
 
 const createSyncStore = () => ({
+  insertChildAddresses: vi.fn(async () => {}),
   insertBlocks: vi.fn(async () => {}),
   insertTransactions: vi.fn(async () => {}),
   insertTransactionReceipts: vi.fn(async () => {}),
   insertLogs: vi.fn(async () => {}),
   insertTraces: vi.fn(async () => {}),
+});
+
+test("persists child addresses discovered from factories", async () => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: 1,
+  } as const satisfies Factory;
+  const syncStore = createSyncStore();
+  const rpc = {
+    request: vi.fn(async () => ({
+      fromBlock: block,
+      toBlock: block,
+      cursorBlock: block,
+      data: {
+        blocks: [],
+        transactions: [],
+        logs: [
+          {
+            address: FACTORY,
+            blockHash: HASH,
+            blockNumber: "0x1",
+            data: "0x",
+            logIndex: "0x0",
+            topics: [
+              TRANSFER,
+              "0x0000000000000000000000002222222222222222222222222222222222222222",
+            ],
+            transactionHash: HASH,
+            transactionIndex: "0x0",
+          },
+        ],
+        traces: [],
+        transfers: [],
+      },
+    })),
+  } as unknown as Rpc;
+  const historicalSync = createQueryHistoricalSync({
+    common: { logger: { child: () => ({}) } } as unknown as Common,
+    chain: { id: 1 } as never,
+    rpc,
+    childAddresses: new Map([[factory.id, new Map()]]),
+  });
+
+  await historicalSync.syncIntervalBlockData({
+    interval: [1, 1],
+    requiredIntervals: [],
+    requiredFactoryIntervals: [{ factory, interval: [1, 1] }],
+    syncStore: syncStore as unknown as SyncStore,
+  });
+
+  expect(syncStore.insertChildAddresses).toHaveBeenCalledWith(
+    {
+      factory,
+      childAddresses: new Map([[CHILD, 1]]),
+      chainId: 1,
+    },
+    expect.any(Object),
+  );
 });
 
 const queryRequests = async (filters: Filter[]) => {
