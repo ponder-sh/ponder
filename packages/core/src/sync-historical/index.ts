@@ -326,7 +326,7 @@ export const createHistoricalSync = (
     );
 
     const childAddresses = new Map<Address, number>();
-    const childAddressesRecord = args.childAddresses.get(factory.id)!;
+    const factoryChildAddresses = args.childAddresses.get(factory.id)!;
 
     const childAddressDecodeFailureIds = new Set<string>();
     let childAddressDecodeFailureCount = 0;
@@ -359,7 +359,7 @@ export const createHistoricalSync = (
             throw error;
           }
         }
-        const existingBlockNumber = childAddressesRecord.get(address);
+        const existingBlockNumber = factoryChildAddresses.get(address);
         const newBlockNumber = hexToNumber(log.blockNumber);
 
         if (
@@ -367,7 +367,7 @@ export const createHistoricalSync = (
           existingBlockNumber > newBlockNumber
         ) {
           childAddresses.set(address, newBlockNumber);
-          childAddressesRecord.set(address, newBlockNumber);
+          factoryChildAddresses.set(address, newBlockNumber);
         }
       }
     }
