@@ -3,6 +3,7 @@ import type { Common } from "@/internal/common.js";
 import type { Factory, Filter } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { drainAsyncGenerator } from "@/utils/generators.js";
 import { createQueryHistoricalSync } from "./query.js";
 
 const FACTORY: `0x${string}` = "0x1111111111111111111111111111111111111111";
@@ -78,12 +79,13 @@ test("persists child addresses discovered from factories", async () => {
     childAddresses: new Map([[factory.id, new Map()]]),
   });
 
-  await historicalSync.syncIntervalBlockData({
-    interval: [1, 1],
-    requiredIntervals: [],
-    requiredFactoryIntervals: [{ factory, interval: [1, 1] }],
-    syncStore: syncStore as unknown as SyncStore,
-  });
+  await drainAsyncGenerator(
+    historicalSync.syncQueryBlockData({
+      requiredIntervals: [],
+      requiredFactoryIntervals: [{ factory, interval: [1, 1] }],
+      syncStore: syncStore as unknown as SyncStore,
+    }),
+  );
 
   expect(syncStore.insertChildAddresses).toHaveBeenCalledWith(
     {
@@ -122,12 +124,16 @@ const queryRequests = async (filters: Filter[]) => {
     childAddresses: new Map(),
   });
 
-  await historicalSync.syncIntervalBlockData({
-    interval: [1, 1],
-    requiredIntervals: filters.map((filter) => ({ filter, interval: [1, 1] })),
-    requiredFactoryIntervals: [],
-    syncStore: createSyncStore() as unknown as SyncStore,
-  });
+  await drainAsyncGenerator(
+    historicalSync.syncQueryBlockData({
+      requiredIntervals: filters.map((filter) => ({
+        filter,
+        interval: [1, 1],
+      })),
+      requiredFactoryIntervals: [],
+      syncStore: createSyncStore() as unknown as SyncStore,
+    }),
+  );
 
   return requests;
 };
@@ -455,15 +461,17 @@ test("filters and persists raw query responses", async () => {
     },
   ] as unknown as Filter[];
 
-  const tip = await historicalSync.syncIntervalBlockData({
-    interval: [1, 1],
-    requiredIntervals: filters.map((filter) => ({
-      filter,
-      interval: [1, 1],
-    })),
-    requiredFactoryIntervals: [],
-    syncStore: syncStore as unknown as SyncStore,
-  });
+  const results = await drainAsyncGenerator(
+    historicalSync.syncQueryBlockData({
+      requiredIntervals: filters.map((filter) => ({
+        filter,
+        interval: [1, 1],
+      })),
+      requiredFactoryIntervals: [],
+      syncStore: syncStore as unknown as SyncStore,
+    }),
+  );
+  const tip = results.findLast(({ block }) => block !== undefined)?.block;
 
   expect(tip?.number).toBe("0x1");
   expect(syncStore.insertBlocks).toHaveBeenCalledTimes(5);
