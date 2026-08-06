@@ -45,3 +45,9 @@ export type PartialExcept<T, K extends keyof T> = {
  */
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> &
   Partial<Pick<T, K>>;
+
+/**
+ * @description Marks a property of an object as required.
+ */
+export type MakeRequired<T, K extends keyof T> = Omit<T, K> &
+  Required<Pick<T, K>>;
