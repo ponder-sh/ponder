@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.5
+
+### Patch Changes
+
+- [#2360](https://github.com/ponder-sh/ponder/pull/2360) [`ae44b25`](https://github.com/ponder-sh/ponder/commit/ae44b258f9d9b901f5a0498f5f589e33ed9cf1b9) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused historical sync to request transaction receipts for logs with a zero transaction hash when `includeTransactionReceipts` was enabled.
+
 ## 0.17.4
 
 ### Patch Changes

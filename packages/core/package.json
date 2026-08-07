@@ -1,6 +1,6 @@
 {
   "name": "ponder",
-  "version": "0.17.4",
+  "version": "0.17.5",
   "description": "An open-source TypeScript framework for EVM data indexing",
   "license": "MIT",
   "type": "module",
