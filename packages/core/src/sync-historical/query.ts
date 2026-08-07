@@ -48,10 +48,14 @@ import type {
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { MakeRequired } from "@/types/utils.js";
-import { mergeAsyncGenerators } from "@/utils/generators.js";
+import {
+  bufferAsyncGenerator,
+  mergeAsyncGenerators,
+} from "@/utils/generators.js";
 import { type Interval, intervalBounds } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
+import { startClock } from "@/utils/timer.js";
 
 export type QueryHistoricalSync = {
   /** Sync block data and yield each completed query page. */
@@ -145,11 +149,9 @@ export const createQueryHistoricalSync = (
           fields: { logs: true },
         } as RpcQueryLogsRequest;
 
-        for await (const response of paginateQueryRequest(
-          params.rpc,
-          "eth_queryLogs",
-          request,
-          context,
+        for await (const { response, endClock } of bufferAsyncGenerator(
+          paginateQueryRequest(params.rpc, "eth_queryLogs", request, context),
+          1,
         )) {
           const childAddresses = new Map<Address, number>();
 
@@ -197,10 +199,25 @@ export const createQueryHistoricalSync = (
             );
           }
 
+          const interval = getQueryPageInterval(response);
+          params.common.logger.debug(
+            {
+              msg: "Fetched block range data",
+              chain: params.chain.name,
+              chain_id: params.chain.id,
+              data_type: "factory_log",
+              block_range: JSON.stringify(interval),
+              log_count: response.data.logs.length,
+              child_address_count: childAddresses.size,
+              duration: endClock(),
+            },
+            ["chain", "data_type", "block_range"],
+          );
+
           yield {
             filters: [],
             factories: [factory],
-            interval: [getQueryPageInterval(response)],
+            interval: [interval],
             block: undefined,
           };
         }
@@ -242,11 +259,14 @@ export const createQueryHistoricalSync = (
           (async function* () {
             switch (requestWithFilters.method) {
               case "eth_queryBlocks": {
-                for await (const response of paginateQueryRequest(
-                  params.rpc,
-                  "eth_queryBlocks",
-                  requestWithFilters.params[0] as RpcQueryBlocksRequest,
-                  context,
+                for await (const { response, endClock } of bufferAsyncGenerator(
+                  paginateQueryRequest(
+                    params.rpc,
+                    "eth_queryBlocks",
+                    requestWithFilters.params[0] as RpcQueryBlocksRequest,
+                    context,
+                  ),
+                  1,
                 )) {
                   const blocks: SyncBlockHeader[] = [];
 
@@ -276,21 +296,38 @@ export const createQueryHistoricalSync = (
                     context,
                   );
 
+                  const interval = getQueryPageInterval(response);
+                  params.common.logger.debug(
+                    {
+                      msg: "Fetched block data",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      data_type: "block",
+                      block_range: JSON.stringify(interval),
+                      block_count: blocksToInsert.length,
+                      duration: endClock(),
+                    },
+                    ["chain", "data_type", "block_range"],
+                  );
+
                   yield {
                     filters: requestWithFilters.filters,
                     factories: [],
-                    interval: [getQueryPageInterval(response)],
+                    interval: [interval],
                     block: pageClosestToTipBlock,
                   };
                 }
                 break;
               }
               case "eth_queryTransactions": {
-                for await (const response of paginateQueryRequest(
-                  params.rpc,
-                  "eth_queryTransactions",
-                  requestWithFilters.params[0] as RpcQueryTransactionsRequest,
-                  context,
+                for await (const { response, endClock } of bufferAsyncGenerator(
+                  paginateQueryRequest(
+                    params.rpc,
+                    "eth_queryTransactions",
+                    requestWithFilters.params[0] as RpcQueryTransactionsRequest,
+                    context,
+                  ),
+                  1,
                 )) {
                   const transactions: SyncTransaction[] = [];
                   const transactionReceipts: SyncTransactionReceipt[] = [];
@@ -375,21 +412,40 @@ export const createQueryHistoricalSync = (
                     ),
                   ]);
 
+                  const interval = getQueryPageInterval(response);
+                  params.common.logger.debug(
+                    {
+                      msg: "Fetched block data",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      data_type: "transaction",
+                      block_range: JSON.stringify(interval),
+                      block_count: blocksToInsert.length,
+                      transaction_count: transactionsToInsert.length,
+                      receipt_count: transactionReceiptsToInsert.length,
+                      duration: endClock(),
+                    },
+                    ["chain", "data_type", "block_range"],
+                  );
+
                   yield {
                     filters: requestWithFilters.filters,
                     factories: [],
-                    interval: [getQueryPageInterval(response)],
+                    interval: [interval],
                     block: pageClosestToTipBlock,
                   };
                 }
                 break;
               }
               case "eth_queryLogs": {
-                for await (const response of paginateQueryRequest(
-                  params.rpc,
-                  "eth_queryLogs",
-                  requestWithFilters.params[0] as RpcQueryLogsRequest,
-                  context,
+                for await (const { response, endClock } of bufferAsyncGenerator(
+                  paginateQueryRequest(
+                    params.rpc,
+                    "eth_queryLogs",
+                    requestWithFilters.params[0] as RpcQueryLogsRequest,
+                    context,
+                  ),
+                  1,
                 )) {
                   const logs: SyncLog[] = [];
                   const blocks = response.data.blocks!.map(
@@ -401,9 +457,11 @@ export const createQueryHistoricalSync = (
                   const transactionReceipts = response.data.transactions!.map(
                     queryTransactionToSyncTransactionReceipt,
                   );
+                  const matchedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
 
                   for (const queryLog of response.data.logs) {
                     const log = queryLogToSyncLog(queryLog);
+                    let isMatched = false;
                     for (const filter of requestWithFilters.filters) {
                       const blockNumber = Number(log.blockNumber);
                       if (
@@ -415,9 +473,18 @@ export const createQueryHistoricalSync = (
                           blockNumber,
                         )
                       ) {
-                        logs.push(log);
-                        break;
+                        isMatched = true;
+                        if (filter.hasTransactionReceipt) {
+                          matchedTransactionReceipts.add(
+                            `${log.blockNumber}_${log.transactionIndex}`,
+                          );
+                          break;
+                        }
                       }
+                    }
+
+                    if (isMatched) {
+                      logs.push(log);
                     }
                   }
 
@@ -439,7 +506,11 @@ export const createQueryHistoricalSync = (
                     transactionReceipts.filter((transactionReceipt) => {
                       const key =
                         `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
-                      if (insertedTransactionReceipts.has(key)) return false;
+                      if (
+                        insertedTransactionReceipts.has(key) ||
+                        matchedTransactionReceipts.has(key) === false
+                      )
+                        return false;
                       insertedTransactionReceipts.add(key);
                       return true;
                     });
@@ -477,21 +548,41 @@ export const createQueryHistoricalSync = (
                     ),
                   ]);
 
+                  const interval = getQueryPageInterval(response);
+                  params.common.logger.debug(
+                    {
+                      msg: "Fetched block data",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      data_type: "log",
+                      block_range: JSON.stringify(interval),
+                      block_count: blocksToInsert.length,
+                      transaction_count: transactionsToInsert.length,
+                      receipt_count: transactionReceiptsToInsert.length,
+                      log_count: logsToInsert.length,
+                      duration: endClock(),
+                    },
+                    ["chain", "data_type", "block_range"],
+                  );
+
                   yield {
                     filters: requestWithFilters.filters,
                     factories: [],
-                    interval: [getQueryPageInterval(response)],
+                    interval: [interval],
                     block: pageClosestToTipBlock,
                   };
                 }
                 break;
               }
               case "eth_queryTraces": {
-                for await (const response of paginateQueryRequest(
-                  params.rpc,
-                  "eth_queryTraces",
-                  requestWithFilters.params[0] as RpcQueryTracesRequest,
-                  context,
+                for await (const { response, endClock } of bufferAsyncGenerator(
+                  paginateQueryRequest(
+                    params.rpc,
+                    "eth_queryTraces",
+                    requestWithFilters.params[0] as RpcQueryTracesRequest,
+                    context,
+                  ),
+                  1,
                 )) {
                   const traces: SyncTrace[] = [];
                   const blocks = response.data.blocks!.map(
@@ -505,6 +596,7 @@ export const createQueryHistoricalSync = (
                   );
                   const transactionsByHash = new Map<Hex, SyncTransaction>();
                   const blocksByNumber = new Map<Hex, SyncBlockHeader>();
+                  const matchedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
 
                   for (const block of blocks)
                     blocksByNumber.set(block.number, block);
@@ -523,6 +615,7 @@ export const createQueryHistoricalSync = (
                     )!;
                     const block = blocksByNumber.get(transaction.blockNumber)!;
 
+                    let isMatched = false;
                     for (const filter of requestWithFilters.filters) {
                       const blockNumber = Number(block.number);
                       if (
@@ -543,10 +636,16 @@ export const createQueryHistoricalSync = (
                           blockNumber,
                         )
                       ) {
-                        traces.push(trace);
-                        break;
+                        isMatched = true;
+                        if (filter.hasTransactionReceipt) {
+                          matchedTransactionReceipts.add(
+                            `${transaction.blockNumber}_${transaction.transactionIndex}`,
+                          );
+                          break;
+                        }
                       }
                     }
+                    if (isMatched) traces.push(trace);
                   }
 
                   const blocksToInsert = blocks.filter((block) => {
@@ -567,7 +666,11 @@ export const createQueryHistoricalSync = (
                     transactionReceipts.filter((transactionReceipt) => {
                       const key =
                         `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
-                      if (insertedTransactionReceipts.has(key)) return false;
+                      if (
+                        insertedTransactionReceipts.has(key) ||
+                        matchedTransactionReceipts.has(key) === false
+                      )
+                        return false;
                       insertedTransactionReceipts.add(key);
                       return true;
                     });
@@ -616,21 +719,41 @@ export const createQueryHistoricalSync = (
                     ),
                   ]);
 
+                  const interval = getQueryPageInterval(response);
+                  params.common.logger.debug(
+                    {
+                      msg: "Fetched block data",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      data_type: "trace",
+                      block_range: JSON.stringify(interval),
+                      block_count: blocksToInsert.length,
+                      transaction_count: transactionsToInsert.length,
+                      receipt_count: transactionReceiptsToInsert.length,
+                      trace_count: tracesToInsert.length,
+                      duration: endClock(),
+                    },
+                    ["chain", "data_type", "block_range"],
+                  );
+
                   yield {
                     filters: requestWithFilters.filters,
                     factories: [],
-                    interval: [getQueryPageInterval(response)],
+                    interval: [interval],
                     block: pageClosestToTipBlock,
                   };
                 }
                 break;
               }
               case "eth_queryTransfers": {
-                for await (const response of paginateQueryRequest(
-                  params.rpc,
-                  "eth_queryTransfers",
-                  requestWithFilters.params[0] as RpcQueryTransfersRequest,
-                  context,
+                for await (const { response, endClock } of bufferAsyncGenerator(
+                  paginateQueryRequest(
+                    params.rpc,
+                    "eth_queryTransfers",
+                    requestWithFilters.params[0] as RpcQueryTransfersRequest,
+                    context,
+                  ),
+                  1,
                 )) {
                   const traces: SyncTrace[] = [];
                   const blocks = response.data.blocks!.map(
@@ -644,6 +767,7 @@ export const createQueryHistoricalSync = (
                   );
                   const transactionsByHash = new Map<Hex, SyncTransaction>();
                   const blocksByNumber = new Map<Hex, SyncBlockHeader>();
+                  const matchedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
 
                   for (const block of blocks)
                     blocksByNumber.set(block.number, block);
@@ -666,6 +790,7 @@ export const createQueryHistoricalSync = (
                     )!;
                     const block = blocksByNumber.get(transaction.blockNumber)!;
 
+                    let isMatched = false;
                     for (const filter of requestWithFilters.filters) {
                       const blockNumber = Number(block.number);
                       if (
@@ -686,10 +811,16 @@ export const createQueryHistoricalSync = (
                           blockNumber,
                         )
                       ) {
-                        traces.push(trace);
-                        break;
+                        isMatched = true;
+                        if (filter.hasTransactionReceipt) {
+                          matchedTransactionReceipts.add(
+                            `${transaction.blockNumber}_${transaction.transactionIndex}`,
+                          );
+                          break;
+                        }
                       }
                     }
+                    if (isMatched) traces.push(trace);
                   }
 
                   const blocksToInsert = blocks.filter((block) => {
@@ -710,7 +841,11 @@ export const createQueryHistoricalSync = (
                     transactionReceipts.filter((transactionReceipt) => {
                       const key =
                         `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
-                      if (insertedTransactionReceipts.has(key)) return false;
+                      if (
+                        insertedTransactionReceipts.has(key) ||
+                        matchedTransactionReceipts.has(key) === false
+                      )
+                        return false;
                       insertedTransactionReceipts.add(key);
                       return true;
                     });
@@ -759,10 +894,27 @@ export const createQueryHistoricalSync = (
                     ),
                   ]);
 
+                  const interval = getQueryPageInterval(response);
+                  params.common.logger.debug(
+                    {
+                      msg: "Fetched block data",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      data_type: "transfer",
+                      block_range: JSON.stringify(interval),
+                      block_count: blocksToInsert.length,
+                      transaction_count: transactionsToInsert.length,
+                      receipt_count: transactionReceiptsToInsert.length,
+                      transfer_count: tracesToInsert.length,
+                      duration: endClock(),
+                    },
+                    ["chain", "data_type", "block_range"],
+                  );
+
                   yield {
                     filters: requestWithFilters.filters,
                     factories: [],
-                    interval: [getQueryPageInterval(response)],
+                    interval: [interval],
                     block: pageClosestToTipBlock,
                   };
                 }
@@ -1254,9 +1406,14 @@ async function* paginateQueryRequest<
   method: method,
   params: params,
   context?: Parameters<Rpc["request"]>[1],
-): AsyncGenerator<RequestReturnType<method>> {
+): AsyncGenerator<{
+  response: RequestReturnType<method>;
+  endClock: ReturnType<typeof startClock>;
+}> {
   while (true) {
+    const endClock = startClock();
     let response: RequestReturnType<method> = undefined!;
+
     switch (method) {
       case "eth_queryBlocks":
         response = (await eth_queryBlocks(
@@ -1297,7 +1454,7 @@ async function* paginateQueryRequest<
         never(method);
     }
 
-    yield response;
+    yield { response, endClock };
 
     if (isLastPage(response)) break;
     updateRequestPagination(params, response);
