@@ -77,6 +77,34 @@ const flattenSources = <
   );
 };
 
+const validateAddresses = ({
+  sourceName,
+  addresses,
+}: {
+  sourceName: string;
+  addresses: Address | readonly Address[];
+}) => {
+  if (Array.isArray(addresses) && addresses.length === 0) {
+    throw new Error(
+      `Validation failed: Invalid address for '${sourceName}'. Got an empty array, expected at least one address.`,
+    );
+  }
+
+  for (const address of Array.isArray(addresses) ? addresses : [addresses]) {
+    if (!address.startsWith("0x"))
+      throw new Error(
+        `Validation failed: Invalid prefix for address '${address}'. Got '${address.slice(
+          0,
+          2,
+        )}', expected '0x'.`,
+      );
+    if (address.length !== 42)
+      throw new Error(
+        `Validation failed: Invalid length for address '${address}'. Got ${address.length}, expected 42 characters.`,
+      );
+  }
+};
+
 export async function buildIndexingFunctions({
   common,
   config,
@@ -407,6 +435,12 @@ export async function buildIndexingFunctions({
       Array.isArray(resolvedAddress) === false
     ) {
       const factoryAddress = resolvedAddress as Factory;
+      if (factoryAddress.address !== undefined) {
+        validateAddresses({
+          sourceName: source.name,
+          addresses: factoryAddress.address,
+        });
+      }
       const factoryFromBlock =
         (await resolveBlockNumber(factoryAddress.startBlock, chain)) ??
         fromBlock;
@@ -433,21 +467,10 @@ export async function buildIndexingFunctions({
       address = logFactory;
     } else {
       if (resolvedAddress !== undefined) {
-        for (const address of Array.isArray(resolvedAddress)
-          ? resolvedAddress
-          : [resolvedAddress as Address]) {
-          if (!address!.startsWith("0x"))
-            throw new Error(
-              `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
-                0,
-                2,
-              )}', expected '0x'.`,
-            );
-          if (address!.length !== 42)
-            throw new Error(
-              `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
-            );
-        }
+        validateAddresses({
+          sourceName: source.name,
+          addresses: resolvedAddress as Address | readonly Address[],
+        });
       }
 
       const validatedAddress = Array.isArray(resolvedAddress)
@@ -708,6 +731,12 @@ export async function buildIndexingFunctions({
       typeof resolvedAddress === "object" &&
       !Array.isArray(resolvedAddress)
     ) {
+      if (resolvedAddress.address !== undefined) {
+        validateAddresses({
+          sourceName: source.name,
+          addresses: resolvedAddress.address,
+        });
+      }
       const factoryFromBlock =
         (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
         fromBlock;
@@ -726,21 +755,10 @@ export async function buildIndexingFunctions({
 
       address = logFactory;
     } else {
-      for (const address of Array.isArray(resolvedAddress)
-        ? resolvedAddress
-        : [resolvedAddress]) {
-        if (!address!.startsWith("0x"))
-          throw new Error(
-            `Validation failed: Invalid prefix for address '${address}'. Got '${address!.slice(
-              0,
-              2,
-            )}', expected '0x'.`,
-          );
-        if (address!.length !== 42)
-          throw new Error(
-            `Validation failed: Invalid length for address '${address}'. Got ${address!.length}, expected 42 characters.`,
-          );
-      }
+      validateAddresses({
+        sourceName: source.name,
+        addresses: resolvedAddress as Address | readonly Address[],
+      });
 
       const validatedAddress = Array.isArray(resolvedAddress)
         ? dedupe(resolvedAddress).map((r) => toLowerCase(r))

@@ -37,7 +37,7 @@ import {
   validateTracesAndBlock,
   validateTransactionsAndBlock,
 } from "@/rpc/actions.js";
-import type { Rpc } from "@/rpc/index.js";
+import { type Rpc, sanitizeLogTopics } from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -145,120 +145,72 @@ export const createHistoricalSync = (
         logsRequestMetadata.estimatedRange,
     });
 
-    const topics = [
+    const topics = sanitizeLogTopics([
       topic0 ?? null,
       topic1 ?? null,
       topic2 ?? null,
       topic3 ?? null,
-    ];
-
-    // Note: the `topics` field is very fragile for many rpc providers, and
-    // cannot handle extra "null" topics
-
-    if (topics[3] === null) {
-      topics.pop();
-      if (topics[2] === null) {
-        topics.pop();
-        if (topics[1] === null) {
-          topics.pop();
-          if (topics[0] === null) {
-            topics.pop();
-          }
-        }
-      }
-    }
-
-    // Batch large arrays of addresses, handling arrays that are empty
-
-    let addressBatches: (Address | Address[] | undefined)[];
-
-    if (address === undefined) {
-      // no address (match all)
-      addressBatches = [undefined];
-    } else if (typeof address === "string") {
-      // single address
-      addressBatches = [address];
-    } else if (address.length === 0) {
-      // no address (factory with no children)
-      return [];
-    } else {
-      // many addresses
-      // Note: it is assumed that `address` is deduplicated
-      addressBatches = [];
-      for (let i = 0; i < address.length; i += 50) {
-        addressBatches.push(address.slice(i, i + 50));
-      }
-    }
+    ])!;
 
     const logs = await Promise.all(
-      intervals.flatMap((interval) =>
-        addressBatches.map((address) =>
-          eth_getLogs(
-            args.rpc,
-            [
+      intervals.map((interval) =>
+        eth_getLogs(
+          args.rpc,
+          [
+            {
+              address,
+              topics,
+              fromBlock: numberToHex(interval[0]),
+              toBlock: numberToHex(interval[1]),
+            },
+          ],
+          context,
+        ).catch((error) => {
+          // Note: skip eth_getLogs range retry logic if the chain
+          // has a custom block range.
+          if (args.chain.ethGetLogsBlockRange !== undefined) {
+            throw error;
+          }
+
+          const getLogsErrorResponse = getLogsRetryHelper({
+            params: [
               {
                 address,
                 topics,
-                fromBlock: numberToHex(interval[0]),
-                toBlock: numberToHex(interval[1]),
+                fromBlock: toHex(interval[0]),
+                toBlock: toHex(interval[1]),
               },
             ],
+            error: error as RpcError,
+          });
+
+          if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+          const range =
+            hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+            hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
+
+          args.common.logger.debug({
+            msg: "Updated eth_getLogs range",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            range,
+          });
+
+          logsRequestMetadata = {
+            estimatedRange: range,
+            confirmedRange: getLogsErrorResponse.isSuggestedRange
+              ? range
+              : undefined,
+          };
+
+          return syncLogsDynamic(
+            { address, topic0, topic1, topic2, topic3, interval },
             context,
-          ).catch((error) => {
-            // Note: skip eth_getLogs range retry logic if the chain
-            // has a custom block range.
-            if (args.chain.ethGetLogsBlockRange !== undefined) {
-              throw error;
-            }
-
-            const getLogsErrorResponse = getLogsRetryHelper({
-              params: [
-                {
-                  address,
-                  topics,
-                  fromBlock: toHex(interval[0]),
-                  toBlock: toHex(interval[1]),
-                },
-              ],
-              error: error as RpcError,
-            });
-
-            if (getLogsErrorResponse.shouldRetry === false) throw error;
-
-            const range =
-              hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
-              hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
-
-            args.common.logger.debug({
-              msg: "Updated eth_getLogs range",
-              chain: args.chain.name,
-              chain_id: args.chain.id,
-              range,
-            });
-
-            logsRequestMetadata = {
-              estimatedRange: range,
-              confirmedRange: getLogsErrorResponse.isSuggestedRange
-                ? range
-                : undefined,
-            };
-
-            return syncLogsDynamic(
-              { address, topic0, topic1, topic2, topic3, interval },
-              context,
-            );
-          }),
-        ),
+          );
+        }),
       ),
-    ).then((logs) => {
-      const result: SyncLog[] = [];
-      for (const _logs of logs) {
-        for (const log of _logs) {
-          result.push(log);
-        }
-      }
-      return result;
-    });
+    ).then((logs) => logs.flat());
 
     /**
      * Dynamically increase the range used in "eth_getLogs" if an
@@ -490,6 +442,11 @@ export const createHistoricalSync = (
         if (hasAddress === false || hasTopic1 || hasTopic2 || hasTopic3) {
           if (isAddressFactory(filter.address)) {
             const childAddresses = args.childAddresses.get(filter.address.id)!;
+
+            if (childAddresses.size === 0) {
+              continue;
+            }
+
             singleEthGetLogsParams.push({
               address:
                 childAddresses.size >=
@@ -528,6 +485,11 @@ export const createHistoricalSync = (
         if (mergedEthGetLogsParams.has(addressKey) === false) {
           if (isAddressFactory(filter.address)) {
             const childAddresses = args.childAddresses.get(filter.address.id)!;
+
+            if (childAddresses.size === 0) {
+              continue;
+            }
+
             mergedEthGetLogsParams.set(addressKey, {
               address:
                 childAddresses.size >=

@@ -14,6 +14,7 @@ import {
   hexToNumber,
   isHex,
   JsonRpcVersionUnsupportedError,
+  type LogTopic,
   MethodNotFoundRpcError,
   MethodNotSupportedRpcError,
   ParseRpcError,
@@ -56,6 +57,17 @@ export type RequestParameters = EIP1193Parameters<RpcSchema>;
 export type RequestReturnType<
   method extends EIP1193Parameters<RpcSchema>["method"],
 > = Extract<RpcSchema[number], { Method: method }>["ReturnType"];
+
+export const sanitizeLogTopics = <
+  topics extends readonly LogTopic[] | LogTopic[],
+>(
+  topics: topics,
+) => {
+  const sanitizedTopics = [...topics];
+  while (sanitizedTopics.at(-1) === null) sanitizedTopics.pop();
+
+  return sanitizedTopics as topics;
+};
 
 export type Rpc = {
   hostnames: string[];
