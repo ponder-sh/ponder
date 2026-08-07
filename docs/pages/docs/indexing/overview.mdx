@@ -46,6 +46,10 @@ The indexing engine handles reorgs automatically. You do not need to adjust your
   4. Run indexing functions to process the new canonical data.
 - The indexing engine periodically drops finalized data from the transaction log to avoid database bloat.
 
+:::info
+  Upserts using `onConflictDoUpdate` are fully reorg-safe. Even though an upsert overwrites the previous row value, Ponder's transaction log records the row state before each operation. During a reorg, Ponder uses these records to restore the correct state at the common ancestor block.
+:::
+
 ### Crash recovery
 
 If the process crashes and starts back up again using the same exact configuration, the indexing engine attempts a crash recovery. This process is similar to reorg reconciliation, except all unfinalized changes (the entire transaction log) are rolled back. Then, indexing resumes from the finalized block.
@@ -55,4 +59,10 @@ If the process crashes and starts back up again using the same exact configurati
 Internally, the indexing engine has two distinct modes – **backfill** and **live** indexing – which use different approaches for fetching data from the RPC.
 
 However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
+
+### Speculation
+
+Ponder profiles your indexing functions and speculatively prefetches database queries and RPC requests before they're needed. This significantly improves performance by reducing blocking I/O.
+
+As a side effect, you may see RPC calls in the console output for arguments that your indexing function would not use (e.g. a zero address). This is expected behavior — Ponder predicts which RPC calls will be needed based on event properties and kicks them off ahead of time. Failed speculative requests are safely ignored.
 
