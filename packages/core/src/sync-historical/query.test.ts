@@ -72,9 +72,10 @@ test("persists child addresses discovered from factories", async () => {
       },
     })),
   } as unknown as Rpc;
+  const logger = { debug: vi.fn(), child: () => ({}) };
   const historicalSync = createQueryHistoricalSync({
-    common: { logger: { child: () => ({}) } } as unknown as Common,
-    chain: { id: 1 } as never,
+    common: { logger } as unknown as Common,
+    chain: { id: 1, name: "mainnet" } as never,
     rpc,
     childAddresses: new Map([[factory.id, new Map()]]),
   });
@@ -95,9 +96,25 @@ test("persists child addresses discovered from factories", async () => {
     },
     expect.any(Object),
   );
+  expect(logger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({
+      msg: "Fetched block range data",
+      chain: "mainnet",
+      chain_id: 1,
+      data_type: "factory_log",
+      block_range: "[1,1]",
+      log_count: 1,
+      child_address_count: 1,
+      duration: expect.any(Number),
+    }),
+    ["chain", "data_type", "block_range"],
+  );
 });
 
-const queryRequests = async (filters: Filter[]) => {
+const queryRequests = async (
+  filters: Filter[],
+  childAddresses: Map<string, Map<`0x${string}`, number>> = new Map(),
+) => {
   const requests: { method: string; params: unknown[] }[] = [];
   const rpc = {
     request: vi.fn(async (request: { method: string; params: unknown[] }) => {
@@ -116,12 +133,15 @@ const queryRequests = async (filters: Filter[]) => {
       };
     }),
   } as unknown as Rpc;
-  const logger = { child: () => ({}) };
+  const logger = { debug: vi.fn(), child: () => ({}) };
   const historicalSync = createQueryHistoricalSync({
-    common: { logger } as unknown as Common,
+    common: {
+      logger,
+      options: { factoryAddressCountThreshold: 1000 },
+    } as unknown as Common,
     chain: { id: 1 } as never,
     rpc,
-    childAddresses: new Map(),
+    childAddresses,
   });
 
   await drainAsyncGenerator(
@@ -137,6 +157,162 @@ const queryRequests = async (filters: Filter[]) => {
 
   return requests;
 };
+
+test("query requests batch address filters for all address-bearing methods", async () => {
+  const addresses = Array.from(
+    { length: 51 },
+    (_, index) => `0x${index.toString(16).padStart(40, "0")}` as const,
+  );
+  const requests = await queryRequests([
+    {
+      type: "transaction",
+      fromAddress: addresses,
+      toAddress: CHILD,
+    } as Filter,
+    {
+      type: "log",
+      address: addresses,
+      topic0: TRANSFER,
+      topic1: null,
+      topic2: null,
+      topic3: null,
+    } as Filter,
+    {
+      type: "trace",
+      fromAddress: CHILD,
+      toAddress: addresses,
+      functionSelector: "0x12345678",
+    } as unknown as Filter,
+    {
+      type: "transfer",
+      fromAddress: addresses,
+      toAddress: addresses,
+    } as Filter,
+  ]);
+
+  const transactionRequests = requests.filter(
+    ({ method }) => method === "eth_queryTransactions",
+  );
+  expect(transactionRequests).toHaveLength(2);
+  expect(transactionRequests.map((request) => request.params[0])).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        filter: { from: addresses.slice(0, 50), to: CHILD },
+      }),
+      expect.objectContaining({
+        filter: { from: [addresses[50]], to: CHILD },
+      }),
+    ]),
+  );
+
+  const logRequests = requests.filter(
+    ({ method }) => method === "eth_queryLogs",
+  );
+  expect(logRequests).toHaveLength(2);
+  expect(logRequests.map((request) => request.params[0])).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        filter: { address: addresses.slice(0, 50), topics: [TRANSFER] },
+      }),
+      expect.objectContaining({
+        filter: { address: [addresses[50]], topics: [TRANSFER] },
+      }),
+    ]),
+  );
+
+  const traceRequests = requests.filter(
+    ({ method }) => method === "eth_queryTraces",
+  );
+  expect(traceRequests).toHaveLength(2);
+
+  const transferRequests = requests.filter(
+    ({ method }) => method === "eth_queryTransfers",
+  );
+  expect(transferRequests).toHaveLength(4);
+  expect(
+    transferRequests.map(
+      ({ params }) => (params[0] as { filter: unknown }).filter,
+    ),
+  ).toEqual(
+    expect.arrayContaining([
+      { from: addresses.slice(0, 50), to: addresses.slice(0, 50) },
+      { from: addresses.slice(0, 50), to: [addresses[50]] },
+      { from: [addresses[50]], to: addresses.slice(0, 50) },
+      { from: [addresses[50]], to: [addresses[50]] },
+    ]),
+  );
+});
+
+test("query requests skip empty address filters", async () => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: 1,
+  } as const satisfies Factory;
+
+  const requests = await queryRequests(
+    [
+      {
+        type: "transaction",
+        fromAddress: [],
+        toAddress: CHILD,
+      } as unknown as Filter,
+      {
+        type: "log",
+        address: [],
+        topic0: TRANSFER,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as unknown as Filter,
+      {
+        type: "trace",
+        fromAddress: CHILD,
+        toAddress: [],
+        functionSelector: "0x12345678",
+      } as unknown as Filter,
+      {
+        type: "transfer",
+        fromAddress: CHILD,
+        toAddress: [],
+      } as unknown as Filter,
+      {
+        type: "log",
+        address: factory,
+        topic0: TRANSFER,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as unknown as Filter,
+    ],
+    new Map([[factory.id, new Map()]]),
+  );
+
+  expect(requests).toStrictEqual([]);
+});
+
+test("query requests remove trailing null log topics", async () => {
+  const requests = await queryRequests([
+    {
+      type: "log",
+      address: FACTORY,
+      topic0: TRANSFER,
+      topic1: null,
+      topic2: HASH,
+      topic3: null,
+    } as Filter,
+  ]);
+
+  expect(requests[0]!.params[0]).toMatchObject({
+    filter: { topics: [TRANSFER, null, HASH] },
+  });
+});
 
 test("query merging merges one different condition", async () => {
   const requests = await queryRequests([
@@ -427,9 +603,10 @@ test("filters and persists raw query responses", async () => {
     }),
   } as unknown as Rpc;
   const syncStore = createSyncStore();
+  const logger = { debug: vi.fn(), child: () => ({}) };
   const historicalSync = createQueryHistoricalSync({
-    common: { logger: { child: () => ({}) } } as unknown as Common,
-    chain: { id: 1 } as never,
+    common: { logger } as unknown as Common,
+    chain: { id: 1, name: "mainnet" } as never,
     rpc,
     childAddresses: new Map(),
   });
@@ -557,4 +734,114 @@ test("filters and persists raw query responses", async () => {
     },
     expect.any(Object),
   );
+  expect(logger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({
+      msg: "Fetched block data",
+      chain: "mainnet",
+      chain_id: 1,
+      data_type: "transaction",
+      block_range: "[1,1]",
+      block_count: expect.any(Number),
+      transaction_count: expect.any(Number),
+      receipt_count: expect.any(Number),
+      duration: expect.any(Number),
+    }),
+    ["chain", "data_type", "block_range"],
+  );
+  expect(logger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({ data_type: "log", log_count: 1 }),
+    ["chain", "data_type", "block_range"],
+  );
+  expect(logger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({ data_type: "trace", trace_count: 1 }),
+    ["chain", "data_type", "block_range"],
+  );
+  expect(logger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data_type: "transfer",
+      transfer_count: 1,
+    }),
+    ["chain", "data_type", "block_range"],
+  );
+});
+
+test("prefetches the next query page while processing the current page", async () => {
+  const firstBlock = {
+    ...block,
+    number: "0x1" as const,
+    timestamp: "0x1" as const,
+    logsBloom: LOGS_BLOOM,
+  };
+  const secondBlock = {
+    ...block,
+    number: "0x2" as const,
+    timestamp: "0x2" as const,
+    logsBloom: LOGS_BLOOM,
+  };
+  const requests: { method: string; params: unknown[] }[] = [];
+  let requestCount = 0;
+
+  const rpc = {
+    request: vi.fn(async (request: { method: string; params: unknown[] }) => {
+      requests.push(request);
+      const cursorBlock = requestCount++ === 0 ? firstBlock : secondBlock;
+      return {
+        fromBlock: firstBlock,
+        toBlock: secondBlock,
+        cursorBlock,
+        data: { blocks: [cursorBlock] },
+      };
+    }),
+  } as unknown as Rpc;
+
+  let resolveFirstPage!: () => void;
+  const firstPage = new Promise<void>((resolve) => {
+    resolveFirstPage = resolve;
+  });
+  let firstPageProcessing!: () => void;
+  const processingStarted = new Promise<void>((resolve) => {
+    firstPageProcessing = resolve;
+  });
+  const syncStore = {
+    ...createSyncStore(),
+    insertBlocks: vi.fn(
+      async ({ blocks }: { blocks: { number: string }[] }) => {
+        if (blocks.some(({ number }) => number === "0x1")) {
+          firstPageProcessing();
+          await firstPage;
+        }
+      },
+    ),
+  };
+  const logger = { debug: vi.fn(), child: () => ({}) };
+  const historicalSync = createQueryHistoricalSync({
+    common: { logger } as unknown as Common,
+    chain: { id: 1 } as never,
+    rpc,
+    childAddresses: new Map(),
+  });
+
+  const generator = historicalSync.syncQueryBlockData({
+    requiredIntervals: [
+      {
+        filter: { type: "block", interval: 1, offset: 0 } as Filter,
+        interval: [1, 2],
+      },
+    ],
+    requiredFactoryIntervals: [],
+    syncStore: syncStore as unknown as SyncStore,
+  });
+  const firstResult = generator.next();
+
+  await processingStarted;
+  expect(requests).toHaveLength(2);
+  expect(requests[1]).toMatchObject({
+    method: "eth_queryBlocks",
+    params: [{ fromBlock: "0x2", toBlock: "0x2" }],
+  });
+
+  resolveFirstPage();
+  expect((await firstResult).done).toBe(false);
+  expect((await generator.next()).done).toBe(false);
+  expect((await generator.next()).done).toBe(true);
 });
