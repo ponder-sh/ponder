@@ -535,6 +535,93 @@ test("buildIndexingFunctions() validates address empty string", async () => {
   );
 });
 
+test("buildIndexingFunctions() validates empty contract address array", async () => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    contracts: {
+      a: {
+        chain: "mainnet",
+        abi: [event0],
+        address: [],
+      },
+    },
+  });
+
+  const configBuild = buildConfig({ common: context.common, config });
+  const result = await safeBuildIndexingFunctions({
+    common: context.common,
+    config,
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    configBuild,
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address.",
+  );
+});
+
+test("buildIndexingFunctions() validates empty account address array", async () => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    accounts: {
+      a: {
+        chain: "mainnet",
+        address: [],
+      },
+    },
+  });
+
+  const configBuild = buildConfig({ common: context.common, config });
+  const result = await safeBuildIndexingFunctions({
+    common: context.common,
+    config,
+    indexingFunctions: [{ name: "a:transaction:to", fn: () => {} }],
+    configBuild,
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address.",
+  );
+});
+
+test("buildIndexingFunctions() validates empty factory address array", async () => {
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    contracts: {
+      a: {
+        chain: "mainnet",
+        abi: [event0],
+        address: factory({
+          address: [],
+          event: eventFactory,
+          parameter: "child",
+        }),
+      },
+    },
+  });
+
+  const configBuild = buildConfig({ common: context.common, config });
+  const result = await safeBuildIndexingFunctions({
+    common: context.common,
+    config,
+    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+    configBuild,
+  });
+
+  expect(result.status).toBe("error");
+  expect(result.error?.message).toBe(
+    "Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address.",
+  );
+});
+
 test("buildIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
     chains: {
