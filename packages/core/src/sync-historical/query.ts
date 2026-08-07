@@ -30,7 +30,12 @@ import {
   eth_queryTransactions,
   eth_queryTransfers,
 } from "@/rpc/actions.js";
-import type { RequestParameters, RequestReturnType, Rpc } from "@/rpc/index.js";
+import {
+  type RequestParameters,
+  type RequestReturnType,
+  type Rpc,
+  sanitizeLogTopics,
+} from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -48,6 +53,7 @@ import type {
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { MakeRequired } from "@/types/utils.js";
+import { chunk } from "@/utils/chunk.js";
 import {
   bufferAsyncGenerator,
   mergeAsyncGenerators,
@@ -1036,6 +1042,56 @@ const queryFilterKeys = {
   eth_queryTransfers: ["from", "to"],
 } as const;
 
+const ADDRESS_BATCH_SIZE = 50;
+
+type QueryRequest = (
+  | Extract<RequestParameters, { method: "eth_queryBlocks" }>
+  | Extract<RequestParameters, { method: "eth_queryTransactions" }>
+  | Extract<RequestParameters, { method: "eth_queryTraces" }>
+  | Extract<RequestParameters, { method: "eth_queryLogs" }>
+  | Extract<RequestParameters, { method: "eth_queryTransfers" }>
+) & { filters: Filter[] };
+
+type QueryAddressFilter = {
+  address?: Address | Address[];
+  from?: Address | Address[];
+  to?: Address | Address[];
+};
+
+const getAddressBatches = (
+  address: Address | Address[] | undefined,
+): (Address | Address[] | undefined)[] =>
+  Array.isArray(address) ? chunk(address, ADDRESS_BATCH_SIZE) : [address];
+
+const batchQueryRequestAddresses = (
+  request: QueryRequest,
+  keys: readonly (keyof QueryAddressFilter)[],
+): QueryRequest[] => {
+  let requests = [request];
+
+  for (const key of keys) {
+    requests = requests.flatMap((request) => {
+      const filter = (request.params[0] as { filter?: QueryAddressFilter })
+        .filter;
+
+      return getAddressBatches(filter?.[key]).map(
+        (address) =>
+          ({
+            ...request,
+            params: [
+              {
+                ...request.params[0],
+                filter: { ...filter, [key]: address },
+              },
+            ],
+          }) as QueryRequest,
+      );
+    });
+  }
+
+  return requests;
+};
+
 const mergeFiltersToQueryRequests = (
   filters: IntervalWithFilter[],
   getQueryRequestAddress: (
@@ -1157,25 +1213,12 @@ const mergeFiltersToQueryRequests = (
         break;
       }
       case "log": {
-        const topics = [
+        const topics = sanitizeLogTopics([
           filter.topic0,
           filter.topic1,
           filter.topic2,
           filter.topic3,
-        ];
-
-        // Note: the `topics` field is very fragile for many rpc providers, and
-        // cannot handle extra "null" topics
-        if (topics[3] === null) {
-          topics.pop();
-          if (topics[2] === null) {
-            topics.pop();
-            if (topics[1] === null) {
-              topics.pop();
-              if (topics[0] === null) topics.pop();
-            }
-          }
-        }
+        ])!;
 
         const logRequestFilter = {
           address: getQueryRequestAddress(filter.address),
@@ -1224,8 +1267,7 @@ const mergeFiltersToQueryRequests = (
             mergedTopics[index] =
               mergeFilterValue(left ?? undefined, right ?? undefined) ?? null;
           }
-          while (mergedTopics.at(-1) === null) mergedTopics.pop();
-          mergedRequest.filter.topics = mergedTopics;
+          mergedRequest.filter.topics = sanitizeLogTopics(mergedTopics);
 
           const mergedInterval = intervalBounds([
             [Number(mergedRequest.fromBlock), Number(mergedRequest.toBlock)],
@@ -1358,7 +1400,7 @@ const mergeFiltersToQueryRequests = (
     }
   }
 
-  return [
+  const requests: QueryRequest[] = [
     ...blockRequestParams.map(({ filters, ...request }) => ({
       method: "eth_queryBlocks" as const,
       params: [request] as [RpcQueryBlocksRequest],
@@ -1385,6 +1427,21 @@ const mergeFiltersToQueryRequests = (
       filters,
     })),
   ];
+
+  return requests.flatMap((request) => {
+    switch (request.method) {
+      case "eth_queryTransactions":
+      case "eth_queryTraces":
+      case "eth_queryTransfers":
+        return batchQueryRequestAddresses(request, ["from", "to"]);
+      case "eth_queryLogs":
+        return batchQueryRequestAddresses(request, ["address"]);
+      case "eth_queryBlocks":
+        return [request];
+      default:
+        return [];
+    }
+  });
 };
 
 async function* paginateQueryRequest<
