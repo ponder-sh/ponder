@@ -734,12 +734,14 @@ export const createHistoricalSync = (
               ) {
                 isMatched = true;
 
-                requiredTransactions.add(log.transactionHash);
-                if (filter.hasTransactionReceipt) {
-                  requiredTransactionReceipts.add(log.transactionHash);
+                if (log.transactionHash !== zeroHash) {
+                  requiredTransactions.add(log.transactionHash);
+                  if (filter.hasTransactionReceipt) {
+                    requiredTransactionReceipts.add(log.transactionHash);
 
-                  // skip to next log
-                  break;
+                    // skip to next log
+                    break;
+                  }
                 }
               }
             }
