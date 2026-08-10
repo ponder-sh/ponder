@@ -1,5 +1,13 @@
 # ponder
 
+## 0.17.6
+
+### Patch Changes
+
+- [#2364](https://github.com/ponder-sh/ponder/pull/2364) [`6eab09f`](https://github.com/ponder-sh/ponder/commit/6eab09f5edb2b9f8a9a8ca370da4ed34d45ca3d5) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved backfill sync performance by combining compatible JSON-RPC `eth_getLogs` requests.
+
+- [#2362](https://github.com/ponder-sh/ponder/pull/2362) [`34d930a`](https://github.com/ponder-sh/ponder/commit/34d930a3326ab53c746823a5cc221394bec29f03) Thanks [@kyscott18](https://github.com/kyscott18)! - Added validation for `address: []` in `ponder.config.ts`.
+
 ## 0.17.5
 
 ### Patch Changes
