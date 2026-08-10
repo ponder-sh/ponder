@@ -483,9 +483,9 @@ export const createHistoricalSync = (
         if (filter.type !== "log") continue;
 
         const hasAddress = filter.address !== undefined;
-        const hasTopic1 = filter.topic1 !== undefined;
-        const hasTopic2 = filter.topic2 !== undefined;
-        const hasTopic3 = filter.topic3 !== undefined;
+        const hasTopic1 = filter.topic1 !== undefined && filter.topic1 !== null;
+        const hasTopic2 = filter.topic2 !== undefined && filter.topic2 !== null;
+        const hasTopic3 = filter.topic3 !== undefined && filter.topic3 !== null;
 
         if (hasAddress === false || hasTopic1 || hasTopic2 || hasTopic3) {
           if (isAddressFactory(filter.address)) {
