@@ -1,7 +1,14 @@
-import { zeroAddress, zeroHash } from "viem";
+import {
+  getAbiItem,
+  type Hex,
+  toEventSelector,
+  zeroAddress,
+  zeroHash,
+} from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import {
   context,
   setupAnvil,
@@ -61,6 +68,66 @@ test("createHistoricalSync()", async () => {
   });
 
   expect(historicalSync).toBeDefined();
+});
+
+test("sync() batches log filters with wildcard indexed topics", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const chain = {
+    ...getChain(),
+    ethGetLogsBlockRange: 1_000,
+  };
+  const contractAddress = "0x9eb95e4b47aeccb131f20ae7af33a29832499067" as const;
+  const approval = toEventSelector(
+    getAbiItem({ abi: erc20ABI, name: "Approval" }),
+  );
+  const transfer = toEventSelector(
+    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+  );
+  const rpc = createRpc({ chain, common: context.common });
+  const requestSpy = vi.spyOn(rpc, "request");
+  requestSpy.mockResolvedValue([] as never);
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: new Map(),
+  });
+
+  const { filter: baseFilter } = getErc20IndexingBuild({
+    address: contractAddress,
+  }).eventCallbacks[0]!;
+  const createLogFilter = (topic0: Hex) => ({ ...baseFilter, topic0 });
+
+  await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals: [
+      {
+        filter: createLogFilter(approval),
+        interval: [1, 2],
+      },
+      {
+        filter: createLogFilter(transfer),
+        interval: [1, 2],
+      },
+    ],
+    requiredFactoryIntervals: [],
+    syncStore,
+  });
+
+  expect(requestSpy).toHaveBeenCalledTimes(1);
+  expect(requestSpy.mock.calls[0]![0]).toMatchObject({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: contractAddress,
+        topics: [[approval, transfer]],
+        fromBlock: "0x1",
+        toBlock: "0x2",
+      },
+    ],
+  });
 });
 
 test("sync() with log filter", async () => {
