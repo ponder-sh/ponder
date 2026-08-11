@@ -85,6 +85,9 @@ export const eth_getBlockByHash = <
 /**
  * Helper function for "eth_getLogs" rpc request.
  * Handles different error types and retries the request if applicable.
+ *
+ * @dev Large arrays of addresses are batched. Empty arrays are passed through
+ * unchanged, because callers skip requests that cannot match any logs.
  */
 export const eth_getLogs = async (
   rpc: Rpc,
