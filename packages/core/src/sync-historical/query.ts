@@ -48,12 +48,12 @@ import {
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
 import type {
+  ChildAddresses,
   IntervalWithFactory,
   IntervalWithFilter,
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { MakeRequired } from "@/types/utils.js";
-import { chunk } from "@/utils/chunk.js";
 import {
   bufferAsyncGenerator,
   mergeAsyncGenerators,
@@ -61,6 +61,10 @@ import {
 import { type Interval, intervalBounds } from "@/utils/interval.js";
 import { never } from "@/utils/never.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
+import {
+  type PromiseWithResolvers,
+  promiseWithResolvers,
+} from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 
 export type QueryHistoricalSync = {
@@ -93,25 +97,6 @@ type RpcQueryTransfersRequest = QueryTransfersRequest<Hex, Hex>;
 export const createQueryHistoricalSync = (
   params: CreateQueryHistoricalSyncParams,
 ): QueryHistoricalSync => {
-  const getQueryRequestAddress = (
-    value: Address | Address[] | Factory | undefined,
-    childAddresses: Map<string, Map<Address, number>>,
-  ) => {
-    if (isAddressFactory(value)) {
-      const factoryChildAddresses =
-        childAddresses.get(value.id) ?? new Map<Address, number>();
-      if (
-        factoryChildAddresses.size >
-        params.common.options.factoryAddressCountThreshold
-      ) {
-        return undefined;
-      }
-      return Array.from(factoryChildAddresses.keys());
-    }
-
-    return value;
-  };
-
   return {
     async *syncQueryBlockData({
       requiredIntervals,
@@ -137,97 +122,128 @@ export const createQueryHistoricalSync = (
         });
       }
 
-      for (const {
-        factory,
-        interval: factoryInterval,
-      } of factoryIntervalsById.values()) {
-        const factoryChildAddresses =
-          params.childAddresses.get(factory.id) ?? new Map<Address, number>();
-        params.childAddresses.set(factory.id, factoryChildAddresses);
-
-        const request = {
-          fromBlock: numberToHex(factoryInterval[0]),
-          toBlock: numberToHex(factoryInterval[1]),
-          filter: {
-            address: factory.address,
-            topics: [factory.eventSelector],
-          },
-          fields: { logs: true },
-        } as RpcQueryLogsRequest;
-
-        for await (const { response, endClock } of bufferAsyncGenerator(
-          paginateQueryRequest(params.rpc, "eth_queryLogs", request, context),
-          1,
-        )) {
-          const childAddresses = new Map<Address, number>();
-
-          for (const queryLog of response.data.logs) {
-            const log = queryLogToSyncLog(queryLog);
-            if (isLogFactoryMatched({ factory, log }) === false) continue;
-
-            let address: Address;
-            try {
-              address = getChildAddress({ log, factory });
-            } catch (error) {
-              if (factory.address !== undefined) throw error;
-              params.common.logger.debug({
-                msg: "Failed to extract child address from log matched by factory using the provided ABI item",
-                chain: params.chain.name,
-                chain_id: params.chain.id,
-                factory: factory.sourceId,
-                block_number: hexToNumber(log.blockNumber),
-                log_index: hexToNumber(log.logIndex),
-                data: log.data,
-                topics: JSON.stringify(log.topics),
-              });
-              continue;
-            }
-
-            const blockNumber = hexToNumber(log.blockNumber);
-            const existingBlockNumber = factoryChildAddresses.get(address);
-            if (
-              existingBlockNumber === undefined ||
-              existingBlockNumber > blockNumber
-            ) {
-              childAddresses.set(address, blockNumber);
-              factoryChildAddresses.set(address, blockNumber);
-            }
-          }
-
-          if (childAddresses.size > 0) {
-            await syncStore.insertChildAddresses(
-              {
-                factory,
-                childAddresses,
-                chainId: params.chain.id,
-              },
-              context,
-            );
-          }
-
-          const interval = getQueryPageInterval(response);
-          params.common.logger.debug(
-            {
-              msg: "Fetched block range data",
-              chain: params.chain.name,
-              chain_id: params.chain.id,
-              data_type: "factory_log",
-              block_range: JSON.stringify(interval),
-              log_count: response.data.logs.length,
-              child_address_count: childAddresses.size,
-              duration: endClock(),
-            },
-            ["chain", "data_type", "block_range"],
-          );
-
-          yield {
-            filters: [],
-            factories: [factory],
-            interval: [interval],
-            block: undefined,
-          };
+      const factoryProgress = new Map<
+        Factory["id"],
+        {
+          // TODO(kyle) jsdoc comment
+          block: number;
+          endBlock: number;
+          pwr: PromiseWithResolvers<void>;
         }
+      >();
+
+      for (const { factory, interval } of factoryIntervalsById.values()) {
+        factoryProgress.set(factory.id, {
+          block: interval[0] - 1,
+          endBlock: interval[1],
+          pwr: promiseWithResolvers<void>(),
+        });
       }
+
+      const factoryGenerators = Array.from(factoryIntervalsById.values()).map(
+        ({ factory, interval: factoryInterval }) =>
+          (async function* () {
+            const progress = factoryProgress.get(factory.id)!;
+
+            const factoryChildAddresses = params.childAddresses.get(
+              factory.id,
+            )!;
+
+            const request = {
+              fromBlock: numberToHex(factoryInterval[0]),
+              toBlock: numberToHex(factoryInterval[1]),
+              filter: {
+                address: factory.address,
+                topics: [factory.eventSelector],
+              },
+              // TODO(kyle) field selection
+              fields: { logs: true },
+            } as RpcQueryLogsRequest;
+
+            for await (const { response, endClock } of bufferAsyncGenerator(
+              paginateQueryRequest(
+                params.rpc,
+                "eth_queryLogs",
+                request,
+                context,
+              ),
+              1,
+            )) {
+              const childAddresses = new Map<Address, number>();
+
+              for (const queryLog of response.data.logs) {
+                const log = queryLogToSyncLog(queryLog);
+                if (isLogFactoryMatched({ factory, log }) === false) continue;
+
+                let address: Address;
+                try {
+                  address = getChildAddress({ log, factory });
+                } catch (error) {
+                  if (factory.address !== undefined) throw error;
+                  params.common.logger.debug({
+                    msg: "Failed to extract child address from log matched by factory using the provided ABI item",
+                    chain: params.chain.name,
+                    chain_id: params.chain.id,
+                    factory: factory.sourceId,
+                    block_number: hexToNumber(log.blockNumber),
+                    log_index: hexToNumber(log.logIndex),
+                    data: log.data,
+                    topics: JSON.stringify(log.topics),
+                  });
+                  continue;
+                }
+
+                const blockNumber = hexToNumber(log.blockNumber);
+                const existingBlockNumber = factoryChildAddresses.get(address);
+                if (
+                  existingBlockNumber === undefined ||
+                  existingBlockNumber > blockNumber
+                ) {
+                  childAddresses.set(address, blockNumber);
+                  factoryChildAddresses.set(address, blockNumber);
+                }
+              }
+
+              if (childAddresses.size > 0) {
+                await syncStore.insertChildAddresses(
+                  {
+                    factory,
+                    childAddresses,
+                    chainId: params.chain.id,
+                  },
+                  context,
+                );
+              }
+
+              const interval = getQueryPageInterval(response);
+              const previousPwr = progress.pwr;
+              progress.block = interval[1];
+              progress.pwr = promiseWithResolvers<void>();
+              previousPwr.resolve();
+
+              params.common.logger.debug(
+                {
+                  msg: "Fetched block range data",
+                  chain: params.chain.name,
+                  chain_id: params.chain.id,
+                  data_type: "factory_log",
+                  block_range: JSON.stringify(interval),
+                  log_count: response.data.logs.length,
+                  child_address_count: childAddresses.size,
+                  duration: endClock(),
+                },
+                ["chain", "data_type", "block_range"],
+              );
+
+              yield {
+                filters: [],
+                factories: [factory],
+                interval: [interval],
+                block: undefined,
+              };
+            }
+          })(),
+      );
 
       const factoryAddressMatches = (
         value: Address | Address[] | Factory | undefined,
@@ -244,10 +260,8 @@ export const createQueryHistoricalSync = (
             })
           : true;
 
-      const requestsWithFilters = mergeFiltersToQueryRequests(
-        requiredIntervals,
-        (value) => getQueryRequestAddress(value, params.childAddresses),
-      );
+      const requestsWithFilters =
+        mergeFiltersToQueryRequests(requiredIntervals);
 
       const insertedBlocks = new Set<Hex>();
       const insertedTransactions = new Set<`${Hex}_${Hex}`>();
@@ -260,9 +274,15 @@ export const createQueryHistoricalSync = (
         QueryHistoricalSync["syncQueryBlockData"]
       >[] = [];
 
-      for (const requestWithFilters of requestsWithFilters) {
+      for (const _requestWithFilters of requestsWithFilters) {
         requestGenerators.push(
           (async function* () {
+            const requestWithFilters = materializeQueryRequest(
+              _requestWithFilters,
+              params.childAddresses,
+              params.common.options,
+            );
+
             switch (requestWithFilters.method) {
               case "eth_queryBlocks": {
                 for await (const { response, endClock } of bufferAsyncGenerator(
@@ -326,6 +346,12 @@ export const createQueryHistoricalSync = (
                 break;
               }
               case "eth_queryTransactions": {
+                if (
+                  requestWithFilters.params[0].filter?.from?.length === 0 ||
+                  requestWithFilters.params[0].filter?.to?.length === 0
+                )
+                  return;
+
                 for await (const { response, endClock } of bufferAsyncGenerator(
                   paginateQueryRequest(
                     params.rpc,
@@ -444,6 +470,9 @@ export const createQueryHistoricalSync = (
                 break;
               }
               case "eth_queryLogs": {
+                if (requestWithFilters.params[0].filter?.address?.length === 0)
+                  return;
+
                 for await (const { response, endClock } of bufferAsyncGenerator(
                   paginateQueryRequest(
                     params.rpc,
@@ -581,6 +610,12 @@ export const createQueryHistoricalSync = (
                 break;
               }
               case "eth_queryTraces": {
+                if (
+                  requestWithFilters.params[0].filter?.from?.length === 0 ||
+                  requestWithFilters.params[0].filter?.to?.length === 0
+                )
+                  return;
+
                 for await (const { response, endClock } of bufferAsyncGenerator(
                   paginateQueryRequest(
                     params.rpc,
@@ -752,6 +787,12 @@ export const createQueryHistoricalSync = (
                 break;
               }
               case "eth_queryTransfers": {
+                if (
+                  requestWithFilters.params[0].filter?.from?.length === 0 ||
+                  requestWithFilters.params[0].filter?.to?.length === 0
+                )
+                  return;
+
                 for await (const { response, endClock } of bufferAsyncGenerator(
                   paginateQueryRequest(
                     params.rpc,
@@ -931,7 +972,7 @@ export const createQueryHistoricalSync = (
         );
       }
 
-      yield* mergeAsyncGenerators(requestGenerators);
+      yield* mergeAsyncGenerators([...factoryGenerators, ...requestGenerators]);
     },
   };
 };
@@ -1037,12 +1078,12 @@ const mergeFilterValue = <value extends Hex>(
       ];
 
 const queryFilterKeys = {
+  eth_queryBlocks: [],
   eth_queryTransactions: ["from", "to"],
   eth_queryTraces: ["from", "to", "selector"],
+  eth_queryLogs: ["address", "topic0", "topic1", "topic2", "topic3"],
   eth_queryTransfers: ["from", "to"],
 } as const;
-
-const ADDRESS_BATCH_SIZE = 50;
 
 type QueryRequest = (
   | Extract<RequestParameters, { method: "eth_queryBlocks" }>
@@ -1050,75 +1091,39 @@ type QueryRequest = (
   | Extract<RequestParameters, { method: "eth_queryTraces" }>
   | Extract<RequestParameters, { method: "eth_queryLogs" }>
   | Extract<RequestParameters, { method: "eth_queryTransfers" }>
-) & { filters: Filter[] };
-
-type QueryAddressFilter = {
-  address?: Address | Address[];
-  from?: Address | Address[];
-  to?: Address | Address[];
-};
-
-const getAddressBatches = (
-  address: Address | Address[] | undefined,
-): (Address | Address[] | undefined)[] =>
-  Array.isArray(address) ? chunk(address, ADDRESS_BATCH_SIZE) : [address];
-
-const batchQueryRequestAddresses = (
-  request: QueryRequest,
-  keys: readonly (keyof QueryAddressFilter)[],
-): QueryRequest[] => {
-  let requests = [request];
-
-  for (const key of keys) {
-    requests = requests.flatMap((request) => {
-      const filter = (request.params[0] as { filter?: QueryAddressFilter })
-        .filter;
-
-      return getAddressBatches(filter?.[key]).map(
-        (address) =>
-          ({
-            ...request,
-            params: [
-              {
-                ...request.params[0],
-                filter: { ...filter, [key]: address },
-              },
-            ],
-          }) as QueryRequest,
-      );
-    });
-  }
-
-  return requests;
+) & {
+  filters: Filter[];
+  factories: Partial<{ [address in "address" | "from" | "to"]: Factory["id"] }>;
 };
 
 const mergeFiltersToQueryRequests = (
   filters: IntervalWithFilter[],
-  getQueryRequestAddress: (
-    value: Address | Address[] | Factory | undefined,
-  ) => Address | Address[] | undefined,
-): ((
-  | Extract<RequestParameters, { method: "eth_queryBlocks" }>
-  | Extract<RequestParameters, { method: "eth_queryTransactions" }>
-  | Extract<RequestParameters, { method: "eth_queryTraces" }>
-  | Extract<RequestParameters, { method: "eth_queryLogs" }>
-  | Extract<RequestParameters, { method: "eth_queryTransfers" }>
-) & { filters: Filter[] })[] => {
+): QueryRequest[] => {
   type BlockRequest = RpcQueryBlocksRequest & { filters: Filter[] };
   type TransactionRequest = MakeRequired<
     RpcQueryTransactionsRequest,
     "filter"
   > & {
     filters: Filter[];
+    factories: Partial<{ [address in "from" | "to"]: Factory["id"] }>;
   };
   type TraceRequest = MakeRequired<RpcQueryTracesRequest, "filter"> & {
     filters: Filter[];
+    factories: Partial<{ [address in "from" | "to"]: Factory["id"] }>;
   };
-  type LogRequest = MakeRequired<RpcQueryLogsRequest, "filter"> & {
+  type LogRequest = Omit<RpcQueryLogsRequest, "filter"> & {
+    filter: {
+      [key in (typeof queryFilterKeys.eth_queryLogs)[number]]:
+        | Hex
+        | Hex[]
+        | undefined;
+    };
     filters: Filter[];
+    factories: Partial<{ address: Factory["id"] }>;
   };
   type TransferRequest = MakeRequired<RpcQueryTransfersRequest, "filter"> & {
     filters: Filter[];
+    factories: Partial<{ [address in "from" | "to"]: Factory["id"] }>;
   };
 
   const hasSufficientIntervalOverlap = (
@@ -1137,6 +1142,11 @@ const mergeFiltersToQueryRequests = (
 
     return overlapLength / smallerIntervalLength >= 0.8;
   };
+
+  const getFactoryId = (
+    address: Address | Address[] | Factory | undefined,
+  ): Factory["id"] | undefined =>
+    isAddressFactory(address) ? address.id : undefined;
 
   const blockRequestParams: BlockRequest[] = [];
   const transactionRequestParams: TransactionRequest[] = [];
@@ -1161,9 +1171,9 @@ const mergeFiltersToQueryRequests = (
       }
       case "transaction": {
         const transactionRequestFilter = {
-          from: getQueryRequestAddress(filter.fromAddress),
-          to: getQueryRequestAddress(filter.toAddress),
-        };
+          from: filter.fromAddress,
+          to: filter.toAddress,
+        } as Exclude<RpcQueryTransactionsRequest["filter"], undefined>;
 
         let isMerged = false;
         for (const mergedRequest of transactionRequestParams) {
@@ -1172,6 +1182,13 @@ const mergeFiltersToQueryRequests = (
               [Number(mergedRequest.fromBlock), Number(mergedRequest.toBlock)],
               filterInterval,
             ) === false
+          ) {
+            continue;
+          }
+
+          if (
+            mergedRequest.factories.from !== getFactoryId(filter.fromAddress) ||
+            mergedRequest.factories.to !== getFactoryId(filter.toAddress)
           ) {
             continue;
           }
@@ -1208,22 +1225,22 @@ const mergeFiltersToQueryRequests = (
             filter: transactionRequestFilter,
             fields: { blocks: true, transactions: true },
             filters: [filter],
+            factories: {
+              from: getFactoryId(filter.fromAddress),
+              to: getFactoryId(filter.toAddress),
+            },
           });
         }
         break;
       }
       case "log": {
-        const topics = sanitizeLogTopics([
-          filter.topic0,
-          filter.topic1,
-          filter.topic2,
-          filter.topic3,
-        ])!;
-
         const logRequestFilter = {
-          address: getQueryRequestAddress(filter.address),
-          topics,
-        };
+          address: filter.address,
+          topic0: filter.topic0,
+          topic1: filter.topic1 ?? undefined,
+          topic2: filter.topic2 ?? undefined,
+          topic3: filter.topic3 ?? undefined,
+        } as LogRequest["filter"];
 
         let isMerged = false;
         for (const mergedRequest of logRequestParams) {
@@ -1236,38 +1253,26 @@ const mergeFiltersToQueryRequests = (
             continue;
           }
 
-          const numberFilterDiff =
-            Number(
-              JSON.stringify(mergedRequest.filter.address) !==
-                JSON.stringify(logRequestFilter.address),
-            ) +
-            [0, 1, 2, 3].filter(
-              (index) =>
-                JSON.stringify(mergedRequest.filter.topics?.[index] ?? null) !==
-                JSON.stringify(logRequestFilter.topics[index] ?? null),
-            ).length;
+          if (
+            mergedRequest.factories.address !== getFactoryId(filter.address)
+          ) {
+            continue;
+          }
+
+          const numberFilterDiff = queryFilterKeys.eth_queryLogs.filter(
+            (key) =>
+              JSON.stringify(mergedRequest.filter[key]) !==
+              JSON.stringify(logRequestFilter[key]),
+          ).length;
           if (numberFilterDiff > 1) continue;
 
-          if (
-            JSON.stringify(mergedRequest.filter.address) !==
-            JSON.stringify(logRequestFilter.address)
-          ) {
-            mergedRequest.filter.address = mergeFilterValue(
-              mergedRequest.filter.address,
-              logRequestFilter.address,
-            );
-          }
-
-          const mergedTopics = [...(mergedRequest.filter.topics ?? [])];
-          for (const index of [0, 1, 2, 3]) {
-            const left = mergedTopics[index] ?? null;
-            const right = logRequestFilter.topics[index] ?? null;
+          for (const key of queryFilterKeys.eth_queryLogs) {
+            const left = mergedRequest.filter[key];
+            const right = logRequestFilter[key];
             if (JSON.stringify(left) === JSON.stringify(right)) continue;
 
-            mergedTopics[index] =
-              mergeFilterValue(left ?? undefined, right ?? undefined) ?? null;
+            mergedRequest.filter[key] = mergeFilterValue(left, right);
           }
-          mergedRequest.filter.topics = sanitizeLogTopics(mergedTopics);
 
           const mergedInterval = intervalBounds([
             [Number(mergedRequest.fromBlock), Number(mergedRequest.toBlock)],
@@ -1286,16 +1291,19 @@ const mergeFiltersToQueryRequests = (
             filter: logRequestFilter,
             fields: { blocks: true, transactions: true, logs: true },
             filters: [filter],
+            factories: {
+              address: getFactoryId(filter.address),
+            },
           });
         }
         break;
       }
       case "trace": {
         const traceRequestFilter = {
-          from: getQueryRequestAddress(filter.fromAddress),
-          to: getQueryRequestAddress(filter.toAddress),
+          from: filter.fromAddress,
+          to: filter.toAddress,
           selector: filter.functionSelector,
-        };
+        } as Exclude<RpcQueryTracesRequest["filter"], undefined>;
 
         let isMerged = false;
         for (const mergedRequest of traceRequestParams) {
@@ -1304,6 +1312,13 @@ const mergeFiltersToQueryRequests = (
               [Number(mergedRequest.fromBlock), Number(mergedRequest.toBlock)],
               filterInterval,
             ) === false
+          ) {
+            continue;
+          }
+
+          if (
+            mergedRequest.factories.from !== getFactoryId(filter.fromAddress) ||
+            mergedRequest.factories.to !== getFactoryId(filter.toAddress)
           ) {
             continue;
           }
@@ -1340,15 +1355,19 @@ const mergeFiltersToQueryRequests = (
             filter: traceRequestFilter,
             fields: { blocks: true, transactions: true, traces: true },
             filters: [filter],
+            factories: {
+              from: getFactoryId(filter.fromAddress),
+              to: getFactoryId(filter.toAddress),
+            },
           });
         }
         break;
       }
       case "transfer": {
         const transferRequestFilter = {
-          from: getQueryRequestAddress(filter.fromAddress),
-          to: getQueryRequestAddress(filter.toAddress),
-        };
+          from: filter.fromAddress,
+          to: filter.toAddress,
+        } as Exclude<RpcQueryTransfersRequest["filter"], undefined>;
 
         let isMerged = false;
         for (const mergedRequest of transferRequestParams) {
@@ -1357,6 +1376,13 @@ const mergeFiltersToQueryRequests = (
               [Number(mergedRequest.fromBlock), Number(mergedRequest.toBlock)],
               filterInterval,
             ) === false
+          ) {
+            continue;
+          }
+
+          if (
+            mergedRequest.factories.from !== getFactoryId(filter.fromAddress) ||
+            mergedRequest.factories.to !== getFactoryId(filter.toAddress)
           ) {
             continue;
           }
@@ -1393,6 +1419,10 @@ const mergeFiltersToQueryRequests = (
             filter: transferRequestFilter,
             fields: { blocks: true, transactions: true, transfers: true },
             filters: [filter],
+            factories: {
+              from: getFactoryId(filter.fromAddress),
+              to: getFactoryId(filter.toAddress),
+            },
           });
         }
         break;
@@ -1405,43 +1435,162 @@ const mergeFiltersToQueryRequests = (
       method: "eth_queryBlocks" as const,
       params: [request] as [RpcQueryBlocksRequest],
       filters,
+      factories: {},
     })),
-    ...transactionRequestParams.map(({ filters, ...request }) => ({
+    ...transactionRequestParams.map(({ filters, factories, ...request }) => ({
       method: "eth_queryTransactions" as const,
       params: [request] as [RpcQueryTransactionsRequest],
       filters,
+      factories,
     })),
-    ...logRequestParams.map(({ filters, ...request }) => ({
+    ...logRequestParams.map(({ filters, factories, filter, ...request }) => ({
       method: "eth_queryLogs" as const,
-      params: [request] as [RpcQueryLogsRequest],
+      params: [
+        {
+          ...request,
+          filter: {
+            address: filter.address,
+            topics: sanitizeLogTopics([
+              filter.topic0 ?? null,
+              filter.topic1 ?? null,
+              filter.topic2 ?? null,
+              filter.topic3 ?? null,
+            ]),
+          },
+        },
+      ] as [RpcQueryLogsRequest],
       filters,
+      factories,
     })),
-    ...traceRequestParams.map(({ filters, ...request }) => ({
+    ...traceRequestParams.map(({ filters, factories, ...request }) => ({
       method: "eth_queryTraces" as const,
       params: [request] as [RpcQueryTracesRequest],
       filters,
+      factories,
     })),
-    ...transferRequestParams.map(({ filters, ...request }) => ({
+    ...transferRequestParams.map(({ filters, factories, ...request }) => ({
       method: "eth_queryTransfers" as const,
       params: [request] as [RpcQueryTransfersRequest],
       filters,
+      factories,
     })),
   ];
 
-  return requests.flatMap((request) => {
-    switch (request.method) {
-      case "eth_queryTransactions":
-      case "eth_queryTraces":
-      case "eth_queryTransfers":
-        return batchQueryRequestAddresses(request, ["from", "to"]);
-      case "eth_queryLogs":
-        return batchQueryRequestAddresses(request, ["address"]);
-      case "eth_queryBlocks":
-        return [request];
-      default:
-        return [];
+  return requests;
+};
+
+const materializeQueryRequest = (
+  queryRequest: QueryRequest,
+  childAddresses: ChildAddresses,
+  options: Common["options"],
+): QueryRequest => {
+  const resolveFactory = (factoryId: Factory["id"]): Address[] | undefined => {
+    const addresses = childAddresses.get(factoryId) ?? new Map();
+    return addresses.size >= options.factoryAddressCountThreshold
+      ? undefined
+      : Array.from(addresses.keys());
+  };
+
+  switch (queryRequest.method) {
+    case "eth_queryBlocks":
+      return queryRequest;
+    case "eth_queryLogs": {
+      const factoryId = queryRequest.factories.address;
+      if (factoryId === undefined) return queryRequest;
+
+      const request = queryRequest.params[0];
+      return {
+        ...queryRequest,
+        params: [
+          {
+            ...request,
+            filter: {
+              ...request.filter,
+              address: resolveFactory(factoryId),
+            },
+          },
+        ],
+      };
     }
-  });
+    case "eth_queryTransactions": {
+      const fromFactoryId = queryRequest.factories.from;
+      const toFactoryId = queryRequest.factories.to;
+      if (fromFactoryId === undefined && toFactoryId === undefined) {
+        return queryRequest;
+      }
+
+      const request = queryRequest.params[0];
+      return {
+        ...queryRequest,
+        params: [
+          {
+            ...request,
+            filter: {
+              ...request.filter,
+              ...(fromFactoryId === undefined
+                ? {}
+                : { from: resolveFactory(fromFactoryId) }),
+              ...(toFactoryId === undefined
+                ? {}
+                : { to: resolveFactory(toFactoryId) }),
+            },
+          },
+        ],
+      };
+    }
+    case "eth_queryTraces": {
+      const fromFactoryId = queryRequest.factories.from;
+      const toFactoryId = queryRequest.factories.to;
+      if (fromFactoryId === undefined && toFactoryId === undefined) {
+        return queryRequest;
+      }
+
+      const request = queryRequest.params[0];
+      return {
+        ...queryRequest,
+        params: [
+          {
+            ...request,
+            filter: {
+              ...request.filter,
+              ...(fromFactoryId === undefined
+                ? {}
+                : { from: resolveFactory(fromFactoryId) }),
+              ...(toFactoryId === undefined
+                ? {}
+                : { to: resolveFactory(toFactoryId) }),
+            },
+          },
+        ],
+      };
+    }
+    case "eth_queryTransfers": {
+      const fromFactoryId = queryRequest.factories.from;
+      const toFactoryId = queryRequest.factories.to;
+      if (fromFactoryId === undefined && toFactoryId === undefined) {
+        return queryRequest;
+      }
+
+      const request = queryRequest.params[0];
+      return {
+        ...queryRequest,
+        params: [
+          {
+            ...request,
+            filter: {
+              ...request.filter,
+              ...(fromFactoryId === undefined
+                ? {}
+                : { from: resolveFactory(fromFactoryId) }),
+              ...(toFactoryId === undefined
+                ? {}
+                : { to: resolveFactory(toFactoryId) }),
+            },
+          },
+        ],
+      };
+    }
+  }
 };
 
 async function* paginateQueryRequest<

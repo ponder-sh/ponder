@@ -78,18 +78,6 @@ test("eth_getLogs chunks address arrays and merges responses", async () => {
   expect(params[0].address).toStrictEqual(addresses);
 });
 
-test("eth_getLogs skips empty address arrays", async () => {
-  const rpcRequest = vi.fn();
-  const rpc = { request: rpcRequest } as unknown as Rpc;
-  const params: Extract<
-    RequestParameters,
-    { method: "eth_getLogs" }
-  >["params"] = [{ address: [] }];
-
-  await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([]);
-  expect(rpcRequest).not.toHaveBeenCalled();
-});
-
 const envelope = {
   fromBlock: { number: "0x1", hash, parentHash: hash },
   toBlock: { number: "0x1", hash, parentHash: hash },

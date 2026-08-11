@@ -111,6 +111,183 @@ test("persists child addresses discovered from factories", async () => {
   );
 });
 
+test("syncs factory-dependent filters through the factory frontier", async () => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: 2,
+  } as const satisfies Factory;
+  const secondBlock = { ...block, number: "0x2" as const };
+  const requests: { method: string; params: unknown[] }[] = [];
+  let resolveFirstFactoryPage!: (value: unknown) => void;
+  let resolveSecondFactoryPage!: (value: unknown) => void;
+  const firstFactoryPage = new Promise((resolve) => {
+    resolveFirstFactoryPage = resolve;
+  });
+  const secondFactoryPage = new Promise((resolve) => {
+    resolveSecondFactoryPage = resolve;
+  });
+  let factoryRequestCount = 0;
+
+  const rpc = {
+    request: vi.fn(
+      async ({ method, params }: { method: string; params: unknown[] }) => {
+        requests.push({ method, params: structuredClone(params) });
+        const request = params[0] as {
+          fields?: { blocks?: boolean };
+          fromBlock: `0x${string}`;
+        };
+
+        if (method === "eth_queryBlocks") {
+          return {
+            fromBlock: block,
+            toBlock: secondBlock,
+            cursorBlock: secondBlock,
+            data: { blocks: [] },
+          };
+        }
+
+        if (method === "eth_queryLogs" && request.fields?.blocks !== true) {
+          factoryRequestCount++;
+          return factoryRequestCount === 1
+            ? firstFactoryPage
+            : secondFactoryPage;
+        }
+
+        const responseBlock = request.fromBlock === "0x1" ? block : secondBlock;
+        return {
+          fromBlock: responseBlock,
+          toBlock: responseBlock,
+          cursorBlock: responseBlock,
+          data: { blocks: [], transactions: [], logs: [] },
+        };
+      },
+    ),
+  } as unknown as Rpc;
+  const historicalSync = createQueryHistoricalSync({
+    common: {
+      logger: { debug: vi.fn(), child: () => ({}) },
+      options: { factoryAddressCountThreshold: 1000 },
+    } as unknown as Common,
+    chain: { id: 1, name: "mainnet" } as never,
+    rpc,
+    childAddresses: new Map([[factory.id, new Map()]]),
+  });
+  const blockFilter = {
+    type: "block",
+    interval: 1,
+    offset: 0,
+  } as Filter;
+  const factoryFilter = {
+    type: "log",
+    address: factory,
+    topic0: TRANSFER,
+    topic1: null,
+    topic2: null,
+    topic3: null,
+  } as unknown as Filter;
+  const generator = historicalSync.syncQueryBlockData({
+    requiredIntervals: [
+      { filter: blockFilter, interval: [1, 2] },
+      { filter: factoryFilter, interval: [1, 2] },
+    ],
+    requiredFactoryIntervals: [{ factory, interval: [1, 2] }],
+    syncStore: createSyncStore() as unknown as SyncStore,
+  });
+
+  const firstResult = await generator.next();
+  expect(firstResult.value).toMatchObject({ filters: [blockFilter] });
+  expect(
+    requests.filter(({ method }) => method === "eth_queryLogs"),
+  ).toHaveLength(1);
+
+  resolveFirstFactoryPage({
+    fromBlock: block,
+    toBlock: secondBlock,
+    cursorBlock: block,
+    data: {
+      logs: [
+        {
+          address: FACTORY,
+          blockHash: HASH,
+          blockNumber: "0x1",
+          data: "0x",
+          logIndex: "0x0",
+          topics: [
+            TRANSFER,
+            "0x0000000000000000000000002222222222222222222222222222222222222222",
+          ],
+          transactionHash: HASH,
+          transactionIndex: "0x0",
+        },
+      ],
+    },
+  });
+
+  await vi.waitFor(() => {
+    expect(
+      requests.find(
+        ({ method, params }) =>
+          method === "eth_queryLogs" &&
+          (params[0] as { fields?: { blocks?: boolean } }).fields?.blocks ===
+            true,
+      ),
+    ).toMatchObject({
+      params: [
+        { fromBlock: "0x1", toBlock: "0x1", filter: { address: [CHILD] } },
+      ],
+    });
+  });
+
+  resolveSecondFactoryPage({
+    fromBlock: secondBlock,
+    toBlock: secondBlock,
+    cursorBlock: secondBlock,
+    data: {
+      logs: [
+        {
+          address: FACTORY,
+          blockHash: HASH,
+          blockNumber: "0x2",
+          data: "0x",
+          logIndex: "0x0",
+          topics: [
+            TRANSFER,
+            "0x0000000000000000000000003333333333333333333333333333333333333333",
+          ],
+          transactionHash: HASH,
+          transactionIndex: "0x0",
+        },
+      ],
+    },
+  });
+  await drainAsyncGenerator(generator);
+
+  expect(
+    requests.find(
+      ({ method, params }) =>
+        method === "eth_queryLogs" &&
+        (params[0] as { fromBlock?: string }).fromBlock === "0x2" &&
+        (params[0] as { fields?: { blocks?: boolean } }).fields?.blocks ===
+          true,
+    ),
+  ).toMatchObject({
+    params: [
+      {
+        fromBlock: "0x2",
+        toBlock: "0x2",
+        filter: { address: [CHILD, OTHER] },
+      },
+    ],
+  });
+});
+
 const queryRequests = async (
   filters: Filter[],
   childAddresses: Map<string, Map<`0x${string}`, number>> = new Map(),
@@ -158,7 +335,7 @@ const queryRequests = async (
   return requests;
 };
 
-test("query requests batch address filters for all address-bearing methods", async () => {
+test("query requests send address filters without batching", async () => {
   const addresses = Array.from(
     { length: 51 },
     (_, index) => `0x${index.toString(16).padStart(40, "0")}` as const,
@@ -193,54 +370,34 @@ test("query requests batch address filters for all address-bearing methods", asy
   const transactionRequests = requests.filter(
     ({ method }) => method === "eth_queryTransactions",
   );
-  expect(transactionRequests).toHaveLength(2);
-  expect(transactionRequests.map((request) => request.params[0])).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        filter: { from: addresses.slice(0, 50), to: CHILD },
-      }),
-      expect.objectContaining({
-        filter: { from: [addresses[50]], to: CHILD },
-      }),
-    ]),
-  );
+  expect(transactionRequests).toHaveLength(1);
+  expect(transactionRequests[0]!.params[0]).toMatchObject({
+    filter: { from: addresses, to: CHILD },
+  });
 
   const logRequests = requests.filter(
     ({ method }) => method === "eth_queryLogs",
   );
-  expect(logRequests).toHaveLength(2);
-  expect(logRequests.map((request) => request.params[0])).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        filter: { address: addresses.slice(0, 50), topics: [TRANSFER] },
-      }),
-      expect.objectContaining({
-        filter: { address: [addresses[50]], topics: [TRANSFER] },
-      }),
-    ]),
-  );
+  expect(logRequests).toHaveLength(1);
+  expect(logRequests[0]!.params[0]).toMatchObject({
+    filter: { address: addresses, topics: [TRANSFER] },
+  });
 
   const traceRequests = requests.filter(
     ({ method }) => method === "eth_queryTraces",
   );
-  expect(traceRequests).toHaveLength(2);
+  expect(traceRequests).toHaveLength(1);
+  expect(traceRequests[0]!.params[0]).toMatchObject({
+    filter: { from: CHILD, to: addresses, selector: "0x12345678" },
+  });
 
   const transferRequests = requests.filter(
     ({ method }) => method === "eth_queryTransfers",
   );
-  expect(transferRequests).toHaveLength(4);
-  expect(
-    transferRequests.map(
-      ({ params }) => (params[0] as { filter: unknown }).filter,
-    ),
-  ).toEqual(
-    expect.arrayContaining([
-      { from: addresses.slice(0, 50), to: addresses.slice(0, 50) },
-      { from: addresses.slice(0, 50), to: [addresses[50]] },
-      { from: [addresses[50]], to: addresses.slice(0, 50) },
-      { from: [addresses[50]], to: [addresses[50]] },
-    ]),
-  );
+  expect(transferRequests).toHaveLength(1);
+  expect(transferRequests[0]!.params[0]).toMatchObject({
+    filter: { from: addresses, to: addresses },
+  });
 });
 
 test("query requests skip empty address filters", async () => {
@@ -295,6 +452,117 @@ test("query requests skip empty address filters", async () => {
   );
 
   expect(requests).toStrictEqual([]);
+});
+
+test("query requests omit the address filter at the factory address count threshold", async () => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: 1,
+  } as const satisfies Factory;
+  const requests: { method: string; params: unknown[] }[] = [];
+  const rpc = {
+    request: vi.fn(async (request: { method: string; params: unknown[] }) => {
+      requests.push(request);
+      return {
+        fromBlock: block,
+        toBlock: block,
+        cursorBlock: block,
+        data: { blocks: [], transactions: [], logs: [] },
+      };
+    }),
+  } as unknown as Rpc;
+  const historicalSync = createQueryHistoricalSync({
+    common: {
+      logger: { debug: vi.fn(), child: () => ({}) },
+      // Note: matches the threshold with a single child address.
+      options: { factoryAddressCountThreshold: 1 },
+    } as unknown as Common,
+    chain: { id: 1, name: "mainnet" } as never,
+    rpc,
+    childAddresses: new Map([[factory.id, new Map([[CHILD, 1]])]]),
+  });
+
+  await drainAsyncGenerator(
+    historicalSync.syncQueryBlockData({
+      requiredIntervals: [
+        {
+          filter: {
+            type: "log",
+            address: factory,
+            topic0: TRANSFER,
+            topic1: null,
+            topic2: null,
+            topic3: null,
+          } as unknown as Filter,
+          interval: [1, 1],
+        },
+      ],
+      requiredFactoryIntervals: [],
+      syncStore: createSyncStore() as unknown as SyncStore,
+    }),
+  );
+
+  expect(requests).toHaveLength(1);
+  expect(
+    (requests[0]!.params[0] as { filter: { address: unknown } }).filter.address,
+  ).toBeUndefined();
+});
+
+test("query requests complete the interval of skipped empty address filters", async () => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: 2,
+  } as const satisfies Factory;
+  const rpc = { request: vi.fn() } as unknown as Rpc;
+  const historicalSync = createQueryHistoricalSync({
+    common: {
+      logger: { debug: vi.fn(), child: () => ({}) },
+      options: { factoryAddressCountThreshold: 1000 },
+    } as unknown as Common,
+    chain: { id: 1, name: "mainnet" } as never,
+    rpc,
+    childAddresses: new Map([[factory.id, new Map()]]),
+  });
+  const filter = {
+    type: "log",
+    address: factory,
+    topic0: TRANSFER,
+    topic1: null,
+    topic2: null,
+    topic3: null,
+  } as unknown as Filter;
+
+  const results = await drainAsyncGenerator(
+    historicalSync.syncQueryBlockData({
+      requiredIntervals: [{ filter, interval: [1, 2] }],
+      requiredFactoryIntervals: [],
+      syncStore: createSyncStore() as unknown as SyncStore,
+    }),
+  );
+
+  expect(rpc.request).not.toHaveBeenCalled();
+  expect(results).toStrictEqual([
+    {
+      filters: [filter],
+      factories: [],
+      interval: [[1, 2]],
+      block: undefined,
+    },
+  ]);
 });
 
 test("query requests remove trailing null log topics", async () => {
@@ -424,6 +692,52 @@ test("query merging merges a different log address", async () => {
   expect(requests[0]!.params[0]).toMatchObject({
     filter: { address: [FACTORY, OTHER], topics: [TRANSFER] },
   });
+});
+
+test("query merging resolves factory address metadata", async () => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: 1,
+  } as const satisfies Factory;
+  const requests = await queryRequests(
+    [
+      {
+        type: "log",
+        address: factory,
+        topic0: TRANSFER,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as unknown as Filter,
+      {
+        type: "log",
+        address: OTHER,
+        topic0: TRANSFER,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as Filter,
+    ],
+    new Map([[factory.id, new Map([[CHILD, 1]])]]),
+  );
+
+  // Note: factory child addresses are resolved for each page of a request, so
+  // filters with a factory address are not merged with other filters.
+  expect(requests).toHaveLength(2);
+  expect(
+    requests.map(
+      ({ params }) =>
+        (params[0] as { filter: { address: `0x${string}` | `0x${string}`[] } })
+          .filter.address,
+    ),
+  ).toEqual(expect.arrayContaining([[CHILD], OTHER]));
 });
 
 test("query merging merges one different trace condition", async () => {
