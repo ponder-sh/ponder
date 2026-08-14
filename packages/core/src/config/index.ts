@@ -97,6 +97,9 @@ type ChainConfig<chain> = {
   ws?: string;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
+  /** Maximum age of blocks that can be reverted during a reorg (in seconds). Default: `60`. */
+  // TODO(kyle) Possible names: `unfinalizedWindow`, `reorgWindow`, `finalityWindow`.
+  maxReorgSeconds?: number;
   /**
    * Maximum number of RPC requests per second.
    * @deprecated Handled automatically instead.

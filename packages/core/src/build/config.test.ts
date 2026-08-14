@@ -1087,6 +1087,23 @@ test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (
   expect(finalizedBlocks[0]!.number).toBe("0x0");
 });
 
+test("buildConfig() uses the configured max reorg window", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: {
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        maxReorgSeconds: 120,
+      },
+    },
+    blocks: { b: { chain: "mainnet" } },
+  });
+
+  const { chains } = buildConfig({ common: context.common, config });
+
+  expect(chains[0]!.maxReorgSeconds).toBe(120);
+});
+
 test("buildIndexingFunctions() hyperliquid evm", async () => {
   const config = createConfig({
     chains: {
