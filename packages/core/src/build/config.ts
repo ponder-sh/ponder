@@ -195,11 +195,11 @@ export async function buildIndexingFunctions({
           `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
         );
       });
-      const blockPromise = latestBlockPromise.then((block) =>
+      const blockNumberPromise = latestBlockPromise.then((block) =>
         hexToNumber((block as SyncBlock).number),
       );
 
-      perChainLatestBlockNumber.set(chain.name, blockPromise);
+      perChainLatestBlockNumber.set(chain.name, blockNumberPromise);
 
       return latestBlockPromise.then((latestBlock) =>
         getFinalizedBlock({
