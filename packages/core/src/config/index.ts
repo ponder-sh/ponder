@@ -97,9 +97,12 @@ type ChainConfig<chain> = {
   ws?: string;
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum age of blocks that can be reverted during a reorg (in seconds). Default: `60`. */
-  // TODO(kyle) Possible names: `unfinalizedWindow`, `reorgWindow`, `finalityWindow`.
-  maxReorgSeconds?: number;
+  /**
+   * The duration, in seconds, for which Ponder retains
+   * the data required to recover from a chain reorganization. Default: `180`.
+   * Maximum: `600`.
+   */
+  reorgWindow?: number;
   /**
    * Maximum number of RPC requests per second.
    * @deprecated Handled automatically instead.

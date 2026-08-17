@@ -91,8 +91,7 @@ export const sim =
         const finalizedBlock = APP.indexingBuild.finalizedBlocks[index]!;
         const chainConfig = APP.indexingBuild.chains[index]!;
         const targetTimestamp =
-          hexToNumber(finalizedBlock.timestamp) +
-          chainConfig.maxReorgSeconds;
+          hexToNumber(finalizedBlock.timestamp) + chainConfig.reorgWindow;
         let number = hexToNumber(finalizedBlock.number);
 
         while (true) {
@@ -100,8 +99,8 @@ export const sim =
             method: "eth_getBlockByNumber",
             params: [toHex(number + 1), false],
           });
-          if (hexToNumber(block.timestamp) >= targetTimestamp) break;
           number += 1;
+          if (hexToNumber(block.timestamp) >= targetTimestamp) break;
         }
 
         body.params[0] = toHex(number);

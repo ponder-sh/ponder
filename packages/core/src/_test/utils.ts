@@ -661,14 +661,14 @@ export const getSimulatedEvent = ({
   return events[0]!;
 };
 
-export const getChain = (params?: { maxReorgSeconds?: number }) => {
+export const getChain = (params?: { reorgWindow?: number }) => {
   return {
     name: "mainnet",
     id: 1,
     rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
     ws: undefined,
     pollingInterval: 1_000,
-    maxReorgSeconds: params?.maxReorgSeconds ?? 1,
+    reorgWindow: params?.reorgWindow ?? 1,
     disableCache: false,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,

@@ -302,7 +302,7 @@ export type Chain = {
   rpc: string | string[] | Transport;
   ws: string | undefined;
   pollingInterval: number;
-  maxReorgSeconds: number;
+  reorgWindow: number;
   disableCache: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
