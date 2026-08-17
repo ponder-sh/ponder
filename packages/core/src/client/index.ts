@@ -194,7 +194,7 @@ export const client = ({
     );
     driver.instance.query(`LISTEN "${channel}"`);
 
-    driver.instance.onNotification((_, payload) => {
+    const unsubscribe = driver.instance.onNotification((_, payload) => {
       const tables = JSON.parse(payload!) as string[];
       tables.push("_ponder_checkpoint");
       let invalidQueryCount = 0;
@@ -232,6 +232,8 @@ export const client = ({
         });
       }
     });
+
+    globalThis.PONDER_COMMON.apiShutdown.add(unsubscribe);
   } else {
     (async () => {
       let client: pg.PoolClient | undefined;
@@ -246,6 +248,7 @@ export const client = ({
 
             if (hasRegisteredShutdown === false) {
               globalThis.PONDER_COMMON.apiShutdown.add(() => {
+                client?.removeAllListeners("notification");
                 client?.release();
                 client = undefined;
               });
