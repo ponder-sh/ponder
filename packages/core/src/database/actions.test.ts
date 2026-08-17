@@ -204,6 +204,7 @@ test("live query notify trigger batches large payloads", async () => {
 
   const channel = getLiveQueryChannelName("public");
   const notifications: string[] = [];
+  let unsubscribe: (() => void) | undefined;
   let resolve!: () => void;
   const done = new Promise<void>((_resolve) => {
     resolve = _resolve;
@@ -216,7 +217,7 @@ test("live query notify trigger batches large payloads", async () => {
 
   if (database.driver.dialect === "pglite") {
     await database.driver.instance.query(`LISTEN "${channel}"`);
-    database.driver.instance.onNotification((_, payload) =>
+    unsubscribe = database.driver.instance.onNotification((_, payload) =>
       onNotification(payload),
     );
   }
@@ -284,6 +285,7 @@ test("live query notify trigger batches large payloads", async () => {
     await done;
   } finally {
     if (database.driver.dialect === "pglite") {
+      unsubscribe?.();
       await database.driver.instance.query(`UNLISTEN "${channel}"`);
     } else if (client) {
       await client.query(`UNLISTEN "${channel}"`);
