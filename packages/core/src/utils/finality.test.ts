@@ -31,9 +31,9 @@ const getRpc = (blocks: Map<number, ReturnType<typeof getBlock>>) => {
   } as unknown as Rpc & { request: typeof request };
 };
 
-const getChain = (maxReorgSeconds: number, blockTime?: number) =>
+const getChain = (reorgWindow: number, blockTime?: number) =>
   ({
-    maxReorgSeconds,
+    reorgWindow,
     viemChain: blockTime === undefined ? undefined : { blockTime },
   }) as Chain;
 
@@ -63,7 +63,7 @@ test("getFinalizedBlock() uses blockTime for its initial guess", async () => {
     latestBlock: getBlock(100, 100),
   });
 
-  expect(Number(result.number)).toBe(78);
+  expect(Number(result.number)).toBe(80);
   expect(Number(rpc.request.mock.calls[0]![0].params[0])).toBe(90);
 });
 
@@ -79,4 +79,35 @@ test("getFinalizedBlock() assumes one-second blocks without blockTime", async ()
   });
 
   expect(Number(rpc.request.mock.calls[0]![0].params[0])).toBe(80);
+});
+
+test("getFinalizedBlock() returns genesis when the chain is younger than the reorg window", async () => {
+  const genesis = getBlock(0, 100);
+  const blocks = new Map<number, ReturnType<typeof getBlock>>([
+    [0, genesis],
+    [1, getBlock(1, 110)],
+  ]);
+  const rpc = getRpc(blocks);
+
+  const result = await getFinalizedBlock({
+    chain: getChain(180),
+    rpc,
+    latestBlock: getBlock(1, 110),
+  });
+
+  expect(result).toEqual(genesis);
+});
+
+test("getFinalizedBlock() returns the newest block at the exact cutoff", async () => {
+  const blocks = new Map<number, ReturnType<typeof getBlock>>();
+  for (let i = 0; i <= 100; i++) blocks.set(i, getBlock(i, i));
+  const rpc = getRpc(blocks);
+
+  const result = await getFinalizedBlock({
+    chain: getChain(20),
+    rpc,
+    latestBlock: getBlock(100, 100),
+  });
+
+  expect(Number(result.number)).toBe(80);
 });

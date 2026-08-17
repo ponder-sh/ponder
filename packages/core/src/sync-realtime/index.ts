@@ -1157,13 +1157,13 @@ export const createRealtimeSync = (
     const blockMovesFinality =
       hexToNumber(block.timestamp) -
         hexToNumber(unfinalizedBlocks[0]!.timestamp) >=
-      args.chain.maxReorgSeconds;
+      args.chain.reorgWindow;
     if (blockMovesFinality) {
       let pendingFinalizedBlock = unfinalizedBlocks[0]!;
       for (const candidate of unfinalizedBlocks) {
         if (
           hexToNumber(block.timestamp) - hexToNumber(candidate.timestamp) >=
-          args.chain.maxReorgSeconds
+          args.chain.reorgWindow
         ) {
           pendingFinalizedBlock = candidate;
         } else {

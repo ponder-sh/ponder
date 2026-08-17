@@ -43,10 +43,7 @@ import {
 import { buildTopics, toSafeName } from "@/utils/abi.js";
 import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
-import {
-  DEFAULT_MAX_REORG_SECONDS,
-  getFinalizedBlock,
-} from "@/utils/finality.js";
+import { DEFAULT_REORG_WINDOW, getFinalizedBlock } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { buildLogFactory } from "./factory.js";
 
@@ -1068,13 +1065,24 @@ export function buildConfig({
         );
       }
 
+      if (
+        chain.reorgWindow !== undefined &&
+        (!Number.isInteger(chain.reorgWindow) ||
+          chain.reorgWindow < 0 ||
+          chain.reorgWindow > 600)
+      ) {
+        throw new Error(
+          `Invalid 'reorgWindow' for chain '${chainName}'. Expected an integer between 0 and 600 seconds, got ${chain.reorgWindow}.`,
+        );
+      }
+
       return {
         id: chain.id,
         name: chainName,
         rpc: chain.rpc,
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
-        maxReorgSeconds: chain.maxReorgSeconds ?? DEFAULT_MAX_REORG_SECONDS,
+        reorgWindow: chain.reorgWindow ?? DEFAULT_REORG_WINDOW,
         disableCache: chain.disableCache ?? false,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,
