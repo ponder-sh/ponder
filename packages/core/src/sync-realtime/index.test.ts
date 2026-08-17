@@ -1276,7 +1276,7 @@ test("handleReorg() finds common ancestor", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ reorgWindow: 2 });
+  const chain = getChain({ reorgWindow: 10 });
   const rpc = createRpc({
     chain,
     common,
@@ -1324,7 +1324,7 @@ test("handleReorg() throws error for deep reorg", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ reorgWindow: 2 });
+  const chain = getChain({ reorgWindow: 10 });
   const rpc = createRpc({
     chain,
     common,
