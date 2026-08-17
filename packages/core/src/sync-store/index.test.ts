@@ -85,16 +85,7 @@ test("getIntervals() empty", async () => {
 });
 
 test("getIntervals() supports every batch remainder", async () => {
-  const { database, syncStore } = await setupDatabaseServices();
-
-  // Avoid retrying the malformed query so the test exposes the original error.
-  vi.spyOn(database.syncQB, "wrap").mockImplementation(
-    async (...args: any[]) => {
-      const query = typeof args[0] === "function" ? args[0] : args[1];
-      await query(database.syncQB);
-      return [];
-    },
-  );
+  const { syncStore } = await setupDatabaseServices();
 
   for (const queryCount of [1, 2, 199, 200, 201, 400, 401]) {
     const filters = Array.from({ length: queryCount }, (_, index) => ({
