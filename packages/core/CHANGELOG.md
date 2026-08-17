@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.7
+
+### Patch Changes
+
+- [#2370](https://github.com/ponder-sh/ponder/pull/2370) [`e60a608`](https://github.com/ponder-sh/ponder/commit/e60a608b8a001511a6d62e825db73269a2ee669e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed the error `TypeError: Cannot read properties of undefined (reading 'getSelectedFields')` that occurred during startup.
+
 ## 0.17.6
 
 ### Patch Changes
