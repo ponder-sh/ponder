@@ -16,6 +16,7 @@ import type {
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
+import { createInMemoryHistoricalSync } from "@/sync-historical/in-memory.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import { createQueryHistoricalSync } from "@/sync-historical/query.js";
 import { createSyncStore, type SyncStore } from "@/sync-store/index.js";
@@ -208,7 +209,7 @@ export async function* getHistoricalEventsOmnichain(params: {
           ]),
         });
 
-        const eventGenerator = getLocalEventGenerator({
+        const eventGeneratorParams = {
           common: params.common,
           chain,
           rpc,
@@ -225,7 +226,10 @@ export async function* getHistoricalEventsOmnichain(params: {
             ) + 6,
           database: params.database,
           isCatchup,
-        });
+        };
+        const eventGenerator = chain.persistRpcData
+          ? getLocalEventGenerator(eventGeneratorParams)
+          : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
         for await (let {
           events: rawEvents,
@@ -495,7 +499,7 @@ export async function* getHistoricalEventsMultichain(params: {
           ]),
         });
 
-        const eventGenerator = getLocalEventGenerator({
+        const eventGeneratorParams = {
           common: params.common,
           chain,
           rpc,
@@ -512,7 +516,10 @@ export async function* getHistoricalEventsMultichain(params: {
             ) + 6,
           database: params.database,
           isCatchup,
-        });
+        };
+        const eventGenerator = chain.persistRpcData
+          ? getLocalEventGenerator(eventGeneratorParams)
+          : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
         for await (const {
           events: rawEvents,
@@ -720,7 +727,7 @@ export async function* getHistoricalEventsIsolated(params: {
       ]),
     });
 
-    const eventGenerator = getLocalEventGenerator({
+    const eventGeneratorParams = {
       common: params.common,
       chain: params.chain,
       rpc,
@@ -737,7 +744,10 @@ export async function* getHistoricalEventsIsolated(params: {
         ) + 6,
       database: params.database,
       isCatchup,
-    });
+    };
+    const eventGenerator = params.chain.persistRpcData
+      ? getLocalEventGenerator(eventGeneratorParams)
+      : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
     for await (const {
       events: rawEvents,
@@ -1000,6 +1010,12 @@ export async function refetchLocalEvents(params: {
   return events!;
 }
 
+type LocalEventGeneratorResult = {
+  events: RawEvent[];
+  checkpoint: string;
+  blockRange: [number, number];
+};
+
 export async function* getLocalEventGenerator(params: {
   common: Common;
   chain: Chain;
@@ -1013,7 +1029,7 @@ export async function* getLocalEventGenerator(params: {
   limit: number;
   database: Database;
   isCatchup: boolean;
-}) {
+}): AsyncGenerator<LocalEventGeneratorResult> {
   const syncStore = createSyncStore({
     common: params.common,
     qb: params.database.syncQB,
@@ -1101,6 +1117,88 @@ export async function* getLocalEventGenerator(params: {
         yield { events, checkpoint, blockRange };
       }
     }
+  }
+}
+
+async function* getLocalInMemoryEventGenerator(params: {
+  common: Common;
+  chain: Chain;
+  rpc: Rpc;
+  eventCallbacks: EventCallback[];
+  childAddresses: ChildAddresses;
+  syncProgress: SyncProgress;
+  cachedIntervals: CachedIntervals;
+  from: string;
+  to: string;
+  limit: number;
+  database: Database;
+  isCatchup: boolean;
+}): AsyncGenerator<LocalEventGeneratorResult> {
+  const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
+  const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
+  if (fromBlock > toBlock) return;
+
+  const interval = [fromBlock, toBlock] satisfies Interval;
+  const {
+    intervals: requiredIntervals,
+    factoryIntervals: requiredFactoryIntervals,
+  } = getRequiredIntervalsWithFilters({
+    interval,
+    filters: params.eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: params.cachedIntervals,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: params.common,
+    chain: params.chain,
+    rpc: params.rpc,
+    childAddresses: params.childAddresses,
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval,
+    requiredIntervals,
+    requiredFactoryIntervals,
+  });
+
+  let cursor = fromBlock;
+  for await (const result of historicalSync.syncBlockData({
+    interval,
+    requiredIntervals,
+    logs,
+  })) {
+    const queryCursor = Math.min(result.cursor, toBlock);
+    const events = buildEvents({
+      eventCallbacks: params.eventCallbacks,
+      blocks: result.blocks,
+      logs: result.logs,
+      transactions: result.transactions,
+      transactionReceipts: result.transactionReceipts,
+      traces: result.traces,
+      childAddresses: params.childAddresses,
+      chainId: params.chain.id,
+    });
+
+    const blockRange = [cursor, queryCursor] satisfies [number, number];
+    cursor = queryCursor + 1;
+
+    const lastBlock = result.blocks[result.blocks.length - 1];
+    const checkpoint =
+      queryCursor >= toBlock
+        ? params.to
+        : lastBlock === undefined
+          ? encodeCheckpoint({
+              ...MAX_CHECKPOINT,
+              chainId: BigInt(params.chain.id),
+              blockNumber: BigInt(queryCursor),
+            })
+          : encodeCheckpoint({
+              ...MAX_CHECKPOINT,
+              blockTimestamp: lastBlock.timestamp,
+              chainId: BigInt(params.chain.id),
+              blockNumber: lastBlock.number,
+            });
+
+    yield { events, checkpoint, blockRange };
   }
 }
 
@@ -1239,7 +1337,7 @@ export async function* getLocalQuerySyncGenerator(params: {
           syncResult.interval.map((interval) => ({ factory, interval })),
       );
 
-      if (params.chain.disableCache === false) {
+      if (params.chain.persistRpcData) {
         await syncStore.insertIntervals({
           intervals: completedIntervals,
           factoryIntervals: completedFactoryIntervals,
@@ -1560,7 +1658,7 @@ export async function* getLocalSyncGenerator(params: {
             logs,
             syncStore,
           });
-          if (params.chain.disableCache === false) {
+          if (params.chain.persistRpcData) {
             await syncStore.insertIntervals({
               intervals: requiredIntervals,
               factoryIntervals: requiredFactoryIntervals,

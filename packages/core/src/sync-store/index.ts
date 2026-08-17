@@ -193,10 +193,6 @@ export type SyncStore = {
     },
     context?: { logger?: Logger },
   ): Promise<void>;
-  pruneByChain(
-    args: { chainId: number },
-    context?: { logger?: Logger },
-  ): Promise<void>;
 };
 
 export const createSyncStore = ({
@@ -1423,65 +1419,6 @@ export const createSyncStore = ({
         context,
       );
     },
-    pruneByChain: async ({ chainId }, context) =>
-      qb.transaction(async (tx) => {
-        await tx.wrap(
-          { label: "delete_logs" },
-          (db) =>
-            db
-              .delete(PONDER_SYNC.logs)
-              .where(eq(PONDER_SYNC.logs.chainId, BigInt(chainId)))
-              .execute(),
-          context,
-        );
-        await tx.wrap(
-          { label: "delete_blocks" },
-          (db) =>
-            db
-              .delete(PONDER_SYNC.blocks)
-              .where(eq(PONDER_SYNC.blocks.chainId, BigInt(chainId)))
-              .execute(),
-          context,
-        );
-        await tx.wrap(
-          { label: "delete_traces" },
-          (db) =>
-            db
-              .delete(PONDER_SYNC.traces)
-              .where(eq(PONDER_SYNC.traces.chainId, BigInt(chainId)))
-              .execute(),
-          context,
-        );
-        await tx.wrap(
-          { label: "delete_transactions" },
-          (db) =>
-            db
-              .delete(PONDER_SYNC.transactions)
-              .where(eq(PONDER_SYNC.transactions.chainId, BigInt(chainId)))
-              .execute(),
-          context,
-        );
-        await tx.wrap(
-          { label: "delete_transaction_receipts" },
-          (db) =>
-            db
-              .delete(PONDER_SYNC.transactionReceipts)
-              .where(
-                eq(PONDER_SYNC.transactionReceipts.chainId, BigInt(chainId)),
-              )
-              .execute(),
-          context,
-        );
-        await tx.wrap(
-          { label: "delete_factory_addresses" },
-          (db) =>
-            db
-              .delete(PONDER_SYNC.factoryAddresses)
-              .where(eq(PONDER_SYNC.factoryAddresses.chainId, BigInt(chainId)))
-              .execute(),
-          context,
-        );
-      }),
   } satisfies SyncStore;
 
   return syncStore;

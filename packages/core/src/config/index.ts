@@ -102,8 +102,8 @@ type ChainConfig<chain> = {
    * @deprecated Handled automatically instead.
    */
   maxRequestsPerSecond?: number;
-  /** Disable JSON-RPC request caching. Default: `false`. */
-  disableCache?: boolean;
+  /** Persist raw JSON-RPC response data. If `false`, caching is disable and all block data is refetched. Default: `true`. */
+  persistRpcData?: boolean;
   /** Use the `eth_query*` JSON-RPC methods for faster backfill data fetching. Default: `false`. */
   experimental_rpcQuery?: boolean;
   /**
