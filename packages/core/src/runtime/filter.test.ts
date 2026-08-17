@@ -1,6 +1,16 @@
-import { type Address, parseEther, zeroAddress, zeroHash } from "viem";
+import {
+  type Address,
+  getAbiItem,
+  type Hex,
+  numberToHex,
+  parseEther,
+  toEventSelector,
+  zeroAddress,
+  zeroHash,
+} from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
 import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
   createPair,
@@ -29,6 +39,7 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
+import type { IntervalWithFilter } from "@/runtime/index.js";
 import {
   getChildAddress,
   isBlockFilterMatched,
@@ -37,6 +48,7 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
+  mergeLogFiltersToRequests,
 } from "./filter.js";
 
 beforeEach(setupCommon);
@@ -321,4 +333,165 @@ test("isTraceFilterMatched()", async () => {
     trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(false);
+});
+
+const ADDRESS_A: Address = "0x1111111111111111111111111111111111111111";
+const ADDRESS_B: Address = "0x2222222222222222222222222222222222222222";
+
+const TOPIC1_ALICE: Hex = `0x${"0".repeat(24)}${ALICE.slice(2)}`;
+const TOPIC1_BOB: Hex = `0x${"0".repeat(24)}${BOB.slice(2)}`;
+
+const baseLogFilter = {
+  type: "log",
+  chainId: 1,
+  sourceId: "Erc20",
+  fromBlock: undefined,
+  toBlock: undefined,
+  hasTransactionReceipt: false,
+  include: [] as LogFilter["include"],
+};
+
+test("mergeLogFiltersToRequests merges filters with different topic1 values into one request", () => {
+  const transfer = toEventSelector(
+    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+  );
+
+  const requiredIntervals: IntervalWithFilter[] = [
+    {
+      filter: {
+        ...baseLogFilter,
+        address: ADDRESS_A,
+        topic0: transfer,
+        topic1: TOPIC1_ALICE,
+        topic2: null,
+        topic3: null,
+      } as LogFilter,
+      interval: [1, 100],
+    },
+    {
+      filter: {
+        ...baseLogFilter,
+        address: ADDRESS_A,
+        topic0: transfer,
+        topic1: TOPIC1_BOB,
+        topic2: null,
+        topic3: null,
+      } as LogFilter,
+      interval: [1, 100],
+    },
+  ];
+
+  // Only `topic1` differs between the two filters, so they're merged into a
+  // single request with `topic1` unioned into an array.
+  const mergedRequests = mergeLogFiltersToRequests(
+    requiredIntervals,
+    new Map(),
+    1000,
+  );
+
+  expect(mergedRequests).toHaveLength(1);
+  expect(mergedRequests[0]!.params[0]).toMatchObject({
+    address: ADDRESS_A,
+    topics: [transfer, [TOPIC1_ALICE, TOPIC1_BOB]],
+  });
+});
+
+test("mergeLogFiltersToRequests merges filters with different addresses into one request", () => {
+  const transfer = toEventSelector(
+    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+  );
+
+  const requiredIntervals: IntervalWithFilter[] = [
+    {
+      filter: {
+        ...baseLogFilter,
+        address: ADDRESS_A,
+        topic0: transfer,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as LogFilter,
+      interval: [1, 100],
+    },
+    {
+      filter: {
+        ...baseLogFilter,
+        address: ADDRESS_B,
+        topic0: transfer,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as LogFilter,
+      interval: [1, 100],
+    },
+  ];
+
+  // Only `address` differs between the two filters, so they're merged into a
+  // single request with `address` unioned into an array.
+  const mergedRequests = mergeLogFiltersToRequests(
+    requiredIntervals,
+    new Map(),
+    1000,
+  );
+
+  expect(mergedRequests).toHaveLength(1);
+  expect(mergedRequests[0]!.params[0]).toMatchObject({
+    address: [ADDRESS_A, ADDRESS_B],
+    topics: [transfer],
+  });
+});
+
+test("mergeLogFiltersToRequests does not merge disjoint intervals into an overly wide request", () => {
+  const transfer = toEventSelector(
+    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+  );
+
+  const requiredIntervals: IntervalWithFilter[] = [
+    {
+      filter: {
+        ...baseLogFilter,
+        address: ADDRESS_A,
+        topic0: transfer,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as LogFilter,
+      interval: [1, 100],
+    },
+    {
+      filter: {
+        ...baseLogFilter,
+        address: ADDRESS_A,
+        topic0: transfer,
+        topic1: null,
+        topic2: null,
+        topic3: null,
+      } as LogFilter,
+      interval: [100_000, 100_100],
+    },
+  ];
+
+  // The two filters are otherwise identical, but their intervals are
+  // disjoint (0% overlap), so merging them would force an unnecessarily wide
+  // request that refetches ~100,000 unrelated blocks. Instead, two
+  // tightly-bounded requests are kept.
+  const mergedRequests = mergeLogFiltersToRequests(
+    requiredIntervals,
+    new Map(),
+    1000,
+  );
+
+  expect(mergedRequests).toHaveLength(2);
+  expect(mergedRequests.map((request) => request.params[0])).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        fromBlock: numberToHex(1),
+        toBlock: numberToHex(100),
+      }),
+      expect.objectContaining({
+        fromBlock: numberToHex(100_000),
+        toBlock: numberToHex(100_100),
+      }),
+    ]),
+  );
 });

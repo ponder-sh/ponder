@@ -1,4 +1,4 @@
-import { type Address, hexToNumber } from "viem";
+import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
 import type {
   BlockFilter,
   Factory,
@@ -23,6 +23,8 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { type RequestParameters, sanitizeLogTopics } from "@/rpc/index.js";
+import type { ChildAddresses, IntervalWithFilter } from "@/runtime/index.js";
 import type {
   Block,
   Log,
@@ -30,6 +32,7 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
+import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
 /** Returns true if `address` is an address filter. */
@@ -44,6 +47,179 @@ export const isAddressFactory = (
     return false;
   }
   return Array.isArray(address) ? isAddressFactory(address[0]) : true;
+};
+
+type EthGetLogsRequest = Extract<
+  RequestParameters,
+  { method: "eth_getLogs" }
+> & {
+  params: [
+    Extract<
+      Extract<RequestParameters, { method: "eth_getLogs" }>["params"][0],
+      { blockHash?: undefined }
+    > & { fromBlock: Hex; toBlock: Hex },
+  ];
+};
+
+const logRequestKeys = [
+  "address",
+  "topic0",
+  "topic1",
+  "topic2",
+  "topic3",
+] as const;
+
+const getLogRequestValue = (
+  request: EthGetLogsRequest,
+  key: (typeof logRequestKeys)[number],
+): Hex | Hex[] | undefined => {
+  if (key === "address") return request.params[0].address;
+
+  const topic = request.params[0].topics?.[Number(key.slice(-1))];
+  return topic === null ? undefined : topic;
+};
+
+/** Returns `true` if `left` and `right` overlap by at least 80% of the smaller interval's length. */
+const hasSufficientLogIntervalOverlap = (
+  left: Interval,
+  right: Interval,
+): boolean => {
+  const overlapStart = Math.max(left[0], right[0]);
+  const overlapEnd = Math.min(left[1], right[1]);
+  if (overlapStart > overlapEnd) return false;
+
+  const overlapLength = overlapEnd - overlapStart + 1;
+  const smallerIntervalLength = Math.min(
+    left[1] - left[0] + 1,
+    right[1] - right[0] + 1,
+  );
+
+  return overlapLength / smallerIntervalLength >= 0.8;
+};
+
+const mergeLogFilterValue = <value extends Hex>(
+  left: value | value[] | undefined,
+  right: value | value[] | undefined,
+): value[] | undefined =>
+  left === undefined || right === undefined
+    ? undefined
+    : [
+        ...new Set([
+          ...(Array.isArray(left) ? left : [left]),
+          ...(Array.isArray(right) ? right : [right]),
+        ]),
+      ];
+
+/**
+ * Merge `LogFilter`s into the smallest possible set of "eth_getLogs" requests.
+ *
+ * @dev Two filters are merged into a single request when:
+ *   1. their required intervals overlap by at least 80% (of the smaller
+ *      interval's length), and
+ *   2. at most one of `address`, `topic0`, `topic1`, `topic2`, or `topic3`
+ *      differs between them.
+ * The one differing dimension (if any) is unioned into an array.
+ *
+ * @dev Factory addresses are resolved into concrete child addresses (or
+ * `undefined`, above `factoryAddressCountThreshold`) before merging, so
+ * requests originating from different factories can still be merged.
+ */
+export const mergeLogFiltersToRequests = (
+  filters: IntervalWithFilter[],
+  childAddresses: ChildAddresses,
+  factoryAddressCountThreshold: number,
+): EthGetLogsRequest[] => {
+  const requests: EthGetLogsRequest[] = [];
+
+  for (const { filter, interval } of filters) {
+    if (filter.type !== "log") continue;
+
+    let address: Hex | Hex[] | undefined;
+    if (isAddressFactory(filter.address)) {
+      const addresses = childAddresses.get(filter.address.id)!;
+      if (addresses.size === 0) continue;
+
+      address =
+        addresses.size >= factoryAddressCountThreshold
+          ? undefined
+          : Array.from(addresses.keys());
+    } else {
+      address = filter.address;
+    }
+
+    const candidate: EthGetLogsRequest = {
+      method: "eth_getLogs",
+      params: [
+        {
+          address,
+          topics: sanitizeLogTopics([
+            filter.topic0,
+            filter.topic1 ?? null,
+            filter.topic2 ?? null,
+            filter.topic3 ?? null,
+          ]),
+          fromBlock: numberToHex(interval[0]),
+          toBlock: numberToHex(interval[1]),
+        },
+      ],
+    };
+
+    let isMerged = false;
+
+    for (const request of requests) {
+      if (
+        hasSufficientLogIntervalOverlap(
+          [
+            hexToNumber(request.params[0].fromBlock),
+            hexToNumber(request.params[0].toBlock),
+          ],
+          interval,
+        ) === false
+      ) {
+        continue;
+      }
+
+      const numberOfDifferences = logRequestKeys.filter(
+        (key) =>
+          JSON.stringify(getLogRequestValue(request, key)) !==
+          JSON.stringify(getLogRequestValue(candidate, key)),
+      ).length;
+      if (numberOfDifferences > 1) continue;
+
+      const requestParams = request.params[0];
+      for (const key of logRequestKeys) {
+        const requestValue = getLogRequestValue(request, key);
+        const candidateValue = getLogRequestValue(candidate, key);
+        if (JSON.stringify(requestValue) === JSON.stringify(candidateValue)) {
+          continue;
+        }
+
+        const mergedValue = mergeLogFilterValue(requestValue, candidateValue);
+        if (key === "address") {
+          requestParams.address = mergedValue;
+        } else {
+          const topics = [...(requestParams.topics ?? [])];
+          topics[Number(key.slice(-1))] = mergedValue ?? null;
+          requestParams.topics = sanitizeLogTopics(topics);
+        }
+      }
+
+      requestParams.fromBlock = numberToHex(
+        Math.min(hexToNumber(requestParams.fromBlock), interval[0]),
+      );
+      requestParams.toBlock = numberToHex(
+        Math.max(hexToNumber(requestParams.toBlock), interval[1]),
+      );
+      isMerged = true;
+      break;
+    }
+
+    if (isMerged === false) {
+      requests.push(candidate);
+    }
+  }
+
+  return requests;
 };
 
 export const getChildAddress = ({

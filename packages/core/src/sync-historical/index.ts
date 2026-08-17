@@ -4,7 +4,6 @@ import {
   type Hash,
   type Hex,
   hexToNumber,
-  type LogTopic,
   numberToHex,
   type RpcError,
   toHex,
@@ -37,7 +36,7 @@ import {
   validateTracesAndBlock,
   validateTransactionsAndBlock,
 } from "@/rpc/actions.js";
-import { type Rpc, sanitizeLogTopics } from "@/rpc/index.js";
+import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -49,6 +48,7 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
+  mergeLogFiltersToRequests,
 } from "@/runtime/filter.js";
 import type {
   ChildAddresses,
@@ -79,6 +79,7 @@ export type HistoricalSync = {
   }): Promise<SyncLog[]>;
   /**
    * Sync block data that must be queried for a single block (block, transactions, receipts, traces).
+   * @returns Closest-to-tip synced block.
    */
   syncBlockData(params: {
     interval: Interval;
@@ -120,48 +121,37 @@ export const createHistoricalSync = (
   // Helper functions for sync tasks
   ////////
 
-  type EthGetLogsParams = {
-    address: Address | Address[] | undefined;
-    topic0?: LogTopic;
-    topic1?: LogTopic;
-    topic2?: LogTopic;
-    topic3?: LogTopic;
-    interval: Interval;
-  };
-
   /**
    * Split "eth_getLogs" requests into ranges inferred from errors
    * and batch requests.
    */
   const syncLogsDynamic = async (
-    { address, topic0, topic1, topic2, topic3, interval }: EthGetLogsParams,
+    params: Extract<RequestParameters, { method: "eth_getLogs" }>["params"][0],
     context?: Parameters<Rpc["request"]>[1],
   ): Promise<SyncLog[]> => {
+    const { address, topics } = params;
+
     const intervals = getChunks({
-      interval,
+      interval: [
+        hexToNumber(params.fromBlock as Hex),
+        hexToNumber(params.toBlock as Hex),
+      ],
       maxChunkSize:
         args.chain.ethGetLogsBlockRange ??
         logsRequestMetadata.confirmedRange ??
         logsRequestMetadata.estimatedRange,
     });
 
-    const topics = sanitizeLogTopics([
-      topic0 ?? null,
-      topic1 ?? null,
-      topic2 ?? null,
-      topic3 ?? null,
-    ])!;
-
     const logs = await Promise.all(
-      intervals.map((interval) =>
+      intervals.map(([fromBlock, toBlock]) =>
         eth_getLogs(
           args.rpc,
           [
             {
               address,
               topics,
-              fromBlock: numberToHex(interval[0]),
-              toBlock: numberToHex(interval[1]),
+              fromBlock: numberToHex(fromBlock),
+              toBlock: numberToHex(toBlock),
             },
           ],
           context,
@@ -177,8 +167,8 @@ export const createHistoricalSync = (
               {
                 address,
                 topics,
-                fromBlock: toHex(interval[0]),
-                toBlock: toHex(interval[1]),
+                fromBlock: toHex(fromBlock),
+                toBlock: toHex(toBlock),
               },
             ],
             error: error as RpcError,
@@ -205,7 +195,12 @@ export const createHistoricalSync = (
           };
 
           return syncLogsDynamic(
-            { address, topic0, topic1, topic2, topic3, interval },
+            {
+              address,
+              topics,
+              fromBlock: numberToHex(fromBlock),
+              toBlock: numberToHex(toBlock),
+            },
             context,
           );
         }),
@@ -318,14 +313,15 @@ export const createHistoricalSync = (
     const logs = await syncLogsDynamic(
       {
         address: factory.address,
-        topic0: factory.eventSelector,
-        interval,
+        topics: [factory.eventSelector],
+        fromBlock: numberToHex(interval[0]),
+        toBlock: numberToHex(interval[1]),
       },
       context,
     );
 
     const childAddresses = new Map<Address, number>();
-    const childAddressesRecord = args.childAddresses.get(factory.id)!;
+    const factoryChildAddresses = args.childAddresses.get(factory.id)!;
 
     const childAddressDecodeFailureIds = new Set<string>();
     let childAddressDecodeFailureCount = 0;
@@ -358,7 +354,7 @@ export const createHistoricalSync = (
             throw error;
           }
         }
-        const existingBlockNumber = childAddressesRecord.get(address);
+        const existingBlockNumber = factoryChildAddresses.get(address);
         const newBlockNumber = hexToNumber(log.blockNumber);
 
         if (
@@ -366,7 +362,7 @@ export const createHistoricalSync = (
           existingBlockNumber > newBlockNumber
         ) {
           childAddresses.set(address, newBlockNumber);
-          childAddressesRecord.set(address, newBlockNumber);
+          factoryChildAddresses.set(address, newBlockNumber);
         }
       }
     }
@@ -428,132 +424,17 @@ export const createHistoricalSync = (
         }),
       );
 
-      const mergedEthGetLogsParams: Map<string, EthGetLogsParams> = new Map();
-      const singleEthGetLogsParams: EthGetLogsParams[] = [];
-
-      for (const { filter, interval } of requiredIntervals) {
-        if (filter.type !== "log") continue;
-
-        const hasAddress = filter.address !== undefined;
-        const hasTopic1 = filter.topic1 !== undefined && filter.topic1 !== null;
-        const hasTopic2 = filter.topic2 !== undefined && filter.topic2 !== null;
-        const hasTopic3 = filter.topic3 !== undefined && filter.topic3 !== null;
-
-        if (hasAddress === false || hasTopic1 || hasTopic2 || hasTopic3) {
-          if (isAddressFactory(filter.address)) {
-            const childAddresses = args.childAddresses.get(filter.address.id)!;
-
-            if (childAddresses.size === 0) {
-              continue;
-            }
-
-            singleEthGetLogsParams.push({
-              address:
-                childAddresses.size >=
-                args.common.options.factoryAddressCountThreshold
-                  ? undefined
-                  : Array.from(childAddresses.keys()),
-              topic0: filter.topic0,
-              topic1: filter.topic1,
-              topic2: filter.topic2,
-              topic3: filter.topic3,
-              interval,
-            });
-          } else {
-            singleEthGetLogsParams.push({
-              address: filter.address,
-              topic0: filter.topic0,
-              topic1: filter.topic1,
-              topic2: filter.topic2,
-              topic3: filter.topic3,
-              interval,
-            });
-          }
-
-          continue;
-        }
-
-        let addressKey: string;
-        if (isAddressFactory(filter.address)) {
-          addressKey = filter.address.id;
-        } else if (Array.isArray(filter.address)) {
-          addressKey = filter.address.join("_");
-        } else {
-          addressKey = filter.address as Address;
-        }
-
-        if (mergedEthGetLogsParams.has(addressKey) === false) {
-          if (isAddressFactory(filter.address)) {
-            const childAddresses = args.childAddresses.get(filter.address.id)!;
-
-            if (childAddresses.size === 0) {
-              continue;
-            }
-
-            mergedEthGetLogsParams.set(addressKey, {
-              address:
-                childAddresses.size >=
-                args.common.options.factoryAddressCountThreshold
-                  ? undefined
-                  : Array.from(childAddresses.keys()),
-              topic0: filter.topic0,
-              topic1: filter.topic1,
-              topic2: filter.topic2,
-              topic3: filter.topic3,
-              interval,
-            });
-          } else {
-            mergedEthGetLogsParams.set(addressKey, {
-              address: filter.address,
-              topic0: filter.topic0,
-              topic1: filter.topic1,
-              topic2: filter.topic2,
-              topic3: filter.topic3,
-              interval,
-            });
-          }
-        } else {
-          const existingInterval =
-            mergedEthGetLogsParams.get(addressKey)!.interval;
-          const existingTopic0 = mergedEthGetLogsParams.get(addressKey)!
-            .topic0 as Hex | Hex[];
-
-          if (Array.isArray(existingTopic0)) {
-            if (existingTopic0.includes(filter.topic0) === false) {
-              mergedEthGetLogsParams.get(addressKey)!.topic0 = [
-                ...existingTopic0,
-                filter.topic0,
-              ];
-            }
-          } else {
-            if (existingTopic0 !== filter.topic0) {
-              mergedEthGetLogsParams.get(addressKey)!.topic0 = [
-                existingTopic0,
-                filter.topic0,
-              ];
-            }
-          }
-
-          mergedEthGetLogsParams.get(addressKey)!.interval = intervalBounds([
-            existingInterval,
-            interval,
-          ]);
-        }
-      }
-
-      const ethGetLogsParams = dedupe(
-        [
-          ...singleEthGetLogsParams,
-          ...Array.from(mergedEthGetLogsParams.values()),
-        ],
-        (params) => JSON.stringify(params),
+      const ethGetLogsRequests = mergeLogFiltersToRequests(
+        requiredIntervals,
+        args.childAddresses,
+        args.common.options.factoryAddressCountThreshold,
       );
 
       let logs: SyncLog[] = [];
 
       await Promise.all(
-        ethGetLogsParams.map(async (params) => {
-          const _logs = await syncLogsDynamic(params, context);
+        ethGetLogsRequests.map(async (request) => {
+          const _logs = await syncLogsDynamic(request.params[0], context);
           for (const log of _logs) {
             logs.push(log);
           }
