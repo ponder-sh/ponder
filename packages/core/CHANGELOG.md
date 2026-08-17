@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.8
+
+### Patch Changes
+
+- [#2366](https://github.com/ponder-sh/ponder/pull/2366) [`bbcaa43`](https://github.com/ponder-sh/ponder/commit/bbcaa43982b92cbfd1d4b91f66a0b4ae824c3d43) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved backfill sync performance by merging more compatible JSON-RPC `eth_getLogs` requests.
+
 ## 0.17.7
 
 ### Patch Changes
