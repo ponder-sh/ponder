@@ -36,11 +36,7 @@ import {
   validateTracesAndBlock,
   validateTransactionsAndBlock,
 } from "@/rpc/actions.js";
-import {
-  type RequestParameters,
-  type Rpc,
-  sanitizeLogTopics,
-} from "@/rpc/index.js";
+import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -52,6 +48,7 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
+  mergeLogFiltersToRequests,
 } from "@/runtime/filter.js";
 import type {
   ChildAddresses,
@@ -69,164 +66,6 @@ import {
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
-
-type LogRequestParams = {
-  fromBlock: number;
-  toBlock: number;
-  address: Hex | Hex[] | undefined;
-  topic0: Hex | Hex[] | undefined;
-  topic1: Hex | Hex[] | undefined;
-  topic2: Hex | Hex[] | undefined;
-  topic3: Hex | Hex[] | undefined;
-  filters: LogFilter[];
-};
-
-const logRequestKeys = [
-  "address",
-  "topic0",
-  "topic1",
-  "topic2",
-  "topic3",
-] as const;
-
-/** Returns `true` if `left` and `right` overlap by at least 80% of the smaller interval's length. */
-const hasSufficientLogIntervalOverlap = (
-  left: Interval,
-  right: Interval,
-): boolean => {
-  const overlapStart = Math.max(left[0], right[0]);
-  const overlapEnd = Math.min(left[1], right[1]);
-  if (overlapStart > overlapEnd) return false;
-
-  const overlapLength = overlapEnd - overlapStart + 1;
-  const smallerIntervalLength = Math.min(
-    left[1] - left[0] + 1,
-    right[1] - right[0] + 1,
-  );
-
-  return overlapLength / smallerIntervalLength >= 0.8;
-};
-
-const mergeLogFilterValue = <value extends Hex>(
-  left: value | value[] | undefined,
-  right: value | value[] | undefined,
-): value[] | undefined =>
-  left === undefined || right === undefined
-    ? undefined
-    : [
-        ...new Set([
-          ...(Array.isArray(left) ? left : [left]),
-          ...(Array.isArray(right) ? right : [right]),
-        ]),
-      ];
-
-/**
- * Merge `LogFilter`s into the smallest possible set of "eth_getLogs" requests.
- *
- * @dev Two filters are merged into a single request when:
- *   1. their required intervals overlap by at least 80% (of the smaller
- *      interval's length), and
- *   2. at most one of `address`, `topic0`, `topic1`, `topic2`, or `topic3`
- *      differs between them.
- * The one differing dimension (if any) is unioned into an array.
- *
- * @dev Factory addresses are resolved into concrete child addresses (or
- * `undefined`, above `factoryAddressCountThreshold`) before merging, so
- * requests originating from different factories can still be merged.
- */
-export const mergeLogFiltersToRequests = (
-  filters: IntervalWithFilter[],
-  childAddresses: ChildAddresses,
-  factoryAddressCountThreshold: number,
-): (Extract<RequestParameters, { method: "eth_getLogs" }> & {
-  filters: LogFilter[];
-})[] => {
-  const requests: LogRequestParams[] = [];
-
-  for (const { filter, interval } of filters) {
-    if (filter.type !== "log") continue;
-
-    let address: Hex | Hex[] | undefined;
-    if (isAddressFactory(filter.address)) {
-      const addresses = childAddresses.get(filter.address.id)!;
-      if (addresses.size === 0) continue;
-
-      address =
-        addresses.size >= factoryAddressCountThreshold
-          ? undefined
-          : Array.from(addresses.keys());
-    } else {
-      address = filter.address;
-    }
-
-    const candidate = {
-      address,
-      topic0: filter.topic0,
-      topic1: filter.topic1 ?? undefined,
-      topic2: filter.topic2 ?? undefined,
-      topic3: filter.topic3 ?? undefined,
-    };
-
-    let isMerged = false;
-
-    for (const request of requests) {
-      if (
-        hasSufficientLogIntervalOverlap(
-          [request.fromBlock, request.toBlock],
-          interval,
-        ) === false
-      ) {
-        continue;
-      }
-
-      const numberOfDifferences = logRequestKeys.filter(
-        (key) =>
-          JSON.stringify(request[key]) !== JSON.stringify(candidate[key]),
-      ).length;
-      if (numberOfDifferences > 1) continue;
-
-      for (const key of logRequestKeys) {
-        if (JSON.stringify(request[key]) === JSON.stringify(candidate[key])) {
-          continue;
-        }
-        request[key] = mergeLogFilterValue(request[key], candidate[key]);
-      }
-
-      request.fromBlock = Math.min(request.fromBlock, interval[0]);
-      request.toBlock = Math.max(request.toBlock, interval[1]);
-      request.filters.push(filter);
-      isMerged = true;
-      break;
-    }
-
-    if (isMerged === false) {
-      requests.push({
-        fromBlock: interval[0],
-        toBlock: interval[1],
-        ...candidate,
-        filters: [filter],
-      });
-    }
-  }
-
-  return requests.map(({ fromBlock, toBlock, filters, ...filter }) => ({
-    method: "eth_getLogs" as const,
-    params: [
-      {
-        address: filter.address as Address | Address[] | undefined,
-        topics: sanitizeLogTopics([
-          filter.topic0 ?? null,
-          filter.topic1 ?? null,
-          filter.topic2 ?? null,
-          filter.topic3 ?? null,
-        ]),
-        fromBlock: numberToHex(fromBlock),
-        toBlock: numberToHex(toBlock),
-      },
-    ],
-    filters,
-  }));
-};
 
 export type HistoricalSync = {
   /**
