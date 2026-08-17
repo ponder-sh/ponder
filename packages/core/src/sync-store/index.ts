@@ -351,11 +351,15 @@ export const createSyncStore = ({
         const batchSize = 200;
 
         for (let i = 0; i < queries.length; i += batchSize) {
+          const batch = queries.slice(i, i + batchSize);
           const _rows = await qb.wrap(
             { label: "select_intervals" },
-            () =>
+            () => {
+              if (batch.length === 1) return batch[0]!.execute();
+
               // @ts-expect-error
-              unionAll(...queries.slice(i, i + batchSize)),
+              return unionAll(...batch);
+            },
             context,
           );
 
