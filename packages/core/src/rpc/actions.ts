@@ -1087,9 +1087,9 @@ export const standardizeLogs = (
       error.stack = undefined;
       throw error;
     }
-    if (hexToBigInt(log.logIndex) > BigInt(PG_INTEGER_MAX)) {
+    if (hexToBigInt(log.logIndex) > BigInt(Number.MAX_SAFE_INTEGER)) {
       const error = new RpcProviderError(
-        `Invalid RPC response: 'log.logIndex' (${hexToBigInt(log.logIndex)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
+        `Invalid RPC response: 'log.logIndex' (${hexToBigInt(log.logIndex)}) is larger than the maximum allowed value (${Number.MAX_SAFE_INTEGER}).`,
       );
       error.meta = [
         "Please report this error to the RPC operator.",

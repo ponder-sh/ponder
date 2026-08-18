@@ -1798,4 +1798,12 @@ GROUP BY fragment_id, chain_id
       });
     },
   },
+  "2026_08_18_0_log_index_bigint": {
+    async up(db) {
+      await db.schema
+        .alterTable("logs")
+        .alterColumn("log_index", (col) => col.setDataType("bigint"))
+        .execute();
+    },
+  },
 };

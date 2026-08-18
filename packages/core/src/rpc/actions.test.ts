@@ -83,3 +83,22 @@ test("eth_getLogs skips empty address arrays", async () => {
   await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([]);
   expect(rpcRequest).not.toHaveBeenCalled();
 });
+
+test("eth_getLogs accepts log indices larger than a Postgres integer", async () => {
+  const log = createLog({ logIndex: "0xfffffffc" });
+  const rpc = {
+    request: vi.fn(async () => [log]),
+  } as unknown as Rpc;
+
+  await expect(eth_getLogs(rpc, [{}])).resolves.toStrictEqual([log]);
+});
+
+test("eth_getLogs rejects log indices larger than a safe integer", async () => {
+  const rpc = {
+    request: vi.fn(async () => [createLog({ logIndex: "0x20000000000000" })]),
+  } as unknown as Rpc;
+
+  await expect(eth_getLogs(rpc, [{}])).rejects.toThrow(
+    "'log.logIndex' (9007199254740992) is larger than the maximum allowed value (9007199254740991)",
+  );
+});

@@ -132,7 +132,7 @@ export const logs = PONDER_SYNC.table(
   (t) => ({
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
-    logIndex: t.integer().notNull(),
+    logIndex: t.bigint({ mode: "number" }).notNull(),
     transactionIndex: t.integer().notNull(),
     blockHash: t.varchar({ length: 66 }).notNull().$type<Hash>(),
     transactionHash: t.varchar({ length: 66 }).notNull().$type<Hash>(),
