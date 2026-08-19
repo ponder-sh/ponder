@@ -82,7 +82,7 @@ importers:
         version: 4.1.6
       vocs:
         specifier: ^1.0.11
-        version: 1.0.11(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(rollup@4.40.2)(tsx@4.19.2)(typescript@5.9.3)
+        version: 1.0.11(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(rollup@4.40.2)(tsx@4.19.2)(typescript@5.4.5)
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -519,7 +519,7 @@ importers:
     devDependencies:
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2(typescript@5.9.3)
+        version: 1.5.2(typescript@5.4.5)
 
   examples/with-foundry/foundry:
     dependencies:
@@ -769,13 +769,13 @@ importers:
         version: 2.4.0
       '@hono/node-server':
         specifier: 1.19.5
-        version: 1.19.5(hono@4.7.9)
+        version: 1.19.5(hono@4.5.0)
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
       abitype:
         specifier: ^0.10.2
-        version: 0.10.3(typescript@5.9.3)(zod@3.23.8)
+        version: 0.10.3(typescript@5.4.5)(zod@3.23.8)
       ansi-escapes:
         specifier: ^7.0.0
         version: 7.0.0
@@ -853,11 +853,14 @@ importers:
         version: 1.0.2(@types/node@22.20.1)(lightningcss@1.30.0)
       vite-tsconfig-paths:
         specifier: 4.3.1
-        version: 4.3.1(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.30.0))
+        version: 4.3.1(typescript@5.4.5)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.30.0))
       ws:
         specifier: ^8.18.3
         version: 8.18.3
     devDependencies:
+      '@envio-dev/hypersync-client':
+        specifier: ^0.6.5
+        version: 0.6.7
       '@pgsql/types':
         specifier: 16.0.0
         version: 16.0.0
@@ -890,7 +893,7 @@ importers:
         version: 0.0.6
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2(typescript@5.9.3)
+        version: 1.5.2(typescript@5.4.5)
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
@@ -1386,6 +1389,49 @@ packages:
   '@envelop/types@5.2.1':
     resolution: {integrity: sha512-CsFmA3u3c2QoLDTfEpGr4t25fjMU31nyvse7IzWTvb0ZycuPjMjb0fjlheh+PbhBYb9YLugnT2uY6Mwcg1o+Zg==}
     engines: {node: '>=18.0.0'}
+
+  '@envio-dev/hypersync-client-darwin-arm64@0.6.7':
+    resolution: {integrity: sha512-cEMcdzorkuYn/c+bopKAdnrxAcRAwSYwkLfYg+V9/vEyNvMR86vCMnV5D2zxpMg/Urv9z80V/Pfg6buT/iPDkA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@envio-dev/hypersync-client-darwin-x64@0.6.7':
+    resolution: {integrity: sha512-aw0gpWIMGgSTWorPnt9Jk4S24h1mH0srSIGlMphs70It1raiSE9aFowLFxNXDR/mepfnzQrZMccnEGlLpgTC7g==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@envio-dev/hypersync-client-linux-arm64-gnu@0.6.7':
+    resolution: {integrity: sha512-Kt2r9qrlab9JEK44GR70VaLOTLVojGY7wt7DdnzvgniYt+nrS42bmgq3GDhas/Sn/mM3Tl7T6AcpFLzdZxrAXQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@envio-dev/hypersync-client-linux-x64-gnu@0.6.7':
+    resolution: {integrity: sha512-TDfJZq3Aag+c4xROZOwNvPNKZdbaFq52yQhAj6ZvG13bMQzEM9Lj1UAiNcDRxCDqSDMANhKFWTlFd0JW7jG3hA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@envio-dev/hypersync-client-linux-x64-musl@0.6.7':
+    resolution: {integrity: sha512-OX3+OGSwWzjHwSnt/M31CdJXNjAAH5IthyffvtDnsKUGbg4y2FGdR1sVJir2L3CD1Kyv/VJmpZFygBDmQW1EZg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@envio-dev/hypersync-client-win32-x64-msvc@0.6.7':
+    resolution: {integrity: sha512-3eTaz/yEOx5h8oBFgp4fVNyb/ptaH4Iav7chhsYRBmrlx8BwoI669Xd5u+Qw5O/mr3jCDMKPiIG4cGH9MJsRNw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@envio-dev/hypersync-client@0.6.7':
+    resolution: {integrity: sha512-KONNp/inLNWC80hw4FZckkXI7pigxnugxnfNBWOjAF0DZJDpFn4wgdGRlSb/dtsUc5Gk8JCI5oXWGSXmSOqW/A==}
+    engines: {node: '>= 10'}
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
@@ -8296,6 +8342,33 @@ snapshots:
       '@whatwg-node/promise-helpers': 1.3.2
       tslib: 2.8.1
 
+  '@envio-dev/hypersync-client-darwin-arm64@0.6.7':
+    optional: true
+
+  '@envio-dev/hypersync-client-darwin-x64@0.6.7':
+    optional: true
+
+  '@envio-dev/hypersync-client-linux-arm64-gnu@0.6.7':
+    optional: true
+
+  '@envio-dev/hypersync-client-linux-x64-gnu@0.6.7':
+    optional: true
+
+  '@envio-dev/hypersync-client-linux-x64-musl@0.6.7':
+    optional: true
+
+  '@envio-dev/hypersync-client-win32-x64-msvc@0.6.7':
+    optional: true
+
+  '@envio-dev/hypersync-client@0.6.7':
+    optionalDependencies:
+      '@envio-dev/hypersync-client-darwin-arm64': 0.6.7
+      '@envio-dev/hypersync-client-darwin-x64': 0.6.7
+      '@envio-dev/hypersync-client-linux-arm64-gnu': 0.6.7
+      '@envio-dev/hypersync-client-linux-x64-gnu': 0.6.7
+      '@envio-dev/hypersync-client-linux-x64-musl': 0.6.7
+      '@envio-dev/hypersync-client-win32-x64-msvc': 0.6.7
+
   '@esbuild-kit/core-utils@3.3.2':
     dependencies:
       esbuild: 0.18.20
@@ -8856,9 +8929,9 @@ snapshots:
     dependencies:
       hono: 4.7.9
 
-  '@hono/node-server@1.19.5(hono@4.7.9)':
+  '@hono/node-server@1.19.5(hono@4.5.0)':
     dependencies:
-      hono: 4.7.9
+      hono: 4.5.0
 
   '@hono/trpc-server@0.3.2(@trpc/server@10.45.2)(hono@4.5.0)':
     dependencies:
@@ -9977,11 +10050,11 @@ snapshots:
       '@shikijs/core': 1.29.2
       '@shikijs/types': 1.29.2
 
-  '@shikijs/twoslash@1.29.2(typescript@5.9.3)':
+  '@shikijs/twoslash@1.29.2(typescript@5.4.5)':
     dependencies:
       '@shikijs/core': 1.29.2
       '@shikijs/types': 1.29.2
-      twoslash: 0.2.12(typescript@5.9.3)
+      twoslash: 0.2.12(typescript@5.4.5)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -10363,10 +10436,10 @@ snapshots:
     dependencies:
       '@types/node': 22.20.1
 
-  '@typescript/vfs@1.6.1(typescript@5.9.3)':
+  '@typescript/vfs@1.6.1(typescript@5.4.5)':
     dependencies:
       debug: 4.4.0
-      typescript: 5.9.3
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
@@ -10568,9 +10641,9 @@ snapshots:
       loupe: 2.3.7
       pretty-format: 29.7.0
 
-  '@wagmi/cli@1.5.2(typescript@5.9.3)':
+  '@wagmi/cli@1.5.2(typescript@5.4.5)':
     dependencies:
-      abitype: 0.8.7(typescript@5.9.3)(zod@3.23.8)
+      abitype: 0.8.7(typescript@5.4.5)(zod@3.23.8)
       abort-controller: 3.0.0
       bundle-require: 3.1.2(esbuild@0.16.17)
       cac: 6.7.14
@@ -10590,10 +10663,10 @@ snapshots:
       pathe: 1.1.1
       picocolors: 1.1.1
       prettier: 2.8.8
-      viem: 1.21.4(typescript@5.9.3)(zod@3.23.8)
+      viem: 1.21.4(typescript@5.4.5)(zod@3.23.8)
       zod: 3.23.8
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 5.4.5
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -10631,20 +10704,25 @@ snapshots:
 
   abbrev@3.0.1: {}
 
+  abitype@0.10.3(typescript@5.4.5)(zod@3.23.8):
+    optionalDependencies:
+      typescript: 5.4.5
+      zod: 3.23.8
+
   abitype@0.10.3(typescript@5.9.3)(zod@3.23.8):
     optionalDependencies:
       typescript: 5.9.3
       zod: 3.23.8
 
-  abitype@0.8.7(typescript@5.9.3)(zod@3.23.8):
+  abitype@0.8.7(typescript@5.4.5)(zod@3.23.8):
     dependencies:
-      typescript: 5.9.3
+      typescript: 5.4.5
     optionalDependencies:
       zod: 3.23.8
 
-  abitype@0.9.8(typescript@5.9.3)(zod@3.23.8):
+  abitype@0.9.8(typescript@5.4.5)(zod@3.23.8):
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 5.4.5
       zod: 3.23.8
 
   abitype@1.0.5(typescript@5.9.3)(zod@3.23.8):
@@ -14594,9 +14672,9 @@ snapshots:
 
   ts-toolbelt@6.15.5: {}
 
-  tsconfck@3.0.1(typescript@5.9.3):
+  tsconfck@3.0.1(typescript@5.4.5):
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 5.4.5
 
   tslib@2.6.2: {}
 
@@ -14634,11 +14712,11 @@ snapshots:
 
   twoslash-protocol@0.2.12: {}
 
-  twoslash@0.2.12(typescript@5.9.3):
+  twoslash@0.2.12(typescript@5.4.5):
     dependencies:
-      '@typescript/vfs': 1.6.1(typescript@5.9.3)
+      '@typescript/vfs': 1.6.1(typescript@5.4.5)
       twoslash-protocol: 0.2.12
-      typescript: 5.9.3
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
@@ -14798,18 +14876,18 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.2
 
-  viem@1.21.4(typescript@5.9.3)(zod@3.23.8):
+  viem@1.21.4(typescript@5.4.5)(zod@3.23.8):
     dependencies:
       '@adraffy/ens-normalize': 1.10.0
       '@noble/curves': 1.2.0
       '@noble/hashes': 1.3.2
       '@scure/bip32': 1.3.2
       '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.9.3)(zod@3.23.8)
+      abitype: 0.9.8(typescript@5.4.5)(zod@3.23.8)
       isows: 1.0.3(ws@8.13.0)
       ws: 8.13.0
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 5.4.5
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -14903,11 +14981,11 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@4.3.1(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.30.0)):
+  vite-tsconfig-paths@4.3.1(typescript@5.4.5)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.30.0)):
     dependencies:
       debug: 4.4.0
       globrex: 0.1.2
-      tsconfck: 3.0.1(typescript@5.9.3)
+      tsconfck: 3.0.1(typescript@5.4.5)
     optionalDependencies:
       vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.30.0)
     transitivePeerDependencies:
@@ -14974,7 +15052,7 @@ snapshots:
       - supports-color
       - terser
 
-  vocs@1.0.11(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(rollup@4.40.2)(tsx@4.19.2)(typescript@5.9.3):
+  vocs@1.0.11(@types/node@22.20.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(acorn@8.14.1)(jiti@2.4.2)(lightningcss@1.30.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(rollup@4.40.2)(tsx@4.19.2)(typescript@5.4.5):
     dependencies:
       '@floating-ui/react': 0.27.8(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@hono/node-server': 1.14.1(hono@4.7.9)
@@ -14991,7 +15069,7 @@ snapshots:
       '@radix-ui/react-tabs': 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@shikijs/rehype': 1.29.2
       '@shikijs/transformers': 1.29.2
-      '@shikijs/twoslash': 1.29.2(typescript@5.9.3)
+      '@shikijs/twoslash': 1.29.2(typescript@5.4.5)
       '@tailwindcss/vite': 4.0.7(vite@6.3.5(@types/node@22.20.1)(jiti@2.4.2)(lightningcss@1.30.0)(tsx@4.19.2))
       '@vanilla-extract/css': 1.17.1
       '@vanilla-extract/dynamic': 2.1.2
@@ -15039,7 +15117,7 @@ snapshots:
       serve-static: 1.16.2
       shiki: 1.29.2
       toml: 3.0.0
-      twoslash: 0.2.12(typescript@5.9.3)
+      twoslash: 0.2.12(typescript@5.4.5)
       ua-parser-js: 1.0.40
       unified: 11.0.5
       unist-util-visit: 5.0.0

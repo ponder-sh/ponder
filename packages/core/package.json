@@ -47,10 +47,14 @@
   "peerDependencies": {
     "hono": ">=4.5",
     "typescript": ">=5.4.0",
-    "viem": ">=2.35"
+    "viem": ">=2.35",
+    "@envio-dev/hypersync-client": ">=0.6.5"
   },
   "peerDependenciesMeta": {
     "typescript": {
+      "optional": true
+    },
+    "@envio-dev/hypersync-client": {
       "optional": true
     }
   },
@@ -109,7 +113,8 @@
     "mitata": "^1.0.34",
     "rimraf": "^5.0.5",
     "tsx": "^4.19.2",
-    "vitest": "1.6.1"
+    "vitest": "1.6.1",
+    "@envio-dev/hypersync-client": "^0.6.5"
   },
   "engines": {
     "node": ">=22"

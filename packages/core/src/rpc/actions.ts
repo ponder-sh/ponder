@@ -18,6 +18,11 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
+import {
+  hypersyncEnabled,
+  hypersyncGetLogs,
+  takeHypersyncBlock,
+} from "@/rpc/hypersync.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { chunk } from "@/utils/chunk.js";
@@ -37,8 +42,19 @@ export const eth_getBlockByNumber = <
   rpc: Rpc,
   params: params,
   context?: Parameters<Rpc["request"]>[1],
-): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
-  rpc
+): Promise<params[1] extends true ? SyncBlock : LightBlock> => {
+  if (hypersyncEnabled() && params[1] === true && isHex(params[0])) {
+    const cached = takeHypersyncBlock(hexToNumber(params[0]));
+    if (cached !== undefined) {
+      return Promise.resolve(
+        standardizeBlock(cached, {
+          method: "eth_getBlockByNumber",
+          params,
+        }) as params[1] extends true ? SyncBlock : LightBlock,
+      );
+    }
+  }
+  return rpc
     .request({ method: "eth_getBlockByNumber", params }, context)
     .then((_block) => {
       if (!_block) {
@@ -58,6 +74,7 @@ export const eth_getBlockByNumber = <
         params,
       });
     });
+};
 
 /**
  * Helper function for "eth_getBlockByHash" request.
@@ -95,6 +112,15 @@ export const eth_getLogs = async (
     method: "eth_getLogs",
     params,
   };
+
+  // One HyperSync query serves the whole request — address lists of any size,
+  // no chunking — and fills the block cache consumed by eth_getBlockByNumber.
+  if (hypersyncEnabled()) {
+    const logs = await hypersyncGetLogs(
+      params as Parameters<typeof hypersyncGetLogs>[0],
+    );
+    if (logs !== null) return standardizeLogs(logs, request);
+  }
 
   const requests: Extract<RequestParameters, { method: "eth_getLogs" }>[] =
     Array.isArray(params[0].address)
