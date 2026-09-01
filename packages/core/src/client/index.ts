@@ -439,116 +439,127 @@ export const client = ({
       }
 
       liveQueryCount++;
-
-      c.header("Content-Type", "text/event-stream");
-      c.header("Cache-Control", "no-cache");
-      c.header("Connection", "keep-alive");
-
-      const queryString = c.req.query("sql");
-      if (queryString === undefined) {
-        return c.text('Missing "sql" query parameter', 400);
-      }
-      const query = superjson.parse(queryString) as QueryWithTypings;
+      let hasLiveQuerySlot = true;
+      let isStreaming = false;
+      const releaseLiveQuerySlot = () => {
+        if (hasLiveQuerySlot === false) return;
+        hasLiveQuerySlot = false;
+        liveQueryCount--;
+      };
 
       try {
-        await validateAllowableSQLQuery(query.sql);
-      } catch (error) {
-        (error as Error).stack = undefined;
-        return c.text((error as Error).message, 500);
-      }
+        c.header("Content-Type", "text/event-stream");
+        c.header("Cache-Control", "no-cache");
+        c.header("Connection", "keep-alive");
 
-      const relations = await getSQLQueryRelations(query.sql);
-      const referencedTables = new Set<string>();
-      for (const relation of relations) {
-        if (tableNames.has(relation)) {
-          referencedTables.add(relation);
-        } else if (viewNames.has(relation)) {
-          for (const tableName of perViewTables.get(relation)!) {
-            referencedTables.add(tableName);
+        const queryString = c.req.query("sql");
+        if (queryString === undefined) {
+          return c.text('Missing "sql" query parameter', 400);
+        }
+        const query = superjson.parse(queryString) as QueryWithTypings;
+
+        try {
+          await validateAllowableSQLQuery(query.sql);
+        } catch (error) {
+          (error as Error).stack = undefined;
+          return c.text((error as Error).message, 500);
+        }
+
+        const relations = await getSQLQueryRelations(query.sql);
+        const referencedTables = new Set<string>();
+        for (const relation of relations) {
+          if (tableNames.has(relation)) {
+            referencedTables.add(relation);
+          } else if (viewNames.has(relation)) {
+            for (const tableName of perViewTables.get(relation)!) {
+              referencedTables.add(tableName);
+            }
           }
         }
-      }
 
-      let result: QueryResult;
-      if (cache.has(queryString)) {
-        const resultRef = cache.get(queryString)!.deref();
+        let result: QueryResult;
+        if (cache.has(queryString)) {
+          const resultRef = cache.get(queryString)!.deref();
 
-        if (resultRef === undefined) {
-          cache.delete(queryString);
+          if (resultRef === undefined) {
+            cache.delete(queryString);
+            const resultPromise = getQueryResult(query);
+            cache.set(queryString, new WeakRef(resultPromise));
+            perQueryReferences.set(queryString, referencedTables);
+            registry.register(resultPromise, queryString);
+            result = await resultPromise;
+          } else {
+            result = await resultRef;
+          }
+        } else {
           const resultPromise = getQueryResult(query);
           cache.set(queryString, new WeakRef(resultPromise));
           perQueryReferences.set(queryString, referencedTables);
           registry.register(resultPromise, queryString);
           result = await resultPromise;
-        } else {
-          result = await resultRef;
         }
-      } else {
-        const resultPromise = getQueryResult(query);
-        cache.set(queryString, new WeakRef(resultPromise));
-        perQueryReferences.set(queryString, referencedTables);
-        registry.register(resultPromise, queryString);
-        result = await resultPromise;
-      }
 
-      let resultHash = crypto
-        .createHash("MD5")
-        // @ts-expect-error
-        .update(JSON.stringify(result.rows))
-        .digest("hex")
-        .slice(0, 10);
+        let resultHash = crypto
+          .createHash("MD5")
+          // @ts-expect-error
+          .update(JSON.stringify(result.rows))
+          .digest("hex")
+          .slice(0, 10);
 
-      return streamSSE(c, async (stream) => {
-        stream.onAbort(() => {
-          liveQueryCount--;
-        });
+        const response = streamSSE(c, async (stream) => {
+          stream.onAbort(releaseLiveQuerySlot);
 
-        while (stream.closed === false && stream.aborted === false) {
-          await Promise.race(
-            Array.from(referencedTables).map(
-              (relation) => perTableResolver.get(relation)!.promise,
-            ),
-          );
+          while (stream.closed === false && stream.aborted === false) {
+            await Promise.race(
+              Array.from(referencedTables).map(
+                (relation) => perTableResolver.get(relation)!.promise,
+              ),
+            );
 
-          try {
-            let resultPromise: Promise<unknown>;
-            if (cache.has(queryString)) {
-              const resultRef = cache.get(queryString)!.deref();
+            try {
+              let resultPromise: Promise<unknown>;
+              if (cache.has(queryString)) {
+                const resultRef = cache.get(queryString)!.deref();
 
-              if (resultRef === undefined) {
-                cache.delete(queryString);
+                if (resultRef === undefined) {
+                  cache.delete(queryString);
+                  resultPromise = getQueryResult(query);
+                  cache.set(queryString, new WeakRef(resultPromise));
+                  perQueryReferences.set(queryString, referencedTables);
+                  registry.register(resultPromise, queryString);
+                } else {
+                  resultPromise = resultRef;
+                }
+              } else {
                 resultPromise = getQueryResult(query);
                 cache.set(queryString, new WeakRef(resultPromise));
                 perQueryReferences.set(queryString, referencedTables);
                 registry.register(resultPromise, queryString);
-              } else {
-                resultPromise = resultRef;
               }
-            } else {
-              resultPromise = getQueryResult(query);
-              cache.set(queryString, new WeakRef(resultPromise));
-              perQueryReferences.set(queryString, referencedTables);
-              registry.register(resultPromise, queryString);
+
+              const result = await resultPromise;
+
+              const _resultHash = crypto
+                .createHash("MD5")
+                // @ts-expect-error
+                .update(JSON.stringify(result.rows))
+                .digest("hex")
+                .slice(0, 10);
+
+              if (_resultHash === resultHash) continue;
+              resultHash = _resultHash;
+
+              await stream.writeSSE({ data: JSON.stringify(result) });
+            } catch {
+              stream.abort();
             }
-
-            const result = await resultPromise;
-
-            const _resultHash = crypto
-              .createHash("MD5")
-              // @ts-expect-error
-              .update(JSON.stringify(result.rows))
-              .digest("hex")
-              .slice(0, 10);
-
-            if (_resultHash === resultHash) continue;
-            resultHash = _resultHash;
-
-            await stream.writeSSE({ data: JSON.stringify(result) });
-          } catch {
-            stream.abort();
           }
-        }
-      });
+        });
+        isStreaming = true;
+        return response;
+      } finally {
+        if (isStreaming === false) releaseLiveQuerySlot();
+      }
     }
 
     return next();

@@ -332,3 +332,42 @@ test("client.db cache", async () => {
 
   expect(transactionSpy).toHaveBeenCalledTimes(1);
 });
+
+test("client.live releases quota when request fails before streaming", async () => {
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
+
+  const { database } = await setupDatabaseServices();
+  globalThis.PONDER_DATABASE = database;
+
+  const PONDER_META = getPonderMetaTable();
+  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
+    db
+      .update(PONDER_META)
+      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+  );
+
+  const app = new Hono().use(
+    client({
+      db: database.readonlyQB.raw,
+      schema: {},
+    }),
+  );
+
+  await vi.waitFor(async () => {
+    const response = await app.request("/sql/live");
+    expect(response.status).toBe(400);
+  });
+
+  for (let i = 0; i < 1000; i++) {
+    const response = await app.request("/sql/live");
+    expect(response.status).toBe(400);
+  }
+});
