@@ -56,6 +56,20 @@ test("getSQLQueryRelations() cache identity", async () => {
   expect(firstRelations).not.toEqual(secondRelations);
 });
 
+test("validateAllowableSQLQuery() cache identity", async () => {
+  const valid = "SELECT count(*) from users /*Fb2*/";
+  const invalid = "SELECT * FROM offchain.metadata /*ihD*/";
+
+  const validHash = createHash("sha256").update(valid).digest("hex");
+  const invalidHash = createHash("sha256").update(invalid).digest("hex");
+
+  expect(validHash.slice(0, 10)).toBe(invalidHash.slice(0, 10));
+  expect(validHash).not.toBe(invalidHash);
+
+  await validateAllowableSQLQuery(valid);
+  await expect(validateAllowableSQLQuery(invalid)).rejects.toThrow();
+});
+
 test("validateAllowableSQLQuery()", async () => {
   await validateAllowableSQLQuery("SELECT * FROM users;");
   await validateAllowableSQLQuery("SELECT u.name FROM users as u;");
