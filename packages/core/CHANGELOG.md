@@ -1,5 +1,15 @@
 # ponder
 
+## 0.17.9
+
+### Patch Changes
+
+- [#2377](https://github.com/ponder-sh/ponder/pull/2377) [`f0f413d`](https://github.com/ponder-sh/ponder/commit/f0f413da6144eab9c48824c4130c7582229bfaa4) Thanks [@DicksonWu654](https://github.com/DicksonWu654)! - Fixed a bug that caused SQL-over-HTTP cache invalidation and live updates to use the wrong table dependencies.
+
+- [#2378](https://github.com/ponder-sh/ponder/pull/2378) [`25b6697`](https://github.com/ponder-sh/ponder/commit/25b66975cec9fe52f95032092c51a915faee3348) Thanks [@DicksonWu654](https://github.com/DicksonWu654)! - Fixed a bug that caused crash recovery to fail with `Finalized block for chain "<id>" cannot move backwards` in `ordering: "multichain"` apps with empty schemas.
+
+- [#2376](https://github.com/ponder-sh/ponder/pull/2376) [`3e092e2`](https://github.com/ponder-sh/ponder/commit/3e092e28eee8c7e4e1cc24a1977f4570ff7af779) Thanks [@DicksonWu654](https://github.com/DicksonWu654)! - Fixed a bug that caused failed `/sql/live` requests to exhaust the live query limit.
+
 ## 0.17.8
 
 ### Patch Changes
