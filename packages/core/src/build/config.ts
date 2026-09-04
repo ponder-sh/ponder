@@ -7,7 +7,6 @@ import {
   type Hex,
   hexToNumber,
   type LogTopic,
-  numberToHex,
   toEventSelector,
   toFunctionSelector,
 } from "viem";
@@ -44,7 +43,7 @@ import {
 import { buildTopics, toSafeName } from "@/utils/abi.js";
 import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
 import { dedupe } from "@/utils/dedupe.js";
-import { getFinalityBlockCount } from "@/utils/finality.js";
+import { DEFAULT_REORG_WINDOW, getFinalizedBlock } from "@/utils/finality.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { buildLogFactory } from "./factory.js";
 
@@ -188,30 +187,26 @@ export async function buildIndexingFunctions({
   const finalizedBlocks = await Promise.all(
     chains.map((chain) => {
       const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
-      const blockPromise = eth_getBlockByNumber(rpc, ["latest", false], {
+      const latestBlockPromise = eth_getBlockByNumber(rpc, ["latest", false], {
         ...context,
         retryNullBlockRequest: true,
-      })
-        .then((block) => hexToNumber((block as SyncBlock).number))
-        .catch((e) => {
-          throw new Error(
-            `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
-          );
-        });
+      }).catch((e) => {
+        throw new Error(
+          `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
+        );
+      });
+      const blockNumberPromise = latestBlockPromise.then((block) =>
+        hexToNumber((block as SyncBlock).number),
+      );
 
-      perChainLatestBlockNumber.set(chain.name, blockPromise);
+      perChainLatestBlockNumber.set(chain.name, blockNumberPromise);
 
-      return blockPromise.then((latest) =>
-        eth_getBlockByNumber(
+      return latestBlockPromise.then((latestBlock) =>
+        getFinalizedBlock({
+          chain,
           rpc,
-          [numberToHex(Math.max(latest - chain.finalityBlockCount, 0)), false],
-          { ...context, retryNullBlockRequest: true },
-        ).then((block) => ({
-          hash: block.hash,
-          parentHash: block.parentHash,
-          number: block.number,
-          timestamp: block.timestamp,
-        })),
+          latestBlock,
+        }),
       );
     }),
   );
@@ -1070,13 +1065,24 @@ export function buildConfig({
         );
       }
 
+      if (
+        chain.reorgWindow !== undefined &&
+        (!Number.isInteger(chain.reorgWindow) ||
+          chain.reorgWindow < 0 ||
+          chain.reorgWindow > 600)
+      ) {
+        throw new Error(
+          `Invalid 'reorgWindow' for chain '${chainName}'. Expected an integer between 0 and 600 seconds, got ${chain.reorgWindow}.`,
+        );
+      }
+
       return {
         id: chain.id,
         name: chainName,
         rpc: chain.rpc,
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
-        finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
+        reorgWindow: chain.reorgWindow ?? DEFAULT_REORG_WINDOW,
         disableCache: chain.disableCache ?? false,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,

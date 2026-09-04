@@ -1087,6 +1087,79 @@ test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (
   expect(finalizedBlocks[0]!.number).toBe("0x0");
 });
 
+test("buildConfig() uses the configured reorg window", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: {
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        reorgWindow: 120,
+      },
+    },
+    blocks: { b: { chain: "mainnet" } },
+  });
+
+  const { chains } = buildConfig({ common: context.common, config });
+
+  expect(chains[0]!.reorgWindow).toBe(120);
+});
+
+test("buildConfig() defaults the reorg window to 180 seconds", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: {
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+      },
+    },
+    blocks: { b: { chain: "mainnet" } },
+  });
+
+  const { chains } = buildConfig({ common: context.common, config });
+
+  expect(chains[0]!.reorgWindow).toBe(180);
+});
+
+test.each([0, 600])(
+  "buildConfig() accepts a reorg window of %s seconds",
+  (reorgWindow) => {
+    const config = createConfig({
+      chains: {
+        mainnet: {
+          id: 1,
+          rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+          reorgWindow,
+        },
+      },
+      blocks: { b: { chain: "mainnet" } },
+    });
+
+    const { chains } = buildConfig({ common: context.common, config });
+
+    expect(chains[0]!.reorgWindow).toBe(reorgWindow);
+  },
+);
+
+test.each([-1, 1.5, 601, Number.NaN])(
+  "buildConfig() rejects an invalid reorg window of %s",
+  (reorgWindow) => {
+    const config = createConfig({
+      chains: {
+        mainnet: {
+          id: 1,
+          rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+          reorgWindow,
+        },
+      },
+      blocks: { b: { chain: "mainnet" } },
+    });
+
+    expect(() => buildConfig({ common: context.common, config })).toThrow(
+      `Invalid 'reorgWindow' for chain 'mainnet'. Expected an integer between 0 and 600 seconds, got ${reorgWindow}.`,
+    );
+  },
+);
+
 test("buildIndexingFunctions() hyperliquid evm", async () => {
   const config = createConfig({
     chains: {

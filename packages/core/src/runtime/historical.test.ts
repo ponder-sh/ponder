@@ -307,7 +307,7 @@ test("getLocalSyncGenerator() with full cache", async () => {
   await testClient.mine({ blocks: 1 });
 
   // finalized block: 1
-  chain.finalityBlockCount = 0;
+  chain.reorgWindow = 0;
 
   let cachedIntervals = await getCachedIntervals({
     chain,
