@@ -129,6 +129,14 @@ export const SIM_PARAMS = {
     [true, false],
     "realtime-block-has-transactions",
   ),
+  // Note: only applies to apps whose sources are exclusively `log` filters with
+  // a static address. Other apps fall back to the per-block realtime sync.
+  // `FORCE_RANGE_SCAN` pins the value so a failing seed can be replayed against
+  // both realtime strategies.
+  EXPERIMENTAL_RANGE_SCAN:
+    process.env.FORCE_RANGE_SCAN === undefined
+      ? pick([true, false], "experimental-range-scan")
+      : process.env.FORCE_RANGE_SCAN === "true",
 };
 
 // 1. Setup database
@@ -249,6 +257,9 @@ process.env.DATABASE_URL = `${DATABASE_URL!}/${UUID}`;
 process.env.DATABASE_SCHEMA = "public";
 process.env.SEED = SEED;
 process.env.ORDERING = SIM_PARAMS.ORDERING;
+process.env.EXPERIMENTAL_RANGE_SCAN = String(
+  SIM_PARAMS.EXPERIMENTAL_RANGE_SCAN,
+);
 
 const pwr = promiseWithResolvers<void>();
 

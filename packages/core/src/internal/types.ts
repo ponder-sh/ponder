@@ -305,6 +305,7 @@ export type Chain = {
   finalityBlockCount: number;
   disableCache: boolean;
   ethGetLogsBlockRange: number | undefined;
+  experimentalRangeScan: boolean;
   viemChain: ViemChain | undefined;
 };
 

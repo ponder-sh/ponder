@@ -1079,6 +1079,7 @@ export function buildConfig({
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
         disableCache: chain.disableCache ?? false,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
+        experimentalRangeScan: chain.experimentalRangeScan ?? false,
         viemChain: matchedChain,
       } satisfies Chain;
     },
