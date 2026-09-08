@@ -12,6 +12,7 @@ const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * consumer would have to install.
  */
 const ENTRYPOINTS = [
+  "sync.ts",
   "sync-historical/index.ts",
   "sync-realtime/index.ts",
   "rpc/index.ts",
