@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.10
+
+### Patch Changes
+
+- [#2380](https://github.com/ponder-sh/ponder/pull/2380) [`1cb59b9`](https://github.com/ponder-sh/ponder/commit/1cb59b997009fe9cf465bfd8aa7fc0ddd066b89d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed an issue in SQL-over-HTTP validation that could incorrectly reuse validation results for different queries with colliding cache keys.
+
 ## 0.17.9
 
 ### Patch Changes
