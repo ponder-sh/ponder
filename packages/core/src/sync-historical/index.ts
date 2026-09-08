@@ -55,7 +55,7 @@ import type {
   IntervalWithFactory,
   IntervalWithFilter,
 } from "@/runtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
+import type { SyncStore } from "@/sync-store/store.js";
 import { dedupe } from "@/utils/dedupe.js";
 import {
   getChunks,

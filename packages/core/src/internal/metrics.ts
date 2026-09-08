@@ -1,12 +1,11 @@
 import { parentPort, type Worker } from "node:worker_threads";
-import { getTableName, isTable } from "drizzle-orm";
 import prometheus from "prom-client";
 import {
   type PromiseWithResolvers,
   promiseWithResolvers,
 } from "@/utils/promiseWithResolvers.js";
 import { truncate } from "@/utils/truncate.js";
-import type { IndexingBuild, PreBuild, SchemaBuild } from "./types.js";
+import type { Ordering } from "./types.js";
 
 const sometimesIODurationMs = [
   0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100, 500, 1_000, 5_000,
@@ -529,32 +528,32 @@ export class MetricsService {
     this.indexingStoreQueries.clear();
   }
 
+  /**
+   * Registers the zero-valued indexing series, so a table or event that never
+   * fires still appears.
+   *
+   * Takes names rather than a schema: resolving a Drizzle table to its name is
+   * the schema layer's job, and doing it here would put Drizzle in the import
+   * graph of every module that holds a `Common`, the sync engine included.
+   */
   initializeIndexingMetrics({
-    indexingBuild,
-    schemaBuild,
+    eventNames,
+    tableNames,
   }: {
-    indexingBuild: Pick<IndexingBuild, "indexingFunctions">;
-    schemaBuild: SchemaBuild;
+    eventNames: string[];
+    tableNames: string[];
   }) {
-    const tables = Object.values(schemaBuild.schema).filter(isTable);
-
-    for (const { name: eventName } of indexingBuild.indexingFunctions) {
+    for (const eventName of eventNames) {
       this.ponder_indexing_completed_events.inc({ event: eventName }, 0);
     }
 
-    for (const table of tables) {
+    for (const table of tableNames) {
       for (const type of ["complete", "hit", "miss", "prefetch"]) {
-        this.ponder_indexing_cache_requests_total.inc(
-          { table: getTableName(table), type },
-          0,
-        );
+        this.ponder_indexing_cache_requests_total.inc({ table, type }, 0);
       }
 
       for (const method of ["find", "insert", "update", "delete"]) {
-        this.ponder_indexing_store_queries_total.inc(
-          { table: getTableName(table), method },
-          0,
-        );
+        this.ponder_indexing_store_queries_total.inc({ table, method }, 0);
       }
     }
   }
@@ -912,8 +911,8 @@ export async function getAppProgress(metrics: MetricsService): Promise<{
   const settingsMetric = await registry
     .getSingleMetric("ponder_settings_info")!
     .get();
-  const ordering: PreBuild["ordering"] | undefined = settingsMetric?.values[0]
-    ?.labels.ordering as any;
+  const ordering: Ordering | undefined = settingsMetric?.values[0]?.labels
+    .ordering as any;
 
   switch (ordering) {
     case undefined:

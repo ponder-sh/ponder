@@ -4,7 +4,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
-import type { Prettify } from "@/types/utils.js";
 import { codegen } from "./commands/codegen.js";
 import { createViews } from "./commands/createViews.js";
 import { dev } from "./commands/dev.js";
@@ -194,15 +193,17 @@ ponder.addCommand(serveCommand);
 ponder.addCommand(dbCommand);
 ponder.addCommand(codegenCommand);
 
-export type CliOptions = Prettify<
-  GlobalOptions &
-    Partial<
-      ReturnType<typeof devCommand.opts> &
-        ReturnType<typeof startCommand.opts> &
-        ReturnType<typeof serveCommand.opts> &
-        ReturnType<typeof dbCommand.opts> &
-        ReturnType<typeof codegenCommand.opts>
-    >
->;
+/**
+ * `CliOptions` -- the shape every command receives -- is declared in
+ * `@/internal/options.ts`, next to the `buildOptions` that consumes it, rather
+ * than derived from the commands above.
+ *
+ * That keeps the dependency pointing one way. This module runs a command as a
+ * side effect of being imported, so nothing outside `bin/` should have to
+ * import it merely to describe its own input, and now nothing does. Each
+ * `.action` handler below passes its parsed options straight into a command
+ * that declares `CliOptions`, so a flag that stops matching the contract is
+ * still a compile error -- at the call site instead of in a type alias.
+ */
 
 await ponder.parseAsync();

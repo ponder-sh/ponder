@@ -27,12 +27,9 @@ import {
   getReorgTriggerName,
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
+import type { PreBuild, SchemaBuild } from "@/internal/build.js";
 import type { Logger } from "@/internal/logger.js";
-import type {
-  NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
-} from "@/internal/types.js";
+import type { NamespaceBuild } from "@/internal/types.js";
 import { decodeCheckpoint, MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
 import {
   getPonderCheckpointTable,

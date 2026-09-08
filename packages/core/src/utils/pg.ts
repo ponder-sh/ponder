@@ -8,8 +8,7 @@ import type { Logger } from "@/internal/logger.js";
 const bigIntArrayParser = pg.types.getTypeParser(1016);
 pg.types.setTypeParser(1231, bigIntArrayParser);
 
-export const PG_BIGINT_MAX = 9223372036854775807n;
-export const PG_INTEGER_MAX = 2147483647;
+export { PG_BIGINT_MAX, PG_INTEGER_MAX } from "./pgLimits.js";
 
 export function getDatabaseName(conf: PoolConfig) {
   const config = parseBaseConfig(conf);

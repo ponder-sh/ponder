@@ -13,25 +13,23 @@ import { ViteNodeServer } from "vite-node/server";
 import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
-import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
 import { createQB } from "@/database/queryBuilder.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
+import type { ApiBuild, PreBuild, SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import {
   BuildError,
   NonRetryableUserError,
   RetryableError,
 } from "@/internal/errors.js";
+import type { CliOptions } from "@/internal/options.js";
 import type {
-  ApiBuild,
   IndexingBuild,
   IndexingFunctions,
   NamespaceBuild,
-  PreBuild,
   Schema,
-  SchemaBuild,
 } from "@/internal/types.js";
 import { createPool, getDatabaseName } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";

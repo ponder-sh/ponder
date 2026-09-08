@@ -1,6 +1,7 @@
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import { createBuild } from "@/build/index.js";
 import { createDatabase } from "@/database/index.js";
+import { getSchemaTableNames } from "@/drizzle/index.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { IsolatedMetricsService } from "@/internal/metrics.js";
@@ -163,8 +164,8 @@ export async function isolatedWorker({
       };
 
       common.metrics.initializeIndexingMetrics({
-        indexingBuild,
-        schemaBuild: schemaBuildResult.result,
+        eventNames: indexingBuild.indexingFunctions.map(({ name }) => name),
+        tableNames: getSchemaTableNames(schemaBuildResult.result.schema),
       });
 
       await runIsolated({

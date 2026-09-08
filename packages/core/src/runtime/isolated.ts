@@ -18,6 +18,7 @@ import {
 } from "@/indexing/index.js";
 import { createIndexingCache } from "@/indexing-store/cache.js";
 import { createIndexingStore } from "@/indexing-store/index.js";
+import type { PreBuild, SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import {
   InvalidEventAccessError,
@@ -29,8 +30,6 @@ import type {
   IndexingBuild,
   IndexingErrorHandler,
   NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
 import { splitEvents } from "@/runtime/events.js";

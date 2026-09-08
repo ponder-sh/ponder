@@ -1,6 +1,3 @@
-import type { PGlite } from "@electric-sql/pglite";
-import type { Hono } from "hono";
-import type { PoolConfig } from "pg";
 import type {
   Abi,
   AbiEvent,
@@ -16,7 +13,6 @@ import type {
   Chain as ViemChain,
   Log as ViemLog,
 } from "viem";
-import type { SqlStatements } from "@/drizzle/kit/index.js";
 import type { Rpc } from "@/rpc/index.js";
 import type {
   Block,
@@ -28,15 +24,7 @@ import type {
 } from "@/types/eth.js";
 import type { PartialExcept, Prettify } from "@/types/utils.js";
 import type { Trace as DebugTrace } from "@/utils/debug.js";
-import type { PGliteOptions } from "@/utils/pglite.js";
 import type { RetryableError } from "./errors.js";
-
-// Database
-
-export type DatabaseConfig =
-  | { kind: "pglite"; options: PGliteOptions }
-  | { kind: "pglite_test"; instance: PGlite }
-  | { kind: "postgres"; poolConfig: Prettify<PoolConfig & { max: number }> };
 
 // Indexing
 
@@ -313,26 +301,15 @@ export type Chain = {
 /** User-defined tables, enums, and indexes. */
 export type Schema = { [name: string]: unknown };
 
+/** How events from different chains are interleaved. */
+export type Ordering = "omnichain" | "multichain" | "experimental_isolated";
+
 // Build artifacts
 
 /** Database schema name. */
 export type NamespaceBuild = {
   schema: string;
   viewsSchema: string | undefined;
-};
-
-/** Consolidated CLI, env vars, and config. */
-export type PreBuild = {
-  /** Database type and configuration */
-  databaseConfig: DatabaseConfig;
-  /** Ordering of events */
-  ordering: "omnichain" | "multichain" | "experimental_isolated";
-};
-
-export type SchemaBuild = {
-  schema: Schema;
-  /** SQL statements to create the schema */
-  statements: SqlStatements;
 };
 
 export type IndexingBuild = {
@@ -354,15 +331,6 @@ export type IndexingBuild = {
   contracts: {
     [name: string]: Contract;
   }[];
-};
-
-export type ApiBuild = {
-  /** Hostname for server */
-  hostname?: string;
-  /** Port number for server */
-  port: number;
-  /** Hono app exported from `ponder/api/index.ts`. */
-  app: Hono;
 };
 
 // Crash recovery

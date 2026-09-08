@@ -9,8 +9,9 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
+import type { ApiBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
-import type { ApiBuild, Status } from "@/internal/types.js";
+import type { Status } from "@/internal/types.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { startClock } from "@/utils/timer.js";
 import { onError } from "./error.js";

@@ -13,17 +13,14 @@ import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing } from "@/drizzle/kit/index.js";
 import { getPartitionName } from "@/drizzle/onchain.js";
 import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
+import type { SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import {
   CopyFlushError,
   DelayedInsertError,
   ShutdownError,
 } from "@/internal/errors.js";
-import type {
-  CrashRecoveryCheckpoint,
-  Event,
-  SchemaBuild,
-} from "@/internal/types.js";
+import type { CrashRecoveryCheckpoint, Event } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";

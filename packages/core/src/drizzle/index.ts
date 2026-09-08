@@ -1,10 +1,20 @@
-import { getTableColumns } from "drizzle-orm";
+import { getTableColumns, getTableName, isTable } from "drizzle-orm";
 import {
   getTableConfig,
   type PgColumn,
   type PgTable,
 } from "drizzle-orm/pg-core";
 import { getColumnCasing } from "./kit/index.js";
+
+/**
+ * The names of the tables in a user schema, for metric labels.
+ *
+ * Here rather than in `internal/metrics.ts` so that knowing what a Drizzle
+ * table is stays in the schema layer.
+ */
+export const getSchemaTableNames = (schema: {
+  [name: string]: unknown;
+}): string[] => Object.values(schema).filter(isTable).map(getTableName);
 
 export const getPrimaryKeyColumns = (
   table: PgTable,

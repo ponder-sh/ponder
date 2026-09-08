@@ -5,6 +5,7 @@ import { Worker } from "node:worker_threads";
 import { isTable, isView, sql } from "drizzle-orm";
 import { createIndexes, createViews } from "@/database/actions.js";
 import { type Database, getPonderMetaTable } from "@/database/index.js";
+import type { PreBuild, SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import {
   NonRetryableUserError,
@@ -15,8 +16,6 @@ import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
 } from "@/internal/types.js";
 import { runIsolated } from "@/runtime/isolated.js";
 import { chunk } from "@/utils/chunk.js";

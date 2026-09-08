@@ -22,7 +22,6 @@ import { type Address, hexToNumber, isHex } from "viem";
 import type { QB } from "@/database/queryBuilder.js";
 import { extractBlockNumberParam } from "@/indexing/client.js";
 import type { Common } from "@/internal/common.js";
-import type { Logger } from "@/internal/logger.js";
 import type {
   BlockFilter,
   Factory,
@@ -34,23 +33,15 @@ import type {
   InternalTrace,
   InternalTransaction,
   InternalTransactionReceipt,
-  LightBlock,
   LogFilter,
   RequiredInternalBlockColumns,
   RequiredInternalTraceColumns,
   RequiredInternalTransactionColumns,
   RequiredInternalTransactionReceiptColumns,
-  SyncBlock,
-  SyncBlockHeader,
-  SyncLog,
-  SyncTrace,
-  SyncTransaction,
-  SyncTransactionReceipt,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import type { RequestParameters } from "@/rpc/index.js";
 import {
   getFilterFactories,
   isAddressFactory,
@@ -64,10 +55,6 @@ import {
   getFactoryFragments,
   getFragments,
 } from "@/runtime/fragments.js";
-import type {
-  IntervalWithFactory,
-  IntervalWithFilter,
-} from "@/runtime/index.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
@@ -80,124 +67,9 @@ import {
   encodeTransactionReceipt,
 } from "./encode.js";
 import * as PONDER_SYNC from "./schema.js";
+import type { SyncStore } from "./store.js";
 
-export type SyncStore = {
-  insertIntervals(
-    args: {
-      intervals: IntervalWithFilter[];
-      factoryIntervals: IntervalWithFactory[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  getIntervals(
-    args: { filters: Filter[] },
-    context?: { logger?: Logger },
-  ): Promise<
-    Map<Filter | Factory, { fragment: Fragment; intervals: Interval[] }[]>
-  >;
-  insertChildAddresses(
-    args: {
-      factory: Factory;
-      childAddresses: Map<Address, number>;
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  getChildAddresses(
-    args: { factory: Factory },
-    context?: { logger?: Logger },
-  ): Promise<Map<Address, number>>;
-  getSafeCrashRecoveryBlock(
-    args: {
-      chainId: number;
-      timestamp: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<{ number: bigint; timestamp: bigint } | undefined>;
-  insertLogs(
-    args: { logs: SyncLog[]; chainId: number },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  insertBlocks(
-    args: {
-      blocks: (SyncBlock | SyncBlockHeader)[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  insertTransactions(
-    args: {
-      transactions: SyncTransaction[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  insertTransactionReceipts(
-    args: {
-      transactionReceipts: SyncTransactionReceipt[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  insertTraces(
-    args: {
-      traces: {
-        trace: SyncTrace;
-        block: SyncBlock;
-        transaction: SyncTransaction;
-      }[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  getEventData(
-    args: {
-      filters: Filter[];
-      fromBlock: number;
-      toBlock: number;
-      chainId: number;
-      limit: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<{
-    blocks: InternalBlock[];
-    logs: InternalLog[];
-    transactions: InternalTransaction[];
-    transactionReceipts: InternalTransactionReceipt[];
-    traces: InternalTrace[];
-    cursor: number;
-  }>;
-  insertRpcRequestResults(
-    args: {
-      requests: {
-        request: RequestParameters;
-        blockNumber: number | undefined;
-        result: string;
-      }[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  getRpcRequestResults(
-    args: {
-      requests: RequestParameters[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<(string | undefined)[]>;
-  pruneRpcRequestResults(
-    args: {
-      blocks: Pick<LightBlock, "number">[];
-      chainId: number;
-    },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-  pruneByChain(
-    args: { chainId: number },
-    context?: { logger?: Logger },
-  ): Promise<void>;
-};
+export type { SyncStore } from "./store.js";
 
 export const createSyncStore = ({
   common,

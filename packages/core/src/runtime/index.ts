@@ -22,7 +22,7 @@ import {
   getFragments,
   recoverFilter,
 } from "@/runtime/fragments.js";
-import type { SyncStore } from "@/sync-store/index.js";
+import type { SyncStore } from "@/sync-store/store.js";
 import {
   blockToCheckpoint,
   encodeCheckpoint,
