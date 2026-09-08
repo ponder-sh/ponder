@@ -88,6 +88,21 @@ test("validateAllowableSQLQuery() cache", async () => {
   ).rejects.toThrow();
 });
 
+test("validateAllowableSQLQuery() cache identity", async () => {
+  const first = "SELECT 1 /*1665502*/";
+  const second = "SELECT * FROM pg_stat_activity /*536102*/";
+  const firstHash = createHash("sha256").update(first).digest("hex");
+  const secondHash = createHash("sha256").update(second).digest("hex");
+
+  expect(firstHash.slice(0, 10)).toBe(secondHash.slice(0, 10));
+  expect(firstHash).not.toBe(secondHash);
+
+  await validateAllowableSQLQuery(first);
+  await expect(validateAllowableSQLQuery(second)).rejects.toThrow(
+    "System tables not supported",
+  );
+});
+
 test("validateAllowableSQLQuery() select into", async () => {
   await expect(
     validateAllowableSQLQuery("SELECT * INTO users;"),
