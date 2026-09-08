@@ -48,6 +48,8 @@ jobs:
         with:
           foundry: "false"
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
 
       - run: pnpm build
       - run: pnpm install
@@ -91,6 +93,8 @@ jobs:
         with:
           foundry: "false"
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
 
       - run: pnpm build
       - run: pnpm install
@@ -121,6 +125,8 @@ jobs:
         with:
           foundry: "false"
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
       - run: |
           cd simulation-test
           bun run src/cleanup-database.ts

@@ -361,10 +361,12 @@ test("client.live releases quota when request fails before streaming", async () 
     }),
   );
 
-  await vi.waitFor(async () => {
-    const response = await app.request("/sql/live");
-    expect(response.status).toBe(400);
-  });
+  let response = await app.request("/sql/live");
+  for (let i = 0; i < 20 && response.status !== 400; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    response = await app.request("/sql/live");
+  }
+  expect(response.status).toBe(400);
 
   for (let i = 0; i < 1000; i++) {
     const response = await app.request("/sql/live");
