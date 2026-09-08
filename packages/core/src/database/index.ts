@@ -21,6 +21,7 @@ import {
   getReorgSequenceName,
   getReorgTableName,
 } from "@/drizzle/onchain.js";
+import type { PreBuild, SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import {
   MigrationError,
@@ -31,8 +32,6 @@ import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
 } from "@/internal/types.js";
 import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";

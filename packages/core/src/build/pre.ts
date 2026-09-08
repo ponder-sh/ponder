@@ -1,9 +1,9 @@
 import path from "node:path";
 import type { Config } from "@/config/index.js";
+import type { DatabaseConfig } from "@/internal/build.js";
 import { BuildError } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Options } from "@/internal/options.js";
-import type { DatabaseConfig } from "@/internal/types.js";
 
 export function buildPre({
   config,

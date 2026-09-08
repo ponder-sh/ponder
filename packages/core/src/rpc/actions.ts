@@ -21,7 +21,7 @@ import type {
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { chunk } from "@/utils/chunk.js";
-import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
+import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pgLimits.js";
 
 const ADDRESS_CHUNK_SIZE = 50;
 

@@ -2,16 +2,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBuild } from "@/build/index.js";
 import { createDatabase, type Database } from "@/database/index.js";
+import { getSchemaTableNames } from "@/drizzle/index.js";
+import type { PreBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
+import type { CliOptions } from "@/internal/options.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
-  PreBuild,
 } from "@/internal/types.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
@@ -20,7 +22,6 @@ import { createUi } from "@/ui/index.js";
 import { createQueue } from "@/utils/queue.js";
 import type { Result } from "@/utils/result.js";
 import { isolatedController } from "../isolatedController.js";
-import type { CliOptions } from "../ponder.js";
 import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
 
@@ -330,8 +331,10 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
         createServer({ common, database, apiBuild: apiBuildResult.result });
 
         metrics.initializeIndexingMetrics({
-          indexingBuild: indexingBuildResult.result,
-          schemaBuild: compileSchemaResult.result,
+          eventNames: indexingBuildResult.result.indexingFunctions.map(
+            ({ name }) => name,
+          ),
+          tableNames: getSchemaTableNames(compileSchemaResult.result.schema),
         });
 
         switch (preCompileResult.result.ordering) {

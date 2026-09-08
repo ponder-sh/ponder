@@ -3,17 +3,16 @@ import pg from "pg";
 import { afterAll } from "vitest";
 import { buildSchema } from "@/build/schema.js";
 import { createDatabase, type Database } from "@/database/index.js";
+import type { DatabaseConfig, SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type {
-  DatabaseConfig,
   EventCallback,
   IndexingBuild,
   NamespaceBuild,
-  SchemaBuild,
 } from "@/internal/types.js";
 import { getFilterFactories, isAddressFactory } from "@/runtime/filter.js";
 import { getFactoryFragments, getFragments } from "@/runtime/fragments.js";

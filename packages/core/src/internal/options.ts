@@ -2,7 +2,31 @@ import path from "node:path";
 import v8 from "node:v8";
 import type { LevelWithSilent } from "pino";
 import { parse, type SemVer } from "semver";
-import type { CliOptions } from "@/bin/ponder.js";
+
+/**
+ * The command-line inputs `buildOptions` reads.
+ *
+ * Declared here rather than imported from the CLI so that `Options` -- which
+ * most of the codebase depends on -- does not pull in `bin/ponder.ts`, a
+ * module whose last statement parses `process.argv` and runs a command. The
+ * CLI's own commander-derived option type is checked against this one, so the
+ * two cannot drift.
+ */
+export type CliOptions = {
+  command: Options["command"];
+  version: string;
+  config: string;
+  root?: string;
+  schema?: string;
+  viewsSchema?: string;
+  port?: number;
+  hostname?: string;
+  logLevel?: string;
+  logFormat?: string;
+  debug?: boolean;
+  trace?: boolean;
+  disableUi?: boolean;
+};
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list" | "prune";

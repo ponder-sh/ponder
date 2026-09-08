@@ -12,6 +12,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import type { QB } from "@/database/queryBuilder.js";
 import { onchain } from "@/drizzle/onchain.js";
+import type { SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import {
   DbConnectionError,
@@ -24,11 +25,7 @@ import {
   UndefinedTableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
-import type {
-  IndexingErrorHandler,
-  Schema,
-  SchemaBuild,
-} from "@/internal/types.js";
+import type { IndexingErrorHandler, Schema } from "@/internal/types.js";
 import type { Db } from "@/types/db.js";
 import { copy, copyOnWrite } from "@/utils/copy.js";
 import { createLock } from "@/utils/mutex.js";

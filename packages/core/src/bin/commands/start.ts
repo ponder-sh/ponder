@@ -1,24 +1,23 @@
 import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
 import { createDatabase, type Database } from "@/database/index.js";
+import { getSchemaTableNames } from "@/drizzle/index.js";
+import type { ApiBuild, PreBuild, SchemaBuild } from "@/internal/build.js";
 import type { Common } from "@/internal/common.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
+import type { CliOptions } from "@/internal/options.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type {
-  ApiBuild,
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
-  PreBuild,
-  SchemaBuild,
 } from "@/internal/types.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { createServer } from "@/server/index.js";
 import { isolatedController } from "../isolatedController.js";
-import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
 export type PonderApp = {
@@ -281,7 +280,10 @@ export async function start({
     app = await onBuild(app);
   }
 
-  metrics.initializeIndexingMetrics(app);
+  metrics.initializeIndexingMetrics({
+    eventNames: app.indexingBuild.indexingFunctions.map(({ name }) => name),
+    tableNames: getSchemaTableNames(app.schemaBuild.schema),
+  });
 
   switch (preCompileResult.result.ordering) {
     case "omnichain":

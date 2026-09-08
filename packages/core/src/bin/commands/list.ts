@@ -17,11 +17,11 @@ import {
 } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
+import type { CliOptions } from "@/internal/options.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { buildTable } from "@/ui/app.js";
 import { formatEta } from "@/utils/format.js";
-import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
 const emptySchemaBuild = {

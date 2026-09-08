@@ -3,10 +3,10 @@ import { createBuild } from "@/build/index.js";
 import { createDatabase, SCHEMATA } from "@/database/index.js";
 import { createLogger } from "@/internal/logger.js";
 import { MetricsService } from "@/internal/metrics.js";
+import type { CliOptions } from "@/internal/options.js";
 import { buildOptions } from "@/internal/options.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import { createServer } from "@/server/index.js";
-import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 
 export async function serve({ cliOptions }: { cliOptions: CliOptions }) {

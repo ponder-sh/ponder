@@ -24,8 +24,9 @@ import {
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getSql } from "@/drizzle/kit/index.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
+import type { PreBuild } from "@/internal/build.js";
 import { BuildError } from "@/internal/errors.js";
-import type { PreBuild, Schema } from "@/internal/types.js";
+import type { Schema } from "@/internal/types.js";
 
 export const buildSchema = ({
   schema,
