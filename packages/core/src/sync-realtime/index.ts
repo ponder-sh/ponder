@@ -1152,20 +1152,24 @@ export const createRealtimeSync = (
       blockCallback,
     };
 
-    // Determine if a new range has become finalized by evaluating if the
-    // latest block number is 2 * finalityBlockCount >= finalized block number.
-    // Essentially, there is a range the width of finalityBlockCount that is entirely
-    // finalized.
-
+    // Finalize the oldest contiguous blocks that are outside the timestamp
+    // based reorg window.
     const blockMovesFinality =
-      hexToNumber(block.number) >=
-      hexToNumber(finalizedBlock.number) + 2 * args.chain.finalityBlockCount;
+      hexToNumber(block.timestamp) -
+        hexToNumber(unfinalizedBlocks[0]!.timestamp) >=
+      args.chain.reorgWindow;
     if (blockMovesFinality) {
-      const pendingFinalizedBlock = unfinalizedBlocks.find(
-        (lb) =>
-          hexToNumber(lb.number) ===
-          hexToNumber(block.number) - args.chain.finalityBlockCount,
-      )!;
+      let pendingFinalizedBlock = unfinalizedBlocks[0]!;
+      for (const candidate of unfinalizedBlocks) {
+        if (
+          hexToNumber(block.timestamp) - hexToNumber(candidate.timestamp) >=
+          args.chain.reorgWindow
+        ) {
+          pendingFinalizedBlock = candidate;
+        } else {
+          break;
+        }
+      }
 
       args.common.logger.debug({
         msg: "Removed finalized blocks from local chain",

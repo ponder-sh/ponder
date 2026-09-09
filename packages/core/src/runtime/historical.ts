@@ -1,4 +1,4 @@
-import { hexToNumber, numberToHex } from "viem";
+import { hexToNumber } from "viem";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
@@ -24,6 +24,7 @@ import {
   ZERO_CHECKPOINT,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
+import { getFinalizedBlock } from "@/utils/finality.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
@@ -70,6 +71,7 @@ export async function* getHistoricalEventsOmnichain(params: {
 > {
   let pendingEvents: Event[] = [];
   let isCatchup = false;
+  let lastUnfinalizedRefetch = Date.now();
   const perChainCursor = new Map<Chain, string>();
 
   while (true) {
@@ -311,6 +313,17 @@ export async function* getHistoricalEventsOmnichain(params: {
       yield { type: "events", result: mergeResults };
     }
 
+    if (
+      params.indexingBuild.chains.every(
+        (chain) =>
+          Date.now() - lastUnfinalizedRefetch <
+          Math.max(chain.reorgWindow * 1_000, 30_000),
+      )
+    ) {
+      break;
+    }
+    lastUnfinalizedRefetch = Date.now();
+
     const context = {
       logger: params.common.logger.child({ action: "refetch_finalized_block" }),
       retryNullBlockRequest: true,
@@ -324,19 +337,13 @@ export async function* getHistoricalEventsOmnichain(params: {
 
         return eth_getBlockByNumber(rpc, ["latest", false], context)
           .then((latest) =>
-            eth_getBlockByNumber(
+            getFinalizedBlock({
+              chain,
               rpc,
-              [
-                numberToHex(
-                  Math.max(
-                    hexToNumber(latest.number) - chain.finalityBlockCount,
-                    0,
-                  ),
-                ),
-                false,
-              ],
-              context,
-            ),
+              latestBlock: latest,
+              lowerBound:
+                params.perChainSync.get(chain)!.syncProgress.finalized,
+            }),
           )
           .then((finalizedBlock) => {
             const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
@@ -353,29 +360,20 @@ export async function* getHistoricalEventsOmnichain(params: {
       }),
     );
 
-    let shouldCatchup = false;
-
     for (let i = 0; i < params.indexingBuild.chains.length; i++) {
       const chain = params.indexingBuild.chains[i]!;
       const oldFinalizedBlock =
         params.perChainSync.get(chain)!.syncProgress.finalized;
-      const newFinalizedBlock = finalizedBlocks[i]!;
+      const finalizedBlock = finalizedBlocks[i]!;
 
       if (
-        hexToNumber(newFinalizedBlock.number) -
-          hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount
+        hexToNumber(finalizedBlock.number) <
+        hexToNumber(oldFinalizedBlock.number)
       ) {
-        shouldCatchup = true;
-        break;
+        throw new Error(
+          `Finalized block for chain "${chain.name}" cannot move backwards`,
+        );
       }
-    }
-
-    if (shouldCatchup === false) break;
-
-    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
-      const chain = params.indexingBuild.chains[i]!;
-      const finalizedBlock = finalizedBlocks[i]!;
 
       params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
     }
@@ -563,7 +561,13 @@ export async function* getHistoricalEventsMultichain(params: {
 
     yield* mergeAsyncGenerators(eventGenerators);
 
-    if (Date.now() - lastUnfinalizedRefetch < 30_000) {
+    if (
+      params.indexingBuild.chains.every(
+        (chain) =>
+          Date.now() - lastUnfinalizedRefetch <
+          Math.max(chain.reorgWindow * 1_000, 30_000),
+      )
+    ) {
       break;
     }
     lastUnfinalizedRefetch = Date.now();
@@ -580,20 +584,14 @@ export async function* getHistoricalEventsMultichain(params: {
         const rpc = params.indexingBuild.rpcs[i]!;
 
         return eth_getBlockByNumber(rpc, ["latest", false], context)
-          .then((latest) =>
-            eth_getBlockByNumber(
+          .then((latestBlock) =>
+            getFinalizedBlock({
+              chain,
               rpc,
-              [
-                numberToHex(
-                  Math.max(
-                    hexToNumber(latest.number) - chain.finalityBlockCount,
-                    0,
-                  ),
-                ),
-                false,
-              ],
-              context,
-            ),
+              latestBlock,
+              lowerBound:
+                params.perChainSync.get(chain)!.syncProgress.finalized,
+            }),
           )
           .then((finalizedBlock) => {
             const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
@@ -610,29 +608,18 @@ export async function* getHistoricalEventsMultichain(params: {
       }),
     );
 
-    let shouldCatchup = false;
-
-    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
-      const chain = params.indexingBuild.chains[i]!;
-      const oldFinalizedBlock =
-        params.perChainSync.get(chain)!.syncProgress.finalized;
-      const newFinalizedBlock = finalizedBlocks[i]!;
-
-      if (
-        hexToNumber(newFinalizedBlock.number) -
-          hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount
-      ) {
-        shouldCatchup = true;
-        break;
-      }
-    }
-
-    if (shouldCatchup === false) break;
-
     for (let i = 0; i < params.indexingBuild.chains.length; i++) {
       const chain = params.indexingBuild.chains[i]!;
       const finalizedBlock = finalizedBlocks[i]!;
+      const oldFinalizedBlock =
+        params.perChainSync.get(chain)!.syncProgress.finalized;
+
+      if (
+        hexToNumber(finalizedBlock.number) <
+        hexToNumber(oldFinalizedBlock.number)
+      ) {
+        continue;
+      }
 
       params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
     }
@@ -784,7 +771,13 @@ export async function* getHistoricalEventsIsolated(params: {
 
     cursor = to;
 
-    if (Date.now() - lastUnfinalizedRefetch < 30_000) {
+    if (
+      params.indexingBuild.chains.every(
+        (chain) =>
+          Date.now() - lastUnfinalizedRefetch <
+          Math.max(chain.reorgWindow * 1_000, 30_000),
+      )
+    ) {
       break;
     }
     lastUnfinalizedRefetch = Date.now();
@@ -800,19 +793,12 @@ export async function* getHistoricalEventsIsolated(params: {
       ["latest", false],
       context,
     ).then((latest) =>
-      eth_getBlockByNumber(
+      getFinalizedBlock({
+        chain: params.chain,
         rpc,
-        [
-          numberToHex(
-            Math.max(
-              hexToNumber(latest.number) - params.chain.finalityBlockCount,
-              0,
-            ),
-          ),
-          false,
-        ],
-        context,
-      ),
+        latestBlock: latest,
+        lowerBound: params.syncProgress.finalized,
+      }),
     );
 
     const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
@@ -825,9 +811,7 @@ export async function* getHistoricalEventsIsolated(params: {
     });
 
     if (
-      hexToNumber(finalizedBlock.number) -
-        hexToNumber(params.syncProgress.finalized.number) <=
-      params.chain.finalityBlockCount
+      finalizedBlockNumber < hexToNumber(params.syncProgress.finalized.number)
     ) {
       break;
     }

@@ -88,13 +88,22 @@ export const sim =
         const index = APP.indexingBuild.chains.findIndex(
           (_chain) => _chain.id === chain.id,
         );
-        const number = hexToNumber(
-          APP.indexingBuild.finalizedBlocks[index]!.number,
-        );
+        const finalizedBlock = APP.indexingBuild.finalizedBlocks[index]!;
+        const chainConfig = APP.indexingBuild.chains[index]!;
+        const targetTimestamp =
+          hexToNumber(finalizedBlock.timestamp) + chainConfig.reorgWindow;
+        let number = hexToNumber(finalizedBlock.number);
 
-        body.params[0] = toHex(
-          number + APP.indexingBuild.chains[index].finalityBlockCount,
-        );
+        while (true) {
+          const block = await _request({
+            method: "eth_getBlockByNumber",
+            params: [toHex(number + 1), false],
+          });
+          number += 1;
+          if (hexToNumber(block.timestamp) >= targetTimestamp) break;
+        }
+
+        body.params[0] = toHex(number);
       }
 
       // block tag validation
