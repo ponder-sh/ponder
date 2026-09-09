@@ -1,26 +1,11 @@
-import { useEffect } from "react";
 import { cn } from "./utils";
 
 export function Footer() {
-  useEffect(() => {
-    const vocsFooter = document.querySelector(
-      ".vocs_Footer",
-    ) as HTMLElement | null;
-    if (vocsFooter) {
-      vocsFooter.style.display = "none";
-    }
-    return () => {
-      if (vocsFooter) {
-        vocsFooter.style.display = "flex";
-      }
-    };
-  }, []);
-
   return (
     <footer className="w-full max-w-full relative pt-8">
       <div
         className="max-w-[1180px] mx-auto border-t-[0.5px]"
-        style={{ borderTop: "1px solid var(--vocs-color_border)" }}
+        style={{ borderTop: "1px solid var(--vocs-border-color-primary)" }}
       >
         <div className="pt-12 pb-6 flex flex-col gap-12 justify-between md:flex-row">
           <div className="flex gap-4 flex-row justify-between items-center md:flex-col md:justify-start md:items-start">
@@ -101,16 +86,16 @@ function Socials(props: React.HTMLAttributes<HTMLDivElement>) {
   const { className, ...rest } = props;
 
   return (
-    <div className={cn("vocs_Socials", className)} {...rest}>
+    <div className={cn("flex items-center h-7", className)} {...rest}>
       <a
-        className="vocs_Socials_button"
+        className="flex items-center justify-center size-7 rounded-[4px] text-[var(--vocs-text-color-muted)] hover:text-[var(--vocs-text-color-primary)] hover:bg-[var(--vocs-background-color-surfaceTint)] transition-colors duration-150"
         href="https://github.com/ponder-sh/ponder"
         target="_blank"
         rel="noopener noreferrer"
       >
         <div
           aria-label="GitHub"
-          className="vocs_Icon vocs_Socials_icon"
+          className="flex items-center justify-center"
           role="img"
           style={{ height: "17px", width: "17px" }}
         >
@@ -133,20 +118,20 @@ function Socials(props: React.HTMLAttributes<HTMLDivElement>) {
       <div
         style={{
           width: "1px",
-          marginTop: "var(--vocs-space_4)",
-          marginBottom: "var(--vocs-space_4)",
-          backgroundColor: "var(--vocs-color_border)",
+          marginTop: "4px",
+          marginBottom: "4px",
+          backgroundColor: "var(--vocs-border-color-primary)",
         }}
       />
       <a
-        className="vocs_Socials_button"
+        className="flex items-center justify-center size-7 rounded-[4px] text-[var(--vocs-text-color-muted)] hover:text-[var(--vocs-text-color-primary)] hover:bg-[var(--vocs-background-color-surfaceTint)] transition-colors duration-150"
         href="https://t.me/pondersh"
         target="_blank"
         rel="noopener noreferrer"
       >
         <div
           aria-label="Telegram"
-          className="vocs_Icon vocs_Socials_icon"
+          className="flex items-center justify-center"
           role="img"
           style={{ height: "17px", width: "17px" }}
         >
@@ -167,20 +152,20 @@ function Socials(props: React.HTMLAttributes<HTMLDivElement>) {
       <div
         style={{
           width: "1px",
-          marginTop: "var(--vocs-space_4)",
-          marginBottom: "var(--vocs-space_4)",
-          backgroundColor: "var(--vocs-color_border)",
+          marginTop: "4px",
+          marginBottom: "4px",
+          backgroundColor: "var(--vocs-border-color-primary)",
         }}
       />
       <a
-        className="vocs_Socials_button"
+        className="flex items-center justify-center size-7 rounded-[4px] text-[var(--vocs-text-color-muted)] hover:text-[var(--vocs-text-color-primary)] hover:bg-[var(--vocs-background-color-surfaceTint)] transition-colors duration-150"
         href="https://x.com/ponder_sh"
         target="_blank"
         rel="noopener noreferrer"
       >
         <div
           aria-label="X (Twitter)"
-          className="vocs_Icon vocs_Socials_icon"
+          className="flex items-center justify-center"
           role="img"
           style={{ height: "16px", width: "16px" }}
         >

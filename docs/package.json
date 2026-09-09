@@ -6,26 +6,29 @@
   "scripts": {
     "dev": "vocs dev",
     "build": "vocs build",
+    "preview": "vocs preview",
     "search-index": "vocs search-index",
-    "preview": "vocs preview"
+    "markdown-audit": "vocs markdown-audit",
+    "typecheck": "tsc --noEmit",
+    "verify-versions": "node --experimental-strip-types scripts/verify-versions.ts"
   },
   "dependencies": {
-    "@theguild/remark-mermaid": "^0.3.0",
-    "@vercel/node": "^5.1.16",
-    "@vercel/og": "^0.6.8",
     "clsx": "^2.1.1",
     "lucide-react": "^0.510.0",
+    "mermaid": "11.6.0",
     "radix-ui": "^1.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router": "^7.6.0",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^4.0.6",
-    "vocs": "^1.0.11"
+    "vite": "8.2.2",
+    "vocs": "2.8.5",
+    "waku": "1.0.0-beta.8"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.0.10"
+    "@types/react-dom": "^19.0.10",
+    "typescript": "^5.4.5"
   }
 }

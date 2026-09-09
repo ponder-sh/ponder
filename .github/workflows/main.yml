@@ -40,6 +40,30 @@ jobs:
       - name: Test (types)
         run: pnpm --filter "ponder" test:typecheck
  
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v5
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          foundry: "false"
+
+      - name: Typecheck
+        run: pnpm --filter "ponder-docs" typecheck
+
+      - name: Verify version system
+        run: pnpm --filter "ponder-docs" verify-versions
+
+      - name: Build
+        run: pnpm --filter "ponder-docs" build
+
+      - name: Audit generated Markdown
+        run: pnpm --filter "ponder-docs" markdown-audit
+
   bundle:
     name: Bundle
     runs-on: ubuntu-latest

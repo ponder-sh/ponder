@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@custom-variant dark (
+  &:where(
+    :root[style*="color-scheme:dark"] *,
+    :root[style*="color-scheme: dark"] *
+  )
+);
+
+@theme {
+  --color-ponder-50: #39dff2;
+  --color-ponder-100: #35cddf;
+  --color-ponder-200: #30bccc;
+  --color-ponder-300: #2caab9;
+  --color-ponder-400: #2aa3b1;
+  --color-ponder-500: #238793;
+  --color-ponder-600: #1e7580;
+  --color-ponder-700: #1a646c;
+  --color-ponder-800: #155259;
+  --color-ponder-900: #114146;
+  --color-ponder-950: #0c2f33;
+}
+
+/* CONTENT & SIDEBAR WIDTH */
+/* Probably a better way to do this */
+:root {
+  /* Default: 300px */
+  --vocs-spacing-sidebar: 260px;
+  /* Default: 70ch */
+  --vocs-spacing-content: calc(74ch + (var(--vocs-spacing-content-px) * 2));
+  /* Default: 14px */
+  --vocs-text-code-block: 13px;
+}
+
+/* HERO TEXTURE */
+.hero-texture {
+  background:
+    radial-gradient(91.96% 91.96% at 50% 91.96%, rgba(0, 0, 0, 0) 0%, #fff 100%),
+    url("/hero.png") lightgray 50% / cover no-repeat;
+}
+:root[style*="color-scheme:dark"] .hero-texture,
+:root[style*="color-scheme: dark"] .hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) -20%,
+      #111 100%
+    ),
+    url("/hero.png") lightgray 50% / cover no-repeat;
+}
+
+/* Removed as part of the Vocs 2 migration: rules targeting Vocs 1 CSS-module
+   classes (.vocs_*) for logo sizing, top nav border/alignment, search bar,
+   sidebar items, and blog posts. Vocs 2 styles its shell with Tailwind under a
+   `vocs:` prefix, so those selectors match nothing and need to be re-judged
+   against v2 defaults. */

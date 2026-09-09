@@ -8,7 +8,6 @@ date: "December 14, 2024"
 ---
 
 import { Benchmarks } from "../../components/benchmarks";
-import { Footer } from "../../components/footer";
 
 # Introducing Ponder [An open-source framework for crypto apps]
 
@@ -80,7 +79,7 @@ Long feedback loops are the kiss of death for developer productivity, and unfort
 
 **Ponder is fast and lean.** In our initial benchmarks, Ponder indexed an ERC20 contract ~10x faster than the Graph Node from a cold start and 15x faster fully cached.
 
-<Benchmarks flat className="mt-6" />
+<Benchmarks />
 
 Ponder also used fewer resources — 35x less disk space and 35% fewer RPC credits.
 
@@ -115,5 +114,3 @@ We’re truly just getting started. Upcoming work that we're excited about:
 4. Run indexing functions in the browser for faster real-time updates\*
 
 We’re _particularly_ excited about trust-minimized indexing in the browser. In this scheme, the user’s browser will fetch a historical snapshot, verify it, and continue indexing in real-time directly against an Ethereum node. As a developer, you’ll write your indexing functions once, and they’ll run both server-side and in the browser (it’s all JavaScript!). This pattern has the potential to eliminate painful code duplication, simplify client-server state management, and minimize latency. There’s lots of work to do before this becomes a reality, but the door is open.
-
-<Footer />

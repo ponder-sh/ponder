@@ -2,19 +2,18 @@ import { GraphLogo } from "./icons.js";
 import { Card, CardTitle } from "./ui/card.js";
 import { cn } from "./utils.js";
 
-export function Benchmarks({
-  className,
-  flat,
-}: {
-  className?: string;
-  flat?: boolean;
-}) {
+/**
+ * Indexing benchmarks against the Graph Node.
+ *
+ * Takes no props: Vocs' `toMarkdown` hook (below) only applies to standalone,
+ * prop-less component usage, and both call sites wanted the same styling.
+ */
+function BenchmarksCard() {
   return (
     <Card
       className={cn([
         "w-full flex flex-col justify-between md:flex-row gap-8 mb-8",
-        flat ? "rounded-none md:rounded-lg" : "",
-        className,
+        "rounded-none md:rounded-lg mt-6",
       ])}
     >
       <div className="flex flex-col lg:flex-row w-full">
@@ -102,3 +101,35 @@ export function Benchmarks({
     </Card>
   );
 }
+
+/** The figures rendered above, as a Markdown table for AI-facing output. */
+const table = [
+  "| | Sync (Cold) | Sync (Cache) | Database Size | RPC Credits |",
+  "| --- | ---: | ---: | ---: | ---: |",
+  "| Ponder | 37s | 5s | 31 MB | 108k |",
+  "| The Graph | 5m 28s | 1m 15s | 1.1 GB | 167k |",
+].join("\n");
+
+const caption =
+  "Results of indexing the Rocket Pool ERC20 token contract on mainnet from " +
+  "block 18,600,000 to 18,718,056 (latest) on an M1 MacBook Pro (8 core, " +
+  "16GB RAM) against an Alchemy node on the Growth plan using a 950MB/s " +
+  "network connection. Run it yourself: " +
+  "https://github.com/ponder-sh/ponder/tree/main/benchmark#readme";
+
+/**
+ * Vocs calls `toMarkdown` only while generating `.md` pages, `llms.txt`, and
+ * `llms-full.txt`, so agents get the numbers instead of an opaque MDX tag.
+ *
+ * Emitted as an `html` node rather than an mdast `table`: the Markdown output
+ * pipeline has no GFM table handler, so a `table` node fails the build.
+ */
+export const Benchmarks = Object.assign(BenchmarksCard, {
+  toMarkdown: () => [
+    { type: "html" as const, value: table },
+    {
+      type: "paragraph" as const,
+      children: [{ type: "text" as const, value: caption }],
+    },
+  ],
+});

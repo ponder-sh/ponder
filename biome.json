@@ -1,6 +1,12 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "files": {
     "includes": [
       "**",
@@ -17,7 +23,8 @@
       "!**/benchmarks/apps/subgraph-*",
       "!**/pnpm-lock.yaml",
       "!**/*.sol",
-      "!**/tsconfig.base.json"
+      "!**/tsconfig.base.json",
+      "!**/pages.gen.ts"
     ]
   },
   "formatter": {
@@ -29,7 +36,7 @@
   },
   "overrides": [
     {
-      "includes": ["docs/styles.css"],
+      "includes": ["docs/pages/_root.css"],
       "css": {
         "parser": {
           "tailwindDirectives": true
