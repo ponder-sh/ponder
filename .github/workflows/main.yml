@@ -64,6 +64,18 @@ jobs:
       - name: Audit generated Markdown
         run: pnpm --filter "ponder-docs" markdown-audit
 
+      - name: Install Chromium
+        run: pnpm --filter "ponder-docs" exec playwright install --with-deps chromium
+
+      # Catches what `build` cannot: modules that only resolve differently in
+      # dev (Vite applies the `development` export condition) and client-side
+      # errors that appear after hydration.
+      - name: Smoke test (dev)
+        run: pnpm --filter "ponder-docs" smoke
+
+      - name: Smoke test (production build)
+        run: pnpm --filter "ponder-docs" smoke -- --preview
+
   bundle:
     name: Bundle
     runs-on: ubuntu-latest

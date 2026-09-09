@@ -90,16 +90,12 @@ export default defineConfig({
     const analytics = [
       { src: "https://sa-api.ponder.sh/latest.js", async: true },
     ] as const;
-    // Matches the server-side `baseUrl` in every environment.
-    const origin =
-      typeof globalThis.location !== "undefined"
-        ? globalThis.location.origin
-        : typeof process !== "undefined" &&
-            process.env.VERCEL_ENV === "production"
-          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-          : typeof process !== "undefined" && process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:5173";
+    // Canonical URLs always point at production: they must be byte-identical
+    // on the server and in the browser or React reports a hydration mismatch
+    // (Vocs embeds the canonical URL in its JSON-LD), and a canonical tag
+    // should never point at localhost or a preview deployment. Kept in sync
+    // with `productionUrl` in `base-url.ts` by `scripts/verify-versions.ts`.
+    const origin = "https://ponder.sh";
 
     const archived = /^\/docs\/\d+\.\d+(?=\/)/.exec(path);
     if (archived === null)

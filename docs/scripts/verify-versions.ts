@@ -7,6 +7,7 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { productionUrl } from "../base-url.ts";
 import { docsTree, latestSubpaths } from "../docs-tree.ts";
 import { sidebar } from "../sidebar.ts";
 import {
@@ -113,6 +114,10 @@ for (const rename of new Set(expectedRenames))
 for (const rename of inlinedRenames)
   if (!expectedRenames.includes(rename))
     errors.push(`head() has a stale rename exception: ${rename}`);
+
+// head() inlines the production origin; keep it in sync with base-url.ts.
+if (!configSource.includes(`"${productionUrl}"`))
+  errors.push(`head() should inline the production origin ${productionUrl}`);
 
 // Pages absent from latest must be listed as removed in head().
 for (const page of onDisk) {

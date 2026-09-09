@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vocs preview",
     "markdown-audit": "vocs markdown-audit",
     "typecheck": "tsc --noEmit",
-    "verify-versions": "node --experimental-strip-types scripts/verify-versions.ts"
+    "verify-versions": "node --experimental-strip-types scripts/verify-versions.ts",
+    "smoke": "node --experimental-strip-types scripts/smoke.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.1",
@@ -29,6 +30,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.0.10",
+    "playwright": "1.57.0",
     "typescript": "5.9.3"
   }
 }
