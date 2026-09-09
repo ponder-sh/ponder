@@ -1,8 +1,14 @@
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   type Address,
   type Hash,
+  type Hex,
   hexToNumber,
   numberToHex,
+  type RpcError,
   zeroHash,
 } from "viem";
 import type { Common } from "@/internal/common.js";
@@ -53,6 +59,7 @@ import {
 } from "@/runtime/filter.js";
 import type { SyncProgress } from "@/runtime/index.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
+import { getChunks } from "@/utils/interval.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
@@ -119,6 +126,12 @@ export const createRealtimeSync = (
    * waiting to be finalized. It is an invariant that
    * all blocks are linked to each other,
    * `parentHash` => `hash`.
+   *
+   * @dev The range-scan path is the exception: it only ingests blocks that
+   * contain matching logs, plus one head block per poll, so the list is sparse
+   * and not parent-linked. Consumers key on block number
+   * (`runtime/realtime.ts`), so this only matters for code that walks the list
+   * by hash.
    */
   let unfinalizedBlocks: LightBlock[] = [];
   /** Closest-to-tip block that has been fetched but not yet reconciled. */
@@ -169,6 +182,193 @@ export const createRealtimeSync = (
       factories.push(factory);
     }
   }
+
+  /**
+   * Experimental range-scan fast path. When enabled, each polling interval is
+   * scanned with a ranged `eth_getLogs` request rather than fetching every
+   * block, so a `pollingInterval` larger than the chain's block time reduces RPC
+   * usage. Only supported when all indexed sources are non-factory `log`
+   * filters; otherwise the default per-block sync is used.
+   *
+   * @dev The comparison against the default path assumes its `logsBloom` check
+   * (see `fetchBlockEventData`), which skips `eth_getLogs` for blocks whose
+   * bloom doesn't match any filter. Without it the default path would cost two
+   * requests per block rather than one, and the range scan would win by a much
+   * wider margin than it actually does.
+   */
+  const canRangeScan =
+    args.chain.experimentalRangeScan &&
+    logFilters.length > 0 &&
+    factories.length === 0 &&
+    traceFilters.length === 0 &&
+    transactionFilters.length === 0 &&
+    transferFilters.length === 0 &&
+    blockFilters.length === 0 &&
+    // A filter that matches all addresses would make every scan an unfiltered
+    // chain-wide `eth_getLogs` over the unfinalized window, which is both
+    // slower and more expensive than the default per-block sync.
+    logFilters.every(
+      (filter) =>
+        filter.address !== undefined &&
+        isAddressFactory(filter.address) === false,
+    );
+
+  if (args.chain.experimentalRangeScan && canRangeScan === false) {
+    args.common.logger.warn({
+      msg: "Ignoring 'experimentalRangeScan' because the chain has factory, block, transaction, trace, or transfer sources, or a log source that matches all addresses. Using the default per-block realtime sync.",
+      chain: args.chain.name,
+      chain_id: args.chain.id,
+    });
+  }
+
+  /**
+   * Block hashes of unfinalized blocks that the range scan has already
+   * processed, keyed by block number (range-scan path).
+   *
+   * @dev Includes blocks that produced no events after client-side filtering.
+   * A block that was scanned but not emitted must still be recorded, otherwise
+   * it would be re-detected as a reorg on every subsequent poll.
+   */
+  const scannedBlockHashes = new Map<number, Hash>();
+
+  /**
+   * `address` and `topics` for the range-scan `eth_getLogs` request: the union
+   * of every log filter's address and `topic0`.
+   *
+   * @dev The union matches a superset of each individual filter — `(A₁ ∪ A₂) ∧
+   * (T₁ ∪ T₂)` contains everything `(A₁ ∧ T₁)` and `(A₂ ∧ T₂)` match — so it is
+   * safe to filter precisely client-side afterwards. Constraining the request
+   * matters because the response covers the entire unfinalized window.
+   */
+  const rangeScanParams = (() => {
+    const addresses = new Set<Address>();
+    const topic0s = new Set<Hex>();
+
+    for (const filter of logFilters) {
+      // Note: `canRangeScan` guarantees a non-factory, defined address.
+      const address = filter.address as Address | Address[];
+      if (Array.isArray(address)) {
+        for (const _address of address) addresses.add(_address);
+      } else {
+        addresses.add(address);
+      }
+
+      // Note: `LogFilter["topic0"]` is always defined, one event selector per
+      // log filter.
+      topic0s.add(filter.topic0);
+    }
+
+    // Note: the `topics` field is fragile for many rpc providers, so only the
+    // first position is included.
+    return {
+      addresses: Array.from(addresses),
+      topics: [Array.from(topic0s)],
+    };
+  })();
+
+  /**
+   * Maximum number of addresses in a single range-scan `eth_getLogs` request.
+   * Matches the batch size used by the historical sync.
+   */
+  const RANGE_SCAN_ADDRESS_BATCH_SIZE = 50;
+
+  /**
+   * Maximum block range for a range-scan `eth_getLogs` request. Starts at the
+   * user-provided value (if any) and is narrowed when a provider rejects a
+   * request for being too wide, so the same error isn't repeated every poll.
+   */
+  let rangeScanBlockRange: number | undefined = args.chain.ethGetLogsBlockRange;
+  /** `true` if `rangeScanBlockRange` came from a limit stated by the provider. */
+  let isRangeScanBlockRangeConfirmed =
+    args.chain.ethGetLogsBlockRange !== undefined;
+
+  /**
+   * Approximate compute unit costs, used only to decide whether to warn that
+   * the range scan isn't paying off. Taken from Alchemy's published table.
+   *
+   * @dev Providers price differently, so these are indicative. What matters is
+   * the ratio: an `eth_getLogs` costs about three block requests.
+   */
+  const CU_BLOCK_REQUEST = 20;
+  const CU_GET_LOGS_REQUEST = 60;
+  /** Number of polls to sample before comparing the two strategies. */
+  const RANGE_SCAN_SAMPLE_POLLS = 10;
+
+  let rangeScanSampledPolls = 0;
+  let rangeScanSampledBlocks = 0;
+  let rangeScanSampledRequests = 0;
+  let rangeScanSampledMatchedBlocks = 0;
+  let hasSkippedFirstRangeScanPoll = false;
+  let hasCheckedRangeScanCost = false;
+
+  /**
+   * Warn once if the range scan is using more RPC credits than the default
+   * per-block sync would have.
+   *
+   * @dev Break-even is not a fixed number of blocks per poll: it depends on how
+   * many `eth_getLogs` requests each scan takes (the unfinalized window grows to
+   * `2 * finalityBlockCount` blocks and may be split by block range or address
+   * batch) and on how many blocks contain a matching event. Both are measured
+   * here rather than assumed.
+   *
+   * The per-block path fetches every block and, thanks to the `logsBloom` check
+   * in `fetchBlockEventData`, only issues `eth_getLogs` for blocks whose bloom
+   * matches a filter. Bloom matches aren't observable from this path, so they
+   * are approximated by the number of blocks that had a matching log. That
+   * understates the per-block cost, which makes this warning conservative.
+   */
+  const recordRangeScanPoll = ({
+    blocks,
+    requests,
+    matchedBlocks,
+  }: {
+    blocks: number;
+    requests: number;
+    matchedBlocks: number;
+  }) => {
+    if (hasCheckedRangeScanCost) return;
+
+    // Skip the first poll, which covers the gap left by the historical sync
+    // rather than one polling interval.
+    if (hasSkippedFirstRangeScanPoll === false) {
+      hasSkippedFirstRangeScanPoll = true;
+      return;
+    }
+
+    rangeScanSampledPolls += 1;
+    rangeScanSampledBlocks += blocks;
+    rangeScanSampledRequests += requests;
+    rangeScanSampledMatchedBlocks += matchedBlocks;
+
+    if (rangeScanSampledPolls < RANGE_SCAN_SAMPLE_POLLS) return;
+
+    hasCheckedRangeScanCost = true;
+
+    // Note: a poll where no block elapsed still costs one block request on
+    // either path, hence the `max`.
+    const rangeScanCost =
+      rangeScanSampledPolls * CU_BLOCK_REQUEST +
+      rangeScanSampledRequests * CU_GET_LOGS_REQUEST +
+      rangeScanSampledMatchedBlocks * CU_BLOCK_REQUEST;
+    const perBlockCost =
+      Math.max(rangeScanSampledBlocks, rangeScanSampledPolls) *
+        CU_BLOCK_REQUEST +
+      rangeScanSampledMatchedBlocks * CU_GET_LOGS_REQUEST;
+
+    if (rangeScanCost >= perBlockCost) {
+      const blocksPerPoll = rangeScanSampledBlocks / rangeScanSampledPolls;
+      const requestsPerPoll = rangeScanSampledRequests / rangeScanSampledPolls;
+
+      args.common.logger.warn({
+        msg: `The 'experimentalRangeScan' option is not reducing RPC usage on this chain. Over ${rangeScanSampledPolls} polls it used about ${rangeScanCost} credits versus ${perBlockCost} for the default per-block sync, with ${blocksPerPoll.toFixed(1)} blocks and ${requestsPerPoll.toFixed(1)} 'eth_getLogs' requests per poll. Increase 'pollingInterval', or disable 'experimentalRangeScan'.`,
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        polling_interval: args.chain.pollingInterval,
+        blocks_per_poll: blocksPerPoll,
+        requests_per_poll: requestsPerPoll,
+      });
+    }
+  };
 
   const syncTransactionReceipts = async (
     block: SyncBlock,
@@ -1203,6 +1403,516 @@ export const createRealtimeSync = (
     }
   };
 
+  /**
+   * Fetch all logs matching the union of the log filters in
+   * `[fromBlock, toBlock]`.
+   *
+   * Requests are batched by address and chunked by block range. A request
+   * rejected for being too wide is split into the ranges suggested by the
+   * error and retried, and the narrower range is remembered for later polls.
+   */
+  const getRangeScanLogs = async (
+    fromBlock: number,
+    toBlock: number,
+  ): Promise<{ logs: SyncLog[]; requestCount: number }> => {
+    const context = {
+      logger: args.common.logger.child({ action: "fetch_block_data" }),
+    };
+
+    let requestCount = 0;
+    let didSplit = false;
+
+    const addressBatches: Address[][] = [];
+    for (
+      let i = 0;
+      i < rangeScanParams.addresses.length;
+      i += RANGE_SCAN_ADDRESS_BATCH_SIZE
+    ) {
+      addressBatches.push(
+        rangeScanParams.addresses.slice(i, i + RANGE_SCAN_ADDRESS_BATCH_SIZE),
+      );
+    }
+
+    const request = async (
+      address: Address[],
+      from: number,
+      to: number,
+    ): Promise<SyncLog[]> => {
+      const params: Parameters<typeof eth_getLogs>[1] = [
+        {
+          address,
+          topics: rangeScanParams.topics,
+          fromBlock: numberToHex(from),
+          toBlock: numberToHex(to),
+        },
+      ];
+
+      requestCount += 1;
+
+      return eth_getLogs(args.rpc, params, context).catch((error) => {
+        // Note: skip the range retry logic if the chain has a custom block
+        // range, matching the historical sync.
+        if (args.chain.ethGetLogsBlockRange !== undefined) throw error;
+        if (from === to) throw error;
+
+        const getLogsErrorResponse = getLogsRetryHelper({
+          params: params as GetLogsRetryHelperParameters["params"],
+          error: error as RpcError,
+        });
+
+        if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+        didSplit = true;
+        isRangeScanBlockRangeConfirmed = getLogsErrorResponse.isSuggestedRange;
+
+        const range =
+          hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+          hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
+          1;
+
+        // Remember the narrower range so that the next poll doesn't repeat the
+        // same failing request.
+        if (rangeScanBlockRange === undefined || range < rangeScanBlockRange) {
+          rangeScanBlockRange = range;
+
+          args.common.logger.debug({
+            msg: "Updated range scan 'eth_getLogs' range",
+            chain: args.chain.name,
+            chain_id: args.chain.id,
+            range,
+          });
+        }
+
+        return Promise.all(
+          getLogsErrorResponse.ranges.map(({ fromBlock, toBlock }) =>
+            request(address, hexToNumber(fromBlock), hexToNumber(toBlock)),
+          ),
+        ).then((logs) => logs.flat());
+      });
+    };
+
+    const chunks = getChunks({
+      interval: [fromBlock, toBlock],
+      maxChunkSize: rangeScanBlockRange ?? toBlock - fromBlock + 1,
+    });
+
+    const results = await Promise.all(
+      chunks.flatMap(([from, to]) =>
+        addressBatches.map((address) => request(address, from, to)),
+      ),
+    );
+
+    // A range narrowed from an error that didn't state a limit may be smaller
+    // than the provider actually allows, and every extra chunk is an extra
+    // request. Grow it back slowly, the same way the historical sync does.
+    if (
+      didSplit === false &&
+      rangeScanBlockRange !== undefined &&
+      isRangeScanBlockRangeConfirmed === false &&
+      args.chain.ethGetLogsBlockRange === undefined
+    ) {
+      rangeScanBlockRange = Math.round(rangeScanBlockRange * 1.05);
+    }
+
+    return { logs: results.flat(), requestCount };
+  };
+
+  /**
+   * Build `BlockWithEventData` for a single block from logs already fetched by
+   * `getRangeScanLogs`. Only valid for the range-scan path (log filters only).
+   */
+  const buildLogBlockData = async (
+    block: SyncBlock,
+    blockLogs: SyncLog[],
+  ): Promise<BlockWithEventData> => {
+    const context = {
+      logger: args.common.logger.child({ action: "fetch_block_data" }),
+    };
+
+    validateLogsAndBlock(
+      blockLogs,
+      block,
+      { method: "eth_getLogs", params: [{ blockHash: block.hash }] },
+      { method: "eth_getBlockByHash", params: [block.hash, true] },
+    );
+
+    const requiredTransactions = new Set<Hash>();
+    const requiredTransactionReceipts = new Set<Hash>();
+
+    const logs = blockLogs.filter((log) => {
+      let isMatched = false;
+      for (const filter of logFilters) {
+        if (isLogFilterMatched({ filter, log })) {
+          isMatched = true;
+          if (log.transactionHash !== zeroHash) {
+            requiredTransactions.add(log.transactionHash);
+            if (filter.hasTransactionReceipt) {
+              requiredTransactionReceipts.add(log.transactionHash);
+              break;
+            }
+          }
+        }
+      }
+      return isMatched;
+    });
+
+    validateTransactionsAndBlock(block, {
+      method: "eth_getBlockByHash",
+      params: [block.hash, true],
+    });
+
+    const transactions = block.transactions.filter((transaction) =>
+      requiredTransactions.has(transaction.hash),
+    );
+
+    const transactionReceipts = await syncTransactionReceipts(
+      block,
+      requiredTransactionReceipts,
+      "eth_getBlockByHash",
+      context,
+    );
+
+    return {
+      block,
+      transactions,
+      transactionReceipts,
+      logs,
+      traces: [],
+      // No factory sources are supported on the range-scan path.
+      childAddresses: new Map(),
+    };
+  };
+
+  /**
+   * Reconcile the chain up to `headBlock` by scanning the entire unfinalized
+   * window with a single ranged `eth_getLogs` request. Reorgs are detected by
+   * diffing the block hashes reported by the rescan against the blocks the
+   * scan has already processed, so blocks without matching events are never
+   * fetched.
+   *
+   * @dev Only used when `canRangeScan` is true.
+   */
+  const reconcileRange = async function* (
+    headBlock: SyncBlock | SyncBlockHeader,
+    blockCallback?: (isAccepted: boolean) => void,
+  ): AsyncGenerator<RealtimeSyncEvent> {
+    const endClock = startClock();
+    const headNumber = hexToNumber(headBlock.number);
+    const windowFrom = hexToNumber(finalizedBlock.number) + 1;
+
+    const tipNumberBeforeScan = hexToNumber(getLatestUnfinalizedBlock().number);
+
+    // We already saw this head, or it is at/under the finalized block. No-op.
+    if (
+      getLatestUnfinalizedBlock().hash === headBlock.hash ||
+      headNumber < windowFrom
+    ) {
+      recordRangeScanPoll({ blocks: 0, requests: 0, matchedBlocks: 0 });
+      blockCallback?.(false);
+      return;
+    }
+
+    // Scan the entire unfinalized window. Used both for reorg detection
+    // (comparing block hashes against the blocks already processed) and to
+    // discover new matched blocks.
+    const { logs: rangeLogs, requestCount } = await getRangeScanLogs(
+      windowFrom,
+      headNumber,
+    );
+
+    const logsByBlockNumber = new Map<
+      number,
+      { hash: Hash; logs: SyncLog[] }
+    >();
+    for (const log of rangeLogs) {
+      const number = hexToNumber(log.blockNumber);
+      if (logsByBlockNumber.has(number) === false) {
+        logsByBlockNumber.set(number, { hash: log.blockHash, logs: [] });
+      }
+      logsByBlockNumber.get(number)!.logs.push(log);
+    }
+
+    // The request used the union of every filter's address and `topic0`, and
+    // logs from different address batches arrive out of order. Filter each
+    // block's logs precisely and restore `logIndex` order.
+    for (const [number, { logs }] of logsByBlockNumber) {
+      const matchedLogs = logs
+        .filter((log) =>
+          logFilters.some((filter) => isLogFilterMatched({ filter, log })),
+        )
+        .sort((a, b) => hexToNumber(a.logIndex) - hexToNumber(b.logIndex));
+
+      logsByBlockNumber.get(number)!.logs = matchedLogs;
+    }
+
+    // --- Reorg detection ---
+    // Find the lowest block at or below the local tip where the rescan
+    // disagrees with what has already been processed. Three cases, all of
+    // which must rewind:
+    //
+    // 1. A processed block has a different hash in the rescan.
+    // 2. A processed block that had matching logs no longer has any.
+    // 3. A block that previously had no matching logs now has some. This is
+    //    the case that a matched-blocks-only diff misses: because the head is
+    //    emitted as an empty block every poll, the local tip advances past
+    //    event-free blocks, and logs introduced into them by a reorg would
+    //    otherwise never be ingested.
+    const tipNumberBeforeReorg = tipNumberBeforeScan;
+
+    let reorgFromNumber: number | undefined;
+    const setReorgFrom = (number: number) => {
+      if (reorgFromNumber === undefined || number < reorgFromNumber) {
+        reorgFromNumber = number;
+      }
+    };
+
+    for (const [number, hash] of scannedBlockHashes) {
+      if (number > tipNumberBeforeReorg) continue;
+      if (logsByBlockNumber.get(number)?.hash !== hash) setReorgFrom(number);
+    }
+    for (const [number, { hash }] of logsByBlockNumber) {
+      if (number > tipNumberBeforeReorg) continue;
+      if (scannedBlockHashes.get(number) !== hash) setReorgFrom(number);
+    }
+
+    // The head itself may be a reorged replacement of a block that was already
+    // emitted, or may not descend from the local tip. Both are free to check.
+    const storedHeadHash = unfinalizedBlocks.find(
+      (lb) => hexToNumber(lb.number) === headNumber,
+    )?.hash;
+    if (storedHeadHash !== undefined && storedHeadHash !== headBlock.hash) {
+      setReorgFrom(headNumber);
+    } else if (
+      headNumber === tipNumberBeforeReorg + 1 &&
+      headBlock.parentHash !== getLatestUnfinalizedBlock().hash
+    ) {
+      if (unfinalizedBlocks.length === 0) {
+        // The local chain is empty, so the head's parent is the finalized
+        // block. A mismatch means the reorg is beyond the finalized block.
+        args.common.logger.warn({
+          msg: "Encountered unrecoverable reorg",
+          chain: args.chain.name,
+          chain_id: args.chain.id,
+          finalized_block: hexToNumber(finalizedBlock.number),
+          duration: endClock(),
+        });
+
+        throw new Error(
+          `Encountered unrecoverable '${args.chain.name}' reorg beyond finalized block ${hexToNumber(finalizedBlock.number)}`,
+        );
+      }
+
+      setReorgFrom(tipNumberBeforeReorg);
+    }
+
+    if (reorgFromNumber !== undefined) {
+      const reorgedBlocks = unfinalizedBlocks.filter(
+        (lb) => hexToNumber(lb.number) >= reorgFromNumber!,
+      );
+      unfinalizedBlocks = unfinalizedBlocks.filter(
+        (lb) => hexToNumber(lb.number) < reorgFromNumber!,
+      );
+      for (const block of reorgedBlocks) {
+        childAddressesPerBlock.delete(hexToNumber(block.number));
+      }
+      // Forget every scanned block at or above the fork point so that the
+      // replacement blocks are ingested below rather than treated as seen.
+      for (const number of scannedBlockHashes.keys()) {
+        if (number >= reorgFromNumber) scannedBlockHashes.delete(number);
+      }
+
+      const commonAncestor = getLatestUnfinalizedBlock();
+
+      args.common.logger.debug({
+        msg: "Reconciled reorg in local chain",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        reorg_depth: reorgedBlocks.length,
+        common_ancestor_block: hexToNumber(commonAncestor.number),
+      });
+
+      yield { type: "reorg", block: commonAncestor, reorgedBlocks };
+    }
+
+    // --- Ingest new matched blocks ---
+    // Ingest every block in the scan that hasn't already been processed at this
+    // hash, rather than only blocks above the local tip. Blocks below the tip
+    // are unchanged in the common case (their hash is already recorded), so
+    // this doesn't refetch anything, but it does pick up blocks that a reorg
+    // rewound above.
+    const newNumbers = Array.from(logsByBlockNumber.entries())
+      .filter(
+        ([number, { hash }]) =>
+          number <= headNumber && scannedBlockHashes.get(number) !== hash,
+      )
+      .map(([number]) => number)
+      .sort((a, b) => a - b);
+
+    // Blocks whose logs were all dropped by client-side filtering are recorded
+    // without being fetched. They must still be recorded, otherwise they would
+    // look like a reorg on every later poll.
+    const newMatchedNumbers: number[] = [];
+    for (const number of newNumbers) {
+      const { hash, logs } = logsByBlockNumber.get(number)!;
+      if (logs.length === 0) {
+        scannedBlockHashes.set(number, hash);
+      } else {
+        newMatchedNumbers.push(number);
+      }
+    }
+
+    recordRangeScanPoll({
+      blocks: Math.max(headNumber - tipNumberBeforeScan, 0),
+      requests: requestCount,
+      matchedBlocks: newMatchedNumbers.length,
+    });
+
+    const matchedBlocks = await Promise.all(
+      newMatchedNumbers.map((number) => {
+        const { hash } = logsByBlockNumber.get(number)!;
+        return eth_getBlockByHash(args.rpc, [hash, true], {
+          logger: args.common.logger.child({ action: "fetch_block_data" }),
+        }).then((block) =>
+          buildLogBlockData(block, logsByBlockNumber.get(number)!.logs),
+        );
+      }),
+    );
+
+    const blockEvents: Extract<RealtimeSyncEvent, { type: "block" }>[] = [];
+
+    for (const blockWithEventData of matchedBlocks) {
+      const filtered = filterBlockEventData(blockWithEventData);
+      const block = filtered.block;
+
+      // Note: recorded after the fetch succeeds, so that a failed poll is
+      // retried from scratch rather than skipping the block.
+      scannedBlockHashes.set(hexToNumber(block.number), block.hash);
+
+      if (filtered.matchedFilters.size === 0) continue;
+
+      unfinalizedBlocks.push({
+        hash: block.hash,
+        parentHash: block.parentHash,
+        number: block.number,
+        timestamp: block.timestamp,
+      });
+
+      blockWithEventData.block.transactions = filtered.block.transactions;
+
+      blockEvents.push({
+        type: "block",
+        hasMatchedFilter: true,
+        block: filtered.block,
+        logs: filtered.logs,
+        transactions: filtered.transactions,
+        transactionReceipts: filtered.transactionReceipts,
+        traces: filtered.traces,
+        childAddresses: filtered.childAddresses,
+      });
+    }
+
+    // --- Advance to the head block ---
+    // Emit the head as an empty block (if it wasn't already emitted as matched)
+    // so the realtime checkpoint advances to the tip every poll.
+    //
+    // @dev These blocks are not added to `scannedBlockHashes`, because the scan
+    // never observed them — they contain no matching logs. A reorg that replaces
+    // a log-free head with another log-free block is therefore not detected, and
+    // `syncProgress.current` can briefly hold a non-canonical hash and timestamp.
+    // No events are affected: `hasMatchedFilter: false` blocks are never
+    // persisted, and the next poll's scan re-derives the tip. A reorg that gives
+    // any of these blocks a matching log *is* detected, by case 3 above.
+    if (hexToNumber(getLatestUnfinalizedBlock().number) < headNumber) {
+      unfinalizedBlocks.push({
+        hash: headBlock.hash,
+        parentHash: headBlock.parentHash,
+        number: headBlock.number,
+        timestamp: headBlock.timestamp,
+      });
+
+      blockEvents.push({
+        type: "block",
+        hasMatchedFilter: false,
+        block: headBlock,
+        logs: [],
+        transactions: [],
+        transactionReceipts: [],
+        traces: [],
+        childAddresses: new Map(),
+      });
+    }
+
+    // `blockCallback` signals that the head has been fully processed. It must be
+    // attached to the last emitted block event so that the runtime calls it
+    // *after* indexing that block's events, exactly as `reconcileBlock` does.
+    // Calling it here instead reports completion while events are still pending,
+    // which drops them when the chain reaches its end block.
+    if (blockEvents.length === 0) {
+      blockCallback?.(false);
+    } else {
+      for (const [index, blockEvent] of blockEvents.entries()) {
+        yield index === blockEvents.length - 1
+          ? { ...blockEvent, blockCallback }
+          : blockEvent;
+      }
+    }
+
+    args.common.logger.debug(
+      {
+        msg: "Reconciled range",
+        chain: args.chain.name,
+        chain_id: args.chain.id,
+        block_range: JSON.stringify([windowFrom, headNumber]),
+        matched_block_count: newMatchedNumbers.length,
+        duration: endClock(),
+      },
+      ["chain"],
+    );
+
+    // --- Finalization ---
+    if (
+      headNumber >=
+      hexToNumber(finalizedBlock.number) + 2 * args.chain.finalityBlockCount
+    ) {
+      const pendingFinalizedNumber = headNumber - args.chain.finalityBlockCount;
+
+      // Finalize to the highest local block at or below the boundary rather
+      // than fetching the boundary block itself.
+      //
+      // @dev The local chain is sparse on this path, so the boundary block is
+      // often absent. Finalizing short of it is always safe, and a head block is
+      // appended every poll, so the window stays bounded. Fetching the boundary
+      // block instead would cost a request per finalization and, because it only
+      // needs a header, would return a block without full transactions.
+      const pendingFinalizedBlock = unfinalizedBlocks.findLast(
+        (lb) => hexToNumber(lb.number) <= pendingFinalizedNumber,
+      );
+
+      // Note: `blockCallback` has already been settled above, so finalization
+      // is simply skipped until a local block falls below the boundary.
+      if (pendingFinalizedBlock === undefined) return;
+
+      const finalizedNumber = hexToNumber(pendingFinalizedBlock.number);
+
+      const finalizedBlocks = unfinalizedBlocks.filter(
+        (lb) => hexToNumber(lb.number) <= finalizedNumber,
+      );
+      unfinalizedBlocks = unfinalizedBlocks.filter(
+        (lb) => hexToNumber(lb.number) > finalizedNumber,
+      );
+      for (const block of finalizedBlocks) {
+        childAddressesPerBlock.delete(hexToNumber(block.number));
+      }
+      for (const number of scannedBlockHashes.keys()) {
+        if (number <= finalizedNumber) scannedBlockHashes.delete(number);
+      }
+
+      finalizedBlock = pendingFinalizedBlock;
+
+      yield { type: "finalize", block: pendingFinalizedBlock };
+    }
+  };
+
   const onError = (error: Error, block?: SyncBlock | SyncBlockHeader) => {
     if (args.common.shutdown.isKilled) {
       throw new ShutdownError();
@@ -1275,6 +1985,21 @@ export const createRealtimeSync = (
         // is used to handle this case.
 
         latestFetchedBlock = block;
+
+        if (canRangeScan) {
+          // Note: reconciliation must be called serially.
+          await realtimeSyncLock.lock();
+
+          try {
+            yield* reconcileRange(block, blockCallback);
+          } finally {
+            realtimeSyncLock.unlock();
+          }
+
+          latestFetchedBlock = undefined;
+          fetchAndReconcileLatestBlockErrorCount = 0;
+          return;
+        }
 
         const blockWithEventData = await fetchBlockEventData(block);
 

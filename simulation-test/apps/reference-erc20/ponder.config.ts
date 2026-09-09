@@ -10,7 +10,13 @@ export default createConfig({
     poolConfig: { max: 17 },
   },
   chains: {
-    mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1 },
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+      // Note: unset when building the expected tables, so ground truth always
+      // comes from the default per-block realtime sync.
+      experimentalRangeScan: process.env.EXPERIMENTAL_RANGE_SCAN === "true",
+    },
   },
   contracts: {
     ERC20: {
