@@ -24,7 +24,7 @@ export function VersionPicker() {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="flex flex-row items-center justify-between w-[calc(100%+24px)] py-[10px] px-[12px] -ml-[12px] -my-[4px] flex-grow rounded-lg cursor-pointer hover:bg-[var(--vocs-background-color-surfaceTint)]"
+          className="flex flex-row items-center justify-between w-[calc(100%+24px)] py-[10px] px-[12px] -ml-[12px] -my-[12px] flex-grow rounded-lg cursor-pointer hover:bg-[var(--vocs-background-color-surfaceTint)]"
         >
           <VersionLabel
             label={activeVersion.label}

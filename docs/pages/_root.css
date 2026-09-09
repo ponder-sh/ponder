@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* CUSTOM COMPONENTS */
+/* Enables "dark:" prefix in custom Tailwind styles. */
 @custom-variant dark (
   &:where(
     :root[style*="color-scheme:dark"] *,
@@ -25,7 +27,7 @@
 /* Probably a better way to do this */
 :root {
   /* Default: 300px */
-  --vocs-spacing-sidebar: 260px;
+  --vocs-spacing-sidebar: 280px;
   /* Default: 70ch */
   --vocs-spacing-content: calc(74ch + (var(--vocs-spacing-content-px) * 2));
   /* Default: 14px */
@@ -38,51 +40,21 @@
     radial-gradient(91.96% 91.96% at 50% 91.96%, rgba(0, 0, 0, 0) 0%, #fff 100%),
     url("/hero.png") lightgray 50% / cover no-repeat;
 }
-:root[style*="color-scheme:dark"] .hero-texture,
-:root[style*="color-scheme: dark"] .hero-texture {
-  background:
-    radial-gradient(
-      91.96% 91.96% at 50% 91.96%,
-      rgba(0, 0, 0, 0) -20%,
-      #111 100%
-    ),
-    url("/hero.png") lightgray 50% / cover no-repeat;
+:root[style*="color-scheme:dark"] ,
+:root[style*="color-scheme: dark"] {
+  .hero-texture {
+    background:
+      radial-gradient(
+        91.96% 91.96% at 50% 91.96%,
+        rgba(0, 0, 0, 0) -20%,
+        #111 100%
+      ),
+      url("/hero.png") lightgray 50% / cover no-repeat;
+  }
 }
-
-/* ---------------------------------------------------------------------------
- * Deviations from the Vocs defaults.
- *
- * Vocs styles its own shell through `[data-v-*]` attributes (see
- * `vocs/dist/styles/*.css`), so those are the stable hook for overrides —
- * unlike its `vocs:`-prefixed Tailwind classes, which are generated. Prefer a
- * documented CSS variable where one exists; reach for a `[data-v-*]` selector
- * only for structure that has no variable.
- *
- * These rules are intentionally unlayered, so they win over Vocs' Tailwind
- * utilities without needing `!important`.
- * ------------------------------------------------------------------------- */
 
 /* LOGO SIZING
- * Vocs caps the wordmark at 1.75rem, which is large for Ponder's lockup.
- * Approximates the ~17px the v1 site rendered (its `height: 28%`). */
+ * Vocs caps the wordmark at 1.75rem, which is large for Ponder's lockup. */
 [data-v-logo-image] {
-  max-height: 1.125rem;
+  max-height: 1rem;
 }
-
-/* TOP NAV
- * Vocs only draws the divider below `md` (`max-md:border-b`); Ponder shows it
- * at every breakpoint. Also widens the right gutter from Vocs' 1rem.
- * Note: the documented `--vocs-spacing-topNav-px` is not actually defined in
- * `vocs/dist/styles/theme.css`, so the padding is set here instead. */
-[data-v-gutter-top] {
-  border-bottom: 1px solid var(--vocs-border-color-primary);
-  padding-right: 1.5rem;
-}
-
-/* Dropped in the Vocs 2 migration, deliberately:
- * - sidebar item/section cursor and hover rules — Vocs 2 does this natively
- *   (`not-data-link:cursor-default`, `data-[collapsable=true]:cursor-pointer`)
- * - search field height and top-nav flex alignment — no `[data-v-*]` hook, and
- *   Vocs 2's top-nav structure differs enough that the v1 values don't map
- * - `.vocs_BlogPosts` min-height — the `::blog-posts` directive no longer
- *   exists; the blog index is authored markdown now */
