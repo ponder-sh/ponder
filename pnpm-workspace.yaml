@@ -13,23 +13,6 @@ allowBuilds:
   es5-ext: true
   esbuild: true
   vue-demi: true
-overrides:
-  # `@jridgewell/gen-mapping@0.3.8` declares a `browser` export condition
-  # pointing at its UMD build, ahead of `import`. Vite dev then serves UMD as
-  # ESM to the browser, and `sucrase` (a vocs dependency, lazily loaded in the
-  # docs layout) dies with:
-  #   SyntaxError: ... does not provide an export named 'GenMapping'
-  # 0.3.13 drops the `browser` condition, so `import` wins and resolves to the
-  # real ESM build. Verified in-graph against the running dev server.
-  #
-  # This cannot be fixed in Vite config: `vocs dev` runs Vite with
-  # `configFile: false`, so a project `vite.config.ts` is never loaded.
-  "@jridgewell/gen-mapping": "^0.3.13"
-  # Same defect, one level down: gen-mapping's ESM build imports `TraceMap`
-  # from trace-mapping, whose 0.3.25 exports are also `browser`-first.
-  # (`sourcemap-codec` needs no override: gen-mapping 0.3.13 requires ^1.5.0,
-  # which already resolves past the affected 1.4.15.)
-  "@jridgewell/trace-mapping": "^0.3.31"
 autoInstallPeers: false
 enablePrePostScripts: true
 linkWorkspacePackages: deep

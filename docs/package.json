@@ -4,15 +4,15 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vocs dev",
-    "build": "vocs build",
-    "preview": "vocs preview",
-    "search-index": "vocs search-index",
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
     "markdown-audit": "vocs markdown-audit",
     "typecheck": "tsc --noEmit",
     "verify-versions": "node --experimental-strip-types scripts/verify-versions.ts"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "6.1.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.510.0",
     "mermaid": "11.6.0",
@@ -29,6 +29,6 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.0.10",
-    "typescript": "^5.4.5"
+    "typescript": "5.9.3"
   }
 }
