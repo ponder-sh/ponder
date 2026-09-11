@@ -1077,7 +1077,7 @@ export function buildConfig({
         ws: chain.ws,
         pollingInterval: chain.pollingInterval ?? 1_000,
         finalityBlockCount: getFinalityBlockCount({ chain: matchedChain }),
-        disableCache: chain.disableCache ?? false,
+        persistRpcData: chain.persistRpcData ?? true,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,
       } satisfies Chain;

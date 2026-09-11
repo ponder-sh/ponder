@@ -669,7 +669,7 @@ export const getChain = (params?: { finalityBlockCount?: number }) => {
     ws: undefined,
     pollingInterval: 1_000,
     finalityBlockCount: params?.finalityBlockCount ?? 1,
-    disableCache: false,
+    persistRpcData: true,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,
   } satisfies Chain;

@@ -303,7 +303,7 @@ export type Chain = {
   ws: string | undefined;
   pollingInterval: number;
   finalityBlockCount: number;
-  disableCache: boolean;
+  persistRpcData: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
 };

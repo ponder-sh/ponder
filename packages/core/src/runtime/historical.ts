@@ -1309,13 +1309,12 @@ export async function* getLocalSyncGenerator(params: {
             logs,
             syncStore,
           });
-          if (params.chain.disableCache === false) {
-            await syncStore.insertIntervals({
-              intervals: requiredIntervals,
-              factoryIntervals: requiredFactoryIntervals,
-              chainId: params.chain.id,
-            });
-          }
+
+          await syncStore.insertIntervals({
+            intervals: requiredIntervals,
+            factoryIntervals: requiredFactoryIntervals,
+            chainId: params.chain.id,
+          });
 
           return closestToTipBlock;
         })
