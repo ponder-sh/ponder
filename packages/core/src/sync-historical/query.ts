@@ -156,8 +156,9 @@ export const createQueryHistoricalSync = (
                 address: factory.address,
                 topics: [factory.eventSelector],
               },
-              // TODO(kyle) field selection
-              fields: { logs: true },
+              fields: {
+                logs: ["address", "blockNumber", "data", "topics"],
+              },
             } as RpcQueryLogsRequest;
 
             for await (const { response, endClock } of bufferAsyncGenerator(
