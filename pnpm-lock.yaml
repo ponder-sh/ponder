@@ -796,8 +796,8 @@ importers:
         specifier: 1.19.5
         version: 1.19.5(hono@4.7.9)
       '@monad-crypto/query':
-        specifier: link:../../../monad-ts/packages/query
-        version: link:../../../monad-ts/packages/query
+        specifier: 0.0.1-snapshot.33
+        version: 0.0.1-snapshot.33(typescript@5.9.3)(viem@2.35.0(typescript@5.9.3)(zod@3.23.8))
       '@ponder/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2466,6 +2466,15 @@ packages:
 
   '@mermaid-js/parser@0.4.0':
     resolution: {integrity: sha512-wla8XOWvQAwuqy+gxiZqY+c7FokraOTHRWMsbB4AgRx9Sy7zKslNyejy7E+a77qHfey5GXw/ik3IXv/NHMJgaA==}
+
+  '@monad-crypto/query@0.0.1-snapshot.33':
+    resolution: {integrity: sha512-mfbHLw6uwZ22f9T7+ffBs3GwWdhL/lG9s1Nm+g1huXehfg5WoVnPNj7ZGCgRYOEM2qzTbRr7t8axPGQ0l5fsRA==}
+    peerDependencies:
+      typescript: '>=5.4.0'
+      viem: '>=2.46.3'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@next/env@14.2.35':
     resolution: {integrity: sha512-DuhvCtj4t9Gwrx80dmz2F4t/zKQ4ktN8WrMwOuVzkJfBilwAwGr6v16M5eI8yCuZ63H9TTuEU09Iu2HqkzFPVQ==}
@@ -9045,6 +9054,12 @@ snapshots:
   '@mermaid-js/parser@0.4.0':
     dependencies:
       langium: 3.3.1
+
+  '@monad-crypto/query@0.0.1-snapshot.33(typescript@5.9.3)(viem@2.35.0(typescript@5.9.3)(zod@3.23.8))':
+    dependencies:
+      viem: 2.35.0(typescript@5.9.3)(zod@3.23.8)
+    optionalDependencies:
+      typescript: 5.9.3
 
   '@next/env@14.2.35': {}
 
