@@ -1,9 +1,15 @@
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   BlockNotFoundError,
   type Hex,
   hexToBigInt,
   hexToNumber,
   isHex,
+  numberToHex,
+  type RpcError,
   TransactionReceiptNotFoundError,
   zeroAddress,
   zeroHash,
@@ -120,6 +126,98 @@ export const eth_getLogs = async (
 
   return standardizeLogs(responses.flat(), request);
 };
+
+/**
+ * Data about the range passed to "eth_getLogs" share among all log
+ * filters and log factories.
+ */
+let logsRequestMetadata: {
+  /** Estimate optimal range to use for "eth_getLogs" requests */
+  estimatedRange: number;
+  /** Range suggested by an error message */
+  confirmedRange?: number;
+} = {
+  estimatedRange: 500,
+};
+
+/**
+ * Helper function for "eth_getLogs" rpc request with built in pagination.
+ * Handles different error types and retries the request if applicable, learning RPC limits.
+ */
+export async function* eth_getLogsWithPagination(
+  rpc: Rpc,
+  params: GetLogsRetryHelperParameters["params"],
+  context?: Parameters<Rpc["request"]>[1] & {
+    ethGetLogsBlockRange?: number;
+  },
+): AsyncGenerator<SyncLog[]> {
+  const { address, topics } = params[0];
+  let cursor = hexToNumber(params[0].fromBlock);
+  const endBlock = hexToNumber(params[0].toBlock);
+
+  while (cursor <= endBlock) {
+    const range =
+      context?.ethGetLogsBlockRange ??
+      logsRequestMetadata.confirmedRange ??
+      logsRequestMetadata.estimatedRange;
+    const toBlock = Math.min(cursor + range - 1, endBlock);
+    const params: GetLogsRetryHelperParameters["params"] = [
+      {
+        address,
+        topics,
+        fromBlock: numberToHex(cursor),
+        toBlock: numberToHex(toBlock),
+      },
+    ];
+
+    let logs: SyncLog[];
+    try {
+      logs = await eth_getLogs(rpc, params, context);
+    } catch (error) {
+      if (context?.ethGetLogsBlockRange !== undefined) {
+        throw error;
+      }
+
+      const getLogsErrorResponse = getLogsRetryHelper({
+        params,
+        error: error as RpcError,
+      });
+
+      if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+      const range =
+        hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+        hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
+        1;
+
+      context?.logger?.debug({
+        msg: "Updated eth_getLogs range",
+        range,
+      });
+
+      logsRequestMetadata = {
+        estimatedRange: range,
+        confirmedRange: getLogsErrorResponse.isSuggestedRange
+          ? range
+          : undefined,
+      };
+
+      continue;
+    }
+
+    if (
+      context?.ethGetLogsBlockRange === undefined &&
+      logsRequestMetadata.confirmedRange === undefined
+    ) {
+      logsRequestMetadata.estimatedRange = Math.round(
+        logsRequestMetadata.estimatedRange * 1.05,
+      );
+    }
+
+    cursor = toBlock + 1;
+    yield logs;
+  }
+}
 
 /**
  * Helper function for "eth_getTransactionReceipt" request.
