@@ -125,7 +125,7 @@ export const createQueryHistoricalSync = (
       const factoryProgress = new Map<
         Factory["id"],
         {
-          // TODO(kyle) jsdoc comment
+          /** Closest-to-tip indexed block (inclusive). */
           block: number;
           endBlock: number;
           pwr: PromiseWithResolvers<void>;
