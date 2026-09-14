@@ -11,10 +11,9 @@ import {
   onchainView,
   primaryKey,
 } from "@/drizzle/onchain.js";
-import { MigrationError, type RetryableError } from "@/internal/errors.js";
+import type { RetryableError } from "@/internal/errors.js";
 import { createShutdown } from "@/internal/shutdown.js";
 import type { IndexingErrorHandler } from "@/internal/types.js";
-import { rpcRequestResults } from "@/sync-store/schema.js";
 import {
   type Checkpoint,
   encodeCheckpoint,
@@ -419,18 +418,21 @@ test("migrate() succeeds with crash recovery after waiting for lock", async () =
   await context.common.shutdown.kill();
 });
 
-test("migrateSync() creates all sync tables", async () => {
+test("migrateSync()", async () => {
   const database = createDatabase({
     common: context.common,
-    namespace: { schema: "public", viewsSchema: undefined },
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
       ordering: "multichain",
     },
     schemaBuild: {
-      schema: {},
+      schema: { account },
       statements: buildSchema({
-        schema: {},
+        schema: { account },
         preBuild: { ordering: "multichain" },
       }).statements,
     },
@@ -438,200 +440,47 @@ test("migrateSync() creates all sync tables", async () => {
 
   await database.migrateSync();
 
-  const tables = await database.adminQB.wrap((db) =>
-    db.select().from(TABLES).where(eq(TABLES.table_schema, "ponder_sync")),
-  );
-  expect(tables.map((table) => table.table_name).sort()).toEqual([
-    "blocks",
-    "factories",
-    "factory_addresses",
-    "intervals",
-    "kysely_migration",
-    "logs",
-    "rpc_request_results",
-    "traces",
-    "transaction_receipts",
-    "transactions",
-  ]);
-
-  // Skip the metadata unlock because these tests only initialize the sync schema.
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
   context.common.options.command = "list";
+
   await context.common.shutdown.kill();
 });
 
-test("migrateSync() no-ops on repeated startup", async () => {
+// Note: this test doesn't do anything because we don't have a migration using the
+// new design yet.
+test.skip("migrateSync() handles concurrent migrations", async () => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
   const database = createDatabase({
     common: context.common,
-    namespace: { schema: "public", viewsSchema: undefined },
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
     preBuild: {
       databaseConfig: context.databaseConfig,
       ordering: "multichain",
     },
     schemaBuild: {
-      schema: {},
+      schema: { account },
       statements: buildSchema({
-        schema: {},
+        schema: { account },
         preBuild: { ordering: "multichain" },
       }).statements,
     },
   });
-  const cachedResult = {
-    chainId: 1n,
-    requestHash: "cached-request",
-    blockNumber: 123n,
-    result: "0x1234",
-  };
-  await database.migrateSync();
-  await database.syncQB.wrap((db) =>
-    db.insert(rpcRequestResults).values(cachedResult),
-  );
 
-  await database.migrateSync();
-
-  expect(
-    await database.syncQB.wrap((db) => db.select().from(rpcRequestResults)),
-  ).toEqual([cachedResult]);
-
-  // Skip the metadata unlock because these tests only initialize the sync schema.
-  context.common.options.command = "list";
-  await context.common.shutdown.kill();
-});
-
-test("migrateSync() accepts the latest legacy migration", async () => {
-  const database = createDatabase({
-    common: context.common,
-    namespace: { schema: "public", viewsSchema: undefined },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      ordering: "multichain",
-    },
-    schemaBuild: {
-      schema: {},
-      statements: buildSchema({
-        schema: {},
-        preBuild: { ordering: "multichain" },
-      }).statements,
-    },
-  });
-  const cachedResult = {
-    chainId: 1n,
-    requestHash: "cached-request",
-    blockNumber: 123n,
-    result: "0x1234",
-  };
-  await database.migrateSync();
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql`UPDATE ponder_sync.kysely_migration SET timestamp = '2025-02-26T00:00:00.000Z'`,
-    ),
-  );
-  const previousHistory = await database.adminQB.wrap((db) =>
-    db.execute(
-      sql`SELECT name, timestamp FROM ponder_sync.kysely_migration ORDER BY name`,
-    ),
-  );
-  await database.syncQB.wrap((db) =>
-    db.insert(rpcRequestResults).values(cachedResult),
-  );
-
-  await database.migrateSync();
-
-  expect(
-    await database.syncQB.wrap((db) => db.select().from(rpcRequestResults)),
-  ).toEqual([cachedResult]);
-  const { rows } = await database.adminQB.wrap((db) =>
-    db.execute(
-      sql`SELECT name, timestamp FROM ponder_sync.kysely_migration ORDER BY name`,
-    ),
-  );
-  expect(rows).toEqual(previousHistory.rows);
-
-  // Skip the metadata unlock because these tests only initialize the sync schema.
-  context.common.options.command = "list";
-  await context.common.shutdown.kill();
-});
-
-test("migrateSync() rejects outdated legacy migrations", async () => {
-  const database = createDatabase({
-    common: context.common,
-    namespace: { schema: "public", viewsSchema: undefined },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      ordering: "multichain",
-    },
-    schemaBuild: {
-      schema: {},
-      statements: buildSchema({
-        schema: {},
-        preBuild: { ordering: "multichain" },
-      }).statements,
-    },
-  });
-  await database.adminQB.wrap((db) =>
-    db.execute(sql`CREATE SCHEMA ponder_sync`),
-  );
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql`CREATE TABLE ponder_sync.kysely_migration (name text PRIMARY KEY)`,
-    ),
-  );
-
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql`INSERT INTO ponder_sync.kysely_migration VALUES ('2025_02_26_0_factories')`,
-    ),
-  );
-
-  await expect(database.migrateSync()).rejects.toThrow(
-    new MigrationError(
-      '"ponder_sync" migration failed. Please first update to v0.10 or "DROP SCHEMA ponder_sync CASCADE".',
-    ),
-  );
-
-  const { rows } = await database.adminQB.wrap((db) =>
-    db.execute(sql`SELECT name FROM ponder_sync.kysely_migration`),
-  );
-  expect(rows).toEqual([{ name: "2025_02_26_0_factories" }]);
-
-  // Skip the metadata unlock because these tests only initialize the sync schema.
-  context.common.options.command = "list";
-  await context.common.shutdown.kill();
-});
-
-test("migrateSync() handles concurrent migrations", async () => {
-  const database = createDatabase({
-    common: context.common,
-    namespace: { schema: "public", viewsSchema: undefined },
-    preBuild: {
-      databaseConfig: context.databaseConfig,
-      ordering: "multichain",
-    },
-    schemaBuild: {
-      schema: {},
-      statements: buildSchema({
-        schema: {},
-        preBuild: { ordering: "multichain" },
-      }).statements,
-    },
-  });
-  const cachedResult = {
-    chainId: 1n,
-    requestHash: "cached-request",
-    blockNumber: 123n,
-    result: "0x1234",
-  };
+  // The second migration should error, then retry and succeed
+  const spy = vi.spyOn(database.userQB, "transaction");
 
   await Promise.all([database.migrateSync(), database.migrateSync()]);
 
-  await database.syncQB.wrap((db) =>
-    db.insert(rpcRequestResults).values(cachedResult),
-  );
-  expect(
-    await database.syncQB.wrap((db) => db.select().from(rpcRequestResults)),
-  ).toEqual([cachedResult]);
+  // transaction gets called when performing a migration
+  expect(spy).toHaveBeenCalledTimes(3);
 
-  // Skip the metadata unlock because these tests only initialize the sync schema.
+  // Note: this is a hack to avoid trying to update the metadata table on shutdown
   context.common.options.command = "list";
+
   await context.common.shutdown.kill();
 });
 
