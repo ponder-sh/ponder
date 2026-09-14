@@ -877,11 +877,7 @@ export const createHistoricalSync = (
       let receiptCount = 0;
       let traceCount = 0;
 
-      // Same memory usage as `sync-realtime`.
-      const MAX_BLOCKS_IN_MEM = Math.max(
-        args.chain.finalityBlockCount * 2,
-        100,
-      );
+      const MAX_BLOCKS_IN_MEM = 100;
 
       if (requiredIntervals.length > 0) {
         const queue = createQueue({
