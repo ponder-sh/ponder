@@ -69,11 +69,6 @@ async function build() {
       return false;
     }
 
-    // tsc does not copy SQL files, which migrations load relative to the compiled module.
-    fs.cpSync("src/sync-store/sql", "dist/esm/sync-store/sql", {
-      recursive: true,
-    });
-
     const duration = Date.now() - startTime;
     log.success(`⚡️ Build success in ${duration}ms`);
     return true;

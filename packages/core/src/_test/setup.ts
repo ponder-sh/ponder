@@ -121,7 +121,6 @@ export async function setupIsolatedDatabase() {
         obj TEXT;
         schema TEXT;
       BEGIN
-        DROP SCHEMA IF EXISTS "ponder_sync" CASCADE;
         -- Loop over all user-defined schemas
         FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
         LOOP
