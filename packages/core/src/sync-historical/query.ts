@@ -11,7 +11,7 @@ import {
   type RpcTransactionResponse,
   updateRequestPagination,
 } from "@monad-crypto/query";
-import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
+import { type Address, type Hex, hexToNumber, numberToHex, toHex } from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
@@ -275,698 +275,769 @@ export const createQueryHistoricalSync = (
         QueryHistoricalSync["syncQueryBlockData"]
       >[] = [];
 
+      async function* paginateFactoryDependencies(
+        request: QueryRequest,
+      ): AsyncGenerator<QueryRequest> {
+        const factories = Object.values(request.factories).filter(
+          (id) => id !== undefined && factoryProgress.has(id),
+        );
+        if (factories.length === 0) {
+          yield request;
+          return;
+        }
+
+        const params = [{ ...request.params[0] }] as QueryRequest["params"];
+        let cursor = hexToNumber(request.params[0].fromBlock! as Hex);
+        const endBlock = hexToNumber(request.params[0].toBlock! as Hex);
+
+        while (cursor <= endBlock) {
+          const pendingFactories = factories.filter(
+            (id) =>
+              factoryProgress.get(id)!.block <
+              factoryProgress.get(id)!.endBlock,
+          );
+
+          const progressBlock = Math.min(
+            endBlock,
+            ...pendingFactories.map((id) => factoryProgress.get(id)!.block),
+          );
+
+          if (cursor <= progressBlock) {
+            params[0]!.fromBlock = toHex(cursor);
+            params[0]!.toBlock = toHex(progressBlock);
+
+            // @ts-expect-error
+            yield {
+              ...request,
+              params,
+            };
+
+            cursor = progressBlock + 1;
+            continue;
+          }
+
+          await Promise.race(
+            pendingFactories.map((id) => factoryProgress.get(id)!.pwr.promise),
+          );
+        }
+      }
+
       for (const _requestWithFilters of requestsWithFilters) {
         requestGenerators.push(
           (async function* () {
-            const requestWithFilters = materializeQueryRequest(
+            for await (const request of paginateFactoryDependencies(
               _requestWithFilters,
-              params.childAddresses,
-              params.common.options,
-            );
-
-            switch (requestWithFilters.method) {
-              case "eth_queryBlocks": {
-                for await (const { response, endClock } of bufferAsyncGenerator(
-                  paginateQueryRequest(
-                    params.rpc,
-                    "eth_queryBlocks",
-                    requestWithFilters.params[0] as RpcQueryBlocksRequest,
-                    context,
-                  ),
-                  1,
-                )) {
-                  const blocks: SyncBlockHeader[] = [];
-
-                  for (const queryBlock of response.data.blocks) {
-                    const block = queryBlockToSyncBlockHeader(queryBlock);
-                    for (const filter of requestWithFilters.filters) {
-                      if (
-                        filter.type === "block" &&
-                        isBlockFilterMatched({ filter, block })
-                      ) {
-                        blocks.push(block);
-                        break;
-                      }
-                    }
-                  }
-
-                  const blocksToInsert = blocks.filter((block) => {
-                    if (insertedBlocks.has(block.number)) return false;
-                    insertedBlocks.add(block.number);
-                    return true;
-                  });
-
-                  const pageClosestToTipBlock = getClosestToTipBlock(blocks);
-
-                  await syncStore.insertBlocks(
-                    { blocks: blocksToInsert, chainId: params.chain.id },
-                    context,
-                  );
-
-                  const interval = getQueryPageInterval(response);
-                  params.common.logger.debug(
-                    {
-                      msg: "Fetched block data",
-                      chain: params.chain.name,
-                      chain_id: params.chain.id,
-                      data_type: "block",
-                      block_range: JSON.stringify(interval),
-                      block_count: blocksToInsert.length,
-                      duration: endClock(),
-                    },
-                    ["chain", "data_type", "block_range"],
-                  );
-
-                  yield {
-                    filters: requestWithFilters.filters,
-                    factories: [],
-                    interval: [interval],
-                    block: pageClosestToTipBlock,
-                  };
-                }
-                break;
+            )) {
+              const requestWithFilters = materializeQueryRequest(
+                request,
+                params.childAddresses,
+                params.common.options,
+              );
+              if (isEmptyQueryRequest(requestWithFilters)) {
+                yield {
+                  filters: requestWithFilters.filters,
+                  factories: [],
+                  interval: [
+                    [
+                      hexToNumber(
+                        requestWithFilters.params[0].fromBlock! as Hex,
+                      ),
+                      hexToNumber(requestWithFilters.params[0].toBlock! as Hex),
+                    ],
+                  ],
+                  block: undefined,
+                };
+                continue;
               }
-              case "eth_queryTransactions": {
-                if (
-                  requestWithFilters.params[0].filter?.from?.length === 0 ||
-                  requestWithFilters.params[0].filter?.to?.length === 0
-                )
-                  return;
 
-                for await (const { response, endClock } of bufferAsyncGenerator(
-                  paginateQueryRequest(
-                    params.rpc,
-                    "eth_queryTransactions",
-                    requestWithFilters.params[0] as RpcQueryTransactionsRequest,
-                    context,
-                  ),
-                  1,
-                )) {
-                  const transactions: SyncTransaction[] = [];
-                  const transactionReceipts: SyncTransactionReceipt[] = [];
-                  const blocks = response.data.blocks!.map(
-                    queryBlockToSyncBlockHeader,
-                  );
+              switch (requestWithFilters.method) {
+                case "eth_queryBlocks": {
+                  for await (const {
+                    response,
+                    endClock,
+                  } of bufferAsyncGenerator(
+                    paginateQueryRequest(
+                      params.rpc,
+                      "eth_queryBlocks",
+                      requestWithFilters.params[0] as RpcQueryBlocksRequest,
+                      context,
+                    ),
+                    1,
+                  )) {
+                    const blocks: SyncBlockHeader[] = [];
 
-                  for (const queryTransaction of response.data.transactions) {
-                    const transaction =
-                      queryTransactionToSyncTransaction(queryTransaction);
-
-                    for (const filter of requestWithFilters.filters) {
-                      const blockNumber = Number(transaction.blockNumber);
-                      if (
-                        filter.type === "transaction" &&
-                        isTransactionFilterMatched({ filter, transaction }) &&
-                        factoryAddressMatches(
-                          filter.fromAddress,
-                          transaction.from,
-                          blockNumber,
-                        ) &&
-                        factoryAddressMatches(
-                          filter.toAddress,
-                          transaction.to,
-                          blockNumber,
-                        )
-                      ) {
-                        transactions.push(transaction);
-                        transactionReceipts.push(
-                          queryTransactionToSyncTransactionReceipt(
-                            queryTransaction,
-                          ),
-                        );
-                        break;
+                    for (const queryBlock of response.data.blocks) {
+                      const block = queryBlockToSyncBlockHeader(queryBlock);
+                      for (const filter of requestWithFilters.filters) {
+                        if (
+                          filter.type === "block" &&
+                          isBlockFilterMatched({ filter, block })
+                        ) {
+                          blocks.push(block);
+                          break;
+                        }
                       }
                     }
-                  }
 
-                  const transactionsToInsert = transactions.filter(
-                    (transaction) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
-                      if (insertedTransactions.has(key)) return false;
-                      insertedTransactions.add(key);
-                      return true;
-                    },
-                  );
-                  const transactionReceiptsToInsert =
-                    transactionReceipts.filter((transaction) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
-                      if (insertedTransactionReceipts.has(key)) return false;
-                      insertedTransactionReceipts.add(key);
+                    const blocksToInsert = blocks.filter((block) => {
+                      if (insertedBlocks.has(block.number)) return false;
+                      insertedBlocks.add(block.number);
                       return true;
                     });
-                  const blocksToInsert = blocks.filter((block) => {
-                    if (insertedBlocks.has(block.number)) return false;
-                    insertedBlocks.add(block.number);
-                    return true;
-                  });
 
-                  const pageClosestToTipBlock = getClosestToTipBlock(blocks);
+                    const pageClosestToTipBlock = getClosestToTipBlock(blocks);
 
-                  await promiseAllSettledWithThrow([
-                    syncStore.insertBlocks(
+                    await syncStore.insertBlocks(
                       { blocks: blocksToInsert, chainId: params.chain.id },
                       context,
-                    ),
-                    syncStore.insertTransactions(
-                      {
-                        transactions: transactionsToInsert,
-                        chainId: params.chain.id,
-                      },
-                      context,
-                    ),
-                    syncStore.insertTransactionReceipts(
-                      {
-                        transactionReceipts: transactionReceiptsToInsert,
-                        chainId: params.chain.id,
-                      },
-                      context,
-                    ),
-                  ]);
+                    );
 
-                  const interval = getQueryPageInterval(response);
-                  params.common.logger.debug(
-                    {
-                      msg: "Fetched block data",
-                      chain: params.chain.name,
-                      chain_id: params.chain.id,
-                      data_type: "transaction",
-                      block_range: JSON.stringify(interval),
-                      block_count: blocksToInsert.length,
-                      transaction_count: transactionsToInsert.length,
-                      receipt_count: transactionReceiptsToInsert.length,
-                      duration: endClock(),
-                    },
-                    ["chain", "data_type", "block_range"],
-                  );
+                    const interval = getQueryPageInterval(response);
+                    params.common.logger.debug(
+                      {
+                        msg: "Fetched block data",
+                        chain: params.chain.name,
+                        chain_id: params.chain.id,
+                        data_type: "block",
+                        block_range: JSON.stringify(interval),
+                        block_count: blocksToInsert.length,
+                        duration: endClock(),
+                      },
+                      ["chain", "data_type", "block_range"],
+                    );
 
-                  yield {
-                    filters: requestWithFilters.filters,
-                    factories: [],
-                    interval: [interval],
-                    block: pageClosestToTipBlock,
-                  };
+                    yield {
+                      filters: requestWithFilters.filters,
+                      factories: [],
+                      interval: [interval],
+                      block: pageClosestToTipBlock,
+                    };
+                  }
+                  break;
                 }
-                break;
-              }
-              case "eth_queryLogs": {
-                if (requestWithFilters.params[0].filter?.address?.length === 0)
-                  return;
+                case "eth_queryTransactions": {
+                  for await (const {
+                    response,
+                    endClock,
+                  } of bufferAsyncGenerator(
+                    paginateQueryRequest(
+                      params.rpc,
+                      "eth_queryTransactions",
+                      requestWithFilters
+                        .params[0] as RpcQueryTransactionsRequest,
+                      context,
+                    ),
+                    1,
+                  )) {
+                    const transactions: SyncTransaction[] = [];
+                    const transactionReceipts: SyncTransactionReceipt[] = [];
+                    const blocks = response.data.blocks!.map(
+                      queryBlockToSyncBlockHeader,
+                    );
 
-                for await (const { response, endClock } of bufferAsyncGenerator(
-                  paginateQueryRequest(
-                    params.rpc,
-                    "eth_queryLogs",
-                    requestWithFilters.params[0] as RpcQueryLogsRequest,
-                    context,
-                  ),
-                  1,
-                )) {
-                  const logs: SyncLog[] = [];
-                  const blocks = response.data.blocks!.map(
-                    queryBlockToSyncBlockHeader,
-                  );
-                  const transactions = response.data.transactions!.map(
-                    queryTransactionToSyncTransaction,
-                  );
-                  const transactionReceipts = response.data.transactions!.map(
-                    queryTransactionToSyncTransactionReceipt,
-                  );
-                  const matchedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
+                    for (const queryTransaction of response.data.transactions) {
+                      const transaction =
+                        queryTransactionToSyncTransaction(queryTransaction);
 
-                  for (const queryLog of response.data.logs) {
-                    const log = queryLogToSyncLog(queryLog);
-                    let isMatched = false;
-                    for (const filter of requestWithFilters.filters) {
-                      const blockNumber = Number(log.blockNumber);
-                      if (
-                        filter.type === "log" &&
-                        isLogFilterMatched({ filter, log }) &&
-                        factoryAddressMatches(
-                          filter.address,
-                          log.address,
-                          blockNumber,
-                        )
-                      ) {
-                        isMatched = true;
-                        if (filter.hasTransactionReceipt) {
-                          matchedTransactionReceipts.add(
-                            `${log.blockNumber}_${log.transactionIndex}`,
+                      for (const filter of requestWithFilters.filters) {
+                        const blockNumber = Number(transaction.blockNumber);
+                        if (
+                          filter.type === "transaction" &&
+                          isTransactionFilterMatched({ filter, transaction }) &&
+                          factoryAddressMatches(
+                            filter.fromAddress,
+                            transaction.from,
+                            blockNumber,
+                          ) &&
+                          factoryAddressMatches(
+                            filter.toAddress,
+                            transaction.to,
+                            blockNumber,
+                          )
+                        ) {
+                          transactions.push(transaction);
+                          transactionReceipts.push(
+                            queryTransactionToSyncTransactionReceipt(
+                              queryTransaction,
+                            ),
                           );
                           break;
                         }
                       }
                     }
 
-                    if (isMatched) {
-                      logs.push(log);
-                    }
-                  }
-
-                  const blocksToInsert = blocks.filter((block) => {
-                    if (insertedBlocks.has(block.number)) return false;
-                    insertedBlocks.add(block.number);
-                    return true;
-                  });
-                  const transactionsToInsert = transactions.filter(
-                    (transaction) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
-                      if (insertedTransactions.has(key)) return false;
-                      insertedTransactions.add(key);
-                      return true;
-                    },
-                  );
-                  const transactionReceiptsToInsert =
-                    transactionReceipts.filter((transactionReceipt) => {
-                      const key =
-                        `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
-                      if (
-                        insertedTransactionReceipts.has(key) ||
-                        matchedTransactionReceipts.has(key) === false
-                      )
-                        return false;
-                      insertedTransactionReceipts.add(key);
+                    const transactionsToInsert = transactions.filter(
+                      (transaction) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
+                        if (insertedTransactions.has(key)) return false;
+                        insertedTransactions.add(key);
+                        return true;
+                      },
+                    );
+                    const transactionReceiptsToInsert =
+                      transactionReceipts.filter((transaction) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
+                        if (insertedTransactionReceipts.has(key)) return false;
+                        insertedTransactionReceipts.add(key);
+                        return true;
+                      });
+                    const blocksToInsert = blocks.filter((block) => {
+                      if (insertedBlocks.has(block.number)) return false;
+                      insertedBlocks.add(block.number);
                       return true;
                     });
-                  const logsToInsert = logs.filter((log) => {
-                    const key = `${log.blockNumber}_${log.logIndex}` as const;
-                    if (insertedLogs.has(key)) return false;
-                    insertedLogs.add(key);
-                    return true;
-                  });
 
-                  const pageClosestToTipBlock = getClosestToTipBlock(blocks);
+                    const pageClosestToTipBlock = getClosestToTipBlock(blocks);
 
-                  await promiseAllSettledWithThrow([
-                    syncStore.insertBlocks(
-                      { blocks: blocksToInsert, chainId: params.chain.id },
-                      context,
-                    ),
-                    syncStore.insertTransactions(
+                    await promiseAllSettledWithThrow([
+                      syncStore.insertBlocks(
+                        { blocks: blocksToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                      syncStore.insertTransactions(
+                        {
+                          transactions: transactionsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertTransactionReceipts(
+                        {
+                          transactionReceipts: transactionReceiptsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                    ]);
+
+                    const interval = getQueryPageInterval(response);
+                    params.common.logger.debug(
                       {
-                        transactions: transactionsToInsert,
-                        chainId: params.chain.id,
+                        msg: "Fetched block data",
+                        chain: params.chain.name,
+                        chain_id: params.chain.id,
+                        data_type: "transaction",
+                        block_range: JSON.stringify(interval),
+                        block_count: blocksToInsert.length,
+                        transaction_count: transactionsToInsert.length,
+                        receipt_count: transactionReceiptsToInsert.length,
+                        duration: endClock(),
                       },
-                      context,
-                    ),
-                    syncStore.insertTransactionReceipts(
-                      {
-                        transactionReceipts: transactionReceiptsToInsert,
-                        chainId: params.chain.id,
-                      },
-                      context,
-                    ),
-                    syncStore.insertLogs(
-                      { logs: logsToInsert, chainId: params.chain.id },
-                      context,
-                    ),
-                  ]);
+                      ["chain", "data_type", "block_range"],
+                    );
 
-                  const interval = getQueryPageInterval(response);
-                  params.common.logger.debug(
-                    {
-                      msg: "Fetched block data",
-                      chain: params.chain.name,
-                      chain_id: params.chain.id,
-                      data_type: "log",
-                      block_range: JSON.stringify(interval),
-                      block_count: blocksToInsert.length,
-                      transaction_count: transactionsToInsert.length,
-                      receipt_count: transactionReceiptsToInsert.length,
-                      log_count: logsToInsert.length,
-                      duration: endClock(),
-                    },
-                    ["chain", "data_type", "block_range"],
-                  );
-
-                  yield {
-                    filters: requestWithFilters.filters,
-                    factories: [],
-                    interval: [interval],
-                    block: pageClosestToTipBlock,
-                  };
-                }
-                break;
-              }
-              case "eth_queryTraces": {
-                if (
-                  requestWithFilters.params[0].filter?.from?.length === 0 ||
-                  requestWithFilters.params[0].filter?.to?.length === 0
-                )
-                  return;
-
-                for await (const { response, endClock } of bufferAsyncGenerator(
-                  paginateQueryRequest(
-                    params.rpc,
-                    "eth_queryTraces",
-                    requestWithFilters.params[0] as RpcQueryTracesRequest,
-                    context,
-                  ),
-                  1,
-                )) {
-                  const traces: SyncTrace[] = [];
-                  const blocks = response.data.blocks!.map(
-                    queryBlockToSyncBlockHeader,
-                  );
-                  const transactions = response.data.transactions!.map(
-                    queryTransactionToSyncTransaction,
-                  );
-                  const transactionReceipts = response.data.transactions!.map(
-                    queryTransactionToSyncTransactionReceipt,
-                  );
-                  const transactionsByHash = new Map<Hex, SyncTransaction>();
-                  const blocksByNumber = new Map<Hex, SyncBlockHeader>();
-                  const matchedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
-
-                  for (const block of blocks)
-                    blocksByNumber.set(block.number, block);
-                  for (const transaction of transactions) {
-                    transactionsByHash.set(transaction.hash, transaction);
+                    yield {
+                      filters: requestWithFilters.filters,
+                      factories: [],
+                      interval: [interval],
+                      block: pageClosestToTipBlock,
+                    };
                   }
+                  break;
+                }
+                case "eth_queryLogs": {
+                  for await (const {
+                    response,
+                    endClock,
+                  } of bufferAsyncGenerator(
+                    paginateQueryRequest(
+                      params.rpc,
+                      "eth_queryLogs",
+                      requestWithFilters.params[0] as RpcQueryLogsRequest,
+                      context,
+                    ),
+                    1,
+                  )) {
+                    const logs: SyncLog[] = [];
+                    const blocks = response.data.blocks!.map(
+                      queryBlockToSyncBlockHeader,
+                    );
+                    const transactions = response.data.transactions!.map(
+                      queryTransactionToSyncTransaction,
+                    );
+                    const transactionReceipts = response.data.transactions!.map(
+                      queryTransactionToSyncTransactionReceipt,
+                    );
+                    const matchedTransactionReceipts =
+                      new Set<`${Hex}_${Hex}`>();
 
-                  const sortedTraces = response.data.traces.sort((a, b) =>
-                    String(a.traceAddress) > String(b.traceAddress) ? 1 : -1,
-                  );
-
-                  for (const [index, queryTrace] of sortedTraces.entries()) {
-                    const trace = queryTraceToSyncTrace(queryTrace, index);
-                    const transaction = transactionsByHash.get(
-                      trace.transactionHash,
-                    )!;
-                    const block = blocksByNumber.get(transaction.blockNumber)!;
-
-                    let isMatched = false;
-                    for (const filter of requestWithFilters.filters) {
-                      const blockNumber = Number(block.number);
-                      if (
-                        filter.type === "trace" &&
-                        isTraceFilterMatched({
-                          filter,
-                          trace: trace.trace,
-                          block,
-                        }) &&
-                        factoryAddressMatches(
-                          filter.fromAddress,
-                          trace.trace.from,
-                          blockNumber,
-                        ) &&
-                        factoryAddressMatches(
-                          filter.toAddress,
-                          trace.trace.to,
-                          blockNumber,
-                        )
-                      ) {
-                        isMatched = true;
-                        if (filter.hasTransactionReceipt) {
-                          matchedTransactionReceipts.add(
-                            `${transaction.blockNumber}_${transaction.transactionIndex}`,
-                          );
-                          break;
+                    for (const queryLog of response.data.logs) {
+                      const log = queryLogToSyncLog(queryLog);
+                      let isMatched = false;
+                      for (const filter of requestWithFilters.filters) {
+                        const blockNumber = Number(log.blockNumber);
+                        if (
+                          filter.type === "log" &&
+                          isLogFilterMatched({ filter, log }) &&
+                          factoryAddressMatches(
+                            filter.address,
+                            log.address,
+                            blockNumber,
+                          )
+                        ) {
+                          isMatched = true;
+                          if (filter.hasTransactionReceipt) {
+                            matchedTransactionReceipts.add(
+                              `${log.blockNumber}_${log.transactionIndex}`,
+                            );
+                            break;
+                          }
                         }
                       }
+
+                      if (isMatched) {
+                        logs.push(log);
+                      }
                     }
-                    if (isMatched) traces.push(trace);
+
+                    const blocksToInsert = blocks.filter((block) => {
+                      if (insertedBlocks.has(block.number)) return false;
+                      insertedBlocks.add(block.number);
+                      return true;
+                    });
+                    const transactionsToInsert = transactions.filter(
+                      (transaction) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
+                        if (insertedTransactions.has(key)) return false;
+                        insertedTransactions.add(key);
+                        return true;
+                      },
+                    );
+                    const transactionReceiptsToInsert =
+                      transactionReceipts.filter((transactionReceipt) => {
+                        const key =
+                          `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
+                        if (
+                          insertedTransactionReceipts.has(key) ||
+                          matchedTransactionReceipts.has(key) === false
+                        )
+                          return false;
+                        insertedTransactionReceipts.add(key);
+                        return true;
+                      });
+                    const logsToInsert = logs.filter((log) => {
+                      const key = `${log.blockNumber}_${log.logIndex}` as const;
+                      if (insertedLogs.has(key)) return false;
+                      insertedLogs.add(key);
+                      return true;
+                    });
+
+                    const pageClosestToTipBlock = getClosestToTipBlock(blocks);
+
+                    await promiseAllSettledWithThrow([
+                      syncStore.insertBlocks(
+                        { blocks: blocksToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                      syncStore.insertTransactions(
+                        {
+                          transactions: transactionsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertTransactionReceipts(
+                        {
+                          transactionReceipts: transactionReceiptsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertLogs(
+                        { logs: logsToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                    ]);
+
+                    const interval = getQueryPageInterval(response);
+                    params.common.logger.debug(
+                      {
+                        msg: "Fetched block data",
+                        chain: params.chain.name,
+                        chain_id: params.chain.id,
+                        data_type: "log",
+                        block_range: JSON.stringify(interval),
+                        block_count: blocksToInsert.length,
+                        transaction_count: transactionsToInsert.length,
+                        receipt_count: transactionReceiptsToInsert.length,
+                        log_count: logsToInsert.length,
+                        duration: endClock(),
+                      },
+                      ["chain", "data_type", "block_range"],
+                    );
+
+                    yield {
+                      filters: requestWithFilters.filters,
+                      factories: [],
+                      interval: [interval],
+                      block: pageClosestToTipBlock,
+                    };
                   }
-
-                  const blocksToInsert = blocks.filter((block) => {
-                    if (insertedBlocks.has(block.number)) return false;
-                    insertedBlocks.add(block.number);
-                    return true;
-                  });
-                  const transactionsToInsert = transactions.filter(
-                    (transaction) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
-                      if (insertedTransactions.has(key)) return false;
-                      insertedTransactions.add(key);
-                      return true;
-                    },
-                  );
-                  const transactionReceiptsToInsert =
-                    transactionReceipts.filter((transactionReceipt) => {
-                      const key =
-                        `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
-                      if (
-                        insertedTransactionReceipts.has(key) ||
-                        matchedTransactionReceipts.has(key) === false
-                      )
-                        return false;
-                      insertedTransactionReceipts.add(key);
-                      return true;
-                    });
-                  const tracesToInsert = traces
-                    .map((trace) => {
-                      const transaction = transactionsByHash.get(
-                        trace.transactionHash,
-                      )!;
-                      const block = blocksByNumber.get(
-                        transaction.blockNumber,
-                      )!;
-                      return { trace, block, transaction };
-                    })
-                    .filter(({ trace, transaction }) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
-                      if (insertedTraces.has(key)) return false;
-                      insertedTraces.add(key);
-                      return true;
-                    });
-
-                  const pageClosestToTipBlock = getClosestToTipBlock(blocks);
-
-                  await promiseAllSettledWithThrow([
-                    syncStore.insertBlocks(
-                      { blocks: blocksToInsert, chainId: params.chain.id },
-                      context,
-                    ),
-                    syncStore.insertTransactions(
-                      {
-                        transactions: transactionsToInsert,
-                        chainId: params.chain.id,
-                      },
-                      context,
-                    ),
-                    syncStore.insertTransactionReceipts(
-                      {
-                        transactionReceipts: transactionReceiptsToInsert,
-                        chainId: params.chain.id,
-                      },
-                      context,
-                    ),
-                    syncStore.insertTraces(
-                      { traces: tracesToInsert, chainId: params.chain.id },
-                      context,
-                    ),
-                  ]);
-
-                  const interval = getQueryPageInterval(response);
-                  params.common.logger.debug(
-                    {
-                      msg: "Fetched block data",
-                      chain: params.chain.name,
-                      chain_id: params.chain.id,
-                      data_type: "trace",
-                      block_range: JSON.stringify(interval),
-                      block_count: blocksToInsert.length,
-                      transaction_count: transactionsToInsert.length,
-                      receipt_count: transactionReceiptsToInsert.length,
-                      trace_count: tracesToInsert.length,
-                      duration: endClock(),
-                    },
-                    ["chain", "data_type", "block_range"],
-                  );
-
-                  yield {
-                    filters: requestWithFilters.filters,
-                    factories: [],
-                    interval: [interval],
-                    block: pageClosestToTipBlock,
-                  };
+                  break;
                 }
-                break;
-              }
-              case "eth_queryTransfers": {
-                if (
-                  requestWithFilters.params[0].filter?.from?.length === 0 ||
-                  requestWithFilters.params[0].filter?.to?.length === 0
-                )
-                  return;
+                case "eth_queryTraces": {
+                  for await (const {
+                    response,
+                    endClock,
+                  } of bufferAsyncGenerator(
+                    paginateQueryRequest(
+                      params.rpc,
+                      "eth_queryTraces",
+                      requestWithFilters.params[0] as RpcQueryTracesRequest,
+                      context,
+                    ),
+                    1,
+                  )) {
+                    const traces: SyncTrace[] = [];
+                    const blocks = response.data.blocks!.map(
+                      queryBlockToSyncBlockHeader,
+                    );
+                    const transactions = response.data.transactions!.map(
+                      queryTransactionToSyncTransaction,
+                    );
+                    const transactionReceipts = response.data.transactions!.map(
+                      queryTransactionToSyncTransactionReceipt,
+                    );
+                    const transactionsByHash = new Map<Hex, SyncTransaction>();
+                    const blocksByNumber = new Map<Hex, SyncBlockHeader>();
+                    const matchedTransactionReceipts =
+                      new Set<`${Hex}_${Hex}`>();
 
-                for await (const { response, endClock } of bufferAsyncGenerator(
-                  paginateQueryRequest(
-                    params.rpc,
-                    "eth_queryTransfers",
-                    requestWithFilters.params[0] as RpcQueryTransfersRequest,
-                    context,
-                  ),
-                  1,
-                )) {
-                  const traces: SyncTrace[] = [];
-                  const blocks = response.data.blocks!.map(
-                    queryBlockToSyncBlockHeader,
-                  );
-                  const transactions = response.data.transactions!.map(
-                    queryTransactionToSyncTransaction,
-                  );
-                  const transactionReceipts = response.data.transactions!.map(
-                    queryTransactionToSyncTransactionReceipt,
-                  );
-                  const transactionsByHash = new Map<Hex, SyncTransaction>();
-                  const blocksByNumber = new Map<Hex, SyncBlockHeader>();
-                  const matchedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
+                    for (const block of blocks)
+                      blocksByNumber.set(block.number, block);
+                    for (const transaction of transactions) {
+                      transactionsByHash.set(transaction.hash, transaction);
+                    }
 
-                  for (const block of blocks)
-                    blocksByNumber.set(block.number, block);
-                  for (const transaction of transactions) {
-                    transactionsByHash.set(transaction.hash, transaction);
-                  }
-
-                  const sortedTransfers = response.data.transfers.sort(
-                    (a, b) =>
+                    const sortedTraces = response.data.traces.sort((a, b) =>
                       String(a.traceAddress) > String(b.traceAddress) ? 1 : -1,
-                  );
+                    );
 
-                  for (const [
-                    index,
-                    queryTransfer,
-                  ] of sortedTransfers.entries()) {
-                    const trace = queryTraceToSyncTrace(queryTransfer, index);
-                    const transaction = transactionsByHash.get(
-                      trace.transactionHash,
-                    )!;
-                    const block = blocksByNumber.get(transaction.blockNumber)!;
-
-                    let isMatched = false;
-                    for (const filter of requestWithFilters.filters) {
-                      const blockNumber = Number(block.number);
-                      if (
-                        filter.type === "transfer" &&
-                        isTransferFilterMatched({
-                          filter,
-                          trace: trace.trace,
-                          block,
-                        }) &&
-                        factoryAddressMatches(
-                          filter.fromAddress,
-                          trace.trace.from,
-                          blockNumber,
-                        ) &&
-                        factoryAddressMatches(
-                          filter.toAddress,
-                          trace.trace.to,
-                          blockNumber,
-                        )
-                      ) {
-                        isMatched = true;
-                        if (filter.hasTransactionReceipt) {
-                          matchedTransactionReceipts.add(
-                            `${transaction.blockNumber}_${transaction.transactionIndex}`,
-                          );
-                          break;
-                        }
-                      }
-                    }
-                    if (isMatched) traces.push(trace);
-                  }
-
-                  const blocksToInsert = blocks.filter((block) => {
-                    if (insertedBlocks.has(block.number)) return false;
-                    insertedBlocks.add(block.number);
-                    return true;
-                  });
-                  const transactionsToInsert = transactions.filter(
-                    (transaction) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
-                      if (insertedTransactions.has(key)) return false;
-                      insertedTransactions.add(key);
-                      return true;
-                    },
-                  );
-                  const transactionReceiptsToInsert =
-                    transactionReceipts.filter((transactionReceipt) => {
-                      const key =
-                        `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
-                      if (
-                        insertedTransactionReceipts.has(key) ||
-                        matchedTransactionReceipts.has(key) === false
-                      )
-                        return false;
-                      insertedTransactionReceipts.add(key);
-                      return true;
-                    });
-                  const tracesToInsert = traces
-                    .map((trace) => {
+                    for (const [index, queryTrace] of sortedTraces.entries()) {
+                      const trace = queryTraceToSyncTrace(queryTrace, index);
                       const transaction = transactionsByHash.get(
                         trace.transactionHash,
                       )!;
                       const block = blocksByNumber.get(
                         transaction.blockNumber,
                       )!;
-                      return { trace, block, transaction };
-                    })
-                    .filter(({ trace, transaction }) => {
-                      const key =
-                        `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
-                      if (insertedTransfers.has(key)) return false;
-                      insertedTransfers.add(key);
+
+                      let isMatched = false;
+                      for (const filter of requestWithFilters.filters) {
+                        const blockNumber = Number(block.number);
+                        if (
+                          filter.type === "trace" &&
+                          isTraceFilterMatched({
+                            filter,
+                            trace: trace.trace,
+                            block,
+                          }) &&
+                          factoryAddressMatches(
+                            filter.fromAddress,
+                            trace.trace.from,
+                            blockNumber,
+                          ) &&
+                          factoryAddressMatches(
+                            filter.toAddress,
+                            trace.trace.to,
+                            blockNumber,
+                          )
+                        ) {
+                          isMatched = true;
+                          if (filter.hasTransactionReceipt) {
+                            matchedTransactionReceipts.add(
+                              `${transaction.blockNumber}_${transaction.transactionIndex}`,
+                            );
+                            break;
+                          }
+                        }
+                      }
+                      if (isMatched) traces.push(trace);
+                    }
+
+                    const blocksToInsert = blocks.filter((block) => {
+                      if (insertedBlocks.has(block.number)) return false;
+                      insertedBlocks.add(block.number);
                       return true;
                     });
-
-                  const pageClosestToTipBlock = getClosestToTipBlock(blocks);
-
-                  await promiseAllSettledWithThrow([
-                    syncStore.insertBlocks(
-                      { blocks: blocksToInsert, chainId: params.chain.id },
-                      context,
-                    ),
-                    syncStore.insertTransactions(
-                      {
-                        transactions: transactionsToInsert,
-                        chainId: params.chain.id,
+                    const transactionsToInsert = transactions.filter(
+                      (transaction) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
+                        if (insertedTransactions.has(key)) return false;
+                        insertedTransactions.add(key);
+                        return true;
                       },
-                      context,
-                    ),
-                    syncStore.insertTransactionReceipts(
+                    );
+                    const transactionReceiptsToInsert =
+                      transactionReceipts.filter((transactionReceipt) => {
+                        const key =
+                          `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
+                        if (
+                          insertedTransactionReceipts.has(key) ||
+                          matchedTransactionReceipts.has(key) === false
+                        )
+                          return false;
+                        insertedTransactionReceipts.add(key);
+                        return true;
+                      });
+                    const tracesToInsert = traces
+                      .map((trace) => {
+                        const transaction = transactionsByHash.get(
+                          trace.transactionHash,
+                        )!;
+                        const block = blocksByNumber.get(
+                          transaction.blockNumber,
+                        )!;
+                        return { trace, block, transaction };
+                      })
+                      .filter(({ trace, transaction }) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
+                        if (insertedTraces.has(key)) return false;
+                        insertedTraces.add(key);
+                        return true;
+                      });
+
+                    const pageClosestToTipBlock = getClosestToTipBlock(blocks);
+
+                    await promiseAllSettledWithThrow([
+                      syncStore.insertBlocks(
+                        { blocks: blocksToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                      syncStore.insertTransactions(
+                        {
+                          transactions: transactionsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertTransactionReceipts(
+                        {
+                          transactionReceipts: transactionReceiptsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertTraces(
+                        { traces: tracesToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                    ]);
+
+                    const interval = getQueryPageInterval(response);
+                    params.common.logger.debug(
                       {
-                        transactionReceipts: transactionReceiptsToInsert,
-                        chainId: params.chain.id,
+                        msg: "Fetched block data",
+                        chain: params.chain.name,
+                        chain_id: params.chain.id,
+                        data_type: "trace",
+                        block_range: JSON.stringify(interval),
+                        block_count: blocksToInsert.length,
+                        transaction_count: transactionsToInsert.length,
+                        receipt_count: transactionReceiptsToInsert.length,
+                        trace_count: tracesToInsert.length,
+                        duration: endClock(),
                       },
-                      context,
-                    ),
-                    syncStore.insertTraces(
-                      { traces: tracesToInsert, chainId: params.chain.id },
-                      context,
-                    ),
-                  ]);
+                      ["chain", "data_type", "block_range"],
+                    );
 
-                  const interval = getQueryPageInterval(response);
-                  params.common.logger.debug(
-                    {
-                      msg: "Fetched block data",
-                      chain: params.chain.name,
-                      chain_id: params.chain.id,
-                      data_type: "transfer",
-                      block_range: JSON.stringify(interval),
-                      block_count: blocksToInsert.length,
-                      transaction_count: transactionsToInsert.length,
-                      receipt_count: transactionReceiptsToInsert.length,
-                      transfer_count: tracesToInsert.length,
-                      duration: endClock(),
-                    },
-                    ["chain", "data_type", "block_range"],
-                  );
-
-                  yield {
-                    filters: requestWithFilters.filters,
-                    factories: [],
-                    interval: [interval],
-                    block: pageClosestToTipBlock,
-                  };
+                    yield {
+                      filters: requestWithFilters.filters,
+                      factories: [],
+                      interval: [interval],
+                      block: pageClosestToTipBlock,
+                    };
+                  }
+                  break;
                 }
-                break;
+                case "eth_queryTransfers": {
+                  for await (const {
+                    response,
+                    endClock,
+                  } of bufferAsyncGenerator(
+                    paginateQueryRequest(
+                      params.rpc,
+                      "eth_queryTransfers",
+                      requestWithFilters.params[0] as RpcQueryTransfersRequest,
+                      context,
+                    ),
+                    1,
+                  )) {
+                    const traces: SyncTrace[] = [];
+                    const blocks = response.data.blocks!.map(
+                      queryBlockToSyncBlockHeader,
+                    );
+                    const transactions = response.data.transactions!.map(
+                      queryTransactionToSyncTransaction,
+                    );
+                    const transactionReceipts = response.data.transactions!.map(
+                      queryTransactionToSyncTransactionReceipt,
+                    );
+                    const transactionsByHash = new Map<Hex, SyncTransaction>();
+                    const blocksByNumber = new Map<Hex, SyncBlockHeader>();
+                    const matchedTransactionReceipts =
+                      new Set<`${Hex}_${Hex}`>();
+
+                    for (const block of blocks)
+                      blocksByNumber.set(block.number, block);
+                    for (const transaction of transactions) {
+                      transactionsByHash.set(transaction.hash, transaction);
+                    }
+
+                    const sortedTransfers = response.data.transfers.sort(
+                      (a, b) =>
+                        String(a.traceAddress) > String(b.traceAddress)
+                          ? 1
+                          : -1,
+                    );
+
+                    for (const [
+                      index,
+                      queryTransfer,
+                    ] of sortedTransfers.entries()) {
+                      const trace = queryTraceToSyncTrace(queryTransfer, index);
+                      const transaction = transactionsByHash.get(
+                        trace.transactionHash,
+                      )!;
+                      const block = blocksByNumber.get(
+                        transaction.blockNumber,
+                      )!;
+
+                      let isMatched = false;
+                      for (const filter of requestWithFilters.filters) {
+                        const blockNumber = Number(block.number);
+                        if (
+                          filter.type === "transfer" &&
+                          isTransferFilterMatched({
+                            filter,
+                            trace: trace.trace,
+                            block,
+                          }) &&
+                          factoryAddressMatches(
+                            filter.fromAddress,
+                            trace.trace.from,
+                            blockNumber,
+                          ) &&
+                          factoryAddressMatches(
+                            filter.toAddress,
+                            trace.trace.to,
+                            blockNumber,
+                          )
+                        ) {
+                          isMatched = true;
+                          if (filter.hasTransactionReceipt) {
+                            matchedTransactionReceipts.add(
+                              `${transaction.blockNumber}_${transaction.transactionIndex}`,
+                            );
+                            break;
+                          }
+                        }
+                      }
+                      if (isMatched) traces.push(trace);
+                    }
+
+                    const blocksToInsert = blocks.filter((block) => {
+                      if (insertedBlocks.has(block.number)) return false;
+                      insertedBlocks.add(block.number);
+                      return true;
+                    });
+                    const transactionsToInsert = transactions.filter(
+                      (transaction) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}` as const;
+                        if (insertedTransactions.has(key)) return false;
+                        insertedTransactions.add(key);
+                        return true;
+                      },
+                    );
+                    const transactionReceiptsToInsert =
+                      transactionReceipts.filter((transactionReceipt) => {
+                        const key =
+                          `${transactionReceipt.blockNumber}_${transactionReceipt.transactionIndex}` as const;
+                        if (
+                          insertedTransactionReceipts.has(key) ||
+                          matchedTransactionReceipts.has(key) === false
+                        )
+                          return false;
+                        insertedTransactionReceipts.add(key);
+                        return true;
+                      });
+                    const tracesToInsert = traces
+                      .map((trace) => {
+                        const transaction = transactionsByHash.get(
+                          trace.transactionHash,
+                        )!;
+                        const block = blocksByNumber.get(
+                          transaction.blockNumber,
+                        )!;
+                        return { trace, block, transaction };
+                      })
+                      .filter(({ trace, transaction }) => {
+                        const key =
+                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
+                        if (insertedTransfers.has(key)) return false;
+                        insertedTransfers.add(key);
+                        return true;
+                      });
+
+                    const pageClosestToTipBlock = getClosestToTipBlock(blocks);
+
+                    await promiseAllSettledWithThrow([
+                      syncStore.insertBlocks(
+                        { blocks: blocksToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                      syncStore.insertTransactions(
+                        {
+                          transactions: transactionsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertTransactionReceipts(
+                        {
+                          transactionReceipts: transactionReceiptsToInsert,
+                          chainId: params.chain.id,
+                        },
+                        context,
+                      ),
+                      syncStore.insertTraces(
+                        { traces: tracesToInsert, chainId: params.chain.id },
+                        context,
+                      ),
+                    ]);
+
+                    const interval = getQueryPageInterval(response);
+                    params.common.logger.debug(
+                      {
+                        msg: "Fetched block data",
+                        chain: params.chain.name,
+                        chain_id: params.chain.id,
+                        data_type: "transfer",
+                        block_range: JSON.stringify(interval),
+                        block_count: blocksToInsert.length,
+                        transaction_count: transactionsToInsert.length,
+                        receipt_count: transactionReceiptsToInsert.length,
+                        transfer_count: tracesToInsert.length,
+                        duration: endClock(),
+                      },
+                      ["chain", "data_type", "block_range"],
+                    );
+
+                    yield {
+                      filters: requestWithFilters.filters,
+                      factories: [],
+                      interval: [interval],
+                      block: pageClosestToTipBlock,
+                    };
+                  }
+                  break;
+                }
               }
             }
           })(),
@@ -1095,6 +1166,22 @@ type QueryRequest = (
 ) & {
   filters: Filter[];
   factories: Partial<{ [address in "address" | "from" | "to"]: Factory["id"] }>;
+};
+
+const isEmptyQueryRequest = (request: QueryRequest): boolean => {
+  switch (request.method) {
+    case "eth_queryBlocks":
+      return false;
+    case "eth_queryLogs":
+      return request.params[0].filter?.address?.length === 0;
+    case "eth_queryTransactions":
+    case "eth_queryTraces":
+    case "eth_queryTransfers":
+      return (
+        request.params[0].filter?.from?.length === 0 ||
+        request.params[0].filter?.to?.length === 0
+      );
+  }
 };
 
 const mergeFiltersToQueryRequests = (
