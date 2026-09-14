@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
 import { getChain } from "@/_test/utils.js";
 import { buildSchema } from "@/build/schema.js";
