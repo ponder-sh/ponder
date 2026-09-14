@@ -4,6 +4,7 @@ import type { Factory, Filter } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
+import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { createQueryHistoricalSync } from "./query.js";
 
 const FACTORY: `0x${string}` = "0x1111111111111111111111111111111111111111";
@@ -286,6 +287,111 @@ test("syncs factory-dependent filters through the factory frontier", async () =>
       },
     ],
   });
+});
+
+test.each([
+  { factoryEnd: undefined, description: "cached factory intervals" },
+  {
+    factoryEnd: 1,
+    description: "factories ending before the dependent interval",
+  },
+  {
+    factoryEnd: 2,
+    description: "factory completion during a dependent request",
+  },
+  {
+    factoryEnd: 3,
+    description: "factories ending after the dependent interval",
+  },
+])("paginates dependencies with $description", async ({ factoryEnd }) => {
+  const factory = {
+    id: "factory",
+    type: "log",
+    chainId: 1,
+    sourceId: "Factory",
+    address: FACTORY,
+    eventSelector: TRANSFER,
+    childAddressLocation: "topic1",
+    fromBlock: 1,
+    toBlock: factoryEnd ?? 2,
+  } as const satisfies Factory;
+  const dependentStarted = promiseWithResolvers<void>();
+  const factoryCompleted = promiseWithResolvers<void>();
+  const requests: { fromBlock: `0x${string}`; toBlock: `0x${string}` }[] = [];
+  const rpc = {
+    request: vi.fn(
+      async ({ method, params }: { method: string; params: unknown[] }) => {
+        const request = params[0] as {
+          fromBlock: `0x${string}`;
+          toBlock: `0x${string}`;
+        };
+        let cursorBlock = request.toBlock;
+        if (method === "eth_queryLogs") {
+          if (request.fromBlock === "0x1") {
+            cursorBlock = "0x1";
+          } else {
+            // Finish discovery while the first dependent RPC is in flight.
+            await dependentStarted.promise;
+          }
+        } else {
+          requests.push(structuredClone(request));
+          dependentStarted.resolve();
+          if (factoryEnd !== undefined && factoryEnd > 1) {
+            await factoryCompleted.promise;
+          }
+        }
+        return {
+          fromBlock: { ...block, number: request.fromBlock },
+          toBlock: { ...block, number: request.toBlock },
+          cursorBlock: { ...block, number: cursorBlock },
+          data: { blocks: [], transactions: [], logs: [] },
+        };
+      },
+    ),
+  } as unknown as Rpc;
+  const historicalSync = createQueryHistoricalSync({
+    common: {
+      logger: { debug: vi.fn(), child: () => ({}) },
+      options: { factoryAddressCountThreshold: 1000 },
+    } as unknown as Common,
+    chain: { id: 1, name: "mainnet" } as never,
+    rpc,
+    childAddresses: new Map([[factory.id, new Map([[CHILD, 1]])]]),
+  });
+  // Only one side is a factory, leaving the other factory ID undefined.
+  const filter = {
+    type: "transaction",
+    fromAddress: factory,
+    toAddress: OTHER,
+  } as unknown as Filter;
+  const intervals: number[][] = [];
+  for await (const page of historicalSync.syncQueryBlockData({
+    requiredIntervals: [{ filter, interval: [1, 2] }],
+    requiredFactoryIntervals:
+      factoryEnd === undefined ? [] : [{ factory, interval: [1, factoryEnd] }],
+    syncStore: createSyncStore() as unknown as SyncStore,
+  })) {
+    if (page.factories.length > 0 && page.interval[0]![1] === factoryEnd) {
+      factoryCompleted.resolve();
+    }
+    if (page.filters.includes(filter)) intervals.push(...page.interval);
+  }
+
+  expect(intervals).toStrictEqual(
+    factoryEnd === undefined || factoryEnd === 1
+      ? [[1, 2]]
+      : [
+          [1, 1],
+          [2, 2],
+        ],
+  );
+  expect(
+    requests.map(({ fromBlock, toBlock }) => [fromBlock, toBlock]),
+  ).toEqual(
+    intervals.map((interval) =>
+      interval.map((number) => `0x${number.toString(16)}`),
+    ),
+  );
 });
 
 const queryRequests = async (
