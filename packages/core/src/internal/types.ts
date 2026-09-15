@@ -410,7 +410,7 @@ export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
 export type SyncTrace = {
-  trace: DebugTrace["result"] & { index: number; subcalls: number };
+  trace: DebugTrace["result"] & { traceAddress: string };
   transactionHash: DebugTrace["txHash"];
 };
 export type SyncLog = ViemLog<Hex, Hex, false>;
@@ -436,7 +436,7 @@ export type RequiredTraceColumns =
   | "value"
   | "type"
   | "error"
-  | "traceIndex";
+  | "traceAddress";
 export type RequiredLogColumns = keyof Log;
 
 export type RequiredInternalBlockColumns = RequiredBlockColumns;

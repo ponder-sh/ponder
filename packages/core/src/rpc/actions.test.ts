@@ -1,7 +1,36 @@
 import type { Address, Hex } from "viem";
 import { expect, test, vi } from "vitest";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import { eth_getLogs } from "./actions.js";
+import { debug_traceBlockByNumber, eth_getLogs } from "./actions.js";
+
+test("debug trace actions rebuild traceAddress from the call tree", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({ calls: [frame(), frame({ calls: [frame()] })] }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  await expect(
+    debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+  ).resolves.toMatchObject([
+    { trace: { traceAddress: "[]" } },
+    { trace: { traceAddress: "[0]" } },
+    { trace: { traceAddress: "[1]" } },
+    { trace: { traceAddress: "[1,0]" } },
+  ]);
+});
 
 const hash =
   "0x1111111111111111111111111111111111111111111111111111111111111111" as const;

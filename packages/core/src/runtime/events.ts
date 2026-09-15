@@ -221,10 +221,22 @@ export const buildEvents = ({
   blocksIndex = 0;
   transactionReceiptsIndex = 0;
 
+  let traceIndex = 0;
+  let previousTrace: InternalTrace | undefined;
   for (const trace of traces) {
     const blockNumber = trace.blockNumber;
     const transactionIndex = trace.transactionIndex;
-    const traceIndex = trace.traceIndex;
+
+    if (
+      previousTrace?.blockNumber === blockNumber &&
+      previousTrace.transactionIndex === transactionIndex
+    ) {
+      traceIndex = +1;
+    } else {
+      traceIndex = 0;
+    }
+
+    previousTrace = trace;
 
     while (
       blocksIndex < blocks.length &&
@@ -378,7 +390,7 @@ export const buildEvents = ({
             blockNumber,
             transactionIndex,
             eventType: EVENT_TYPES.traces,
-            eventIndex: trace.traceIndex,
+            eventIndex: traceIndex,
           }),
           log: undefined,
           trace,
@@ -627,7 +639,7 @@ export const decodeEvents = (
             function: eventCallback.name,
             block_number: event?.block?.number ?? "unknown",
             transaction_index: event.transaction?.transactionIndex,
-            trace_index: event.trace?.traceIndex,
+            trace_address: event.trace?.traceAddress,
             input: event.trace?.input,
             output: event.trace?.output,
           });
@@ -860,7 +872,7 @@ export const syncTraceToInternal = ({
   transaction: Pick<SyncTransaction, "transactionIndex">;
 }): InternalTrace => ({
   blockNumber: hexToNumber(block.number),
-  traceIndex: trace.trace.index,
+  traceAddress: trace.trace.traceAddress,
   transactionIndex: hexToNumber(transaction.transactionIndex),
   type: trace.trace.type,
   from: toLowerCase(trace.trace.from),
@@ -872,5 +884,4 @@ export const syncTraceToInternal = ({
   error: trace.trace.error,
   revertReason: trace.trace.revertReason,
   value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
-  subcalls: trace.trace.subcalls,
 });
