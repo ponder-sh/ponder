@@ -670,6 +670,7 @@ export const getChain = (params?: { reorgWindow?: number }) => {
     pollingInterval: 1_000,
     reorgWindow: params?.reorgWindow ?? 1,
     disableCache: false,
+    experimental_rpcQuery: false,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,
   } satisfies Chain;

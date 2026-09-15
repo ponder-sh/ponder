@@ -304,6 +304,7 @@ export type Chain = {
   pollingInterval: number;
   reorgWindow: number;
   disableCache: boolean;
+  experimental_rpcQuery: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
 };
@@ -404,13 +405,19 @@ export type Seconds = {
 // Blockchain data
 
 export type SyncBlock = Prettify<RpcBlock<Exclude<BlockTag, "pending">, true>>;
-export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
+export type SyncBlockHeader = Omit<
+  SyncBlock,
+  "transactions" | "withdrawals" | "sealFields" | "uncles"
+> & {
   transactions: undefined;
+  withdrawals: undefined;
+  sealFields: undefined;
+  uncles: undefined;
 };
 export type SyncTransaction = RpcTransaction<false>;
-export type SyncTransactionReceipt = RpcTransactionReceipt;
+export type SyncTransactionReceipt = Omit<RpcTransactionReceipt, "logs">;
 export type SyncTrace = {
-  trace: DebugTrace["result"] & { index: number; subcalls: number };
+  trace: DebugTrace["result"] & { traceAddress: string };
   transactionHash: DebugTrace["txHash"];
 };
 export type SyncLog = ViemLog<Hex, Hex, false>;
@@ -436,7 +443,7 @@ export type RequiredTraceColumns =
   | "value"
   | "type"
   | "error"
-  | "traceIndex";
+  | "traceAddress";
 export type RequiredLogColumns = keyof Log;
 
 export type RequiredInternalBlockColumns = RequiredBlockColumns;

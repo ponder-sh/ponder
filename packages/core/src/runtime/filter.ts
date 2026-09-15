@@ -693,7 +693,7 @@ export const requiredTransactionReceiptInclude: RequiredTransactionReceiptColumn
   ["status", "from", "to"];
 
 export const defaultTraceInclude: (keyof Trace)[] = [
-  "traceIndex",
+  "traceAddress",
   "type",
   "from",
   "to",
@@ -704,11 +704,10 @@ export const defaultTraceInclude: (keyof Trace)[] = [
   "error",
   "revertReason",
   "value",
-  "subcalls",
 ];
 
 export const requiredTraceInclude: RequiredTraceColumns[] = [
-  "traceIndex",
+  "traceAddress",
   "type",
   "from",
   "to",

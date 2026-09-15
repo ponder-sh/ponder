@@ -466,6 +466,26 @@ test("buildConfig() handles chains not found in viem", () => {
   expect(result.status).toBe("success");
 });
 
+test("buildConfig() enables Query RPC historical sync", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: {
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        experimental_rpcQuery: true,
+      },
+    },
+    contracts: {},
+  });
+
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+
+  expect(configBuild.chains[0]?.experimental_rpcQuery).toBe(true);
+});
+
 test("buildIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     chains: {

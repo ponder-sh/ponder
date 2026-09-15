@@ -144,7 +144,7 @@ export type SyncStore = {
     args: {
       traces: {
         trace: SyncTrace;
-        block: SyncBlock;
+        block: SyncBlock | SyncBlockHeader;
         transaction: SyncTransaction;
       }[];
       chainId: number;
@@ -734,7 +734,7 @@ export const createSyncStore = ({
                   PONDER_SYNC.traces.chainId,
                   PONDER_SYNC.traces.blockNumber,
                   PONDER_SYNC.traces.transactionIndex,
-                  PONDER_SYNC.traces.traceIndex,
+                  PONDER_SYNC.traces.traceAddress,
                 ],
               }),
           context,
@@ -917,7 +917,7 @@ export const createSyncStore = ({
         value: PONDER_SYNC.traces.value,
         type: PONDER_SYNC.traces.type,
         error: PONDER_SYNC.traces.error,
-        traceIndex: PONDER_SYNC.traces.traceIndex,
+        traceAddress: PONDER_SYNC.traces.traceAddress,
       };
 
       for (const column of unionFilterIncludeTrace(filters)) {
@@ -948,7 +948,7 @@ export const createSyncStore = ({
         .orderBy(
           asc(PONDER_SYNC.traces.blockNumber),
           asc(PONDER_SYNC.traces.transactionIndex),
-          asc(PONDER_SYNC.traces.traceIndex),
+          asc(PONDER_SYNC.traces.traceAddress),
         )
         .limit(limit);
 
