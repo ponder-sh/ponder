@@ -267,8 +267,8 @@ export const createQueryHistoricalSync = (
       const insertedBlocks = new Set<Hex>();
       const insertedTransactions = new Set<`${Hex}_${Hex}`>();
       const insertedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
-      const insertedTraces = new Set<`${Hex}_${Hex}_${number}`>();
-      const insertedTransfers = new Set<`${Hex}_${Hex}_${number}`>();
+      const insertedTraces = new Set<`${Hex}_${Hex}_${string}`>();
+      const insertedTransfers = new Set<`${Hex}_${Hex}_${string}`>();
       const insertedLogs = new Set<`${Hex}_${Hex}`>();
 
       const requestGenerators: ReturnType<
@@ -712,12 +712,8 @@ export const createQueryHistoricalSync = (
                       transactionsByHash.set(transaction.hash, transaction);
                     }
 
-                    const sortedTraces = response.data.traces.sort((a, b) =>
-                      String(a.traceAddress) > String(b.traceAddress) ? 1 : -1,
-                    );
-
-                    for (const [index, queryTrace] of sortedTraces.entries()) {
-                      const trace = queryTraceToSyncTrace(queryTrace, index);
+                    for (const queryTrace of response.data.traces) {
+                      const trace = queryTraceToSyncTrace(queryTrace);
                       const transaction = transactionsByHash.get(
                         trace.transactionHash,
                       )!;
@@ -796,7 +792,7 @@ export const createQueryHistoricalSync = (
                       })
                       .filter(({ trace, transaction }) => {
                         const key =
-                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
+                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.traceAddress}` as const;
                         if (insertedTraces.has(key)) return false;
                         insertedTraces.add(key);
                         return true;
@@ -889,18 +885,8 @@ export const createQueryHistoricalSync = (
                       transactionsByHash.set(transaction.hash, transaction);
                     }
 
-                    const sortedTransfers = response.data.transfers.sort(
-                      (a, b) =>
-                        String(a.traceAddress) > String(b.traceAddress)
-                          ? 1
-                          : -1,
-                    );
-
-                    for (const [
-                      index,
-                      queryTransfer,
-                    ] of sortedTransfers.entries()) {
-                      const trace = queryTraceToSyncTrace(queryTransfer, index);
+                    for (const queryTransfer of response.data.transfers) {
+                      const trace = queryTraceToSyncTrace(queryTransfer);
                       const transaction = transactionsByHash.get(
                         trace.transactionHash,
                       )!;
@@ -979,7 +965,7 @@ export const createQueryHistoricalSync = (
                       })
                       .filter(({ trace, transaction }) => {
                         const key =
-                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
+                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.traceAddress}` as const;
                         if (insertedTransfers.has(key)) return false;
                         insertedTransfers.add(key);
                         return true;
@@ -1106,10 +1092,7 @@ const queryTransactionToSyncTransactionReceipt = (
 
 const queryLogToSyncLog = (log: RpcLogResponse): SyncLog => log;
 
-const queryTraceToSyncTrace = (
-  trace: RpcCallTraceResponse,
-  index: number,
-): SyncTrace => {
+const queryTraceToSyncTrace = (trace: RpcCallTraceResponse): SyncTrace => {
   // @ts-expect-error
   const syncTrace = trace as SyncTrace["trace"];
   const transactionHash = trace.transactionHash;
@@ -1120,11 +1103,7 @@ const queryTraceToSyncTrace = (
   trace.blockNumber = undefined;
   // @ts-expect-error
   trace.transactionIndex = undefined;
-  // @ts-expect-error
-  trace.traceAddress = undefined;
 
-  syncTrace.index = index;
-  syncTrace.subcalls = 0;
   if (syncTrace.input === undefined) syncTrace.input = "0x";
   if (trace.status === "0x0" && syncTrace.error === undefined) {
     syncTrace.error = "execution reverted";

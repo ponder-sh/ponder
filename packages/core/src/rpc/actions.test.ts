@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import { expect, test, vi } from "vitest";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import {
+  debug_traceBlockByNumber,
   eth_getLogs,
   standardizeQueryBlocks,
   standardizeQueryLogs,
@@ -30,6 +31,37 @@ const createLog = ({
   data: "0x",
   transactionHash: hash,
   transactionIndex: "0x0",
+});
+
+test("debug trace actions rebuild traceAddress from the call tree", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({
+          calls: [frame(), frame({ calls: [frame()] })],
+        }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  await expect(
+    debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+  ).resolves.toMatchObject([
+    { trace: { traceAddress: "[]" } },
+    { trace: { traceAddress: "[0]" } },
+    { trace: { traceAddress: "[1]" } },
+    { trace: { traceAddress: "[1,0]" } },
+  ]);
 });
 
 test("eth_getLogs chunks address arrays and merges responses", async () => {
@@ -251,8 +283,7 @@ test("standardizeQueryTraces validates raw metadata and keeps raw status", () =>
           blockNumber: "0x1",
           transactionHash: hash,
           transactionIndex: "0x0",
-          traceAddress: [],
-          subcalls: "0x0",
+          traceAddress: "[]",
           status: "0x1",
           type: "CALL",
           from: address,
@@ -292,7 +323,7 @@ test("standardizeQueryTransfers validates raw metadata and numeric bounds", () =
           blockNumber: "0x1",
           transactionHash: hash,
           transactionIndex: "0x0",
-          traceAddress: [0],
+          traceAddress: "[0]",
           from: address,
           to: null,
           value: "0x2",
@@ -424,7 +455,7 @@ test("standardizeQueryTransfers validates relation metadata and bounds", () => {
     blockNumber: "0x1",
     transactionHash: hash,
     transactionIndex: "0x0",
-    traceAddress: [],
+    traceAddress: "[]",
     from: address,
     value: "0x1",
     status: "0x1",
@@ -520,7 +551,7 @@ test("standardizeQuery relations use block and transaction primary keys", () => 
               blockNumber: "0x1",
               transactionHash: hash,
               transactionIndex: "0x1",
-              traceAddress: [],
+              traceAddress: "[]",
               status: "0x1",
               type: "CALL",
               from: address,
@@ -546,7 +577,7 @@ test("standardizeQuery relations use block and transaction primary keys", () => 
               blockNumber: "0x1",
               transactionHash: hash,
               transactionIndex: "0x1",
-              traceAddress: [],
+              traceAddress: "[]",
               from: address,
               value: "0x1",
               status: "0x1",
