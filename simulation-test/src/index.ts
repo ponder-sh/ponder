@@ -507,7 +507,12 @@ const onBuild = async (app: PonderApp) => {
             lpad(traces.block_number::text, 16, '0') ||
             lpad(traces.transaction_index::text, 16, '0') ||
             '7' ||
-            lpad(traces.trace_index::text, 16, '0'))`,
+            lpad((SELECT count(*) FROM traces AS all_traces
+              WHERE all_traces.chain_id = traces.chain_id
+                AND all_traces.block_number = traces.block_number
+                AND all_traces.transaction_index = traces.transaction_index
+                AND all_traces.trace_address < traces.trace_address
+            )::text, 16, '0'))`,
             );
 
             const condition = and(
@@ -609,7 +614,7 @@ const onBuild = async (app: PonderApp) => {
                 name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: traceCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
-                traceIndex: PONDER_SYNC.traces.traceIndex,
+                traceAddress: PONDER_SYNC.traces.traceAddress,
               })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
@@ -742,7 +747,12 @@ const onBuild = async (app: PonderApp) => {
               lpad(traces.block_number::text, 16, '0') ||
               lpad(traces.transaction_index::text, 16, '0') ||
               '7' ||
-              lpad(traces.trace_index::text, 16, '0'))`,
+              lpad((SELECT count(*) FROM traces AS all_traces
+                WHERE all_traces.chain_id = traces.chain_id
+                  AND all_traces.block_number = traces.block_number
+                  AND all_traces.transaction_index = traces.transaction_index
+                  AND all_traces.trace_address < traces.trace_address
+              )::text, 16, '0'))`,
             );
 
             const condition = and(
@@ -837,7 +847,7 @@ const onBuild = async (app: PonderApp) => {
                 name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transferCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
-                traceIndex: PONDER_SYNC.traces.traceIndex,
+                traceAddress: PONDER_SYNC.traces.traceAddress,
               })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
