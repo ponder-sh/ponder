@@ -194,7 +194,6 @@ export const debug_traceBlockByNumber = (
       }
 
       const result: SyncTrace[] = [];
-      let index = 0;
       // all traces that weren't included because the trace has an error
       // or the trace's parent has an error, mapped to the error string
       const failedTraces = new Map<
@@ -206,8 +205,9 @@ export const debug_traceBlockByNumber = (
         frames: (typeof traces)[number]["result"][],
         transactionHash: Hex,
         parentFrame: (typeof traces)[number]["result"] | undefined,
+        parentTraceAddress: number[],
       ) => {
-        for (const frame of frames) {
+        for (const [index, frame] of frames.entries()) {
           if (frame.error !== undefined) {
             failedTraces.set(frame, {
               error: frame.error,
@@ -222,24 +222,22 @@ export const debug_traceBlockByNumber = (
             failedTraces.set(frame, error);
           }
 
-          // @ts-expect-error
-          frame.index = index;
-          // @ts-expect-error
-          frame.subcalls = frame.calls?.length ?? 0;
+          const traceAddress = parentFrame
+            ? [...parentTraceAddress, index]
+            : [];
+          (frame as typeof frame & { traceAddress: string }).traceAddress =
+            JSON.stringify(traceAddress);
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
 
-          index++;
-
           if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame);
+            dfs(frame.calls, transactionHash, frame, traceAddress);
           }
         }
       };
 
       for (const trace of traces) {
-        index = 0;
-        dfs([trace.result], trace.txHash, undefined);
+        dfs([trace.result], trace.txHash, undefined, []);
       }
 
       return result.map((trace) =>
@@ -271,7 +269,6 @@ export const debug_traceBlockByHash = (
       }
 
       const result: SyncTrace[] = [];
-      let index = 0;
       // all traces that weren't included because the trace has an error
       // or the trace's parent has an error, mapped to the error string
       const failedTraces = new Map<
@@ -283,8 +280,9 @@ export const debug_traceBlockByHash = (
         frames: (typeof traces)[number]["result"][],
         transactionHash: Hex,
         parentFrame: (typeof traces)[number]["result"] | undefined,
+        parentTraceAddress: number[],
       ) => {
-        for (const frame of frames) {
+        for (const [index, frame] of frames.entries()) {
           if (frame.error !== undefined) {
             failedTraces.set(frame, {
               error: frame.error,
@@ -299,24 +297,22 @@ export const debug_traceBlockByHash = (
             failedTraces.set(frame, error);
           }
 
-          // @ts-expect-error
-          frame.index = index;
-          // @ts-expect-error
-          frame.subcalls = frame.calls?.length ?? 0;
+          const traceAddress = parentFrame
+            ? [...parentTraceAddress, index]
+            : [];
+          (frame as typeof frame & { traceAddress: string }).traceAddress =
+            JSON.stringify(traceAddress);
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
 
-          index++;
-
           if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame);
+            dfs(frame.calls, transactionHash, frame, traceAddress);
           }
         }
       };
 
       for (const trace of traces) {
-        index = 0;
-        dfs([trace.result], trace.txHash, undefined);
+        dfs([trace.result], trace.txHash, undefined, []);
       }
 
       return result.map((trace) =>

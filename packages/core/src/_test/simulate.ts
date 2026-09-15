@@ -273,8 +273,7 @@ export const transferErc20 = async (params: {
         result: true,
       }),
       value: "0x0",
-      index: 0,
-      subcalls: 0,
+      traceAddress: "[]",
     },
     transactionHash: hash,
   } satisfies SyncTrace;
@@ -340,8 +339,7 @@ export const swapPair = async (params: {
       }),
       output: undefined,
       value: "0x0",
-      index: 0,
-      subcalls: 0,
+      traceAddress: "[]",
     },
     transactionHash: hash,
   } satisfies SyncTrace;
@@ -398,8 +396,7 @@ export const transferEth = async (params: {
       input: "0x",
       output: undefined,
       value: numberToHex(params.amount),
-      index: 0,
-      subcalls: 0,
+      traceAddress: "[]",
     },
     transactionHash: hash,
   } satisfies SyncTrace;
