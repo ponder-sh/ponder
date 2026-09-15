@@ -956,7 +956,6 @@ test("filters and persists raw query responses", async () => {
     transactionHash: HASH,
     transactionIndex: "0x0",
     traceAddress: [],
-    subcalls: "0x0",
     status: "0x0",
     type: "CALL",
     from: FACTORY,
@@ -1122,7 +1121,6 @@ test("filters and persists raw query responses", async () => {
             trace: expect.objectContaining({
               error: "execution reverted",
               input: "0x12345678",
-              subcalls: 0,
             }),
           }),
           block: expect.objectContaining({ number: "0x1" }),
@@ -1143,7 +1141,6 @@ test("filters and persists raw query responses", async () => {
             trace: expect.objectContaining({
               error: "execution reverted",
               input: "0x",
-              subcalls: 0,
             }),
           }),
           block: expect.objectContaining({ number: "0x1" }),

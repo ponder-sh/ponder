@@ -1073,10 +1073,10 @@ test("getEventData() applies one block range to logs and traces queries", async 
       : (query as { text: string; values: unknown[] }),
   );
   const logsQuery = queries.find(({ text }) =>
-    text.includes('from "ponder_sync"."logs"'),
+    text.includes(`from "${ponderSyncSchema.PONDER_SYNC_SCHEMA}"."logs"`),
   );
   const tracesQuery = queries.find(({ text }) =>
-    text.includes('from "ponder_sync"."traces"'),
+    text.includes(`from "${ponderSyncSchema.PONDER_SYNC_SCHEMA}"."traces"`),
   );
 
   expect(logsQuery).toBeDefined();
