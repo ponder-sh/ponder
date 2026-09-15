@@ -62,7 +62,7 @@ const callback = async (name: string, event: Event, context: Context) => {
       name,
       id: event.id,
       chainId: context.chain.id,
-      traceIndex: event.trace.traceIndex,
+      traceAddress: event.trace.traceAddress,
       hash: event.trace.hash,
     });
   }
