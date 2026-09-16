@@ -1,7 +1,9 @@
 import type { Address, Hex } from "viem";
 import { expect, test, vi } from "vitest";
+import type { SyncBlock } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import { eth_getLogs } from "./actions.js";
+import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import { eth_getLogs, validateLogsAndBlock } from "./actions.js";
 
 const hash =
   "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
@@ -82,4 +84,67 @@ test("eth_getLogs skips empty address arrays", async () => {
 
   await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([]);
   expect(rpcRequest).not.toHaveBeenCalled();
+});
+
+const nonEmptyLogsBloom = `0x${"0".repeat(511)}1` as const;
+const logsRequest = {
+  method: "eth_getLogs",
+  params: [{ blockHash: hash }],
+} as const satisfies Extract<RequestParameters, { method: "eth_getLogs" }>;
+const blockRequest = {
+  method: "eth_getBlockByHash",
+  params: [hash, true],
+} as const satisfies Extract<
+  RequestParameters,
+  { method: "eth_getBlockByHash" }
+>;
+
+const createBlock = (block: { logsBloom: Hex; settledHeight?: Hex | null }) =>
+  ({
+    hash,
+    number: "0x1",
+    transactions: [],
+    ...block,
+  }) as unknown as SyncBlock;
+
+test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: nonEmptyLogsBloom }),
+      logsRequest,
+      blockRequest,
+    ),
+  ).toThrow("The logs array has length 0");
+});
+
+test("validateLogsAndBlock allows zero logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: zeroLogsBloom }),
+      logsRequest,
+      blockRequest,
+    ),
+  ).not.toThrow();
+});
+
+test("validateLogsAndBlock allows settlement-scoped logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: nonEmptyLogsBloom, settledHeight: "0x1" }),
+      logsRequest,
+      blockRequest,
+    ),
+  ).not.toThrow();
+
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: nonEmptyLogsBloom, settledHeight: null }),
+      logsRequest,
+      blockRequest,
+    ),
+  ).toThrow("The logs array has length 0");
 });
