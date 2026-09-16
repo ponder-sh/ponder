@@ -335,6 +335,82 @@ test("sync() requests logs despite bloom mismatch on async-execution chains", as
   ).toBe(true);
 });
 
+test("sync() requests logs despite bloom mismatch on settlement-scoped blocks", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...block,
+      logsBloom: staleLogsBloom,
+      settledHeight: "0x1",
+    } as typeof block),
+  );
+
+  expect(syncResult).toHaveLength(1);
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)?.logs,
+  ).toHaveLength(1);
+});
+
+test("sync() handles settlement-scoped block with no logs and non-empty bloom", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ finalityBlockCount: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const { block } = await simulateBlock();
+
+  await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...block,
+      logsBloom: staleLogsBloom,
+      settledHeight: "0x1",
+    } as typeof block),
+  );
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+});
+
 test("handleBlock() block event with log factory", async () => {
   const { common } = context;
   await setupDatabaseServices();

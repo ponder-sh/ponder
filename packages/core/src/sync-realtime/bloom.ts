@@ -11,6 +11,17 @@ export const zeroLogsBloom =
 
 const BLOOM_SIZE_BYTES = 256;
 
+/**
+ * Return true if `block.logsBloom` describes the logs of other blocks rather than `block`.
+ *
+ * Avalanche Continuous Execution (ACP-194) block headers include `settledHeight`. Their
+ * `logsBloom` covers the receipts of the blocks settled since the parent's `settledHeight`,
+ * while `eth_getLogs` for the block still returns its own logs.
+ */
+export const isSettlementScopedLogsBloom = (
+  block: Pick<SyncBlock, "logsBloom"> & { settledHeight?: Hex | null },
+): boolean => block.settledHeight !== undefined && block.settledHeight !== null;
+
 export const isInBloom = (_bloom: Hex, input: Hex): boolean => {
   const bloom = hexToBytes(_bloom);
   const hash = hexToBytes(keccak256(input));

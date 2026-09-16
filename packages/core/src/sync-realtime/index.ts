@@ -56,7 +56,12 @@ import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
-import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
+import {
+  isFilterInBloom,
+  isInBloom,
+  isSettlementScopedLogsBloom,
+  zeroLogsBloom,
+} from "./bloom.js";
 
 export type RealtimeSync = {
   /**
@@ -301,9 +306,12 @@ export const createRealtimeSync = (
     ////////
 
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
-    // Async-execution chains can expose blocks before logsBloom is execution-ready.
+    // Async-execution chains can expose blocks before logsBloom is execution-ready, and
+    // settlement-scoped blooms (Avalanche ACP-194) describe ancestor blocks instead.
+    const isSettlementScoped = isSettlementScopedLogsBloom(maybeBlockHeader);
     const shouldRequestLogs =
-      (isAsyncExecutionChain(args.chain.id) && logFilters.length > 0) ||
+      ((isAsyncExecutionChain(args.chain.id) || isSettlementScoped) &&
+        logFilters.length > 0) ||
       maybeBlockHeader.logsBloom === zeroLogsBloom ||
       logFilters.some((filter) =>
         isFilterInBloom({ block: maybeBlockHeader, filter }),
@@ -347,8 +355,9 @@ export const createRealtimeSync = (
       );
 
       // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
+      // Note: A settlement-scoped `logsBloom` is not expected to contain `logs`.
       let isInvalidLogsBloom = false;
-      for (const log of logs) {
+      for (const log of isSettlementScoped ? [] : logs) {
         if (isInBloom(block.logsBloom, log.address) === false) {
           isInvalidLogsBloom = true;
         }
