@@ -6,14 +6,12 @@ import type {
   SyncLog,
   SyncTrace,
   SyncTransaction,
-  SyncTransactionReceipt,
 } from "@/internal/types.js";
 import {
   debug_traceBlockByNumber,
   eth_getBlockByNumber,
-  eth_getBlockReceipts,
   eth_getLogsWithPagination,
-  eth_getTransactionReceipt,
+  eth_getTransactionReceipts,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -60,87 +58,6 @@ export function createInMemoryHistoricalSync(params: {
   rpc: Rpc;
   childAddress: ChildAddresses;
 }): InMemoryHistoricalSync {
-  let isBlockReceipts = true;
-
-  const syncTransactionReceipts = async (
-    block: SyncBlock,
-    transactionHashes: Set<Hash>,
-    context?: Parameters<Rpc["request"]>[1],
-  ): Promise<SyncTransactionReceipt[]> => {
-    if (transactionHashes.size === 0) {
-      return [];
-    }
-
-    if (isBlockReceipts === false) {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) => {
-          const receipt = await eth_getTransactionReceipt(
-            params.rpc,
-            [hash],
-            context,
-          );
-
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            {
-              method: "eth_getBlockByNumber",
-              params: [block.number, true],
-            },
-          );
-
-          return receipt;
-        }),
-      );
-
-      return transactionReceipts;
-    }
-
-    let blockReceipts: SyncTransactionReceipt[];
-    try {
-      blockReceipts = await eth_getBlockReceipts(
-        params.rpc,
-        [block.hash],
-        context,
-      );
-    } catch (_error) {
-      const error = _error as Error;
-      params.common.logger.warn({
-        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
-        action: "fetch_block_data",
-        chain: params.chain.name,
-        chain_id: params.chain.id,
-        error,
-      });
-
-      isBlockReceipts = false;
-      return syncTransactionReceipts(block, transactionHashes, context);
-    }
-
-    validateReceiptsAndBlock(
-      blockReceipts,
-      block,
-      {
-        method: "eth_getBlockReceipts",
-        params: [block.hash],
-      },
-      {
-        method: "eth_getBlockByNumber",
-        params: [block.number, true],
-      },
-    );
-
-    const transactionReceipts = blockReceipts.filter((receipt) =>
-      transactionHashes.has(receipt.transactionHash),
-    );
-
-    return transactionReceipts;
-  };
-
   return {
     async *syncBlockData({ requiredIntervals }) {
       const context = {
@@ -523,10 +440,24 @@ export function createInMemoryHistoricalSync(params: {
         // Transaction Receipts
         ////////
 
-        const transactionReceipts = await syncTransactionReceipts(
-          block,
-          requiredTransactionReceipts,
+        const receiptResponses = await eth_getTransactionReceipts(
+          params.rpc,
+          {
+            blockHash: block.hash,
+            transactionHashes: requiredTransactionReceipts,
+          },
           context,
+        );
+        const transactionReceipts = receiptResponses.flatMap(
+          ({ receipts, request }) => {
+            validateReceiptsAndBlock(receipts, block, request, {
+              method: "eth_getBlockByNumber",
+              params: [block.number, true],
+            });
+            return receipts.filter((receipt) =>
+              requiredTransactionReceipts.has(receipt.transactionHash),
+            );
+          },
         );
 
         // TODO(kyle) dedupe logs?
