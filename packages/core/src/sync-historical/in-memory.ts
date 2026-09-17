@@ -1,4 +1,4 @@
-import { type Hash, numberToHex, toHex, zeroHash } from "viem";
+import { type Hash, hexToNumber, numberToHex, toHex, zeroHash } from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
@@ -12,13 +12,14 @@ import {
   debug_traceBlockByNumber,
   eth_getBlockByNumber,
   eth_getBlockReceipts,
+  eth_getLogsWithPagination,
   eth_getTransactionReceipt,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
   validateTransactionsAndBlock,
 } from "@/rpc/actions.js";
-import type { Rpc } from "@/rpc/index.js";
+import { type Rpc, sanitizeLogTopics } from "@/rpc/index.js";
 import {
   syncBlockToInternal,
   syncLogToInternal,
@@ -147,14 +148,64 @@ export function createInMemoryHistoricalSync(params: {
       };
       // TODO(kyle) factory progress
 
-      // TODO(kyle) filter progress
-
       const perBlockLogs = new Map<number, SyncLog[]>();
 
       const filterGenerators = new Map<
         IntervalWithFilter,
         AsyncGenerator<Interval>
       >();
+
+      for (const requiredInterval of requiredIntervals) {
+        filterGenerators.set(
+          requiredInterval,
+          (async function* (): AsyncGenerator<Interval> {
+            const { filter, interval } = requiredInterval;
+
+            switch (filter.type) {
+              case "block":
+              case "transaction":
+              case "trace":
+              case "transfer":
+                yield interval;
+                break;
+              case "log": {
+                for await (const page of eth_getLogsWithPagination(
+                  params.rpc,
+                  [
+                    {
+                      // TODO(kyle) narrow factory addresses once factory progress is available.
+                      address: isAddressFactory(filter.address)
+                        ? undefined
+                        : filter.address,
+                      topics: sanitizeLogTopics([
+                        filter.topic0,
+                        filter.topic1 ?? null,
+                        filter.topic2 ?? null,
+                        filter.topic3 ?? null,
+                      ]),
+                      fromBlock: numberToHex(interval[0]),
+                      toBlock: numberToHex(interval[1]),
+                    },
+                  ],
+                  {
+                    ...context,
+                    ethGetLogsBlockRange: params.chain.ethGetLogsBlockRange,
+                  },
+                )) {
+                  for (const log of page.logs) {
+                    const blockNumber = hexToNumber(log.blockNumber);
+                    if (perBlockLogs.has(blockNumber) === false) {
+                      perBlockLogs.set(blockNumber, []);
+                    }
+                    perBlockLogs.get(blockNumber)!.push(log);
+                  }
+                  yield [page.fromBlock, page.toBlock];
+                }
+              }
+            }
+          })(),
+        );
+      }
 
       const syncBlock = async (blockNumber: number): Promise<BlockData> => {
         const filters = requiredIntervals

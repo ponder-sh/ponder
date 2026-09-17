@@ -150,7 +150,7 @@ export async function* eth_getLogsWithPagination(
   context?: Parameters<Rpc["request"]>[1] & {
     ethGetLogsBlockRange?: number;
   },
-): AsyncGenerator<SyncLog[]> {
+): AsyncGenerator<{ logs: SyncLog[]; fromBlock: number; toBlock: number }> {
   const { address, topics } = params[0];
   let cursor = hexToNumber(params[0].fromBlock);
   const endBlock = hexToNumber(params[0].toBlock);
@@ -215,7 +215,7 @@ export async function* eth_getLogsWithPagination(
     }
 
     cursor = toBlock + 1;
-    yield logs;
+    yield { logs, fromBlock: cursor, toBlock };
   }
 }
 
