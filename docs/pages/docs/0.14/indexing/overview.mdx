@@ -1,4 +1,4 @@
-import { Callout } from "vocs/components";
+import { Callout } from "vocs";
 
 # Indexing [Write indexing functions that populate the database]
 
@@ -55,4 +55,3 @@ If the process crashes and starts back up again using the same exact configurati
 Internally, the indexing engine has two distinct modes – **backfill** and **live** indexing – which use different approaches for fetching data from the RPC.
 
 However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
-

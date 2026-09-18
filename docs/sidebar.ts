@@ -1,4 +1,4 @@
-import type { Sidebar } from "vocs";
+import type { Config } from "vocs/config";
 
 export const sidebar = {
   "/docs/": [
@@ -748,7 +748,7 @@ export const sidebar = {
       ],
     },
   ],
-} satisfies Sidebar;
+} satisfies NonNullable<Config["sidebar"]>;
 
 export function getCanonicalSubpath(subpath: string): string | null {
   if (subpath.startsWith("/docs/0.15")) {

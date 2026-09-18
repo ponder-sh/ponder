@@ -1,3 +1,5 @@
+"use client";
+
 import { CheckIcon, ChevronsUpDown } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
