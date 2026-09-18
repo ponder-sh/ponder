@@ -99,7 +99,7 @@ function BenchmarkRows({
                   className="absolute inset-y-0 flex items-center whitespace-nowrap pl-2 text-ponder-400"
                   style={{ left: `${left}%` }}
                 >
-                  101.5× faster than TheGraph
+                  102.5× faster than TheGraph
                 </span>
               ) : null}
             </div>
@@ -137,8 +137,9 @@ export function Benchmarks({
   className?: string;
   flat?: boolean;
 }) {
-  const brokenPosition = (seconds: number) =>
-    seconds <= 260 ? (seconds / 260) * 74 : 80 + ((seconds - 3200) / 200) * 20;
+  const benchmarkScaleMax = 3500;
+  const linearPosition = (seconds: number) =>
+    (seconds / benchmarkScaleMax) * 100;
 
   const currentRows = currentBenchmark.map((row) => ({ ...row }));
   const historyRows = versionHistory.map(([version, seconds, date]) => ({
@@ -164,9 +165,18 @@ export function Benchmarks({
           <section>
             <h3 className="mb-4 text-sm font-semibold">Ponder vs. TheGraph</h3>
 
-            <BenchmarkRows rows={currentRows} position={brokenPosition} />
+            <BenchmarkRows rows={currentRows} position={linearPosition} />
             <Axis
-              labels={["0s", "50s", "100s", "150s", "200s", "250s", "3.3ks"]}
+              labels={[
+                "0s",
+                "500s",
+                "1ks",
+                "1.5ks",
+                "2ks",
+                "2.5ks",
+                "3ks",
+                "3.5ks",
+              ]}
             />
           </section>
 
