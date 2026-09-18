@@ -7,7 +7,9 @@ packages:
   - tmp/*
 allowBuilds:
   "@biomejs/biome": true
+  es5-ext: true
   esbuild: true
+  vue-demi: true
 autoInstallPeers: false
 enablePrePostScripts: true
 linkWorkspacePackages: deep
