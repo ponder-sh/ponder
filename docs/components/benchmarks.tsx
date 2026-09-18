@@ -1,6 +1,134 @@
-import { GraphLogo } from "./icons.js";
 import { Card, CardTitle } from "./ui/card.js";
 import { cn } from "./utils.js";
+
+const currentBenchmark = [
+  { name: "Ponder", version: "0.17.10", seconds: 32.5, label: "32.5s" },
+  { name: "TheGraph", version: "0.45.0", seconds: 3330, label: "3330s" },
+];
+
+const versionHistory = [
+  ["0.17.10", 32.5, "2026-09-08"],
+  ["0.16.10", 36.6, "2026-07-13"],
+  ["0.15.18", 36.1, "2026-01-05"],
+  ["0.14.13", 38.5, "2025-11-05"],
+  ["0.13.14", 44.5, "2025-10-13"],
+  ["0.12.26", 57.6, "2025-09-18"],
+  ["0.11.43", 75.3, "2025-07-31"],
+  ["0.10.27", 76.5, "2025-05-15"],
+  ["0.9.28", 135, "2025-03-12"],
+  ["0.8.33", 252, "2025-01-27"],
+  ["0.7.17", 250, "2024-12-09"],
+  ["0.6.26", 123, "2024-12-05"],
+  ["0.5.25", 123, "2024-12-05"],
+  ["0.4.43", 146, "2024-07-17"],
+] as const;
+
+function BenchmarkRows({
+  rows,
+  position,
+  showDate = false,
+}: {
+  rows: readonly {
+    name: string;
+    version: string;
+    seconds: number;
+    label: string;
+    date?: string;
+  }[];
+  position: (seconds: number) => number;
+  showDate?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.map((row) => {
+        const isCurrent = row.version === "0.17.10";
+        const left = position(row.seconds);
+        const isNearRight = left > 76;
+
+        return (
+          <div
+            className="flex min-w-0 items-center gap-3 font-mono text-xs"
+            key={`${row.name}-${row.version}`}
+          >
+            <div className="flex w-[92px] shrink-0 items-baseline gap-1.5 font-sans">
+              <span
+                className={cn(
+                  "whitespace-nowrap",
+                  isCurrent ? "font-bold text-neutral-900" : "text-neutral-600",
+                )}
+              >
+                {row.name}
+              </span>
+              <span
+                className={cn(
+                  "whitespace-nowrap text-[10px]",
+                  isCurrent
+                    ? "font-semibold text-ponder-400"
+                    : "text-neutral-500",
+                )}
+              >
+                {row.version}
+              </span>
+            </div>
+            <div className="relative h-6 min-w-0 flex-1 bg-neutral-100 dark:bg-neutral-800">
+              <div
+                className={cn(
+                  "absolute inset-y-0 left-0",
+                  isCurrent
+                    ? "bg-ponder-400"
+                    : "bg-neutral-400 dark:bg-neutral-600",
+                )}
+                style={{ width: `${left}%` }}
+              />
+              {showDate && row.date ? (
+                <span
+                  className={cn(
+                    "absolute inset-y-0 flex items-center whitespace-nowrap text-[10px]",
+                    isNearRight ? "right-2 text-white" : "text-neutral-500",
+                  )}
+                  style={
+                    isNearRight
+                      ? undefined
+                      : { left: `calc(${left}% + 0.5rem)` }
+                  }
+                >
+                  {row.date}
+                </span>
+              ) : isCurrent ? (
+                <span
+                  className="absolute inset-y-0 flex items-center whitespace-nowrap pl-2 text-ponder-400"
+                  style={{ left: `${left}%` }}
+                >
+                  101.5× faster than TheGraph
+                </span>
+              ) : null}
+            </div>
+            <span
+              className={cn(
+                "w-14 shrink-0 text-right",
+                isCurrent
+                  ? "text-base font-semibold text-neutral-900"
+                  : "text-neutral-500",
+              )}
+            >
+              {row.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Axis({ labels }: { labels: string[] }) {
+  return (
+    <div className="ml-[104px] mr-14 mt-3 flex justify-between border-t border-neutral-900 pt-1 font-mono text-[10px] text-neutral-500">
+      {labels.map((label) => (
+        <span key={label}>{label}</span>
+      ))}
+    </div>
+  );
+}
 
 export function Benchmarks({
   className,
@@ -9,95 +137,68 @@ export function Benchmarks({
   className?: string;
   flat?: boolean;
 }) {
+  const brokenPosition = (seconds: number) =>
+    seconds <= 260 ? (seconds / 260) * 74 : 80 + ((seconds - 3200) / 200) * 20;
+
+  const currentRows = currentBenchmark.map((row) => ({ ...row }));
+  const historyRows = versionHistory.map(([version, seconds, date]) => ({
+    name: "Ponder",
+    version,
+    seconds,
+    label: `${seconds}s`,
+    date,
+  }));
+
   return (
     <Card
-      className={cn([
-        "w-full flex flex-col justify-between md:flex-row gap-8 mb-8",
+      className={cn(
+        "mb-8 w-full overflow-hidden bg-[#efefec] dark:bg-neutral-950",
         flat ? "rounded-none md:rounded-lg" : "",
         className,
-      ])}
+      )}
     >
-      <div className="flex flex-col lg:flex-row w-full">
-        <div className="flex flex-col flex-grow lg:border-r border-neutral-200 dark:border-neutral-50/20">
-          <div className="flex flex-col px-4 md:px-8 pt-6 md:pt-8">
-            <CardTitle className="mb-6">Benchmarks</CardTitle>
-            <div className="flex flex-row justify-start mb-3 gap-3 w-full">
-              <div className="h-[33px] w-[calc((100%-75px)*0.0925)] bg-ponder-400 rounded-[4px]" />
-              <p className="pt-[2px]">37s</p>
-            </div>
-            <div className="flex flex-row justify-start mb-5 gap-3 w-full">
-              <div className="h-[34px] w-[calc(100%-75px)] bg-neutral-300 dark:bg-neutral-700 rounded-[4px] flex items-center">
-                <GraphLogo className="ml-[10px]" />
-              </div>
-              <p className="pt-[2px]">6m 40s</p>
-            </div>
-          </div>
+      <div className="bg-white p-5 dark:bg-neutral-900 md:p-8">
+        <CardTitle className="mb-8">Benchmarks</CardTitle>
 
-          <div className="grid grid-cols-4 md:grid-cols-5">
-            <div className="col-span-1 py-2 pl-4 md:pl-8 text-sm border-neutral-200 dark:border-neutral-50/20 border-b text-neutral-500" />
-            <div className="col-span-1 py-2 pl-3 text-sm border-neutral-200 dark:border-neutral-50/20 border-b">
-              Sync (Cold)
-            </div>
-            <div className="col-span-1 py-2 pl-3 text-sm border-neutral-200 dark:border-neutral-50/20 border-b">
-              Sync (Cache)
-            </div>
-            <div className="col-span-1 py-2 pl-3 text-sm border-neutral-200 dark:border-neutral-50/20 border-b hidden md:block">
-              Database Size
-            </div>
-            <div className="col-span-1 py-2 pl-3 text-sm border-neutral-200 dark:border-neutral-50/20 border-b">
-              RPC Credits
-            </div>
+        <div className="flex flex-col gap-8">
+          <section>
+            <h3 className="mb-4 text-sm font-semibold">Ponder vs. TheGraph</h3>
 
-            <div className="col-span-1 py-2 pl-4 md:pl-8 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10">
-              Ponder
-            </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10">
-              37s
-            </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10">
-              5s
-            </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b border-r text-ponder-400 bg-ponder/10 hidden md:block">
-              31 MB
-            </div>
-            <div className="col-span-1 py-2 pl-3 border-neutral-200 dark:border-neutral-50/20 border-b text-ponder-400 bg-ponder/10">
-              108k
-            </div>
+            <BenchmarkRows rows={currentRows} position={brokenPosition} />
+            <Axis
+              labels={["0s", "50s", "100s", "150s", "200s", "250s", "3.3ks"]}
+            />
+          </section>
 
-            <div className="col-span-1 py-2 pl-4 pb-3 lg:pb-6 md:pl-8 border-neutral-200 dark:border-neutral-50/20 border-r max-lg:border-b">
-              The Graph
-            </div>
-            <div className="col-span-1 py-2 pl-3 pb-3 lg:pb-6 border-neutral-200 dark:border-neutral-50/20 border-r max-lg:border-b">
-              5m 28s
-            </div>
-            <div className="col-span-1 py-2 pl-3 pb-3 lg:pb-6 border-neutral-200 dark:border-neutral-50/20 border-r max-lg:border-b">
-              1m 15s
-            </div>
-            <div className="col-span-1 py-2 pl-3 pb-3 lg:pb-6 border-neutral-200 dark:border-neutral-50/20 border-r max-lg:border-b hidden md:block">
-              1.1 GB
-            </div>
-            <div className="col-span-1 py-2 pl-3 pb-3 lg:pb-6 border-neutral-200 dark:border-neutral-50/20 max-lg:border-b">
-              167k
-            </div>
-          </div>
+          <section>
+            <h3 className="mb-4 text-sm font-semibold">
+              Ponder performance over time
+            </h3>
+
+            <BenchmarkRows
+              rows={historyRows}
+              position={(seconds) => (seconds / 340) * 100}
+              showDate
+            />
+            <Axis
+              labels={["0s", "50s", "100s", "150s", "200s", "250s", "300s"]}
+            />
+          </section>
         </div>
 
-        <div className="flex flex-col lg:max-w-[22ch] p-4 md:p-6">
-          <p className="text-sm mb-4 text-neutral-700 dark:text-neutral-200">
-            Results of indexing the Rocket Pool ERC20 token contract on mainnet
-            from block 18,600,000 to 18,718,056 (latest) on an M1 MacBook Pro (8
-            core, 16GB RAM) against an Alchemy node on the Growth plan using a
-            950MB/s network connection.
-          </p>
+        <div className="mt-8 mb-3 w-full border-t border-neutral-300 dark:border-neutral-700" />
+        <p className="w-full text-xs leading-5 text-neutral-600 dark:text-neutral-300">
+          The benchmark indexes Rocket Pool ETH from Ethereum block 13,325,304
+          to 25,900,000. It resulted in 1,378,535 indexed events. All chain data
+          for Ponder and TheGraph was cached.{" "}
           <a
-            href="https://github.com/ponder-sh/ponder/tree/main/benchmark#readme"
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm text-ponder-400 hover:text-ponder-50/90"
+            className="text-ponder-400 underline underline-offset-2 hover:text-ponder-50/90"
+            href="https://github.com/ponder-sh/ponder/tree/main/benchmark"
           >
-            Run it yourself →
+            Run the benchmark yourself
           </a>
-        </div>
+          .
+        </p>
       </div>
     </Card>
   );
