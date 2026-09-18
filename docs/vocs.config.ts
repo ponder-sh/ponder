@@ -2,11 +2,23 @@ import { remarkMermaid } from "@theguild/remark-mermaid";
 import { defineConfig } from "vocs/config";
 import { sidebar } from "./sidebar.ts";
 
+type VercelEnvironment = {
+  VERCEL_ENV?: string;
+  VERCEL_PROJECT_PRODUCTION_URL?: string;
+  VERCEL_URL?: string;
+};
+
+const vercelEnvironment = (
+  globalThis as typeof globalThis & {
+    process?: { env?: VercelEnvironment };
+  }
+).process?.env;
+
 const baseUrl =
-  process.env.VERCEL_ENV === "production"
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
+  vercelEnvironment?.VERCEL_ENV === "production"
+    ? `https://${vercelEnvironment.VERCEL_PROJECT_PRODUCTION_URL}`
+    : vercelEnvironment?.VERCEL_URL
+      ? `https://${vercelEnvironment.VERCEL_URL}`
       : "http://localhost:5173";
 
 export default defineConfig({
@@ -17,6 +29,7 @@ export default defineConfig({
     "Ponder is an open-source TypeScript framework for EVM data indexing.",
   rootDir: ".",
   srcDir: ".",
+  renderStrategy: "full-static",
   iconUrl: { light: "/icon.png", dark: "/icon.png" },
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
   baseUrl,
@@ -69,6 +82,11 @@ export default defineConfig({
    * To improve SEO and LLM indexing, we want to add canonical tags to the head for any non-latest pages.
    */
   head(path) {
+    const environment = (
+      globalThis as typeof globalThis & {
+        process?: { env?: VercelEnvironment };
+      }
+    ).process?.env;
     const currentPath = path ?? "/";
     const isVersionedPath = /^\/docs\/0\.(?:10|11|12|14|15)(\/|$)/.test(
       currentPath,
@@ -78,10 +96,10 @@ export default defineConfig({
       "/docs$1",
     );
     const headBaseUrl =
-      process.env.VERCEL_ENV === "production"
-        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-        : process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
+      environment?.VERCEL_ENV === "production"
+        ? `https://${environment.VERCEL_PROJECT_PRODUCTION_URL}`
+        : environment?.VERCEL_URL
+          ? `https://${environment.VERCEL_URL}`
           : "http://localhost:5173";
 
     return {
