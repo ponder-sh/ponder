@@ -2,7 +2,11 @@ import type { Hex } from "viem";
 import { expect, test } from "vitest";
 import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
-import { isFilterInBloom, isInBloom } from "./bloom.js";
+import {
+  isFilterInBloom,
+  isInBloom,
+  isSettlementScopedLogsBloom,
+} from "./bloom.js";
 
 test("isInBloom", () => {
   let bloom =
@@ -144,4 +148,16 @@ test("isFilterInBloom returns true for array of addresses", () => {
   };
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
+});
+
+test("isSettlementScopedLogsBloom", () => {
+  const logsBloom = `0x${"0".repeat(512)}` as Hex;
+
+  expect(isSettlementScopedLogsBloom({ logsBloom })).toBe(false);
+  expect(isSettlementScopedLogsBloom({ logsBloom, settledHeight: null })).toBe(
+    false,
+  );
+  expect(isSettlementScopedLogsBloom({ logsBloom, settledHeight: "0x0" })).toBe(
+    true,
+  );
 });
