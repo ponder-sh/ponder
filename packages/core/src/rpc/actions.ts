@@ -215,8 +215,8 @@ export async function* eth_getLogsWithPagination(
       );
     }
 
-    cursor = toBlock + 1;
     yield { logs, fromBlock: cursor, toBlock };
+    cursor = toBlock + 1;
   }
 }
 
