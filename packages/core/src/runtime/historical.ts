@@ -1111,7 +1111,16 @@ export async function* getLocalInMemoryEventGenerator(params: {
 }> {
   const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
   const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
+  const last =
+    params.syncProgress.end === undefined
+      ? params.syncProgress.finalized
+      : hexToNumber(params.syncProgress.end.number) >
+          hexToNumber(params.syncProgress.finalized.number)
+        ? params.syncProgress.finalized
+        : params.syncProgress.end;
+
   if (fromBlock > toBlock) {
+    params.syncProgress.current = last;
     if (
       hexToNumber(params.syncProgress.start.number) >
       hexToNumber(params.syncProgress.finalized.number)
@@ -1191,14 +1200,21 @@ export async function* getLocalInMemoryEventGenerator(params: {
     yield { events: rawEvents, checkpoint, blockRange };
   }
 
+  // Advance through the entire scanned range, including blocks without events.
+  params.syncProgress.current = last;
+
+  yield {
+    events: [],
+    checkpoint: params.to,
+    blockRange: [cursor, toBlock],
+  };
+
   params.common.logger.info({
     msg: "Finished fetching backfill JSON-RPC data",
     chain: params.chain.name,
     chain_id: params.chain.id,
     duration: backfillEndClock(),
   });
-
-  // TODO(kyle) should yield the last range?
 }
 
 export async function* getLocalSyncGenerator(params: {
