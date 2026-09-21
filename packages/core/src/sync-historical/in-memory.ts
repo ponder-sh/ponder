@@ -43,6 +43,7 @@ import type {
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import type { Interval } from "@/utils/interval.js";
+import { createQueue } from "@/utils/queue.js";
 
 type BlockData = Awaited<ReturnType<SyncStore["getEventData"]>>;
 
@@ -125,7 +126,9 @@ export function createInMemoryHistoricalSync(params: {
         );
       }
 
-      const syncBlock = async (blockNumber: number): Promise<BlockData> => {
+      const syncBlock = async (
+        blockNumber: number,
+      ): Promise<BlockData | undefined> => {
         const filters = requiredIntervals
           .filter(
             ({ interval }) =>
@@ -161,16 +164,17 @@ export function createInMemoryHistoricalSync(params: {
         // Logs
         ////////
 
+        const blockLogs = perBlockLogs.get(blockNumber);
         perBlockLogs.delete(blockNumber);
         let logs: SyncLog[] = [];
-        if (perBlockLogs.has(blockNumber)) {
+        if (blockLogs !== undefined) {
           block = await eth_getBlockByNumber(
             params.rpc,
             [numberToHex(blockNumber), true],
             context,
           );
 
-          logs = perBlockLogs.get(blockNumber)!.filter((log) => {
+          logs = blockLogs.filter((log) => {
             let isMatched = false;
 
             for (const filter of logFilters) {
@@ -383,14 +387,7 @@ export function createInMemoryHistoricalSync(params: {
             isBlockInFilter(filter, blockNumber),
           ) === false
         ) {
-          return {
-            blocks: [],
-            logs: [],
-            transactions: [],
-            transactionReceipts: [],
-            traces: [],
-            cursor: blockNumber,
-          };
+          return undefined;
         }
 
         if (block === undefined) {
@@ -490,9 +487,32 @@ export function createInMemoryHistoricalSync(params: {
         };
       };
 
+      const MAX_BLOCKS_IN_MEM = 100;
+
+      const queue = createQueue({
+        browser: false,
+        initialStart: true,
+        concurrency: MAX_BLOCKS_IN_MEM,
+        worker: syncBlock,
+      });
+
       for await (const interval of mergeGeneratorIntervals(filterGenerators)) {
-        // TODO(kyle) queue per block work while recovering order
-        yield* [];
+        const syncPromises: Promise<BlockData | undefined>[] = [];
+
+        for (
+          let blockNumber = interval[0];
+          blockNumber <= interval[1];
+          blockNumber++
+        ) {
+          syncPromises.push(queue.add(blockNumber));
+        }
+
+        for (const promise of syncPromises) {
+          const result = await promise;
+          if (result === undefined) continue;
+
+          yield result;
+        }
       }
     },
   };
