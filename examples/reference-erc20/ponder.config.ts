@@ -6,6 +6,7 @@ export default createConfig({
     mainnet: {
       id: 1,
       rpc: process.env.PONDER_RPC_URL_1,
+      persistRpcData: false,
     },
   },
   contracts: {
