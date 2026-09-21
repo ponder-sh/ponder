@@ -44,6 +44,7 @@ import type {
 import type { SyncStore } from "@/sync-store/index.js";
 import type { Interval } from "@/utils/interval.js";
 import { createQueue } from "@/utils/queue.js";
+import { startClock } from "@/utils/timer.js";
 
 type BlockData = Awaited<ReturnType<SyncStore["getEventData"]>>;
 
@@ -88,6 +89,7 @@ export function createInMemoryHistoricalSync(params: {
                 yield interval;
                 break;
               case "log": {
+                let endClock = startClock();
                 for await (const page of eth_getLogsWithPagination(
                   params.rpc,
                   [
@@ -111,7 +113,33 @@ export function createInMemoryHistoricalSync(params: {
                     ethGetLogsBlockRange: params.chain.ethGetLogsBlockRange,
                   },
                 )) {
+                  params.common.logger.debug(
+                    {
+                      msg: "Fetched block range data",
+                      chain: params.chain.name,
+                      chain_id: params.chain.id,
+                      block_range: JSON.stringify([
+                        page.fromBlock,
+                        page.toBlock,
+                      ]),
+                      log_count: page.logs.length,
+                      duration: endClock(),
+                    },
+                    ["chain", "block_range"],
+                  );
+
                   for (const log of page.logs) {
+                    if (log.transactionHash === zeroHash) {
+                      params.common.logger.warn({
+                        msg: "Detected log with empty transaction hash. This is expected for some chains like ZKsync.",
+                        action: "fetch_block_data",
+                        chain: params.chain.name,
+                        chain_id: params.chain.id,
+                        number: hexToNumber(log.blockNumber),
+                        hash: log.blockHash,
+                        logIndex: hexToNumber(log.logIndex),
+                      });
+                    }
                     const blockNumber = hexToNumber(log.blockNumber);
                     if (perBlockLogs.has(blockNumber) === false) {
                       perBlockLogs.set(blockNumber, []);
@@ -119,6 +147,7 @@ export function createInMemoryHistoricalSync(params: {
                     perBlockLogs.get(blockNumber)!.push(log);
                   }
                   yield [page.fromBlock, page.toBlock];
+                  endClock = startClock();
                 }
               }
             }
@@ -129,6 +158,7 @@ export function createInMemoryHistoricalSync(params: {
       const syncBlock = async (
         blockNumber: number,
       ): Promise<BlockData | undefined> => {
+        const endClock = startClock();
         const filters = requiredIntervals
           .filter(
             ({ interval }) =>
@@ -463,6 +493,20 @@ export function createInMemoryHistoricalSync(params: {
               requiredTransactionReceipts.has(receipt.transactionHash),
             );
           },
+        );
+
+        params.common.logger.debug(
+          {
+            msg: "Fetched block data",
+            chain: params.chain.name,
+            chain_id: params.chain.id,
+            block: blockNumber,
+            transaction_count: transactions.length,
+            receipt_count: transactionReceipts.length,
+            trace_count: traces.length,
+            duration: endClock(),
+          },
+          ["chain", "block"],
         );
 
         // TODO(kyle) dedupe logs?

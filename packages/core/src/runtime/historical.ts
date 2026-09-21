@@ -1111,7 +1111,21 @@ export async function* getLocalInMemoryEventGenerator(params: {
 }> {
   const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
   const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
-  if (fromBlock > toBlock) return;
+  if (fromBlock > toBlock) {
+    if (
+      hexToNumber(params.syncProgress.start.number) >
+      hexToNumber(params.syncProgress.finalized.number)
+    ) {
+      params.common.logger.info({
+        msg: "Skipped fetching backfill JSON-RPC data (chain only requires live indexing)",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+        finalized_block: hexToNumber(params.syncProgress.finalized.number),
+        start_block: hexToNumber(params.syncProgress.start.number),
+      });
+    }
+    return;
+  }
 
   const {
     intervals: requiredIntervals,
@@ -1122,6 +1136,12 @@ export async function* getLocalInMemoryEventGenerator(params: {
     cachedIntervals: params.cachedIntervals,
   });
 
+  params.common.logger.info({
+    msg: "Started fetching backfill JSON-RPC data",
+    chain: params.chain.name,
+    chain_id: params.chain.id,
+  });
+
   const historicalSync = createInMemoryHistoricalSync({
     common: params.common,
     chain: params.chain,
@@ -1130,11 +1150,14 @@ export async function* getLocalInMemoryEventGenerator(params: {
   });
   let cursor = fromBlock;
 
+  const backfillEndClock = startClock();
+
   for await (const blockData of historicalSync.syncBlockData({
     requiredIntervals,
     requiredFactoryIntervals,
   })) {
-    const events = buildEvents({
+    const endClock = startClock();
+    const rawEvents = buildEvents({
       eventCallbacks: params.eventCallbacks,
       blocks: blockData.blocks,
       logs: blockData.logs,
@@ -1143,6 +1166,15 @@ export async function* getLocalInMemoryEventGenerator(params: {
       traces: blockData.traces,
       childAddresses: params.childAddresses,
       chainId: params.chain.id,
+    });
+
+    params.common.logger.trace({
+      msg: "Constructed events from block data",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      block_range: JSON.stringify([cursor, blockData.cursor]),
+      event_count: rawEvents.length,
+      duration: endClock(),
     });
 
     const blockRange = [cursor, blockData.cursor] satisfies [number, number];
@@ -1156,8 +1188,15 @@ export async function* getLocalInMemoryEventGenerator(params: {
       blockNumber: lastBlock.number,
     });
 
-    yield { events, checkpoint, blockRange };
+    yield { events: rawEvents, checkpoint, blockRange };
   }
+
+  params.common.logger.info({
+    msg: "Finished fetching backfill JSON-RPC data",
+    chain: params.chain.name,
+    chain_id: params.chain.id,
+    duration: backfillEndClock(),
+  });
 
   // TODO(kyle) should yield the last range?
 }
