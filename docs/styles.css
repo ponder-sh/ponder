@@ -67,6 +67,16 @@
   padding-bottom: 2px;
 }
 
+/* Keep landing-page navigation below the announcement in normal document flow. */
+.landing-announcement ~ [data-layout="landing"] .vocs_DocsLayout_gutterTop {
+  position: sticky;
+  top: 0;
+}
+
+.landing-announcement ~ [data-layout="landing"] .vocs_DocsLayout_content {
+  padding-top: 0;
+}
+
 /* TOP NAV BORDER */
 .vocs_DocsLayout_gutterTop_sticky {
   border-bottom: 1px solid var(--vocs-color_border);

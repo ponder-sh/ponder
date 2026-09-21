@@ -11,6 +11,7 @@ const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
   const sidebarHostRef = useRef<HTMLDivElement | null>(null);
   const sidebarMobileHostRef = useRef<HTMLDivElement | null>(null);
   const contentHostRef = useRef<HTMLDivElement | null>(null);
@@ -88,6 +89,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {pathname === "/" && (
+        <a
+          className="landing-announcement group flex w-full items-center justify-center gap-2 bg-[#836EF9] px-4 py-3 text-center text-sm font-medium text-white underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-white"
+          href="https://monad.xyz/blog/ponder-team-joins"
+        >
+          <span>Ponder is joining the Monad Foundation</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="lucide lucide-arrow-right size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:transform-none"
+            aria-hidden="true"
+          >
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
+        </a>
+      )}
       {children}
       {/* sidebarHostRef.current is already defined on the client's first render */}
       {sidebarHostRef.current &&
