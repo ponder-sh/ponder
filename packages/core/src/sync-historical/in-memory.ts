@@ -2,6 +2,7 @@ import { type Hash, hexToNumber, numberToHex, toHex, zeroHash } from "viem";
 import type { Common } from "@/internal/common.js";
 import type {
   Chain,
+  Filter,
   SyncBlock,
   SyncLog,
   SyncTrace,
@@ -132,18 +133,25 @@ export function createInMemoryHistoricalSync(params: {
           )
           .map(({ filter }) => filter);
         const blockFilters = filters.filter(
-          (filter) => filter.type === "block",
+          (filter): filter is Extract<Filter, { type: "block" }> =>
+            filter.type === "block",
         );
         const transactionFilters = filters.filter(
-          (filter) => filter.type === "transaction",
+          (filter): filter is Extract<Filter, { type: "transaction" }> =>
+            filter.type === "transaction",
         );
         const traceFilters = filters.filter(
-          (filter) => filter.type === "trace",
+          (filter): filter is Extract<Filter, { type: "trace" }> =>
+            filter.type === "trace",
         );
         const transferFilters = filters.filter(
-          (filter) => filter.type === "transfer",
+          (filter): filter is Extract<Filter, { type: "transfer" }> =>
+            filter.type === "transfer",
         );
-        const logFilters = filters.filter((filter) => filter.type === "log");
+        const logFilters = filters.filter(
+          (filter): filter is Extract<Filter, { type: "log" }> =>
+            filter.type === "log",
+        );
         let block: SyncBlock | undefined;
 
         const requiredTransactions = new Set<Hash>();
@@ -494,29 +502,28 @@ export async function* mergeGeneratorIntervals(
   filterGenerators: Map<IntervalWithFilter, AsyncGenerator<Interval>>,
 ): AsyncGenerator<Interval> {
   const results = await Promise.all(
-    filterGenerators.values().map((gen) => gen.next()),
+    Array.from(filterGenerators.values()).map((gen) => gen.next()),
   );
 
   let cursor = Math.min(
-    ...filterGenerators.keys().map(({ interval }) => interval[0]),
+    ...Array.from(filterGenerators.keys()).map(({ interval }) => interval[0]),
   );
 
   while (results.some((res) => res.done !== true)) {
     const supremum = Math.min(
       ...results
         .map((res) => (res.done ? undefined : res.value[1]))
-        .filter((x) => x !== undefined),
+        .filter((x): x is number => x !== undefined),
     );
 
     const minIndices = Array.from(
-      results
-        .entries()
+      Array.from(results.entries())
         .map(([index, result]) => {
           if (result.done) return undefined;
           if (result.value[1] === supremum) return index;
           return undefined;
         })
-        .filter((x) => x !== undefined),
+        .filter((x): x is number => x !== undefined),
     );
 
     const resultPromise = Promise.all(

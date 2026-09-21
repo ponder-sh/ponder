@@ -101,7 +101,7 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
   expect(request).not.toHaveBeenCalled();
   expect(await generator.next()).toMatchObject({
     done: false,
-    value: [{ blockNumber: "0x0", removed: false }],
+    value: { logs: [{ blockNumber: "0x0", removed: false }] },
   });
   expect(
     request.mock.calls.map(([request]) => [
@@ -111,7 +111,7 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
   ).toStrictEqual([[0, 499]]);
 
   const pages = await drainAsyncGenerator(generator);
-  expect(pages.map((logs) => logs[0]!.blockNumber)).toStrictEqual([
+  expect(pages.map((page) => page.logs[0]!.blockNumber)).toStrictEqual([
     numberToHex(500),
     numberToHex(1025),
   ]);
@@ -209,8 +209,10 @@ test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ran
       { fromBlock: "0x0", toBlock: numberToHex(1200) },
     ]),
   );
-  expect(pages[0]).toStrictEqual([]);
-  expect(pages.slice(1).map((logs) => logs[0]!.blockNumber)).toStrictEqual([
+  expect(pages[0]!.logs).toStrictEqual([]);
+  expect(
+    pages.slice(1).map((page) => page.logs[0]!.blockNumber),
+  ).toStrictEqual([
     numberToHex(500),
     numberToHex(763),
     numberToHex(1039),
