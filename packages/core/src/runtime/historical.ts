@@ -1195,7 +1195,10 @@ export async function* getLocalSyncGenerator(params: {
       });
     }
 
-    first = hexToNumber(params.syncProgress.current.number) + 1;
+    first = Math.max(
+      first,
+      hexToNumber(params.syncProgress.current.number) + 1,
+    );
   } else {
     params.common.logger.info({
       msg: "Started fetching backfill JSON-RPC data",
