@@ -30,9 +30,8 @@ import {
   debug_traceBlockByHash,
   eth_getBlockByHash,
   eth_getBlockByNumber,
-  eth_getBlockReceipts,
   eth_getLogs,
-  eth_getTransactionReceipt,
+  eth_getTransactionReceipts,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -106,7 +105,6 @@ const MAX_QUEUED_BLOCKS = 50;
 export const createRealtimeSync = (
   args: CreateRealtimeSyncParameters,
 ): RealtimeSync => {
-  let isBlockReceipts = true;
   let finalizedBlock: LightBlock = args.syncProgress.finalized;
   const childAddresses = args.childAddresses;
   /** Annotates `childAddresses` for efficient lookup by block number */
@@ -169,101 +167,6 @@ export const createRealtimeSync = (
       factories.push(factory);
     }
   }
-
-  const syncTransactionReceipts = async (
-    block: SyncBlock,
-    transactionHashes: Set<Hash>,
-    ethGetBlockMethod: "eth_getBlockByHash" | "eth_getBlockByNumber",
-    context?: Parameters<Rpc["request"]>[1],
-  ): Promise<SyncTransactionReceipt[]> => {
-    if (transactionHashes.size === 0) {
-      return [];
-    }
-
-    if (isBlockReceipts === false) {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) => {
-          const receipt = await eth_getTransactionReceipt(
-            args.rpc,
-            [hash],
-            context,
-          );
-
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            ethGetBlockMethod === "eth_getBlockByNumber"
-              ? {
-                  method: "eth_getBlockByNumber",
-                  params: [block.number, true],
-                }
-              : {
-                  method: "eth_getBlockByHash",
-                  params: [block.hash, true],
-                },
-          );
-
-          return receipt;
-        }),
-      );
-
-      return transactionReceipts;
-    }
-
-    let blockReceipts: SyncTransactionReceipt[];
-    try {
-      blockReceipts = await eth_getBlockReceipts(
-        args.rpc,
-        [block.hash],
-        context,
-      );
-    } catch (_error) {
-      const error = _error as Error;
-      args.common.logger.warn({
-        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
-        action: "fetch block data",
-        chain: args.chain.name,
-        chain_id: args.chain.id,
-        error,
-      });
-
-      isBlockReceipts = false;
-      return syncTransactionReceipts(
-        block,
-        transactionHashes,
-        ethGetBlockMethod,
-        context,
-      );
-    }
-
-    validateReceiptsAndBlock(
-      blockReceipts,
-      block,
-      {
-        method: "eth_getBlockReceipts",
-        params: [block.hash],
-      },
-      ethGetBlockMethod === "eth_getBlockByNumber"
-        ? {
-            method: "eth_getBlockByNumber",
-            params: [block.number, true],
-          }
-        : {
-            method: "eth_getBlockByHash",
-            params: [block.hash, true],
-          },
-    );
-
-    const transactionReceipts = blockReceipts.filter((receipt) =>
-      transactionHashes.has(receipt.transactionHash),
-    );
-
-    return transactionReceipts;
-  };
 
   const getLatestUnfinalizedBlock = () => {
     if (unfinalizedBlocks.length === 0) {
@@ -655,11 +558,25 @@ export const createRealtimeSync = (
     // Transaction Receipts
     ////////
 
-    const transactionReceipts = await syncTransactionReceipts(
-      block,
-      requiredTransactionReceipts,
-      ethGetBlockMethod,
+    const receiptResponses = await eth_getTransactionReceipts(
+      args.rpc,
+      { blockHash: block.hash, transactionHashes: requiredTransactionReceipts },
       context,
+    );
+    const transactionReceipts = receiptResponses.flatMap(
+      ({ receipts, request }) => {
+        validateReceiptsAndBlock(
+          receipts,
+          block,
+          request,
+          ethGetBlockMethod === "eth_getBlockByNumber"
+            ? { method: "eth_getBlockByNumber", params: [block.number, true] }
+            : { method: "eth_getBlockByHash", params: [block.hash, true] },
+        );
+        return receipts.filter((receipt) =>
+          requiredTransactionReceipts.has(receipt.transactionHash),
+        );
+      },
     );
 
     let childAddressCount = 0;

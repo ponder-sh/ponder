@@ -20,7 +20,6 @@ import type {
   SyncLog,
   SyncTrace,
   SyncTransaction,
-  SyncTransactionReceipt,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
@@ -28,9 +27,8 @@ import type {
 import {
   debug_traceBlockByNumber,
   eth_getBlockByNumber,
-  eth_getBlockReceipts,
   eth_getLogs,
-  eth_getTransactionReceipt,
+  eth_getTransactionReceipts,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -99,11 +97,6 @@ type CreateHistoricalSyncParameters = {
 export const createHistoricalSync = (
   args: CreateHistoricalSyncParameters,
 ): HistoricalSync => {
-  /**
-   * Flag to fetch transaction receipts through eth_getBlockReceipts (true) or eth_getTransactionReceipt (false)
-   */
-  let isBlockReceipts = true;
-
   /**
    * Data about the range passed to "eth_getLogs" share among all log
    * filters and log factories.
@@ -219,85 +212,6 @@ export const createHistoricalSync = (
     }
 
     return logs;
-  };
-
-  const syncTransactionReceipts = async (
-    block: SyncBlock,
-    transactionHashes: Set<Hash>,
-    context?: Parameters<Rpc["request"]>[1],
-  ): Promise<SyncTransactionReceipt[]> => {
-    if (transactionHashes.size === 0) {
-      return [];
-    }
-
-    if (isBlockReceipts === false) {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) => {
-          const receipt = await eth_getTransactionReceipt(
-            args.rpc,
-            [hash],
-            context,
-          );
-
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            {
-              method: "eth_getBlockByNumber",
-              params: [block.number, true],
-            },
-          );
-
-          return receipt;
-        }),
-      );
-
-      return transactionReceipts;
-    }
-
-    let blockReceipts: SyncTransactionReceipt[];
-    try {
-      blockReceipts = await eth_getBlockReceipts(
-        args.rpc,
-        [block.hash],
-        context,
-      );
-    } catch (_error) {
-      const error = _error as Error;
-      args.common.logger.warn({
-        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
-        action: "fetch_block_data",
-        chain: args.chain.name,
-        chain_id: args.chain.id,
-        error,
-      });
-
-      isBlockReceipts = false;
-      return syncTransactionReceipts(block, transactionHashes, context);
-    }
-
-    validateReceiptsAndBlock(
-      blockReceipts,
-      block,
-      {
-        method: "eth_getBlockReceipts",
-        params: [block.hash],
-      },
-      {
-        method: "eth_getBlockByNumber",
-        params: [block.number, true],
-      },
-    );
-
-    const transactionReceipts = blockReceipts.filter((receipt) =>
-      transactionHashes.has(receipt.transactionHash),
-    );
-
-    return transactionReceipts;
   };
 
   /**
@@ -837,9 +751,24 @@ export const createHistoricalSync = (
         // Transaction Receipts
         ////////
 
-        const transactionReceipts = await syncTransactionReceipts(
-          block,
-          requiredTransactionReceipts,
+        const receiptResponses = await eth_getTransactionReceipts(
+          args.rpc,
+          {
+            blockHash: block.hash,
+            transactionHashes: requiredTransactionReceipts,
+          },
+          context,
+        );
+        const transactionReceipts = receiptResponses.flatMap(
+          ({ receipts, request }) => {
+            validateReceiptsAndBlock(receipts, block, request, {
+              method: "eth_getBlockByNumber",
+              params: [block.number, true],
+            });
+            return receipts.filter((receipt) =>
+              requiredTransactionReceipts.has(receipt.transactionHash),
+            );
+          },
         );
 
         blockCount += 1;
