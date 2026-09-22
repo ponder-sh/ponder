@@ -97,8 +97,7 @@ export function Home() {
                 </div>
                 <CardTitle>Fast & lean</CardTitle>
                 <CardDescription>
-                  Ponder indexes <strong>~10x faster</strong> than Graph
-                  Protocol subgraphs
+                  Ponder indexes <strong>100x faster</strong> than The Graph
                 </CardDescription>
               </CardHeader>
             </Card>
