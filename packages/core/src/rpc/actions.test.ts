@@ -3,6 +3,7 @@ import { expect, test, vi } from "vitest";
 import type { SyncBlock } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { eth_getLogs, validateLogsAndBlock } from "./actions.js";
 
 const hash =
@@ -110,11 +111,11 @@ const createBlock = (block: { logsBloom: Hex }) =>
 test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
   expect(() =>
     validateLogsAndBlock(
-      1,
       [],
       createBlock({ logsBloom: nonEmptyLogsBloom }),
       logsRequest,
       blockRequest,
+      isAsyncExecutionChain(1),
     ),
   ).toThrow("The logs array has length 0");
 });
@@ -122,11 +123,11 @@ test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
 test("validateLogsAndBlock allows zero logsBloom with no logs", () => {
   expect(() =>
     validateLogsAndBlock(
-      1,
       [],
       createBlock({ logsBloom: zeroLogsBloom }),
       logsRequest,
       blockRequest,
+      isAsyncExecutionChain(1),
     ),
   ).not.toThrow();
 });
@@ -136,11 +137,11 @@ test.each([143, 10143, 43114, 43113])(
   (chainId) => {
     expect(() =>
       validateLogsAndBlock(
-        chainId,
         [],
         createBlock({ logsBloom: nonEmptyLogsBloom }),
         logsRequest,
         blockRequest,
+        isAsyncExecutionChain(chainId),
       ),
     ).not.toThrow();
   },
@@ -151,7 +152,6 @@ test.each([143, 10143, 43114, 43113])(
   (chainId) => {
     expect(() =>
       validateLogsAndBlock(
-        chainId,
         [
           {
             address: `0x${"1".repeat(40)}`,
@@ -168,6 +168,7 @@ test.each([143, 10143, 43114, 43113])(
         createBlock({ logsBloom: nonEmptyLogsBloom }),
         logsRequest,
         blockRequest,
+        isAsyncExecutionChain(chainId),
       ),
     ).toThrow("has a 'log.blockHash'");
   },
