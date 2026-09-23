@@ -11,17 +11,18 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set up node
+      uses: actions/setup-node@v5
+      with:
+        node-version: 24.8
+        registry-url: 'https://registry.npmjs.org'
+        package-manager-cache: false
+
     - name: Set up pnpm
       uses: pnpm/action-setup@v6.1.0
       with:
         version: 11.0.0
-
-    - name: Set up node
-      uses: actions/setup-node@v5
-      with:
-        cache: pnpm
-        node-version: 24.8
-        registry-url: 'https://registry.npmjs.org'
+        cache: true
 
     - name: Set up foundry
       if: inputs.foundry == 'true'
