@@ -379,10 +379,10 @@ export const validateLogsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
-  isisAsyncExecutionChain: boolean,
+  isAsyncExecutionChain: boolean,
 ) => {
   if (
-    isisAsyncExecutionChain === false &&
+    isAsyncExecutionChain === false &&
     block.logsBloom !== zeroLogsBloom &&
     logs.length === 0
   ) {
