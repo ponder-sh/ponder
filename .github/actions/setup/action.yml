@@ -16,6 +16,7 @@ runs:
       with:
         node-version: 24.8
         registry-url: 'https://registry.npmjs.org'
+        package-manager-cache: false
 
     - name: Set up pnpm
       uses: pnpm/action-setup@v6.1.0
