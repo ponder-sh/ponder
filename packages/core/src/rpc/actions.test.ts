@@ -99,7 +99,7 @@ const blockRequest = {
   { method: "eth_getBlockByHash" }
 >;
 
-const createBlock = (block: { logsBloom: Hex; settledHeight?: Hex | null }) =>
+const createBlock = (block: { logsBloom: Hex }) =>
   ({
     hash,
     number: "0x1",
@@ -110,6 +110,7 @@ const createBlock = (block: { logsBloom: Hex; settledHeight?: Hex | null }) =>
 test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
   expect(() =>
     validateLogsAndBlock(
+      1,
       [],
       createBlock({ logsBloom: nonEmptyLogsBloom }),
       logsRequest,
@@ -121,6 +122,7 @@ test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
 test("validateLogsAndBlock allows zero logsBloom with no logs", () => {
   expect(() =>
     validateLogsAndBlock(
+      1,
       [],
       createBlock({ logsBloom: zeroLogsBloom }),
       logsRequest,
@@ -129,22 +131,44 @@ test("validateLogsAndBlock allows zero logsBloom with no logs", () => {
   ).not.toThrow();
 });
 
-test("validateLogsAndBlock allows settlement-scoped logsBloom with no logs", () => {
-  expect(() =>
-    validateLogsAndBlock(
-      [],
-      createBlock({ logsBloom: nonEmptyLogsBloom, settledHeight: "0x1" }),
-      logsRequest,
-      blockRequest,
-    ),
-  ).not.toThrow();
+test.each([143, 10143, 43114, 43113])(
+  "validateLogsAndBlock allows non-empty bloom with no logs on chain %i",
+  (chainId) => {
+    expect(() =>
+      validateLogsAndBlock(
+        chainId,
+        [],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+      ),
+    ).not.toThrow();
+  },
+);
 
-  expect(() =>
-    validateLogsAndBlock(
-      [],
-      createBlock({ logsBloom: nonEmptyLogsBloom, settledHeight: null }),
-      logsRequest,
-      blockRequest,
-    ),
-  ).toThrow("The logs array has length 0");
-});
+test.each([143, 10143, 43114, 43113])(
+  "validateLogsAndBlock still rejects mismatched block hashes on chain %i",
+  (chainId) => {
+    expect(() =>
+      validateLogsAndBlock(
+        chainId,
+        [
+          {
+            address: `0x${"1".repeat(40)}`,
+            blockHash: `0x${"2".repeat(64)}`,
+            blockNumber: "0x1",
+            logIndex: "0x0",
+            data: "0x",
+            topics: [],
+            transactionHash: hash,
+            transactionIndex: "0x0",
+            removed: false,
+          },
+        ],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+      ),
+    ).toThrow("has a 'log.blockHash'");
+  },
+);

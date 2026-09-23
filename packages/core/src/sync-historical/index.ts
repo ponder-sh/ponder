@@ -57,6 +57,7 @@ import type {
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { isAsyncExecutionChain } from "@/utils/finality.js";
 import {
   getChunks,
   type Interval,
@@ -611,6 +612,7 @@ export const createHistoricalSync = (
                 method: "eth_getBlockByNumber",
                 params: [toHex(blockNumber), true],
               },
+              isAsyncExecutionChain(args.chain.id),
             );
           }
         }

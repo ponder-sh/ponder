@@ -19,10 +19,7 @@ import type {
   SyncTransactionReceipt,
 } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import {
-  isSettlementScopedLogsBloom,
-  zeroLogsBloom,
-} from "@/sync-realtime/bloom.js";
+import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { chunk } from "@/utils/chunk.js";
 import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
 
@@ -372,7 +369,7 @@ export const validateTransactionsAndBlock = (
  *
  * @dev Allows `log.transactionHash` to be `zeroHash`.
  * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
- * @dev Allows a settlement-scoped `block.logsBloom`, which does not describe `logs`.
+ * @dev Skips bloom validation on async-execution chains.
  */
 export const validateLogsAndBlock = (
   logs: SyncLog[],
@@ -382,11 +379,12 @@ export const validateLogsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
+  isisAsyncExecutionChain: boolean,
 ) => {
   if (
+    isisAsyncExecutionChain === false &&
     block.logsBloom !== zeroLogsBloom &&
-    logs.length === 0 &&
-    isSettlementScopedLogsBloom(block) === false
+    logs.length === 0
   ) {
     const error = new RpcProviderError(
       `Inconsistent RPC response data. The logs array has length 0, but the associated block has a non-empty 'block.logsBloom'.`,
