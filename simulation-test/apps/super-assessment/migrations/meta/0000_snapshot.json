@@ -44,10 +44,7 @@
       "compositePrimaryKeys": {
         "blocks_name_id_pk": {
           "name": "blocks_name_id_pk",
-          "columns": [
-            "name",
-            "id"
-          ]
+          "columns": ["name", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -114,10 +111,7 @@
       "compositePrimaryKeys": {
         "logs_name_id_pk": {
           "name": "logs_name_id_pk",
-          "columns": [
-            "name",
-            "id"
-          ]
+          "columns": ["name", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -159,10 +153,7 @@
       "compositePrimaryKeys": {
         "traces_name_id_pk": {
           "name": "traces_name_id_pk",
-          "columns": [
-            "name",
-            "id"
-          ]
+          "columns": ["name", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -210,10 +201,7 @@
       "compositePrimaryKeys": {
         "transaction_receipts_name_id_pk": {
           "name": "transaction_receipts_name_id_pk",
-          "columns": [
-            "name",
-            "id"
-          ]
+          "columns": ["name", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -261,10 +249,7 @@
       "compositePrimaryKeys": {
         "transactions_name_id_pk": {
           "name": "transactions_name_id_pk",
-          "columns": [
-            "name",
-            "id"
-          ]
+          "columns": ["name", "id"]
         }
       },
       "uniqueConstraints": {},
