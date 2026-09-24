@@ -1,5 +1,11 @@
 # ponder
 
+## 0.17.11
+
+### Patch Changes
+
+- [#2390](https://github.com/ponder-sh/ponder/pull/2390) [`eefc29d`](https://github.com/ponder-sh/ponder/commit/eefc29d77fb42c3d0e7edec8e422ad2d330f33e8) Thanks [@JamieLivi](https://github.com/JamieLivi)! - Fixed a bug that caused live indexing on Avalanche C-Chain after the Helicon upgrade to skip logs. Fixed incorrect RPC inconsistency errors and bloom warnings on Avalanche and Monad.
+
 ## 0.17.10
 
 ### Patch Changes
