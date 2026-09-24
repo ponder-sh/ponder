@@ -301,13 +301,14 @@ export const createRealtimeSync = (
     ////////
 
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
-    // Async-execution chains can expose blocks before logsBloom is execution-ready.
-    const shouldRequestLogs =
-      (isAsyncExecutionChain(args.chain.id) && logFilters.length > 0) ||
-      maybeBlockHeader.logsBloom === zeroLogsBloom ||
-      logFilters.some((filter) =>
-        isFilterInBloom({ block: maybeBlockHeader, filter }),
-      );
+    // Async-execution chains cannot reliably use blooms to filter or validate logs.
+    const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
+    const shouldRequestLogs = isAsyncExecution
+      ? logFilters.length > 0
+      : maybeBlockHeader.logsBloom === zeroLogsBloom ||
+        logFilters.some((filter) =>
+          isFilterInBloom({ block: maybeBlockHeader, filter }),
+        );
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
@@ -344,54 +345,57 @@ export const createRealtimeSync = (
               method: "eth_getBlockByHash",
               params: [block.hash, true],
             },
+        isAsyncExecutionChain(args.chain.id),
       );
 
-      // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
-      let isInvalidLogsBloom = false;
-      for (const log of logs) {
-        if (isInBloom(block.logsBloom, log.address) === false) {
-          isInvalidLogsBloom = true;
-        }
+      if (isAsyncExecutionChain(args.chain.id) === false) {
+        // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
+        let isInvalidLogsBloom = false;
+        for (const log of logs) {
+          if (isInBloom(block.logsBloom, log.address) === false) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[0] &&
-          isInBloom(block.logsBloom, log.topics[0]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[0] &&
+            isInBloom(block.logsBloom, log.topics[0]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[1] &&
-          isInBloom(block.logsBloom, log.topics[1]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[1] &&
+            isInBloom(block.logsBloom, log.topics[1]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[2] &&
-          isInBloom(block.logsBloom, log.topics[2]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[2] &&
+            isInBloom(block.logsBloom, log.topics[2]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (
-          log.topics[3] &&
-          isInBloom(block.logsBloom, log.topics[3]) === false
-        ) {
-          isInvalidLogsBloom = true;
-        }
+          if (
+            log.topics[3] &&
+            isInBloom(block.logsBloom, log.topics[3]) === false
+          ) {
+            isInvalidLogsBloom = true;
+          }
 
-        if (isInvalidLogsBloom) {
-          args.common.logger.warn({
-            msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
-            action: "fetch_block_data",
-            chain: args.chain.name,
-            chain_id: args.chain.id,
-            number: hexToNumber(block.number),
-            hash: block.hash,
-            logIndex: hexToNumber(log.logIndex),
-          });
-          break;
+          if (isInvalidLogsBloom) {
+            args.common.logger.warn({
+              msg: "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
+              action: "fetch_block_data",
+              chain: args.chain.name,
+              chain_id: args.chain.id,
+              number: hexToNumber(block.number),
+              hash: block.hash,
+              logIndex: hexToNumber(log.logIndex),
+            });
+            break;
+          }
         }
       }
 

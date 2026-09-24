@@ -1,7 +1,10 @@
 import type { Address, Hex } from "viem";
 import { expect, test, vi } from "vitest";
+import type { SyncBlock } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import { eth_getLogs } from "./actions.js";
+import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import { isAsyncExecutionChain } from "@/utils/finality.js";
+import { eth_getLogs, validateLogsAndBlock } from "./actions.js";
 
 const hash =
   "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
@@ -83,3 +86,90 @@ test("eth_getLogs skips empty address arrays", async () => {
   await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([]);
   expect(rpcRequest).not.toHaveBeenCalled();
 });
+
+const nonEmptyLogsBloom = `0x${"0".repeat(511)}1` as const;
+const logsRequest = {
+  method: "eth_getLogs",
+  params: [{ blockHash: hash }],
+} as const satisfies Extract<RequestParameters, { method: "eth_getLogs" }>;
+const blockRequest = {
+  method: "eth_getBlockByHash",
+  params: [hash, true],
+} as const satisfies Extract<
+  RequestParameters,
+  { method: "eth_getBlockByHash" }
+>;
+
+const createBlock = (block: { logsBloom: Hex }) =>
+  ({
+    hash,
+    number: "0x1",
+    transactions: [],
+    ...block,
+  }) as unknown as SyncBlock;
+
+test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: nonEmptyLogsBloom }),
+      logsRequest,
+      blockRequest,
+      isAsyncExecutionChain(1),
+    ),
+  ).toThrow("The logs array has length 0");
+});
+
+test("validateLogsAndBlock allows zero logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: zeroLogsBloom }),
+      logsRequest,
+      blockRequest,
+      isAsyncExecutionChain(1),
+    ),
+  ).not.toThrow();
+});
+
+test.each([143, 10143, 43114, 43113])(
+  "validateLogsAndBlock allows non-empty bloom with no logs on chain %i",
+  (chainId) => {
+    expect(() =>
+      validateLogsAndBlock(
+        [],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+        isAsyncExecutionChain(chainId),
+      ),
+    ).not.toThrow();
+  },
+);
+
+test.each([143, 10143, 43114, 43113])(
+  "validateLogsAndBlock still rejects mismatched block hashes on chain %i",
+  (chainId) => {
+    expect(() =>
+      validateLogsAndBlock(
+        [
+          {
+            address: `0x${"1".repeat(40)}`,
+            blockHash: `0x${"2".repeat(64)}`,
+            blockNumber: "0x1",
+            logIndex: "0x0",
+            data: "0x",
+            topics: [],
+            transactionHash: hash,
+            transactionIndex: "0x0",
+            removed: false,
+          },
+        ],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+        isAsyncExecutionChain(chainId),
+      ),
+    ).toThrow("has a 'log.blockHash'");
+  },
+);

@@ -369,6 +369,7 @@ export const validateTransactionsAndBlock = (
  *
  * @dev Allows `log.transactionHash` to be `zeroHash`.
  * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
+ * @dev Skips bloom validation on async-execution chains.
  */
 export const validateLogsAndBlock = (
   logs: SyncLog[],
@@ -378,8 +379,13 @@ export const validateLogsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
+  isAsyncExecutionChain: boolean,
 ) => {
-  if (block.logsBloom !== zeroLogsBloom && logs.length === 0) {
+  if (
+    isAsyncExecutionChain === false &&
+    block.logsBloom !== zeroLogsBloom &&
+    logs.length === 0
+  ) {
     const error = new RpcProviderError(
       `Inconsistent RPC response data. The logs array has length 0, but the associated block has a non-empty 'block.logsBloom'.`,
     );
