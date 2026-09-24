@@ -454,10 +454,7 @@ export const createIndexingStore = ({
                     const userRows = ponderRows.map((row) =>
                       row === null ? row : copyOnWrite(row),
                     );
-                    return Promise.resolve(userRows).then(
-                      onFulfilled,
-                      onRejected,
-                    );
+                    return userRows;
                   } else {
                     checkTableAccess(table, "insert", ponderValues, chainId);
 
@@ -492,10 +489,7 @@ export const createIndexingStore = ({
                       });
                     }
                     const userRow = copyOnWrite(ponderRow);
-                    return Promise.resolve(userRow).then(
-                      onFulfilled,
-                      onRejected,
-                    );
+                    return userRow;
                   }
                 })().then(onFulfilled, onRejected),
               catch: (onRejected): Promise<any> =>
