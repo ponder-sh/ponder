@@ -47,8 +47,11 @@ export const recordProfilePattern = ({
         return hint;
       }
       if (request.args === undefined || args.args === undefined) continue;
-      for (let i = 0; i < request.args.length; i++) {
-        if (eq(request.args[i] as any, args.args[i]) === false) continue;
+      if (request.args.length !== args.args.length) continue;
+      if (
+        request.args.some((arg, i) => eq(arg as any, args.args![i]) === false)
+      ) {
+        continue;
       }
       if ((request.blockNumber === "latest") !== (args.cache === "immutable")) {
         continue;
