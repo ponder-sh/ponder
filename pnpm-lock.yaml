@@ -785,9 +785,6 @@ importers:
       dataloader:
         specifier: ^2.2.2
         version: 2.2.2
-      detect-package-manager:
-        specifier: ^3.0.2
-        version: 3.0.2
       dotenv:
         specifier: ^16.3.1
         version: 16.4.5
