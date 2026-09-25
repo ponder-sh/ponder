@@ -72,7 +72,7 @@ CREATE TABLE "ponder_sync_1"."traces" (
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
 	"transaction_index" integer NOT NULL,
-	"trace_address" text NOT NULL,
+	"trace_address" integer[] NOT NULL,
 	"from" varchar(42) NOT NULL,
 	"to" varchar(42),
 	"input" text NOT NULL,

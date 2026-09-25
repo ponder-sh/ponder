@@ -136,7 +136,7 @@ export const encodeTrace = ({
   chainId: BigInt(chainId),
   blockNumber: hexToBigInt(block.number),
   transactionIndex: hexToNumber(transaction.transactionIndex),
-  traceAddress: trace.trace.traceAddress,
+  traceAddress: JSON.parse(trace.trace.traceAddress),
   from: toLowerCase(trace.trace.from),
   to: trace.trace.to ? toLowerCase(trace.trace.to) : null,
   input: trace.trace.input,

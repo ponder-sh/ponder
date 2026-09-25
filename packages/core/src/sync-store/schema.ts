@@ -157,7 +157,7 @@ export const traces = PONDER_SYNC.table(
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
     transactionIndex: t.integer().notNull(),
-    traceAddress: t.text().notNull(),
+    traceAddress: t.integer().array().notNull(),
     from: t.varchar({ length: 42 }).notNull().$type<Address>(),
     to: t.varchar({ length: 42 }).$type<Address>(),
     input: t.text().notNull().$type<Hex>(),
