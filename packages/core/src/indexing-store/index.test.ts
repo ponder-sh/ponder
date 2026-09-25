@@ -422,6 +422,62 @@ test("insert", async () => {
   });
 });
 
+test("insert then", async () => {
+  const { database } = await setupDatabaseServices();
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    const results: unknown[] = [];
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n })
+      .then((result) => {
+        results.push(result);
+      });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    results.length = 0;
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values([{ address: ALICE, balance: 10n }])
+      .then((result) => {
+        results.push(result);
+      });
+
+    expect(results).toHaveLength(1);
+  });
+});
+
 test("update", async () => {
   const { database } = await setupDatabaseServices();
 
