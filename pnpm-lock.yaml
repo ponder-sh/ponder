@@ -774,8 +774,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       abitype:
-        specifier: ^0.10.2
-        version: 0.10.3(typescript@5.9.3)(zod@3.23.8)
+        specifier: 1.2.3
+        version: 1.2.3(typescript@5.9.3)(zod@3.23.8)
       ansi-escapes:
         specifier: ^7.0.0
         version: 7.0.0
@@ -953,8 +953,8 @@ importers:
         specifier: ^4.0.2
         version: 4.0.2
       abitype:
-        specifier: ^0.10.2
-        version: 0.10.3(typescript@5.9.3)(zod@3.23.8)
+        specifier: 1.2.3
+        version: 1.2.3(typescript@5.9.3)(zod@3.23.8)
       dotenv:
         specifier: ^16.3.1
         version: 16.4.5
