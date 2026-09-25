@@ -1,5 +1,15 @@
 # ponder
 
+## 0.17.12
+
+### Patch Changes
+
+- [#2395](https://github.com/ponder-sh/ponder/pull/2395) [`b744cb1`](https://github.com/ponder-sh/ponder/commit/b744cb1678285df9e9a45e4e5ec704eaabb2f4ee) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `context.client` prediction.
+
+- [#2397](https://github.com/ponder-sh/ponder/pull/2397) [`0ee6c25`](https://github.com/ponder-sh/ponder/commit/0ee6c251ddcd82df4ae7eaac219401bef0b5f774) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused changes to a row returned by `context.db` to be lost when the row was passed back to `context.db.insert()` or `context.db.update()`. The original values were written instead.
+
+- [#2398](https://github.com/ponder-sh/ponder/pull/2398) [`f9859e7`](https://github.com/ponder-sh/ponder/commit/f9859e786d28e73672574623827a654515516d7b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused a callback passed to `.then()` on `context.db.insert()` to run twice.
+
 ## 0.17.11
 
 ### Patch Changes
