@@ -91,7 +91,6 @@ export type TransactionFilter<
   sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
-  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   hasTransactionReceipt: true;
@@ -113,7 +112,6 @@ export type TraceFilter<
   toAddress: FilterAddress<toFactory>;
   functionSelector: Hex;
   callType: Trace["type"] | undefined;
-  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   hasTransactionReceipt: boolean;
@@ -156,7 +154,6 @@ export type TransferFilter<
   sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
-  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   hasTransactionReceipt: boolean;
@@ -435,7 +432,6 @@ export type RequiredTraceColumns =
   | "output"
   | "value"
   | "type"
-  | "error"
   | "traceAddress";
 export type RequiredLogColumns = keyof Log;
 

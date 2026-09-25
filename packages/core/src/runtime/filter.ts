@@ -408,8 +408,6 @@ export const isTransactionFilterMatched = ({
     return false;
   }
 
-  // NOTE: `filter.includeReverted` is intentionally ignored
-
   return true;
 };
 
@@ -459,7 +457,7 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  // NOTE: `filter.callType` and `filter.includeReverted` is intentionally ignored
+  // NOTE: `filter.callType` is intentionally ignored
 
   return true;
 };
@@ -511,8 +509,6 @@ export const isTransferFilterMatched = ({
   ) {
     return false;
   }
-
-  // NOTE: `filter.includeReverted` is intentionally ignored
 
   return true;
 };
@@ -701,8 +697,6 @@ export const defaultTraceInclude: (keyof Trace)[] = [
   "gasUsed",
   "input",
   "output",
-  "error",
-  "revertReason",
   "value",
 ];
 
@@ -713,7 +707,6 @@ export const requiredTraceInclude: RequiredTraceColumns[] = [
   "to",
   "input",
   "output",
-  "error",
   "value",
 ];
 

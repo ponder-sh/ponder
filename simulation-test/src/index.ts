@@ -30,7 +30,6 @@ import {
   inArray,
   is,
   isNotNull,
-  isNull,
   lte,
   not,
   or,
@@ -529,9 +528,6 @@ const onBuild = async (app: PonderApp) => {
                 "to",
                 filter.toAddress,
               ),
-              filter.includeReverted
-                ? undefined
-                : isNull(PONDER_SYNC.traces.error),
               filter.callType
                 ? eq(PONDER_SYNC.traces.type, filter.callType)
                 : undefined,
@@ -771,9 +767,6 @@ const onBuild = async (app: PonderApp) => {
               ),
               isNotNull(PONDER_SYNC.traces.value),
               gt(PONDER_SYNC.traces.value, 0n),
-              filter.includeReverted
-                ? undefined
-                : isNull(PONDER_SYNC.traces.error),
               ...blockConditions,
             );
 
@@ -976,7 +969,7 @@ const onBuild = async (app: PonderApp) => {
             break;
           }
           case "trace": {
-            // Note: `includeReverted` and `callType` not supported
+            // Note: `callType` not supported
             const condition = and(
               eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
               getAddressCondition(
@@ -1116,7 +1109,6 @@ const onBuild = async (app: PonderApp) => {
             break;
           }
           case "transfer": {
-            // Note: `includeReverted` not supported
             const condition = and(
               eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
               getAddressCondition(

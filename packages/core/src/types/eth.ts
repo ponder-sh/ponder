@@ -193,10 +193,6 @@ export type Trace = {
   input: Hex;
   /** Output of the call, if any. */
   output?: Hex;
-  /** Error message, if any. */
-  error?: string;
-  /** Why this call reverted, if it reverted. */
-  revertReason?: string;
   /** Value transferred. */
   value: bigint | null;
   /** Path through the nested call tree. */

@@ -81,8 +81,6 @@ CREATE TABLE "ponder_sync_1"."traces" (
 	"type" text NOT NULL,
 	"gas" numeric(78,0) NOT NULL,
 	"gas_used" numeric(78,0) NOT NULL,
-	"error" text,
-	"revert_reason" text,
 	CONSTRAINT "traces_pkey" PRIMARY KEY("chain_id","block_number","transaction_index","trace_address")
 );
 --> statement-breakpoint
@@ -137,7 +135,7 @@ INSERT INTO "ponder_sync_1"."logs" SELECT * FROM "ponder_sync"."logs";
 --> statement-breakpoint
 INSERT INTO "ponder_sync_1"."rpc_request_results" SELECT * FROM "ponder_sync"."rpc_request_results";
 --> statement-breakpoint
-INSERT INTO "ponder_sync_1"."intervals" SELECT * FROM "ponder_sync"."intervals";
+INSERT INTO "ponder_sync_1"."intervals" SELECT * FROM "ponder_sync"."intervals" WHERE "fragment_id" NOT LIKE 'trace\_%' AND "fragment_id" NOT LIKE 'transfer\_%';
 --> statement-breakpoint
 INSERT INTO "ponder_sync_1"."factories" OVERRIDING SYSTEM VALUE SELECT * FROM "ponder_sync"."factories";
 --> statement-breakpoint
