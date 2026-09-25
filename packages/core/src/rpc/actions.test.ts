@@ -341,7 +341,7 @@ test("standardizeQueryTransactions validates requested block relations", () => {
     from: address,
     status: "0x1",
   };
-  const params = { fields: { transactions: true, blocks: true } };
+  const params = { fields: { transactions: "all", blocks: "all" } };
 
   expect(() =>
     standardizeQueryTransactions(
@@ -406,7 +406,7 @@ test("standardizeQueryLogs preserves nullable fields and defaults identity field
   });
 });
 
-test("standardizeQueryTraces validates raw metadata and keeps raw status", () => {
+test("standardizeQueryTraces validates raw metadata and keeps raw reverted", () => {
   const response = {
     ...envelope,
     data: {
@@ -417,8 +417,7 @@ test("standardizeQueryTraces validates raw metadata and keeps raw status", () =>
           transactionHash: hash,
           transactionIndex: "0x0",
           traceAddress: [],
-          subcalls: "0x0",
-          status: "0x1",
+          reverted: false,
           type: "CALL",
           from: address,
           input: "0x",
@@ -432,7 +431,7 @@ test("standardizeQueryTraces validates raw metadata and keeps raw status", () =>
   expect(response.data.traces[0]).toMatchObject({
     gas: "0x0",
     gasUsed: "0x0",
-    status: "0x1",
+    reverted: false,
   });
   expect(() =>
     standardizeQueryTraces(
@@ -461,7 +460,7 @@ test("standardizeQueryTransfers validates raw metadata and numeric bounds", () =
           from: address,
           to: null,
           value: "0x2",
-          status: "0x0",
+          reverted: false,
         },
       ],
     },
@@ -471,7 +470,7 @@ test("standardizeQueryTransfers validates raw metadata and numeric bounds", () =
   expect(response.data.transfers[0]).toMatchObject({
     to: null,
     value: "0x2",
-    status: "0x0",
+    reverted: false,
   });
 
   expect(() =>
@@ -640,11 +639,11 @@ test("standardizeQuery relations use block and transaction primary keys", () => 
     status: "0x1",
   };
   const fields = {
-    logs: true,
-    traces: true,
-    transfers: true,
-    transactions: true,
-    blocks: true,
+    logs: "all",
+    traces: "all",
+    transfers: "all",
+    transactions: "all",
+    blocks: "all",
   };
 
   expect(() =>

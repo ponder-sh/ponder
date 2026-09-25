@@ -62,7 +62,7 @@
     "@escape.tech/graphql-armor-max-depth": "^2.2.0",
     "@escape.tech/graphql-armor-max-tokens": "^2.3.0",
     "@hono/node-server": "1.19.5",
-    "@monad-crypto/query": "0.0.1-snapshot.33",
+    "@monad-crypto/query": "0.0.0-eth-query-20260925175050",
     "@ponder/utils": "workspace:*",
     "abitype": "^0.10.2",
     "ansi-escapes": "^7.0.0",

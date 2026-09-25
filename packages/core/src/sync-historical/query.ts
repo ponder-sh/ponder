@@ -267,8 +267,8 @@ export const createQueryHistoricalSync = (
       const insertedBlocks = new Set<Hex>();
       const insertedTransactions = new Set<`${Hex}_${Hex}`>();
       const insertedTransactionReceipts = new Set<`${Hex}_${Hex}`>();
-      const insertedTraces = new Set<`${Hex}_${Hex}_${number}`>();
-      const insertedTransfers = new Set<`${Hex}_${Hex}_${number}`>();
+      const insertedTraces = new Set<`${Hex}_${Hex}_${string}`>();
+      const insertedTransfers = new Set<`${Hex}_${Hex}_${string}`>();
       const insertedLogs = new Set<`${Hex}_${Hex}`>();
 
       const requestGenerators: ReturnType<
@@ -712,12 +712,8 @@ export const createQueryHistoricalSync = (
                       transactionsByHash.set(transaction.hash, transaction);
                     }
 
-                    const sortedTraces = response.data.traces.sort((a, b) =>
-                      String(a.traceAddress) > String(b.traceAddress) ? 1 : -1,
-                    );
-
-                    for (const [index, queryTrace] of sortedTraces.entries()) {
-                      const trace = queryTraceToSyncTrace(queryTrace, index);
+                    for (const queryTrace of response.data.traces) {
+                      const trace = queryTraceToSyncTrace(queryTrace);
                       const transaction = transactionsByHash.get(
                         trace.transactionHash,
                       )!;
@@ -796,7 +792,7 @@ export const createQueryHistoricalSync = (
                       })
                       .filter(({ trace, transaction }) => {
                         const key =
-                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
+                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.traceAddress}` as const;
                         if (insertedTraces.has(key)) return false;
                         insertedTraces.add(key);
                         return true;
@@ -889,18 +885,8 @@ export const createQueryHistoricalSync = (
                       transactionsByHash.set(transaction.hash, transaction);
                     }
 
-                    const sortedTransfers = response.data.transfers.sort(
-                      (a, b) =>
-                        String(a.traceAddress) > String(b.traceAddress)
-                          ? 1
-                          : -1,
-                    );
-
-                    for (const [
-                      index,
-                      queryTransfer,
-                    ] of sortedTransfers.entries()) {
-                      const trace = queryTraceToSyncTrace(queryTransfer, index);
+                    for (const queryTransfer of response.data.transfers) {
+                      const trace = queryTraceToSyncTrace(queryTransfer);
                       const transaction = transactionsByHash.get(
                         trace.transactionHash,
                       )!;
@@ -979,7 +965,7 @@ export const createQueryHistoricalSync = (
                       })
                       .filter(({ trace, transaction }) => {
                         const key =
-                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.index}` as const;
+                          `${transaction.blockNumber}_${transaction.transactionIndex}_${trace.trace.traceAddress}` as const;
                         if (insertedTransfers.has(key)) return false;
                         insertedTransfers.add(key);
                         return true;
@@ -1106,13 +1092,11 @@ const queryTransactionToSyncTransactionReceipt = (
 
 const queryLogToSyncLog = (log: RpcLogResponse): SyncLog => log;
 
-const queryTraceToSyncTrace = (
-  trace: RpcCallTraceResponse,
-  index: number,
-): SyncTrace => {
+const queryTraceToSyncTrace = (trace: RpcCallTraceResponse): SyncTrace => {
   // @ts-expect-error
   const syncTrace = trace as SyncTrace["trace"];
   const transactionHash = trace.transactionHash;
+  const traceAddress = JSON.stringify(trace.traceAddress);
 
   // @ts-expect-error
   trace.blockHash = undefined;
@@ -1121,14 +1105,10 @@ const queryTraceToSyncTrace = (
   // @ts-expect-error
   trace.transactionIndex = undefined;
   // @ts-expect-error
-  trace.traceAddress = undefined;
+  trace.reverted = undefined;
 
-  syncTrace.index = index;
-  syncTrace.subcalls = 0;
+  syncTrace.traceAddress = traceAddress;
   if (syncTrace.input === undefined) syncTrace.input = "0x";
-  if (trace.status === "0x0" && syncTrace.error === undefined) {
-    syncTrace.error = "execution reverted";
-  }
 
   return {
     transactionHash,
@@ -1252,7 +1232,7 @@ const mergeFiltersToQueryRequests = (
       case "block": {
         blockRequestParams.push({
           ...range,
-          fields: { blocks: true },
+          fields: { blocks: "all" },
           filters: [filter],
         });
         break;
@@ -1311,7 +1291,7 @@ const mergeFiltersToQueryRequests = (
           transactionRequestParams.push({
             ...range,
             filter: transactionRequestFilter,
-            fields: { blocks: true, transactions: true },
+            fields: { blocks: "all", transactions: "all" },
             filters: [filter],
             factories: {
               from: getFactoryId(filter.fromAddress),
@@ -1377,7 +1357,7 @@ const mergeFiltersToQueryRequests = (
           logRequestParams.push({
             ...range,
             filter: logRequestFilter,
-            fields: { blocks: true, transactions: true, logs: true },
+            fields: { blocks: "all", transactions: "all", logs: "all" },
             filters: [filter],
             factories: {
               address: getFactoryId(filter.address),
@@ -1441,7 +1421,7 @@ const mergeFiltersToQueryRequests = (
           traceRequestParams.push({
             ...range,
             filter: traceRequestFilter,
-            fields: { blocks: true, transactions: true, traces: true },
+            fields: { blocks: "all", transactions: "all", traces: "all" },
             filters: [filter],
             factories: {
               from: getFactoryId(filter.fromAddress),
@@ -1505,7 +1485,7 @@ const mergeFiltersToQueryRequests = (
           transferRequestParams.push({
             ...range,
             filter: transferRequestFilter,
-            fields: { blocks: true, transactions: true, transfers: true },
+            fields: { blocks: "all", transactions: "all", transfers: "all" },
             filters: [filter],
             factories: {
               from: getFactoryId(filter.fromAddress),

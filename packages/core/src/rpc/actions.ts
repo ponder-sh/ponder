@@ -2098,7 +2098,6 @@ export const standardizeQueryTraces = (
       "transactionHash",
       "transactionIndex",
       "traceAddress",
-      "status",
       "type",
       "from",
       "input",
@@ -2369,7 +2368,6 @@ export const standardizeQueryTransfers = (
       "traceAddress",
       "from",
       "value",
-      "status",
     ] as const) {
       if (transfer[property] === undefined) {
         const error = new RpcProviderError(

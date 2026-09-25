@@ -141,7 +141,7 @@ test("syncs factory-dependent filters through the factory frontier", async () =>
       async ({ method, params }: { method: string; params: unknown[] }) => {
         requests.push({ method, params: structuredClone(params) });
         const request = params[0] as {
-          fields?: { blocks?: boolean };
+          fields?: { blocks?: unknown };
           fromBlock: `0x${string}`;
         };
 
@@ -154,7 +154,7 @@ test("syncs factory-dependent filters through the factory frontier", async () =>
           };
         }
 
-        if (method === "eth_queryLogs" && request.fields?.blocks !== true) {
+        if (method === "eth_queryLogs" && request.fields?.blocks !== "all") {
           factoryRequestCount++;
           return factoryRequestCount === 1
             ? firstFactoryPage
@@ -236,8 +236,8 @@ test("syncs factory-dependent filters through the factory frontier", async () =>
       requests.find(
         ({ method, params }) =>
           method === "eth_queryLogs" &&
-          (params[0] as { fields?: { blocks?: boolean } }).fields?.blocks ===
-            true,
+          (params[0] as { fields?: { blocks?: unknown } }).fields?.blocks ===
+            "all",
       ),
     ).toMatchObject({
       params: [
@@ -275,8 +275,8 @@ test("syncs factory-dependent filters through the factory frontier", async () =>
       ({ method, params }) =>
         method === "eth_queryLogs" &&
         (params[0] as { fromBlock?: string }).fromBlock === "0x2" &&
-        (params[0] as { fields?: { blocks?: boolean } }).fields?.blocks ===
-          true,
+        (params[0] as { fields?: { blocks?: unknown } }).fields?.blocks ===
+          "all",
     ),
   ).toMatchObject({
     params: [
@@ -956,8 +956,7 @@ test("filters and persists raw query responses", async () => {
     transactionHash: HASH,
     transactionIndex: "0x0",
     traceAddress: [],
-    subcalls: "0x0",
-    status: "0x0",
+    reverted: false,
     type: "CALL",
     from: FACTORY,
     to: CHILD,
@@ -970,7 +969,7 @@ test("filters and persists raw query responses", async () => {
     transactionHash: HASH,
     transactionIndex: "0x0",
     traceAddress: [0],
-    status: "0x0",
+    reverted: false,
     from: FACTORY,
     to: CHILD,
     value: "0x1",
@@ -1120,9 +1119,8 @@ test("filters and persists raw query responses", async () => {
           trace: expect.objectContaining({
             transactionHash: HASH,
             trace: expect.objectContaining({
-              error: "execution reverted",
               input: "0x12345678",
-              subcalls: 0,
+              traceAddress: "[]",
             }),
           }),
           block: expect.objectContaining({ number: "0x1" }),
@@ -1141,9 +1139,8 @@ test("filters and persists raw query responses", async () => {
           trace: expect.objectContaining({
             transactionHash: HASH,
             trace: expect.objectContaining({
-              error: "execution reverted",
               input: "0x",
-              subcalls: 0,
+              traceAddress: "[0]",
             }),
           }),
           block: expect.objectContaining({ number: "0x1" }),
