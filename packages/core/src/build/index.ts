@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isMainThread } from "node:worker_threads";
 import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { glob } from "glob";
@@ -153,12 +154,39 @@ export const createBuild = async ({
     },
   };
 
+  // Define the directories and files that `ponder dev` does not watch.
+  const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
+  const ignoredFiles = [
+    path.join(common.options.rootDir, "ponder-env.d.ts"),
+    path.join(common.options.rootDir, ".env.local"),
+  ];
+
+  const isFileIgnored = (filePath: string) => {
+    const isInIgnoredDir = ignoredDirs.some((dir) => {
+      const rel = path.relative(dir, filePath);
+      return !rel.startsWith("..") && !path.isAbsolute(rel);
+    });
+
+    const isIgnoredFile = ignoredFiles.includes(filePath);
+    return isInIgnoredDir || isIgnoredFile;
+  };
+
   const viteDevServer = await createServer({
     root: common.options.rootDir,
+    // Do not load a "vite.config.ts" file from the project root.
+    configFile: false,
     cacheDir: path.join(common.options.ponderDir, "vite"),
     publicDir: false,
     customLogger: viteLogger,
-    server: { hmr: false },
+    server: {
+      hmr: false,
+      ws: false,
+      // Only `ponder dev` uses the file watcher. Isolated worker threads do not.
+      watch:
+        common.options.command === "dev" && isMainThread
+          ? { ignored: isFileIgnored }
+          : null,
+    },
     plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common.options)],
   });
 
@@ -569,29 +597,7 @@ export const createBuild = async ({
       };
     },
     async startDev({ onReload }) {
-      // Define the directories and files to ignore
-      const ignoredDirs = [
-        common.options.generatedDir,
-        common.options.ponderDir,
-      ];
-      const ignoredFiles = [
-        path.join(common.options.rootDir, "ponder-env.d.ts"),
-        path.join(common.options.rootDir, ".env.local"),
-      ];
-
-      const isFileIgnored = (filePath: string) => {
-        const isInIgnoredDir = ignoredDirs.some((dir) => {
-          const rel = path.relative(dir, filePath);
-          return !rel.startsWith("..") && !path.isAbsolute(rel);
-        });
-
-        const isIgnoredFile = ignoredFiles.includes(filePath);
-        return isInIgnoredDir || isIgnoredFile;
-      };
-
       const onFileChange = async (_file: string) => {
-        if (isFileIgnored(_file)) return;
-
         // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
         const file = toFilePath(
           normalizeModuleId(_file),

@@ -849,8 +849,8 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.30.0)
       vite-node:
-        specifier: 1.0.2
-        version: 1.0.2(@types/node@22.20.1)(lightningcss@1.30.0)
+        specifier: 1.6.1
+        version: 1.6.1(@types/node@22.20.1)(lightningcss@1.30.0)
       vite-tsconfig-paths:
         specifier: 4.3.1
         version: 4.3.1(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.30.0))
@@ -7623,11 +7623,6 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
-
-  vite-node@1.0.2:
-    resolution: {integrity: sha512-h7BbMJf46fLvFW/9Ygo3snkIBEHFh6fHpB4lge98H5quYrDhPFeI3S0LREz328uqPWSnii2yeJXktQ+Pmqk5BQ==}
-    engines: {node: ^18.0.0 || >=20.0.0}
-    hasBin: true
 
   vite-node@1.6.1:
     resolution: {integrity: sha512-YAXkfvGtuTzwWbDSACdJSg4A4DZiAqckWe90Zapc/sEX3XvHcw1NdurM/6od8J207tSDqNbSsgdCacBgvJKFuA==}
@@ -14848,24 +14843,6 @@ snapshots:
       - bufferutil
       - utf-8-validate
       - zod
-
-  vite-node@1.0.2(@types/node@22.20.1)(lightningcss@1.30.0):
-    dependencies:
-      cac: 6.7.14
-      debug: 4.4.0
-      pathe: 1.1.1
-      picocolors: 1.1.1
-      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.30.0)
-    transitivePeerDependencies:
-      - '@types/node'
-      - less
-      - lightningcss
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
 
   vite-node@1.6.1(@types/node@22.20.1)(lightningcss@1.30.0):
     dependencies:
