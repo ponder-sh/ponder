@@ -66,7 +66,6 @@
     "abitype": "^0.10.2",
     "ansi-escapes": "^7.0.0",
     "commander": "^12.0.0",
-    "conf": "^12.0.0",
     "dataloader": "^2.2.2",
     "detect-package-manager": "^3.0.2",
     "dotenv": "^16.3.1",
