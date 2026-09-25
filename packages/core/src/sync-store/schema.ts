@@ -166,8 +166,6 @@ export const traces = PONDER_SYNC.table(
     type: t.text().notNull(),
     gas: numeric78().notNull(),
     gasUsed: numeric78().notNull(),
-    error: t.text(),
-    revertReason: t.text(),
   }),
   (table) => [
     primaryKey({

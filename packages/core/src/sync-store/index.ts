@@ -6,7 +6,6 @@ import {
   eq,
   gte,
   inArray,
-  isNull,
   lt,
   lte,
   or,
@@ -916,7 +915,6 @@ export const createSyncStore = ({
         output: PONDER_SYNC.traces.output,
         value: PONDER_SYNC.traces.value,
         type: PONDER_SYNC.traces.type,
-        error: PONDER_SYNC.traces.error,
         traceAddress: PONDER_SYNC.traces.traceAddress,
       };
 
@@ -1190,14 +1188,6 @@ export const createSyncStore = ({
 
         if (trace.output === null) {
           internalTrace.output = undefined;
-        }
-
-        if (trace.error === null) {
-          internalTrace.error = undefined;
-        }
-
-        if (trace.revertReason === null) {
-          internalTrace.revertReason = undefined;
         }
       }
 
@@ -1589,10 +1579,6 @@ export const transferFilter = (filter: TransferFilter): SQL => {
   conditions.push(addressFilter(filter.fromAddress, PONDER_SYNC.traces.from));
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.traces.to));
 
-  if (filter.includeReverted === false) {
-    conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
-
   return and(...conditions)!;
 };
 
@@ -1601,10 +1587,6 @@ export const traceFilter = (filter: TraceFilter): SQL => {
 
   conditions.push(addressFilter(filter.fromAddress, PONDER_SYNC.traces.from));
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.traces.to));
-
-  if (filter.includeReverted === false) {
-    conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
 
   if (filter.callType !== undefined) {
     conditions.push(eq(PONDER_SYNC.traces.type, filter.callType));

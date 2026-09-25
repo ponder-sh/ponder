@@ -551,6 +551,54 @@ test("migrateSync() accepts the latest legacy migration", async () => {
   await context.common.shutdown.kill();
 });
 
+test("migrateSync() excludes trace and transfer intervals from ponder_sync", async () => {
+  const database = createDatabase({
+    common: context.common,
+    namespace: { schema: "public", viewsSchema: undefined },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "multichain",
+    },
+    schemaBuild: {
+      schema: {},
+      statements: buildSchema({
+        schema: {},
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrateSync();
+  await database.adminQB.wrap((db) =>
+    db.execute(sql`DROP SCHEMA ponder_sync_1 CASCADE`),
+  );
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`INSERT INTO ponder_sync.intervals (fragment_id, chain_id, blocks) VALUES
+        ('log_1_null_null_null_null_null_0', 1, '{[1,10]}'),
+        ('transaction_1_null_null', 1, '{[1,10]}'),
+        ('trace_1_null_null_null_0', 1, '{[1,10]}'),
+        ('transfer_1_null_null_0', 1, '{[1,10]}')`,
+    ),
+  );
+
+  await database.migrateSync();
+
+  const { rows } = await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`SELECT fragment_id FROM ponder_sync_1.intervals ORDER BY fragment_id`,
+    ),
+  );
+  expect(rows).toEqual([
+    { fragment_id: "log_1_null_null_null_null_null_0" },
+    { fragment_id: "transaction_1_null_null" },
+  ]);
+
+  // Skip the metadata unlock because these tests only initialize the sync schema.
+  context.common.options.command = "list";
+  await context.common.shutdown.kill();
+});
+
 test("migrateSync() rejects outdated legacy migrations", async () => {
   const database = createDatabase({
     common: context.common,

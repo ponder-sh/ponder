@@ -32,6 +32,51 @@ test("debug trace actions rebuild traceAddress from the call tree", async () => 
   ]);
 });
 
+test("debug trace actions exclude reverted traces and their children", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({
+          calls: [
+            frame({ error: "execution reverted", calls: [frame()] }),
+            frame({
+              calls: [
+                frame({ error: "out of gas", revertReason: "reason" }),
+                frame(),
+              ],
+            }),
+          ],
+        }),
+      },
+      {
+        txHash: hash,
+        result: frame({ error: "execution reverted", calls: [frame()] }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  const traces = await debug_traceBlockByNumber(rpc, [
+    "0x1",
+    { tracer: "callTracer" },
+  ]);
+
+  expect(traces.map((trace) => trace.trace.traceAddress)).toStrictEqual([
+    "[]",
+    "[1]",
+    "[1,1]",
+  ]);
+});
+
 const hash =
   "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
 const address = "0x2222222222222222222222222222222222222222" as const;

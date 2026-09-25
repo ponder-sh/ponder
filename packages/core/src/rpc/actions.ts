@@ -194,12 +194,6 @@ export const debug_traceBlockByNumber = (
       }
 
       const result: SyncTrace[] = [];
-      // all traces that weren't included because the trace has an error
-      // or the trace's parent has an error, mapped to the error string
-      const failedTraces = new Map<
-        (typeof traces)[number]["result"],
-        { error?: string; revertReason?: string }
-      >();
 
       const dfs = (
         frames: (typeof traces)[number]["result"][],
@@ -208,19 +202,8 @@ export const debug_traceBlockByNumber = (
         parentTraceAddress: number[],
       ) => {
         for (const [index, frame] of frames.entries()) {
-          if (frame.error !== undefined) {
-            failedTraces.set(frame, {
-              error: frame.error,
-              revertReason: frame.revertReason,
-            });
-          } else if (parentFrame && failedTraces.has(parentFrame)) {
-            const error = failedTraces.get(parentFrame)!;
-
-            frame.error = error.error;
-            frame.revertReason = error.revertReason;
-
-            failedTraces.set(frame, error);
-          }
+          // Note: Reverted traces and all of their children are excluded.
+          if (frame.error !== undefined) continue;
 
           const traceAddress = parentFrame
             ? [...parentTraceAddress, index]
@@ -269,12 +252,6 @@ export const debug_traceBlockByHash = (
       }
 
       const result: SyncTrace[] = [];
-      // all traces that weren't included because the trace has an error
-      // or the trace's parent has an error, mapped to the error string
-      const failedTraces = new Map<
-        (typeof traces)[number]["result"],
-        { error?: string; revertReason?: string }
-      >();
 
       const dfs = (
         frames: (typeof traces)[number]["result"][],
@@ -283,19 +260,8 @@ export const debug_traceBlockByHash = (
         parentTraceAddress: number[],
       ) => {
         for (const [index, frame] of frames.entries()) {
-          if (frame.error !== undefined) {
-            failedTraces.set(frame, {
-              error: frame.error,
-              revertReason: frame.revertReason,
-            });
-          } else if (parentFrame && failedTraces.has(parentFrame)) {
-            const error = failedTraces.get(parentFrame)!;
-
-            frame.error = error.error;
-            frame.revertReason = error.revertReason;
-
-            failedTraces.set(frame, error);
-          }
+          // Note: Reverted traces and all of their children are excluded.
+          if (frame.error !== undefined) continue;
 
           const traceAddress = parentFrame
             ? [...parentTraceAddress, index]
@@ -480,20 +446,6 @@ export const validateTracesAndBlock = (
       error.stack = undefined;
       throw error;
     }
-  }
-
-  // Use the fact that any transaction produces a trace to validate.
-  if (block.transactions.length !== 0 && traces.length === 0) {
-    const error = new RpcProviderError(
-      `Inconsistent RPC response data. The traces array has length 0, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
-    );
-    error.meta = [
-      "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(tracesRequest),
-    ];
-    error.stack = undefined;
-    throw error;
   }
 };
 

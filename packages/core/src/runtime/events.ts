@@ -187,9 +187,7 @@ export const buildEvents = ({
               childAddresses: childAddresses.get(filter.toAddress.id)!,
             })
           : true) &&
-        (filter.includeReverted
-          ? true
-          : transactionReceipt.status === "success")
+        transactionReceipt.status === "success"
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
@@ -320,10 +318,7 @@ export const buildEvents = ({
               childAddresses: childAddresses.get(filter.toAddress.id)!,
             })
           : true) &&
-        (filter.callType === undefined
-          ? true
-          : filter.callType === trace.type) &&
-        (filter.includeReverted ? true : trace.error === undefined)
+        (filter.callType === undefined ? true : filter.callType === trace.type)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
@@ -372,8 +367,7 @@ export const buildEvents = ({
               blockNumber,
               childAddresses: childAddresses.get(filter.toAddress.id)!,
             })
-          : true) &&
-        (filter.includeReverted ? true : trace.error === undefined)
+          : true)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
@@ -881,7 +875,5 @@ export const syncTraceToInternal = ({
   gasUsed: hexToBigInt(trace.trace.gasUsed),
   input: trace.trace.input,
   output: trace.trace.output,
-  error: trace.trace.error,
-  revertReason: trace.trace.revertReason,
   value: trace.trace.value ? hexToBigInt(trace.trace.value) : null,
 });
