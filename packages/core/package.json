@@ -78,7 +78,7 @@
     "pg-copy-streams": "^6.0.6",
     "pg-query-emscripten": "5.1.0",
     "picocolors": "^1.1.1",
-    "pino": "^8.16.2",
+    "pino": "10.3.1",
     "prom-client": "^15.0.0",
     "semver": "^7.7.1",
     "stacktrace-parser": "^0.1.10",

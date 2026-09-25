@@ -1,5 +1,11 @@
 import pc from "picocolors";
-import { type DestinationStream, type LevelWithSilent, pino } from "pino";
+import {
+  type DestinationStream,
+  type LevelWithSilent,
+  type Logger as PinoLogger,
+  pino,
+  stdSerializers,
+} from "pino";
 import type { Prettify } from "@/types/utils.js";
 import { formatEta } from "@/utils/format.js";
 
@@ -67,7 +73,7 @@ export function createLogger({
     },
   };
 
-  const _createLogger = (logger: pino.Logger): Logger => {
+  const _createLogger = (logger: PinoLogger): Logger => {
     return {
       error<T extends Omit<Log, "level" | "time">>(
         options: T,
@@ -120,19 +126,19 @@ export function createLogger({
         logger.trace(options);
       },
       child: (bindings) => _createLogger(logger.child(bindings)),
-      // @ts-expect-error
-      flush: () => new Promise<void>(logger.flush),
+      flush: () =>
+        new Promise<void>((resolve) => logger.flush(() => resolve())),
     };
   };
 
-  const errorSerializer = pino.stdSerializers.wrapErrorSerializer((error) => {
+  const errorSerializer = stdSerializers.wrapErrorSerializer((error) => {
     error.meta = Array.isArray(error.meta) ? error.meta.join("\n") : error.meta;
     // @ts-expect-error
     error.type = undefined;
     return error;
   });
 
-  let logger: pino.Logger;
+  let logger: PinoLogger;
 
   if (mode === "pretty") {
     logger = pino(
