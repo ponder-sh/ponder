@@ -159,3 +159,33 @@ test("copy timestamp", () => {
 
   expect(copiedObj.timestamp).toBeInstanceOf(Date);
 });
+
+test("copy keeps writes made through copyOnWrite", () => {
+  const obj = { a: 1, b: 2 };
+  const copiedObj = copyOnWrite(obj);
+
+  copiedObj.a = 3;
+
+  const fast = copy(copiedObj, true);
+  const slow = copy(copiedObj, false);
+
+  expect(fast).toStrictEqual({ a: 3, b: 2 });
+  expect(slow).toStrictEqual({ a: 3, b: 2 });
+  expect(copy([copiedObj], false)).toStrictEqual([{ a: 3, b: 2 }]);
+  expect(copy({ nested: copiedObj }, false)).toStrictEqual({
+    nested: { a: 3, b: 2 },
+  });
+  expect(obj).toStrictEqual({ a: 1, b: 2 });
+});
+
+test("copy does not alias the copyOnWrite target", () => {
+  const obj = { a: 1, b: 2 };
+  const copiedObj = copyOnWrite(obj);
+
+  const result = copy(copiedObj, true);
+  result.a = 5;
+
+  expect(result).not.toBe(obj);
+  expect(obj.a).toBe(1);
+  expect(copiedObj.a).toBe(1);
+});
