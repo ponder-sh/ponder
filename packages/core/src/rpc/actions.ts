@@ -1478,22 +1478,14 @@ export const standardizeQueryTransactions = (
     throw error;
   }
 
-  // TODO: Remove this temporary workaround once RPC providers return empty relation arrays.
-  if (
-    response.data.transactions.length === 0 &&
-    response.data.blocks === undefined
-  ) {
-    response.data.blocks = [];
-  }
-
   for (const transaction of response.data.transactions) {
-    // TODO: Temporarily allow eth_query responses to omit `transaction.status`.
     for (const property of [
       "hash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
       "from",
+      "status",
     ] as const) {
       if (transaction[property] === undefined) {
         const error = new RpcProviderError(
@@ -1699,13 +1691,13 @@ export const standardizeQueryLogs = (
   }
 
   for (const transaction of response.data?.transactions ?? []) {
-    // TODO: Temporarily allow eth_query responses to omit `transaction.status`.
     for (const property of [
       "hash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
       "from",
+      "status",
     ] as const) {
       if (transaction[property] === undefined) {
         const error = new RpcProviderError(
@@ -1789,13 +1781,6 @@ export const standardizeQueryLogs = (
     ];
     error.stack = undefined;
     throw error;
-  }
-
-  // TODO: Remove this temporary workaround once RPC providers return empty relation arrays.
-  if (response.data.logs.length === 0) {
-    if (response.data.blocks === undefined) response.data.blocks = [];
-    if (response.data.transactions === undefined)
-      response.data.transactions = [];
   }
 
   for (const log of response.data.logs) {
@@ -1997,13 +1982,13 @@ export const standardizeQueryTraces = (
     }
   }
   for (const transaction of response.data?.transactions ?? []) {
-    // TODO: Temporarily allow eth_query responses to omit `transaction.status`.
     for (const property of [
       "hash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
       "from",
+      "status",
     ] as const) {
       if (transaction[property] === undefined) {
         const error = new RpcProviderError(
@@ -2082,13 +2067,6 @@ export const standardizeQueryTraces = (
     ];
     error.stack = undefined;
     throw error;
-  }
-
-  // TODO: Remove this temporary workaround once RPC providers return empty relation arrays.
-  if (response.data.traces.length === 0) {
-    if (response.data.blocks === undefined) response.data.blocks = [];
-    if (response.data.transactions === undefined)
-      response.data.transactions = [];
   }
 
   for (const trace of response.data.traces) {
@@ -2265,13 +2243,13 @@ export const standardizeQueryTransfers = (
     }
   }
   for (const transaction of response.data?.transactions ?? []) {
-    // TODO: Temporarily allow eth_query responses to omit `transaction.status`.
     for (const property of [
       "hash",
       "transactionIndex",
       "blockNumber",
       "blockHash",
       "from",
+      "status",
     ] as const) {
       if (transaction[property] === undefined) {
         const error = new RpcProviderError(
@@ -2350,13 +2328,6 @@ export const standardizeQueryTransfers = (
     ];
     error.stack = undefined;
     throw error;
-  }
-
-  // TODO: Remove this temporary workaround once RPC providers return empty relation arrays.
-  if (response.data.transfers.length === 0) {
-    if (response.data.blocks === undefined) response.data.blocks = [];
-    if (response.data.transactions === undefined)
-      response.data.transactions = [];
   }
 
   for (const transfer of response.data.transfers) {
