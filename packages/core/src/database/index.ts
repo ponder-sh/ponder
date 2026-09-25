@@ -466,20 +466,55 @@ export const createDatabase = ({
                 }
               }
 
-              const migratedSchemas: string[] = [];
+              const migratedSchemas: { schema: string; duration: number }[] =
+                [];
               for (const schema of PONDER_SYNC.PONDER_SYNC_SCHEMAS) {
                 if (dbSchemas.includes(schema)) continue;
+
+                const endSchemaClock = startClock();
 
                 const query = fs.readFileSync(
                   new URL(`../sync-store/sql/${schema}.sql`, import.meta.url),
                   "utf-8",
                 );
-                for (const statement of query.split(
-                  "--> statement-breakpoint",
-                )) {
+                const statements = query
+                  .split("--> statement-breakpoint")
+                  .map((statement) => statement.trim())
+                  .filter((statement) => statement.length > 0);
+
+                common.logger.info({
+                  msg: `Started migrating '${schema}' schema`,
+                  statement_count: statements.length,
+                });
+
+                for (let i = 0; i < statements.length; i++) {
+                  const statement = statements[i]!;
+                  // Log only the first non-comment line; CREATE TABLE statements span many lines.
+                  const summary = (
+                    statement
+                      .split("\n")
+                      .find((line) => line.startsWith("--") === false) ?? ""
+                  ).slice(0, 120);
+
+                  common.logger.debug({
+                    msg: "Started migration statement",
+                    schema,
+                    statement_index: i,
+                    statement: summary,
+                  });
+
+                  const endClock = startClock();
                   await tx.execute(sql.raw(statement));
+
+                  common.logger.debug({
+                    msg: "Completed migration statement",
+                    schema,
+                    statement_index: i,
+                    statement: summary,
+                    duration: endClock(),
+                  });
                 }
-                migratedSchemas.push(schema);
+                migratedSchemas.push({ schema, duration: endSchemaClock() });
               }
               return migratedSchemas;
             },
@@ -487,8 +522,8 @@ export const createDatabase = ({
           ),
       );
 
-      for (const schema of migratedSchemas) {
-        common.logger.info({ msg: `Migrated '${schema}' schema` });
+      for (const { schema, duration } of migratedSchemas) {
+        common.logger.info({ msg: `Migrated '${schema}' schema`, duration });
       }
     },
     async migrate({ buildId, chains, finalizedBlocks }) {
