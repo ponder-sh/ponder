@@ -241,7 +241,7 @@ export const buildEvents = ({
       previousTrace?.blockNumber === blockNumber &&
       previousTrace.transactionIndex === transactionIndex
     ) {
-      traceIndex = +1;
+      traceIndex += 1;
     } else {
       traceIndex = 0;
     }
