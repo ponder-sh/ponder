@@ -36,7 +36,7 @@ For each chain, the indexing engine calls indexing functions according to EVM ex
 
 ### Reorgs
 
-The indexing engine handles reorgs automatically. You do not need to adjust your indexing function logic to handle them. Here's how it works.
+The indexing engine automatically handles reorgs within each chain's configured [`reorgWindow`](/docs/config/chains#reorg-window). You do not need to adjust your indexing function logic to handle them. Here's how it works.
 
 - The indexing engine records all changes (insert, update, delete) to each table defined in `ponder.schema.ts` using a trigger-based [transaction log](https://en.wikipedia.org/wiki/Transaction_log).
 - When the indexing engine detects a reorg, it follows these steps to reconcile the database state with the new canonical chain.
@@ -44,15 +44,15 @@ The indexing engine handles reorgs automatically. You do not need to adjust your
   2. Roll back the database to the common ancestor block height using the transaction log.
   3. Fetch the new canonical data from the RPC / remote chain.
   4. Run indexing functions to process the new canonical data.
-- The indexing engine periodically drops finalized data from the transaction log to avoid database bloat.
+- Ponder treats a block as finalized once it is outside the `reorgWindow`, then removes its rollback records to limit database growth.
+- If a reorg crosses this finalized boundary, Ponder errors rather than continue with inconsistent data.
 
 ### Crash recovery
 
-If the process crashes and starts back up again using the same exact configuration, the indexing engine attempts a crash recovery. This process is similar to reorg reconciliation, except all unfinalized changes (the entire transaction log) are rolled back. Then, indexing resumes from the finalized block.
+If the process crashes and starts back up again using the same exact configuration, the indexing engine attempts a crash recovery. This process is similar to reorg reconciliation, except all changes within the `reorgWindow` are rolled back. Then, indexing resumes from the most recent block that Ponder treated as finalized.
 
 ### Backfill vs. live indexing
 
 Internally, the indexing engine has two distinct modes – **backfill** and **live** indexing – which use different approaches for fetching data from the RPC.
 
 However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
-

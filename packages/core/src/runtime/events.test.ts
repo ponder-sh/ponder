@@ -20,13 +20,16 @@ import {
 import type {
   BlockEvent,
   Event,
+  InternalBlock,
+  InternalTransaction,
+  InternalTransactionReceipt,
   LogEvent,
   RawEvent,
   TraceEvent,
   TransferEvent,
 } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
-import { decodeEvents, splitEvents } from "./events.js";
+import { buildEvents, decodeEvents, splitEvents } from "./events.js";
 
 beforeEach(setupCommon);
 
@@ -228,8 +231,7 @@ test("decodeEvents() transfer", async () => {
       input: "0x0",
       output: "0x0",
       value: parseEther("1"),
-      traceIndex: 0,
-      subcalls: 0,
+      traceAddress: "[]",
       blockNumber: 0,
       transactionIndex: 0,
     },
@@ -303,8 +305,7 @@ test("decodeEvents() trace", async () => {
       gas: 0n,
       gasUsed: 0n,
       value: 0n,
-      traceIndex: 0,
-      subcalls: 0,
+      traceAddress: "[]",
       blockNumber: 0,
       transactionIndex: 0,
     },
@@ -351,8 +352,7 @@ test("decodeEvents() trace w/o output", async () => {
       gas: 0n,
       gasUsed: 0n,
       value: 0n,
-      traceIndex: 0,
-      subcalls: 0,
+      traceAddress: "[]",
       blockNumber: 0,
       transactionIndex: 0,
     },
@@ -395,8 +395,7 @@ test("decodeEvents() trace error", async () => {
       gas: 0n,
       gasUsed: 0n,
       value: 0n,
-      traceIndex: 0,
-      subcalls: 0,
+      traceAddress: "[]",
       blockNumber: 0,
       transactionIndex: 0,
     },
@@ -407,4 +406,59 @@ test("decodeEvents() trace error", async () => {
   ]) as [TraceEvent];
 
   expect(events).toHaveLength(0);
+});
+
+test("buildEvents() transaction matches receipt by transaction index", async () => {
+  const { eventCallbacks } = getAccountsIndexingBuild({ address: ALICE });
+
+  const block = {
+    number: 1n,
+    timestamp: 1n,
+    hash: toHex(1, { size: 32 }),
+  } as InternalBlock;
+  const transaction = (transactionIndex: number) =>
+    ({
+      blockNumber: 1,
+      transactionIndex,
+      hash: toHex(transactionIndex, { size: 32 }),
+      from: BOB,
+      to: ALICE.toLowerCase(),
+      type: "legacy",
+    }) as InternalTransaction;
+  const receipt = (
+    transactionIndex: number,
+    status: InternalTransactionReceipt["status"],
+  ) =>
+    ({
+      blockNumber: 1,
+      transactionIndex,
+      from: BOB,
+      to: ALICE.toLowerCase(),
+      status,
+    }) as InternalTransactionReceipt;
+
+  const build = (transactionReceipts: InternalTransactionReceipt[]) =>
+    buildEvents({
+      eventCallbacks,
+      blocks: [block],
+      logs: [],
+      transactions: [transaction(0), transaction(1)],
+      transactionReceipts,
+      traces: [],
+      childAddresses: new Map(),
+      chainId: 1,
+    });
+
+  const receipts = [receipt(0, "reverted"), receipt(1, "success")];
+  const events = build(receipts);
+  expect(events).toHaveLength(1);
+  expect(events[0]!.transaction!.transactionIndex).toBe(1);
+  expect(events[0]!.transactionReceipt).toBe(receipts[1]);
+
+  expect(() => build([receipt(1, "success")])).toThrow(
+    "Missing transaction receipt for block 1 and transaction index 0",
+  );
+  expect(() => build([receipt(0, "success")])).toThrow(
+    "Missing transaction receipt for block 1 and transaction index 1",
+  );
 });

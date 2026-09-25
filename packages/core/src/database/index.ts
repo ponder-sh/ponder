@@ -1,8 +1,10 @@
+import fs from "node:fs";
 import type { PGlite } from "@electric-sql/pglite";
 import {
   eq,
   getTableName,
   getViewName,
+  inArray,
   isTable,
   isView,
   sql,
@@ -10,7 +12,6 @@ import {
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import { pgSchema, pgTable } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import { Kysely, Migrator, PostgresDialect, WithSchemaPlugin } from "kysely";
 import type { Pool } from "pg";
 import prometheus from "prom-client";
 import { hexToBigInt } from "viem";
@@ -22,11 +23,7 @@ import {
   getReorgTableName,
 } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
-import {
-  MigrationError,
-  NonRetryableUserError,
-  ShutdownError,
-} from "@/internal/errors.js";
+import { MigrationError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -34,12 +31,11 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import { buildMigrationProvider } from "@/sync-store/migrations.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
 import { decodeCheckpoint } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
-import { createPglite, createPgliteKyselyDialect } from "@/utils/pglite.js";
+import { createPglite } from "@/utils/pglite.js";
 import { startClock } from "@/utils/timer.js";
 import { wait } from "@/utils/wait.js";
 import {
@@ -48,7 +44,7 @@ import {
   dropLiveQueryTriggers,
   dropTriggers,
 } from "./actions.js";
-import { createQB, parseDbError, type QB } from "./queryBuilder.js";
+import { createQB, type QB } from "./queryBuilder.js";
 
 export type Database = {
   driver: PostgresDriver | PGliteDriver;
@@ -90,6 +86,11 @@ export const VIEWS = pgSchema("information_schema").table("views", (t) => ({
   table_name: t.text().notNull(),
   table_schema: t.text().notNull(),
 }));
+
+const LEGACY_MIGRATIONS = pgSchema("ponder_sync").table(
+  "kysely_migration",
+  (t) => ({ name: t.text().primaryKey() }),
+);
 
 export const PONDER_META_TABLE_NAME = "_ponder_meta";
 /**
@@ -420,90 +421,109 @@ export const createDatabase = ({
     userQB,
     readonlyQB,
     async migrateSync() {
-      const kysely = new Kysely({
-        dialect:
-          dialect === "postgres"
-            ? new PostgresDialect({ pool: (driver as PostgresDriver).admin })
-            : createPgliteKyselyDialect((driver as PGliteDriver).instance),
-        log(event) {
-          if (event.level === "query") {
-            common.metrics.ponder_postgres_query_total.inc({ pool: "migrate" });
-          }
-        },
-        plugins: [new WithSchemaPlugin("ponder_sync")],
-      });
+      // Use a separate Drizzle instance because createQB skips PGlite transactions.
+      const db =
+        driver.dialect === "postgres"
+          ? drizzleNodePg(driver.admin, { casing: "snake_case" })
+          : drizzlePglite(driver.instance, { casing: "snake_case" });
 
-      const migrationProvider = buildMigrationProvider(common.logger);
-      const migrator = new Migrator({
-        db: kysely,
-        provider: migrationProvider,
-        migrationTableSchema: "ponder_sync",
-      });
+      const migratedSchemas = await adminQB.wrap(
+        { label: "migrate_sync" },
+        () =>
+          db.transaction(
+            async (tx) => {
+              await tx.execute(sql`SET LOCAL statement_timeout = 3600000`);
 
-      // Note: inline operation of database wrapper because this is the only place where kysely is used
-      for (let i = 0; i <= 9; i++) {
-        const endClock = startClock();
-        try {
-          const { error } = await migrator.migrateToLatest();
-          if (error) throw error;
+              if (driver.dialect === "postgres") {
+                // Serialize schema checks and creation across concurrent app startups.
+                await tx.execute(
+                  sql`SELECT pg_advisory_xact_lock(hashtext('ponder_sync'))`,
+                );
+              }
 
-          common.metrics.ponder_database_method_duration.observe(
-            { method: "migrate_sync" },
-            endClock(),
-          );
+              const dbSchemas = await tx
+                .select()
+                .from(SCHEMATA)
+                .where(
+                  inArray(SCHEMATA.schemaName, [
+                    ...PONDER_SYNC.PONDER_SYNC_SCHEMAS,
+                  ]),
+                )
+                .then((result) => result.map((r) => r.schemaName));
 
-          return;
-        } catch (_error) {
-          const error = parseDbError(_error);
+              if (dbSchemas.includes("ponder_sync")) {
+                const migrations = await tx.select().from(LEGACY_MIGRATIONS);
 
-          if (common.shutdown.isKilled) {
-            throw new ShutdownError();
-          }
+                if (
+                  migrations.some(
+                    (migration) =>
+                      migration.name === "2025_02_26_1_rpc_request_results",
+                  ) === false
+                ) {
+                  throw new MigrationError(
+                    '"ponder_sync" migration failed. Please first update to v0.10 or "DROP SCHEMA ponder_sync CASCADE".',
+                  );
+                }
+              }
 
-          common.metrics.ponder_database_method_duration.observe(
-            { method: "migrate_sync" },
-            endClock(),
-          );
-          common.metrics.ponder_database_method_error_total.inc({
-            method: "migrate_sync",
-          });
+              const migratedSchemas: { schema: string; duration: number }[] =
+                [];
+              for (const schema of PONDER_SYNC.PONDER_SYNC_SCHEMAS) {
+                if (dbSchemas.includes(schema)) continue;
 
-          common.logger.warn({
-            msg: "Failed database query",
-            query: "migrate_sync",
-            retry_count: i,
-            error,
-          });
+                const endSchemaClock = startClock();
 
-          if (error instanceof NonRetryableUserError) {
-            common.logger.warn({
-              msg: "Failed database query",
-              query: "migrate_sync",
-              error,
-            });
-            throw error;
-          }
+                const query = fs.readFileSync(
+                  new URL(`../sync-store/sql/${schema}.sql`, import.meta.url),
+                  "utf-8",
+                );
+                const statements = query
+                  .split("--> statement-breakpoint")
+                  .map((statement) => statement.trim())
+                  .filter((statement) => statement.length > 0);
 
-          if (i === 9) {
-            common.logger.warn({
-              msg: "Failed database query",
-              query: "migrate_sync",
-              retry_count: i,
-              error,
-            });
-            throw error;
-          }
+                common.logger.info({
+                  msg: `Started migrating '${schema}' schema`,
+                  statement_count: statements.length,
+                });
 
-          const duration = 125 * 2 ** i;
-          common.logger.debug({
-            msg: "Failed database query",
-            query: "migrate_sync",
-            retry_count: i,
-            retry_delay: duration,
-            error,
-          });
-          await wait(duration);
-        }
+                for (let i = 0; i < statements.length; i++) {
+                  const statement = statements[i]!;
+                  // Log only the first non-comment line; CREATE TABLE statements span many lines.
+                  const summary = (
+                    statement
+                      .split("\n")
+                      .find((line) => line.startsWith("--") === false) ?? ""
+                  ).slice(0, 120);
+
+                  common.logger.debug({
+                    msg: "Started migration statement",
+                    schema,
+                    statement_index: i,
+                    statement: summary,
+                  });
+
+                  const endClock = startClock();
+                  await tx.execute(sql.raw(statement));
+
+                  common.logger.debug({
+                    msg: "Completed migration statement",
+                    schema,
+                    statement_index: i,
+                    statement: summary,
+                    duration: endClock(),
+                  });
+                }
+                migratedSchemas.push({ schema, duration: endSchemaClock() });
+              }
+              return migratedSchemas;
+            },
+            { isolationLevel: "read committed" },
+          ),
+      );
+
+      for (const { schema, duration } of migratedSchemas) {
+        common.logger.info({ msg: `Migrated '${schema}' schema`, duration });
       }
     },
     async migrate({ buildId, chains, finalizedBlocks }) {

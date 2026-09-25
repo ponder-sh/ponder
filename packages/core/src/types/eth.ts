@@ -193,16 +193,10 @@ export type Trace = {
   input: Hex;
   /** Output of the call, if any. */
   output?: Hex;
-  /** Error message, if any. */
-  error?: string;
-  /** Why this call reverted, if it reverted. */
-  revertReason?: string;
   /** Value transferred. */
   value: bigint | null;
-  /** Index of this trace in the transaction. */
-  traceIndex: number;
-  /** Number of subcalls. */
-  subcalls: number;
+  /** Path through the nested call tree. */
+  traceAddress: string;
 };
 
 /** A native token transfer. */

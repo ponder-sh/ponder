@@ -6,7 +6,6 @@ import {
   eq,
   gte,
   inArray,
-  isNull,
   lt,
   lte,
   or,
@@ -734,7 +733,7 @@ export const createSyncStore = ({
                   PONDER_SYNC.traces.chainId,
                   PONDER_SYNC.traces.blockNumber,
                   PONDER_SYNC.traces.transactionIndex,
-                  PONDER_SYNC.traces.traceIndex,
+                  PONDER_SYNC.traces.traceAddress,
                 ],
               }),
           context,
@@ -916,8 +915,7 @@ export const createSyncStore = ({
         output: PONDER_SYNC.traces.output,
         value: PONDER_SYNC.traces.value,
         type: PONDER_SYNC.traces.type,
-        error: PONDER_SYNC.traces.error,
-        traceIndex: PONDER_SYNC.traces.traceIndex,
+        traceAddress: PONDER_SYNC.traces.traceAddress,
       };
 
       for (const column of unionFilterIncludeTrace(filters)) {
@@ -948,7 +946,7 @@ export const createSyncStore = ({
         .orderBy(
           asc(PONDER_SYNC.traces.blockNumber),
           asc(PONDER_SYNC.traces.transactionIndex),
-          asc(PONDER_SYNC.traces.traceIndex),
+          asc(PONDER_SYNC.traces.traceAddress),
         )
         .limit(limit);
 
@@ -1182,6 +1180,7 @@ export const createSyncStore = ({
         const internalTrace = trace as unknown as InternalTrace;
 
         internalTrace.blockNumber = Number(trace.blockNumber);
+        internalTrace.traceAddress = JSON.stringify(trace.traceAddress);
 
         internalTrace.from = toLowerCase(trace.from);
         if (trace.to !== null) {
@@ -1190,14 +1189,6 @@ export const createSyncStore = ({
 
         if (trace.output === null) {
           internalTrace.output = undefined;
-        }
-
-        if (trace.error === null) {
-          internalTrace.error = undefined;
-        }
-
-        if (trace.revertReason === null) {
-          internalTrace.revertReason = undefined;
         }
       }
 
@@ -1589,10 +1580,6 @@ export const transferFilter = (filter: TransferFilter): SQL => {
   conditions.push(addressFilter(filter.fromAddress, PONDER_SYNC.traces.from));
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.traces.to));
 
-  if (filter.includeReverted === false) {
-    conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
-
   return and(...conditions)!;
 };
 
@@ -1601,10 +1588,6 @@ export const traceFilter = (filter: TraceFilter): SQL => {
 
   conditions.push(addressFilter(filter.fromAddress, PONDER_SYNC.traces.from));
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.traces.to));
-
-  if (filter.includeReverted === false) {
-    conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
 
   if (filter.callType !== undefined) {
     conditions.push(eq(PONDER_SYNC.traces.type, filter.callType));

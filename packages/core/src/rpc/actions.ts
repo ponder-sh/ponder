@@ -194,52 +194,33 @@ export const debug_traceBlockByNumber = (
       }
 
       const result: SyncTrace[] = [];
-      let index = 0;
-      // all traces that weren't included because the trace has an error
-      // or the trace's parent has an error, mapped to the error string
-      const failedTraces = new Map<
-        (typeof traces)[number]["result"],
-        { error?: string; revertReason?: string }
-      >();
 
       const dfs = (
         frames: (typeof traces)[number]["result"][],
         transactionHash: Hex,
         parentFrame: (typeof traces)[number]["result"] | undefined,
+        parentTraceAddress: number[],
       ) => {
-        for (const frame of frames) {
-          if (frame.error !== undefined) {
-            failedTraces.set(frame, {
-              error: frame.error,
-              revertReason: frame.revertReason,
-            });
-          } else if (parentFrame && failedTraces.has(parentFrame)) {
-            const error = failedTraces.get(parentFrame)!;
+        for (const [index, frame] of frames.entries()) {
+          // Note: Reverted traces and all of their children are excluded.
+          if (frame.error !== undefined) continue;
 
-            frame.error = error.error;
-            frame.revertReason = error.revertReason;
-
-            failedTraces.set(frame, error);
-          }
-
-          // @ts-expect-error
-          frame.index = index;
-          // @ts-expect-error
-          frame.subcalls = frame.calls?.length ?? 0;
+          const traceAddress = parentFrame
+            ? [...parentTraceAddress, index]
+            : [];
+          (frame as typeof frame & { traceAddress: string }).traceAddress =
+            JSON.stringify(traceAddress);
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
 
-          index++;
-
           if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame);
+            dfs(frame.calls, transactionHash, frame, traceAddress);
           }
         }
       };
 
       for (const trace of traces) {
-        index = 0;
-        dfs([trace.result], trace.txHash, undefined);
+        dfs([trace.result], trace.txHash, undefined, []);
       }
 
       return result.map((trace) =>
@@ -271,52 +252,33 @@ export const debug_traceBlockByHash = (
       }
 
       const result: SyncTrace[] = [];
-      let index = 0;
-      // all traces that weren't included because the trace has an error
-      // or the trace's parent has an error, mapped to the error string
-      const failedTraces = new Map<
-        (typeof traces)[number]["result"],
-        { error?: string; revertReason?: string }
-      >();
 
       const dfs = (
         frames: (typeof traces)[number]["result"][],
         transactionHash: Hex,
         parentFrame: (typeof traces)[number]["result"] | undefined,
+        parentTraceAddress: number[],
       ) => {
-        for (const frame of frames) {
-          if (frame.error !== undefined) {
-            failedTraces.set(frame, {
-              error: frame.error,
-              revertReason: frame.revertReason,
-            });
-          } else if (parentFrame && failedTraces.has(parentFrame)) {
-            const error = failedTraces.get(parentFrame)!;
+        for (const [index, frame] of frames.entries()) {
+          // Note: Reverted traces and all of their children are excluded.
+          if (frame.error !== undefined) continue;
 
-            frame.error = error.error;
-            frame.revertReason = error.revertReason;
-
-            failedTraces.set(frame, error);
-          }
-
-          // @ts-expect-error
-          frame.index = index;
-          // @ts-expect-error
-          frame.subcalls = frame.calls?.length ?? 0;
+          const traceAddress = parentFrame
+            ? [...parentTraceAddress, index]
+            : [];
+          (frame as typeof frame & { traceAddress: string }).traceAddress =
+            JSON.stringify(traceAddress);
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
 
-          index++;
-
           if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame);
+            dfs(frame.calls, transactionHash, frame, traceAddress);
           }
         }
       };
 
       for (const trace of traces) {
-        index = 0;
-        dfs([trace.result], trace.txHash, undefined);
+        dfs([trace.result], trace.txHash, undefined, []);
       }
 
       return result.map((trace) =>
@@ -490,20 +452,6 @@ export const validateTracesAndBlock = (
       error.stack = undefined;
       throw error;
     }
-  }
-
-  // Use the fact that any transaction produces a trace to validate.
-  if (block.transactions.length !== 0 && traces.length === 0) {
-    const error = new RpcProviderError(
-      `Inconsistent RPC response data. The traces array has length 0, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
-    );
-    error.meta = [
-      "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(tracesRequest),
-    ];
-    error.stack = undefined;
-    throw error;
   }
 };
 

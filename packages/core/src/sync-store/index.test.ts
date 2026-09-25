@@ -13,6 +13,7 @@ import {
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,
   EMPTY_TRACE_FILTER,
+  EMPTY_TRANSFER_FILTER,
 } from "@/_test/constants.js";
 import { factoryABI } from "@/_test/generated.js";
 import {
@@ -1073,10 +1074,10 @@ test("getEventData() applies one block range to logs and traces queries", async 
       : (query as { text: string; values: unknown[] }),
   );
   const logsQuery = queries.find(({ text }) =>
-    text.includes('from "ponder_sync"."logs"'),
+    text.includes(`from "${ponderSyncSchema.PONDER_SYNC_SCHEMA}"."logs"`),
   );
   const tracesQuery = queries.find(({ text }) =>
-    text.includes('from "ponder_sync"."traces"'),
+    text.includes(`from "${ponderSyncSchema.PONDER_SYNC_SCHEMA}"."traces"`),
   );
 
   expect(logsQuery).toBeDefined();
@@ -1087,6 +1088,58 @@ test("getEventData() applies one block range to logs and traces queries", async 
   expect(tracesQuery!.text.match(/"block_number" >=/g)).toHaveLength(1);
   expect(tracesQuery!.text.match(/"block_number" <=/g)).toHaveLength(1);
   expect(tracesQuery!.values).toEqual(expect.arrayContaining([30n, 70n]));
+});
+
+test("getEventData() orders traces by execution order", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const traceAddresses = [
+    "[]",
+    "[0]",
+    "[1]",
+    "[1,0]",
+    "[1,2]",
+    "[1,10]",
+    "[2]",
+  ];
+
+  await syncStore.insertTraces({
+    traces: [...traceAddresses].reverse().map((traceAddress) => ({
+      trace: {
+        ...blockData.trace,
+        trace: { ...blockData.trace.trace, traceAddress },
+      },
+      block: blockData.block,
+      transaction: blockData.transaction,
+    })),
+    chainId: 1,
+  });
+
+  const { traces } = await syncStore.getEventData({
+    filters: [EMPTY_TRANSFER_FILTER],
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
+    limit: 10,
+  });
+
+  expect(traces.map((trace) => trace.traceAddress)).toStrictEqual(
+    traceAddresses,
+  );
 });
 
 test("getEventBlockData() pagination", async () => {

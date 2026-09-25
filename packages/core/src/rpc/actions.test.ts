@@ -4,7 +4,85 @@ import type { SyncBlock } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
-import { eth_getLogs, validateLogsAndBlock } from "./actions.js";
+import {
+  debug_traceBlockByNumber,
+  eth_getLogs,
+  validateLogsAndBlock,
+} from "./actions.js";
+
+test("debug trace actions rebuild traceAddress from the call tree", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({ calls: [frame(), frame({ calls: [frame()] })] }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  await expect(
+    debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+  ).resolves.toMatchObject([
+    { trace: { traceAddress: "[]" } },
+    { trace: { traceAddress: "[0]" } },
+    { trace: { traceAddress: "[1]" } },
+    { trace: { traceAddress: "[1,0]" } },
+  ]);
+});
+
+test("debug trace actions exclude reverted traces and their children", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({
+          calls: [
+            frame({ error: "execution reverted", calls: [frame()] }),
+            frame({
+              calls: [
+                frame({ error: "out of gas", revertReason: "reason" }),
+                frame(),
+              ],
+            }),
+          ],
+        }),
+      },
+      {
+        txHash: hash,
+        result: frame({ error: "execution reverted", calls: [frame()] }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  const traces = await debug_traceBlockByNumber(rpc, [
+    "0x1",
+    { tracer: "callTracer" },
+  ]);
+
+  expect(traces.map((trace) => trace.trace.traceAddress)).toStrictEqual([
+    "[]",
+    "[1]",
+    "[1,1]",
+  ]);
+});
 
 const hash =
   "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
