@@ -25,7 +25,7 @@ export const copyOnWrite = <T extends object>(obj: T): T => {
   const proxy = new Proxy<T>(obj, {
     get(target, prop, receiver) {
       if (prop === COPY_ON_WRITE) {
-        return target;
+        return copiedObject ?? target;
       }
       let result = Reflect.get(copiedObject ?? target, prop, receiver);
 
@@ -88,8 +88,8 @@ export const copy = <T>(obj: T, fast: boolean): T => {
   }
 
   // @ts-expect-error
-  const proxy = obj[COPY_ON_WRITE];
-  if (proxy !== undefined) return proxy;
+  const underlying = obj[COPY_ON_WRITE];
+  if (underlying !== undefined) return copy(underlying, fast);
 
   if (fast) {
     // Note: spread operator is significantly faster than `structuredClone`
