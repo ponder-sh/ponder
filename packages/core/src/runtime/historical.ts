@@ -7,14 +7,17 @@ import type {
   CrashRecoveryCheckpoint,
   Event,
   EventCallback,
+  Filter,
   IndexingBuild,
   RawEvent,
   SyncBlock,
+  SyncBlockHeader,
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
+import { createQueryHistoricalSync } from "@/sync-historical/query.js";
 import { createSyncStore, type SyncStore } from "@/sync-store/index.js";
 import {
   decodeCheckpoint,
@@ -31,7 +34,12 @@ import {
   createCallbackGenerator,
   mergeAsyncGenerators,
 } from "@/utils/generators.js";
-import { type Interval, intervalSum } from "@/utils/interval.js";
+import {
+  type Interval,
+  intervalDifference,
+  intervalSum,
+  intervalUnion,
+} from "@/utils/interval.js";
 import { partition } from "@/utils/partition.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
@@ -999,7 +1007,9 @@ export async function* getLocalEventGenerator(params: {
   const toBlock = Number(decodeCheckpoint(params.to).blockNumber);
   let cursor = fromBlock;
 
-  const localSyncGenerator = getLocalSyncGenerator(params);
+  const localSyncGenerator = params.chain.experimental_rpcQuery
+    ? getLocalQuerySyncGenerator(params)
+    : getLocalSyncGenerator(params);
 
   for await (const syncCursor of bufferAsyncGenerator(
     localSyncGenerator,
@@ -1076,6 +1086,247 @@ export async function* getLocalEventGenerator(params: {
       }
     }
   }
+}
+
+export async function* getLocalQuerySyncGenerator(params: {
+  common: Common;
+  chain: Chain;
+  rpc: Rpc;
+  eventCallbacks: EventCallback[];
+  syncProgress: SyncProgress;
+  childAddresses: ChildAddresses;
+  cachedIntervals: CachedIntervals;
+  database: Database;
+  isCatchup: boolean;
+}) {
+  const backfillEndClock = startClock();
+  const label = { chain: params.chain.name };
+
+  let first = hexToNumber(params.syncProgress.start.number);
+  const last =
+    params.syncProgress.end === undefined
+      ? params.syncProgress.finalized
+      : hexToNumber(params.syncProgress.end.number) >
+          hexToNumber(params.syncProgress.finalized.number)
+        ? params.syncProgress.finalized
+        : params.syncProgress.end;
+
+  if (
+    hexToNumber(params.syncProgress.start.number) >
+    hexToNumber(params.syncProgress.finalized.number)
+  ) {
+    params.syncProgress.current = params.syncProgress.finalized;
+    params.common.metrics.ponder_sync_block.set(
+      label,
+      hexToNumber(params.syncProgress.current.number),
+    );
+    params.common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      hexToNumber(params.syncProgress.current.timestamp),
+    );
+    params.common.metrics.ponder_historical_total_blocks.set(label, 0);
+    params.common.metrics.ponder_historical_cached_blocks.set(label, 0);
+    return;
+  }
+
+  const total = hexToNumber(last!.number) - first + 1;
+  const requiredIntervals = getRequiredIntervals({
+    filters: params.eventCallbacks.map(({ filter }) => filter),
+    interval: [first, hexToNumber(last!.number)],
+    cachedIntervals: params.cachedIntervals,
+  });
+  const required = intervalSum(requiredIntervals);
+
+  params.common.metrics.ponder_historical_total_blocks.set(label, total);
+  params.common.metrics.ponder_historical_cached_blocks.set(
+    label,
+    total - required,
+  );
+
+  if (params.syncProgress.current !== undefined) {
+    params.common.metrics.ponder_sync_block.set(
+      label,
+      hexToNumber(params.syncProgress.current.number),
+    );
+    params.common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      hexToNumber(params.syncProgress.current.timestamp),
+    );
+    yield hexToNumber(params.syncProgress.current.number);
+
+    if (
+      hexToNumber(params.syncProgress.current.number) ===
+      hexToNumber(last!.number)
+    ) {
+      return;
+    }
+
+    first = hexToNumber(params.syncProgress.current.number) + 1;
+  }
+
+  params.common.logger.info({
+    msg: "Started fetching backfill JSON-RPC data",
+    chain: params.chain.name,
+    chain_id: params.chain.id,
+    cache_rate: formatPercentage((total - required) / total),
+  });
+
+  const historicalSync = createQueryHistoricalSync(params);
+
+  const syncStore = createSyncStore({
+    common: params.common,
+    qb: params.database.syncQB,
+  });
+
+  const requiredIntervalsWithFilters = getRequiredIntervalsWithFilters({
+    interval: [first, hexToNumber(last!.number)],
+    filters: params.eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: params.cachedIntervals,
+  });
+
+  const filterIntervals = new Map<
+    Filter,
+    {
+      requiredIntervals: Interval[];
+      completedIntervals: Interval[];
+      block: SyncBlockHeader | undefined;
+    }
+  >();
+  for (const filter of requiredIntervalsWithFilters.intervals) {
+    if (filterIntervals.has(filter.filter)) {
+      filterIntervals.get(filter.filter)!.requiredIntervals = intervalUnion([
+        ...filterIntervals.get(filter.filter)!.requiredIntervals,
+        filter.interval,
+      ]);
+    } else {
+      filterIntervals.set(filter.filter, {
+        requiredIntervals: [filter.interval],
+        completedIntervals: [],
+        block: undefined,
+      });
+    }
+  }
+
+  let syncedBlock = first - 1;
+
+  try {
+    for await (const syncResult of historicalSync.syncQueryBlockData({
+      requiredIntervals: requiredIntervalsWithFilters.intervals,
+      requiredFactoryIntervals: requiredIntervalsWithFilters.factoryIntervals,
+      syncStore,
+    })) {
+      const completedIntervals = syncResult.filters.flatMap((filter) =>
+        syncResult.interval.map((interval) => ({ filter, interval })),
+      );
+      const completedFactoryIntervals = syncResult.factories.flatMap(
+        (factory) =>
+          syncResult.interval.map((interval) => ({ factory, interval })),
+      );
+
+      if (params.chain.disableCache === false) {
+        await syncStore.insertIntervals({
+          intervals: completedIntervals,
+          factoryIntervals: completedFactoryIntervals,
+          chainId: params.chain.id,
+        });
+      }
+
+      for (const { filter, interval } of completedIntervals) {
+        filterIntervals.get(filter)!.completedIntervals = intervalUnion([
+          ...filterIntervals.get(filter)!.completedIntervals,
+          interval,
+        ]);
+
+        if (syncResult.block) {
+          filterIntervals.get(filter)!.block = syncResult.block;
+        }
+      }
+
+      let nextSyncedBlock: number | undefined;
+      let closestToTipBlock: SyncBlockHeader | undefined;
+
+      for (const {
+        requiredIntervals,
+        completedIntervals,
+        block,
+      } of filterIntervals.values()) {
+        const remainingIntervals = intervalDifference(
+          requiredIntervals,
+          completedIntervals,
+        );
+
+        if (remainingIntervals.length === 0) {
+          if (
+            nextSyncedBlock === undefined ||
+            hexToNumber(last!.number) < nextSyncedBlock
+          ) {
+            nextSyncedBlock = hexToNumber(last!.number);
+          }
+        } else {
+          if (
+            nextSyncedBlock === undefined ||
+            remainingIntervals[0]![0] - 1 < nextSyncedBlock
+          ) {
+            nextSyncedBlock = remainingIntervals[0]![0] - 1;
+          }
+        }
+
+        if (
+          block &&
+          (closestToTipBlock === undefined ||
+            hexToNumber(block.number) < hexToNumber(closestToTipBlock.number))
+        ) {
+          closestToTipBlock = block;
+        }
+      }
+
+      if (closestToTipBlock) {
+        params.common.metrics.ponder_sync_block.set(
+          label,
+          hexToNumber(closestToTipBlock.number),
+        );
+        params.common.metrics.ponder_sync_block_timestamp.set(
+          label,
+          hexToNumber(closestToTipBlock.timestamp),
+        );
+      } else if (nextSyncedBlock !== undefined) {
+        params.common.metrics.ponder_sync_block.set(label, nextSyncedBlock);
+      }
+
+      if (nextSyncedBlock! > syncedBlock) {
+        params.common.metrics.ponder_historical_completed_blocks.inc(
+          label,
+          nextSyncedBlock! - syncedBlock,
+        );
+
+        syncedBlock = nextSyncedBlock!;
+        yield syncedBlock;
+      }
+
+      if (syncedBlock === hexToNumber(last.number)) {
+        params.syncProgress.current = last;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ShutdownError) throw error;
+
+    params.common.logger.warn({
+      msg: "Failed to fetch backfill JSON-RPC data",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      block_range: JSON.stringify([first, hexToNumber(last!.number)]),
+      duration: backfillEndClock(),
+      error,
+    });
+    throw error;
+  }
+
+  params.common.logger.info({
+    msg: "Finished fetching backfill JSON-RPC data",
+    chain: params.chain.name,
+    chain_id: params.chain.id,
+    duration: backfillEndClock(),
+  });
 }
 
 export async function* getLocalSyncGenerator(params: {

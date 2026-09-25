@@ -417,6 +417,9 @@ test("sync() requests logs for async-execution block headers", async () => {
     realtimeSync.sync({
       ...block,
       transactions: undefined,
+      withdrawals: undefined,
+      sealFields: undefined,
+      uncles: undefined,
       logsBloom: staleLogsBloom,
     } as SyncBlockHeader),
   );
