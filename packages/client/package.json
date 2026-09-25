@@ -44,7 +44,7 @@
     }
   },
   "dependencies": {
-    "drizzle-orm": "0.41.0",
+    "drizzle-orm": "0.45.3",
     "eventsource": "^3.0.5",
     "superjson": "^2.2.2"
   },

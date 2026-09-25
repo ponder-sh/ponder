@@ -18,6 +18,7 @@ import { streamSSE } from "hono/streaming";
 import type * as pg from "pg";
 import superjson from "superjson";
 import type { PonderApp6 } from "@/database/index.js";
+import { unwrapDrizzleError } from "@/database/queryBuilder.js";
 import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { ReadonlyDrizzle } from "@/types/db.js";
@@ -351,18 +352,21 @@ export const client = ({
   }
 
   const getQueryResult = (query: QueryWithTypings): Promise<QueryResult> => {
-    if (driver.dialect === "pglite") {
-      return session.prepareQuery(query, undefined, undefined, false).execute();
-    } else {
-      return globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
-        (tx) => {
-          return tx._.session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
-        },
-        { accessMode: "read only" },
-      );
-    }
+    const resultPromise =
+      driver.dialect === "pglite"
+        ? session.prepareQuery(query, undefined, undefined, false).execute()
+        : globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
+            (tx) => {
+              return tx._.session
+                .prepareQuery(query, undefined, undefined, false)
+                .execute();
+            },
+            { accessMode: "read only" },
+          );
+
+    return resultPromise.catch((error) => {
+      throw unwrapDrizzleError(error);
+    });
   };
 
   return createMiddleware(async (c, next) => {

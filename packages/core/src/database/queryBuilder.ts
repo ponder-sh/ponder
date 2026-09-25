@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
-import type { ExtractTablesWithRelations } from "drizzle-orm";
+import {
+  DrizzleQueryError,
+  type ExtractTablesWithRelations,
+} from "drizzle-orm";
 import type {
   PgDatabase,
   PgQueryResultHKT,
@@ -87,7 +90,20 @@ export type QB<
     | { $dialect: "postgres"; $client: pg.Pool | pg.PoolClient }
   );
 
-export const parseDbError = (error: any): Error => {
+/**
+ * Return the database driver error from a Drizzle query error.
+ *
+ * @dev Drizzle wraps driver errors in a `DrizzleQueryError` with the message "Failed query: ...".
+ */
+export const unwrapDrizzleError = (error: unknown): unknown => {
+  if (error instanceof DrizzleQueryError && error.cause !== undefined) {
+    return error.cause;
+  }
+  return error;
+};
+
+export const parseDbError = (_error: any): Error => {
+  let error = unwrapDrizzleError(_error) as any;
   const stack = error.stack;
 
   if (error instanceof BaseError) {

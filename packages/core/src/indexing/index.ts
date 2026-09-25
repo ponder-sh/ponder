@@ -1,5 +1,6 @@
 import util from "node:util";
 import type { Abi, Address } from "viem";
+import { unwrapDrizzleError } from "@/database/queryBuilder.js";
 import type { CachedViemClient } from "@/indexing/client.js";
 import type { IndexingCache } from "@/indexing-store/cache.js";
 import type { IndexingStore } from "@/indexing-store/index.js";
@@ -226,7 +227,11 @@ export const createIndexing = ({
         endClock(),
       );
     } catch (_error) {
-      let error = _error instanceof Error ? _error : new Error(String(_error));
+      const unwrappedError = unwrapDrizzleError(_error);
+      let error =
+        unwrappedError instanceof Error
+          ? unwrappedError
+          : new Error(String(unwrappedError));
 
       // Note: Use `getRetryableError` rather than `error` to avoid
       // issues with the user-code augmenting errors from the indexing store.
@@ -297,7 +302,11 @@ export const createIndexing = ({
         throw retryableError;
       }
     } catch (_error) {
-      let error = _error instanceof Error ? _error : new Error(String(_error));
+      const unwrappedError = unwrapDrizzleError(_error);
+      let error =
+        unwrappedError instanceof Error
+          ? unwrappedError
+          : new Error(String(unwrappedError));
 
       // Note: Use `getRetryableError` rather than `error` to avoid
       // issues with the user-code augmenting errors from the indexing store.

@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@ponder/client": "workspace:*",
-    "drizzle-orm": "0.41.0",
+    "drizzle-orm": "0.45.3",
     "pg": "^8.16.2"
   },
   "devDependencies": {

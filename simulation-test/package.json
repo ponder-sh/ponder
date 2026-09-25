@@ -17,7 +17,7 @@
     "@types/pg": "^8.10.9",
     "@types/seedrandom": "^3.0.8",
     "commander": "^12.0.0",
-    "drizzle-orm": "0.41.0",
+    "drizzle-orm": "0.45.3",
     "pg": "^8.16.2",
     "ponder": "workspace:*",
     "seedrandom": "^3.0.5"

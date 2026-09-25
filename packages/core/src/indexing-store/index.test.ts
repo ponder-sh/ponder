@@ -994,7 +994,8 @@ test("sql with error", async () => {
       .execute("SELECT * FROM does_not_exist")
       .catch((error) => error);
 
-    expect(error).toBeInstanceOf(RawSqlError);
+    // Note: Drizzle wraps the error thrown by the proxy callback.
+    expect(error.cause).toBeInstanceOf(RawSqlError);
 
     // next query doesn't error
 
