@@ -166,7 +166,16 @@ export const buildEvents = ({
       transactionReceiptsIndex++;
     }
 
-    const transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
+    let transactionReceipt: InternalTransactionReceipt | undefined;
+    if (
+      transactionReceiptsIndex < transactionReceipts.length &&
+      transactionReceipts[transactionReceiptsIndex]!.blockNumber ===
+        blockNumber &&
+      transactionReceipts[transactionReceiptsIndex]!.transactionIndex ===
+        transactionIndex
+    ) {
+      transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
+    }
 
     for (const transactionEventCallbackIndex of transactionEventCallbackIndexes) {
       const filter = eventCallbacks[transactionEventCallbackIndex]!
@@ -186,14 +195,17 @@ export const buildEvents = ({
               blockNumber,
               childAddresses: childAddresses.get(filter.toAddress.id)!,
             })
-          : true) &&
-        transactionReceipt.status === "success"
+          : true)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
             `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
           );
         }
+
+        // Note: Unlike reverted traces, reverted transactions are stored in the
+        // sync store because the receipt is required to detect the revert.
+        if (transactionReceipt!.status !== "success") continue;
 
         events.push({
           chainId: filter.chainId,
