@@ -735,7 +735,12 @@ export const createBuild = async ({
 
       const dialect = preBuild.databaseConfig.kind;
       if (dialect === "pglite") {
-        const driver = createPglite(preBuild.databaseConfig.options);
+        let driver: ReturnType<typeof createPglite>;
+        try {
+          driver = createPglite(preBuild.databaseConfig.options);
+        } catch (e) {
+          return { status: "error", error: e as Error };
+        }
         const qb = createQB(drizzlePglite(driver), { common });
         try {
           await qb.wrap((db) => db.execute("SELECT version()"), context);
