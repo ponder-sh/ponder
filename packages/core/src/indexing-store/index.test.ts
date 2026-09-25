@@ -311,6 +311,61 @@ test("insert keeps writes to a found row", async () => {
   });
 });
 
+test("update keeps writes to a found row", async () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
+
+    const row = await indexingStore.db.find(schema.account, {
+      address: zeroAddress,
+    });
+    row!.balance = 20n;
+
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set(row!);
+
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ balance: 20n });
+
+    await indexingCache.flush();
+    indexingCache.clear();
+    indexingCache.invalidate();
+
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ balance: 20n });
+  });
+});
+
 test("insert", async () => {
   const { database } = await setupDatabaseServices();
 
