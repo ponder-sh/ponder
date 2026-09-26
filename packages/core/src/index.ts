@@ -129,3 +129,8 @@ export {
 } from "@/drizzle/onchain.js";
 export { graphql } from "@/graphql/middleware.js";
 export type { ReadonlyDrizzle } from "@/types/db.js";
+export {
+  type Checkpoint,
+  decodeCheckpoint,
+  encodeCheckpoint,
+} from "@/utils/checkpoint.js";
