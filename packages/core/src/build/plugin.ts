@@ -48,6 +48,12 @@ export const vitePluginPonder = (options: Common["options"]): Plugin => {
 
   return {
     name: "ponder",
+    resolveId: (id) => {
+      if (id === "ponder:registry") return id;
+      if (id === "ponder:schema") return id;
+      if (id === "ponder:api") return id;
+      return null;
+    },
     load: (id) => {
       if (id === "ponder:registry") return virtualModule();
       if (id === "ponder:schema") return schemaModule(schemaPath);

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { satisfies } from "semver";
 import { createBuild } from "@/build/index.js";
 import { createDatabase, type Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
@@ -32,12 +33,11 @@ export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
     mode: options.logFormat,
   });
 
-  const major = Number(process.versions.node.split(".")[0]);
-  if (major < 22) {
+  if (!satisfies(process.versions.node, ">=22.12")) {
     logger.error({
       msg: "Invalid Node.js version",
       version: process.versions.node,
-      expected: "22",
+      expected: ">=22.12",
     });
     process.exit(1);
   }
