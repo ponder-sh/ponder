@@ -16,10 +16,12 @@ async function globalSetup() {
     await execa("pnpm", ["wagmi", "generate"]);
   }
 
-  await startProxy({
+  const shutdownProxy = await startProxy({
     options: {
       chainId: 1,
       noMining: true,
+      // Note: `@viem/anvil` does not clear the stop timeout, which keeps the process alive.
+      stopTimeout: 100,
     },
   });
 
@@ -44,6 +46,7 @@ async function globalSetup() {
   }
 
   return async () => {
+    await shutdownProxy();
     await cleanupDatabase?.();
   };
 }

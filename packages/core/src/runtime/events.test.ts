@@ -329,8 +329,9 @@ test("decodeEvents() trace w/o output", async () => {
   });
 
   // Remove output from the trace abi
+  // Note: `abiItem` is shared with `erc20ABI`, so copy it instead of mutating it.
   // @ts-expect-error
-  eventCallbacks[0].abiItem.outputs = [];
+  eventCallbacks[0].abiItem = { ...eventCallbacks[0].abiItem, outputs: [] };
 
   const rawEvent = {
     chainId: 1,

@@ -16,10 +16,10 @@ export default defineConfig({
   },
   test: {
     globalSetup: ["src/_test/globalSetup.ts"],
-    setupFiles: ["src/_test/setup.ts"],
     pool: "threads",
     maxWorkers: 4,
     sequence: { hooks: "stack" },
+    restoreMocks: true,
     testTimeout: 15000,
   },
 });
