@@ -11,7 +11,13 @@ export default createConfig({
     poolConfig: { max: 17 },
   },
   chains: {
-    base: { id: 8453, rpc: process.env.PONDER_RPC_URL_8453! },
+    base: {
+      id: 8453,
+      rpc: process.env.PONDER_RPC_URL_8453!,
+      // Note: unset when building the expected tables, so ground truth always
+      // comes from the default per-block realtime sync.
+      experimentalRangeScan: process.env.EXPERIMENTAL_RANGE_SCAN === "true",
+    },
   },
   contracts: {
     BasePaintBrush: {
