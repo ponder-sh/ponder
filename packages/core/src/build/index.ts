@@ -186,9 +186,9 @@ export const createBuild = async ({
           : null,
     },
     resolve: { tsconfigPaths: true },
-    // Load `ponder` and `@ponder/utils` with Node instead of transforming them. This
-    // matters when they are linked packages, which Vite does not externalize by default.
-    ssr: { external: ["ponder", "@ponder/utils"] },
+    // Load `ponder` with Node instead of transforming it. This matters when `ponder`
+    // is a linked package, which Vite does not externalize by default.
+    ssr: { external: ["ponder"] },
     plugins: [vitePluginPonder(common.options)],
   });
 

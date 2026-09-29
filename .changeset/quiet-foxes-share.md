@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Improved startup performance by loading the `ponder` and `@ponder/utils` packages without transforming them with Vite.
+Improved startup performance by loading the `ponder` package without transforming it with Vite.
