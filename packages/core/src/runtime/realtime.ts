@@ -1091,16 +1091,18 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await createSyncStore({
-        common: params.common,
-        qb: params.database.syncQB,
-      }).pruneRpcRequestResults(
-        {
-          chainId: params.chain.id,
-          blocks: event.reorgedBlocks,
-        },
-        { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
-      );
+      if (params.chain.rpcRequestCache) {
+        await createSyncStore({
+          common: params.common,
+          qb: params.database.syncQB,
+        }).pruneRpcRequestResults(
+          {
+            chainId: params.chain.id,
+            blocks: event.reorgedBlocks,
+          },
+          { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
+        );
+      }
 
       break;
     }
