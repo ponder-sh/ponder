@@ -1,0 +1,825 @@
+import { getAbiItem, type Hex, toEventSelector, zeroHash } from "viem";
+import { parseEther } from "viem/utils";
+import { beforeEach, expect, test, vi } from "vitest";
+import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "@/_test/generated.js";
+import {
+  context,
+  setupAnvil,
+  setupCachedIntervals,
+  setupChildAddresses,
+  setupCleanup,
+  setupCommon,
+} from "@/_test/setup.js";
+import {
+  createPair,
+  deployErc20,
+  deployFactory,
+  mintErc20,
+  simulateBlock,
+  swapPair,
+  transferErc20,
+  transferEth,
+} from "@/_test/simulate.js";
+import {
+  getAccountsIndexingBuild,
+  getBlocksIndexingBuild,
+  getChain,
+  getErc20IndexingBuild,
+  getPairWithFactoryIndexingBuild,
+} from "@/_test/utils.js";
+import type { Filter } from "@/internal/types.js";
+import { createRpc } from "@/rpc/index.js";
+import {
+  getRequiredIntervalsWithFilters,
+  type IntervalWithFilter,
+} from "@/runtime/index.js";
+import { drainAsyncGenerator } from "@/utils/generators.js";
+import type { Interval } from "@/utils/interval.js";
+import {
+  createInMemoryHistoricalSync,
+  mergeGeneratorIntervals,
+} from "./in-memory.js";
+
+beforeEach(setupCommon);
+beforeEach(setupAnvil);
+beforeEach(setupCleanup);
+
+test("createInMemoryHistoricalSync()", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  expect(historicalSync).toBeDefined();
+});
+
+test("syncBlockData() with log filter", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData).toHaveLength(1);
+  expect(blockData[0]!.cursor).toBe(2);
+  expect(blockData[0]!.blocks).toHaveLength(1);
+  expect(blockData[0]!.logs).toHaveLength(1);
+  expect(blockData[0]!.transactions).toHaveLength(1);
+  expect(blockData[0]!.transactionReceipts).toHaveLength(0);
+});
+
+test("syncBlockData() with log filter and transaction receipts", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+    includeTransactionReceipts: true,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData).toHaveLength(1);
+  expect(blockData[0]!.logs).toHaveLength(1);
+  expect(blockData[0]!.transactionReceipts).toHaveLength(1);
+});
+
+test("syncBlockData() skips transaction receipts for zero-hash logs", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+    includeTransactionReceipts: true,
+  });
+
+  const requestSpy = vi.spyOn(rpc, "request");
+  const request = async (request: any) => {
+    const result = await rpc.request(request);
+    if (request.method === "eth_getLogs") {
+      return (result as { transactionHash: string }[]).map((log) => ({
+        ...log,
+        transactionHash: zeroHash,
+      }));
+    }
+    return result;
+  };
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc: {
+      ...rpc,
+      // @ts-expect-error
+      request,
+    },
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData).toHaveLength(1);
+  expect(blockData[0]!.logs).toHaveLength(1);
+  expect(blockData[0]!.transactions).toHaveLength(0);
+  expect(blockData[0]!.transactionReceipts).toHaveLength(0);
+
+  const receiptRequests = requestSpy.mock.calls.filter(
+    ([request]) =>
+      request.method === "eth_getBlockReceipts" ||
+      request.method === "eth_getTransactionReceipt",
+  );
+  expect(receiptRequests).toHaveLength(0);
+});
+
+test("syncBlockData() dedupes logs matched by many log filters", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const eventCallbacks = [
+    ...getErc20IndexingBuild({ address }).eventCallbacks,
+    ...getErc20IndexingBuild({ address }).eventCallbacks,
+  ];
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData).toHaveLength(1);
+  expect(blockData[0]!.logs).toHaveLength(1);
+  expect(blockData[0]!.transactions).toHaveLength(1);
+});
+
+test("syncBlockData() with block filter", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  await simulateBlock();
+  await simulateBlock();
+  await simulateBlock();
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData).toHaveLength(3);
+  expect(blockData.map(({ cursor }) => cursor)).toStrictEqual([1, 2, 3]);
+  expect(blockData.flatMap(({ blocks }) => blocks)).toHaveLength(3);
+});
+
+// TODO(kyle) remove `.fails` once the in-memory sync supports factories.
+test.fails("syncBlockData() with log factory", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+});
+
+// TODO(kyle) remove `.fails` once the in-memory sync supports factories.
+test.fails("syncBlockData() with log factory and no address", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  // @ts-expect-error
+  eventCallbacks[0].filter.address.address = undefined;
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+});
+
+test("syncBlockData() with log factory error", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  // @ts-expect-error
+  eventCallbacks[0].filter.address.address = undefined;
+  // @ts-expect-error
+  // Invalid child address location causes extracting child address to throw an error
+  eventCallbacks[0].filter.address.childAddressLocation = "topic3";
+
+  const childAddresses = setupChildAddresses(eventCallbacks);
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: childAddresses,
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(0);
+  // @ts-expect-error
+  expect(childAddresses.get(eventCallbacks[0].filter.address.id)!.size).toBe(0);
+});
+
+test("syncBlockData() with trace filter", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+    includeCallTraces: true,
+  });
+
+  const request = async (request: any) => {
+    if (request.method === "debug_traceBlockByNumber") {
+      if (request.params[0] === "0x1") return Promise.resolve([]);
+      if (request.params[0] === "0x2") return Promise.resolve([]);
+      if (request.params[0] === "0x3") {
+        return Promise.resolve([
+          {
+            txHash: blockData.trace.transactionHash,
+            result: blockData.trace.trace,
+          },
+        ]);
+      }
+    }
+
+    return rpc.request(request);
+  };
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc: {
+      ...rpc,
+      // @ts-expect-error
+      request,
+    },
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "trace")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const result = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  const traces = result.flatMap(({ traces }) => traces);
+  expect(traces).toHaveLength(1);
+  expect(result.flatMap(({ transactions }) => transactions)).toHaveLength(1);
+});
+
+test("syncBlockData() with transaction filter", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getAccountsIndexingBuild({
+    address: ALICE,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 1],
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "transaction")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData).toHaveLength(1);
+  expect(blockData[0]!.transactions).toHaveLength(1);
+  expect(blockData[0]!.transactionReceipts).toHaveLength(1);
+});
+
+test("syncBlockData() with transfer filter", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const blockData = await transferEth({
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getAccountsIndexingBuild({
+    address: ALICE,
+  });
+
+  const request = async (request: any) => {
+    if (request.method === "debug_traceBlockByNumber") {
+      if (request.params[0] === "0x1") {
+        return Promise.resolve([
+          {
+            txHash: blockData.trace.transactionHash,
+            result: blockData.trace.trace,
+          },
+        ]);
+      }
+    }
+
+    return rpc.request(request);
+  };
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc: {
+      ...rpc,
+      // @ts-expect-error
+      request,
+    },
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 1],
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "transfer")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const result = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(result).toHaveLength(1);
+  expect(result[0]!.transactions).toHaveLength(1);
+  expect(result[0]!.traces).toHaveLength(1);
+});
+
+test("syncBlockData() with many filters", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks: erc20EventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const { eventCallbacks: blocksEventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses([
+      ...erc20EventCallbacks,
+      ...blocksEventCallbacks,
+    ]),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: [...erc20EventCallbacks, ...blocksEventCallbacks].map(
+      ({ filter }) => filter,
+    ),
+    cachedIntervals: setupCachedIntervals([
+      ...erc20EventCallbacks,
+      ...blocksEventCallbacks,
+    ]),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData.map(({ cursor }) => cursor)).toStrictEqual([1, 2]);
+  expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+  expect(blockData.flatMap(({ blocks }) => blocks)).toHaveLength(2);
+});
+
+// TODO(kyle) remove `.fails` once the in-memory sync supports factories.
+test.fails("syncBlockData() handles many factory addresses", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  context.common.options.factoryAddressCountThreshold = 10;
+
+  const { address } = await deployFactory({ sender: ALICE });
+
+  for (let i = 0; i < 10; i++) {
+    await createPair({ factory: address, sender: ALICE });
+  }
+
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const childAddresses = setupChildAddresses(eventCallbacks);
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: childAddresses,
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 13],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+  // @ts-expect-error
+  expect(childAddresses.get(eventCallbacks[0].filter.address.id)!.size).toBe(
+    11,
+  );
+});
+
+const createIntervalGenerators = (
+  intervals: { interval: Interval; yields: Interval[] }[],
+) => {
+  const filterGenerators = new Map<
+    IntervalWithFilter,
+    AsyncGenerator<Interval>
+  >();
+  for (const { interval, yields } of intervals) {
+    filterGenerators.set(
+      { filter: {} as Filter, interval },
+      (async function* () {
+        yield* yields;
+      })(),
+    );
+  }
+  return filterGenerators;
+};
+
+test("mergeGeneratorIntervals()", async () => {
+  const intervals = await drainAsyncGenerator(
+    mergeGeneratorIntervals(
+      createIntervalGenerators([
+        {
+          interval: [1, 10],
+          yields: [
+            [1, 4],
+            [5, 10],
+          ],
+        },
+        {
+          interval: [1, 10],
+          yields: [
+            [1, 2],
+            [3, 6],
+            [7, 10],
+          ],
+        },
+      ]),
+    ),
+  );
+
+  expect(intervals).toStrictEqual([
+    [1, 2],
+    [3, 4],
+    [5, 6],
+    [7, 10],
+  ]);
+});
+
+test("mergeGeneratorIntervals() with different intervals", async () => {
+  const intervals = await drainAsyncGenerator(
+    mergeGeneratorIntervals(
+      createIntervalGenerators([
+        { interval: [1, 5], yields: [[1, 5]] },
+        { interval: [3, 10], yields: [[3, 10]] },
+      ]),
+    ),
+  );
+
+  expect(intervals).toStrictEqual([
+    [1, 5],
+    [6, 10],
+  ]);
+});
+
+test("mergeGeneratorIntervals() with no generators", async () => {
+  const intervals = await drainAsyncGenerator(
+    mergeGeneratorIntervals(createIntervalGenerators([])),
+  );
+
+  expect(intervals).toStrictEqual([]);
+});
