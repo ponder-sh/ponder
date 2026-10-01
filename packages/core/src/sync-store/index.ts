@@ -143,7 +143,7 @@ export type SyncStore = {
     args: {
       traces: {
         trace: SyncTrace;
-        block: SyncBlock;
+        block: SyncBlock | SyncBlockHeader;
         transaction: SyncTransaction;
       }[];
       chainId: number;

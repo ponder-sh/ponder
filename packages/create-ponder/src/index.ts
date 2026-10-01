@@ -90,6 +90,11 @@ const templates = [
     description: "A Ponder app using a call traces",
   },
   {
+    id: "feature-rpc-query",
+    title: "Feature - RPC query backfill",
+    description: "A Ponder app using RPC query backfill",
+  },
+  {
     id: "feature-multichain",
     title: "Feature - Multichain contract",
     description: "A Ponder app using multiple chains",

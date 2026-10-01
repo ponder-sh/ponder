@@ -1079,6 +1079,7 @@ export function buildConfig({
         pollingInterval: chain.pollingInterval ?? 1_000,
         reorgWindow: chain.reorgWindow ?? DEFAULT_REORG_WINDOW,
         disableCache: chain.disableCache ?? false,
+        experimental_rpcQuery: chain.experimental_rpcQuery ?? false,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
         viemChain: matchedChain,
       } satisfies Chain;
