@@ -1,4 +1,4 @@
-import { getAbiItem, type Hex, toEventSelector, zeroHash } from "viem";
+import { createWalletClient, http, zeroHash } from "viem";
 import { parseEther } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
@@ -22,11 +22,13 @@ import {
   transferEth,
 } from "@/_test/simulate.js";
 import {
+  anvil,
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
   getChain,
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
+  testClient,
 } from "@/_test/utils.js";
 import type { Filter } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
@@ -749,6 +751,86 @@ test.fails("syncBlockData() handles many factory addresses", async () => {
   expect(childAddresses.get(eventCallbacks[0].filter.address.id)!.size).toBe(
     11,
   );
+});
+
+test("syncBlockData() yields ordered block data", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address: erc20A } = await deployErc20({ sender: ALICE });
+  const { address: erc20B } = await deployErc20({ sender: ALICE });
+
+  // Note: One block with an eth transfer and two erc20 mints, in that order.
+  const walletClient = createWalletClient({
+    chain: anvil,
+    transport: http(),
+    account: ALICE,
+  });
+  await walletClient.sendTransaction({ to: BOB, value: parseEther("1") });
+  await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "mint",
+    address: erc20A,
+    args: [ALICE, parseEther("1")],
+  });
+  await walletClient.writeContract({
+    abi: erc20ABI,
+    functionName: "mint",
+    address: erc20B,
+    args: [ALICE, parseEther("1")],
+  });
+  await testClient.mine({ blocks: 1 });
+
+  // Note: The erc20 log filters are in reverse order, so logs are fetched out of order.
+  const eventCallbacks = [
+    ...getErc20IndexingBuild({
+      address: erc20B,
+      includeTransactionReceipts: true,
+    }).eventCallbacks,
+    ...getErc20IndexingBuild({
+      address: erc20A,
+      includeTransactionReceipts: true,
+    }).eventCallbacks,
+    ...getAccountsIndexingBuild({ address: ALICE }).eventCallbacks.filter(
+      ({ filter }) => filter.type === "transaction",
+    ),
+    ...getBlocksIndexingBuild({ interval: 1 }).eventCallbacks,
+  ];
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  expect(blockData.map(({ cursor }) => cursor)).toStrictEqual([1, 2, 3]);
+  expect(blockData[2]!.logs.map(({ logIndex }) => logIndex)).toStrictEqual([
+    0, 1,
+  ]);
+  expect(
+    blockData[2]!.transactions.map(({ transactionIndex }) => transactionIndex),
+  ).toStrictEqual([0, 1, 2]);
+  expect(
+    blockData[2]!.transactionReceipts.map(
+      ({ transactionIndex }) => transactionIndex,
+    ),
+  ).toStrictEqual([0, 1, 2]);
 });
 
 const createIntervalGenerators = (

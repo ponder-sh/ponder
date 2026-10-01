@@ -69,7 +69,10 @@ export function createInMemoryHistoricalSync(params: {
       };
       // TODO(kyle) factory progress
 
-      const perBlockLogs = new Map<number, SyncLog[]>();
+      /**
+       * Logs keyed by block number, then by log index.
+       */
+      const perBlockLogs = new Map<number, Map<number, SyncLog>>();
 
       const filterGenerators = new Map<
         IntervalWithFilter,
@@ -143,9 +146,11 @@ export function createInMemoryHistoricalSync(params: {
                     }
                     const blockNumber = hexToNumber(log.blockNumber);
                     if (perBlockLogs.has(blockNumber) === false) {
-                      perBlockLogs.set(blockNumber, []);
+                      perBlockLogs.set(blockNumber, new Map());
                     }
-                    perBlockLogs.get(blockNumber)!.push(log);
+                    perBlockLogs
+                      .get(blockNumber)!
+                      .set(hexToNumber(log.logIndex), log);
                   }
                   yield [page.fromBlock, page.toBlock];
                   endClock = startClock();
@@ -195,7 +200,11 @@ export function createInMemoryHistoricalSync(params: {
         // Logs
         ////////
 
-        const blockLogs = perBlockLogs.get(blockNumber);
+        const blockLogs = perBlockLogs.has(blockNumber)
+          ? Array.from(perBlockLogs.get(blockNumber)!.values()).sort(
+              (a, b) => hexToNumber(a.logIndex) - hexToNumber(b.logIndex),
+            )
+          : undefined;
         perBlockLogs.delete(blockNumber);
         let logs: SyncLog[] = [];
         if (blockLogs !== undefined) {
@@ -510,8 +519,6 @@ export function createInMemoryHistoricalSync(params: {
           },
           ["chain", "block"],
         );
-
-        // TODO(kyle) dedupe logs?
 
         return {
           blocks: [syncBlockToInternal({ block })],
