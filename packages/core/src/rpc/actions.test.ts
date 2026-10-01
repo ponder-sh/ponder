@@ -1,5 +1,5 @@
 import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { SyncBlock } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
@@ -8,6 +8,8 @@ import { drainAsyncGenerator } from "@/utils/generators.js";
 import {
   debug_traceBlockByNumber,
   eth_getLogs,
+  eth_getLogsWithPagination,
+  eth_getTransactionReceipts,
   validateLogsAndBlock,
 } from "./actions.js";
 
@@ -83,20 +85,6 @@ test("debug trace actions exclude reverted traces and their children", async () 
     "[1]",
     "[1,1]",
   ]);
-});
-
-let eth_getLogsWithPagination: typeof import("./actions.js").eth_getLogsWithPagination;
-
-beforeEach(async () => {
-  // Reload actions so each test starts with a fresh logsRequestMetadata estimate,
-  // instead of inheriting provider limits learned by earlier tests.
-  if ("bun" in process.versions) {
-    // Bun does not implement vi.resetModules(); clearing require.cache also resets ESM.
-    delete require.cache[require.resolve("./actions.js")];
-  } else {
-    vi.resetModules();
-  }
-  ({ eth_getLogsWithPagination } = await import("./actions.js"));
 });
 
 const hash =
@@ -234,7 +222,7 @@ test("eth_getLogsWithPagination stops fetching when the consumer stops", async (
   expect(request).toHaveBeenCalledTimes(1);
 });
 
-test("eth_getLogsWithPagination retries suggested ranges and shares the limit across RPCs", async () => {
+test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per RPC", async () => {
   const request = vi.fn(
     async (
       request: Extract<RequestParameters, { method: "eth_getLogs" }>,
@@ -277,11 +265,70 @@ test("eth_getLogsWithPagination retries suggested ranges and shares the limit ac
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
+  ).toStrictEqual([[45, 89]]);
+
+  request.mockClear();
+  await drainAsyncGenerator(
+    eth_getLogsWithPagination(rpc, [
+      { fromBlock: numberToHex(45), toBlock: numberToHex(89) },
+    ]),
+  );
+  expect(
+    request.mock.calls.map(([request]) => [
+      hexToNumber(request.params[0].fromBlock as Hex),
+      hexToNumber(request.params[0].toBlock as Hex),
+    ]),
   ).toStrictEqual([
     [45, 64],
     [65, 84],
     [85, 89],
   ]);
+});
+
+test("eth_getTransactionReceipts falls back to eth_getTransactionReceipt per RPC", async () => {
+  const receipt = {
+    blockHash: hash,
+    blockNumber: "0x1",
+    contractAddress: null,
+    cumulativeGasUsed: "0x1",
+    effectiveGasPrice: "0x1",
+    from: address,
+    gasUsed: "0x1",
+    logs: [],
+    logsBloom: zeroLogsBloom,
+    status: "0x1",
+    to: address,
+    transactionHash: hash,
+    transactionIndex: "0x0",
+    type: "0x0",
+  };
+  const request = vi.fn(async (request: RequestParameters) => {
+    if (request.method === "eth_getBlockReceipts") {
+      throw new Error("method not supported");
+    }
+    return receipt;
+  });
+  const rpc = { request } as unknown as Rpc;
+  const params = { blockHash: hash, transactionHashes: new Set([hash]) };
+
+  await expect(eth_getTransactionReceipts(rpc, params)).resolves.toMatchObject([
+    { request: { method: "eth_getTransactionReceipt", params: [hash] } },
+  ]);
+  await eth_getTransactionReceipts(rpc, params);
+  expect(request.mock.calls.map(([request]) => request.method)).toStrictEqual([
+    "eth_getBlockReceipts",
+    "eth_getTransactionReceipt",
+    "eth_getTransactionReceipt",
+  ]);
+
+  const otherRequest = vi.fn(async () => [receipt]);
+  const otherRpc = { request: otherRequest } as unknown as Rpc;
+  await expect(
+    eth_getTransactionReceipts(otherRpc, params),
+  ).resolves.toMatchObject([
+    { request: { method: "eth_getBlockReceipts", params: [hash] } },
+  ]);
+  expect(otherRequest).toHaveBeenCalledTimes(1);
 });
 
 test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ranges", async () => {

@@ -129,16 +129,25 @@ export const eth_getLogs = async (
 };
 
 /**
- * Data about the range passed to "eth_getLogs" share among all log
- * filters and log factories.
+ * Data about the range passed to "eth_getLogs", shared among all log
+ * filters and log factories that use the same rpc.
  */
-let logsRequestMetadata: {
+type LogsRequestMetadata = {
   /** Estimate optimal range to use for "eth_getLogs" requests */
   estimatedRange: number;
   /** Range suggested by an error message */
   confirmedRange?: number;
-} = {
-  estimatedRange: 500,
+};
+
+const logsRequestMetadataByRpc = new WeakMap<Rpc, LogsRequestMetadata>();
+
+const getLogsRequestMetadata = (rpc: Rpc): LogsRequestMetadata => {
+  let logsRequestMetadata = logsRequestMetadataByRpc.get(rpc);
+  if (logsRequestMetadata === undefined) {
+    logsRequestMetadata = { estimatedRange: 500 };
+    logsRequestMetadataByRpc.set(rpc, logsRequestMetadata);
+  }
+  return logsRequestMetadata;
 };
 
 /**
@@ -157,6 +166,7 @@ export async function* eth_getLogsWithPagination(
   const endBlock = hexToNumber(params[0].toBlock);
 
   while (cursor <= endBlock) {
+    const logsRequestMetadata = getLogsRequestMetadata(rpc);
     const range =
       context?.ethGetLogsBlockRange ??
       logsRequestMetadata.confirmedRange ??
@@ -196,12 +206,12 @@ export async function* eth_getLogsWithPagination(
         range,
       });
 
-      logsRequestMetadata = {
+      logsRequestMetadataByRpc.set(rpc, {
         estimatedRange: range,
         confirmedRange: getLogsErrorResponse.isSuggestedRange
           ? range
           : undefined,
-      };
+      });
 
       continue;
     }
@@ -272,8 +282,8 @@ export const eth_getBlockReceipts = (
       });
     });
 
-/** Whether to use block receipts, shared across all RPC instances and sync modes. */
-let isBlockReceipts = true;
+/** Rpcs that failed "eth_getBlockReceipts", shared across sync modes. */
+const rpcsWithoutBlockReceipts = new WeakSet<Rpc>();
 
 /**
  * Fetch transaction receipts, falling back to individual requests when
@@ -299,7 +309,7 @@ export const eth_getTransactionReceipts = async (
   const { blockHash, transactionHashes } = params;
   if (transactionHashes.size === 0) return [];
 
-  if (isBlockReceipts === false) {
+  if (rpcsWithoutBlockReceipts.has(rpc)) {
     return Promise.all(
       Array.from(transactionHashes).map(async (hash) => ({
         receipts: [await eth_getTransactionReceipt(rpc, [hash], context)],
@@ -323,7 +333,7 @@ export const eth_getTransactionReceipts = async (
       msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
       error: error as Error,
     });
-    isBlockReceipts = false;
+    rpcsWithoutBlockReceipts.add(rpc);
     return eth_getTransactionReceipts(rpc, params, context);
   }
 };
