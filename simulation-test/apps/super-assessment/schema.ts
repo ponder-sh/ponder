@@ -55,7 +55,7 @@ export const traces = expected.table(
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
     chainId: t.bigint({ mode: "number" }).notNull(),
-    traceIndex: t.bigint({ mode: "number" }).notNull(),
+    traceAddress: t.text().notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.name, table.id] }),

@@ -26,7 +26,7 @@ CREATE TABLE "expected"."traces" (
 	"name" text NOT NULL,
 	"id" varchar(75) NOT NULL,
 	"chain_id" bigint NOT NULL,
-	"trace_index" bigint NOT NULL,
+	"trace_address" text NOT NULL,
 	CONSTRAINT "traces_name_id_pk" PRIMARY KEY("name","id")
 );
 --> statement-breakpoint

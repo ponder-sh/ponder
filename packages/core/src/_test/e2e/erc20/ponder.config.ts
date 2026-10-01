@@ -10,7 +10,7 @@ function getDatabase() {
     const connectionString = databaseUrl.toString();
     return { kind: "postgres", connectionString } as const;
   } else {
-    return { kind: "pglite" } as const;
+    return { kind: "pglite", directory: "memory://" } as const;
   }
 }
 
@@ -20,6 +20,7 @@ export default createConfig({
     mainnet: {
       id: 1,
       rpc: `http://127.0.0.1:8545/${poolId}`,
+      pollingInterval: 100,
     },
   },
   contracts: {

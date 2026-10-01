@@ -136,7 +136,7 @@ export const encodeTrace = ({
   chainId: BigInt(chainId),
   blockNumber: hexToBigInt(block.number),
   transactionIndex: hexToNumber(transaction.transactionIndex),
-  traceIndex: trace.trace.index,
+  traceAddress: JSON.parse(trace.trace.traceAddress),
   from: toLowerCase(trace.trace.from),
   to: trace.trace.to ? toLowerCase(trace.trace.to) : null,
   input: trace.trace.input,
@@ -145,9 +145,4 @@ export const encodeTrace = ({
   type: trace.trace.type,
   gas: hexToBigInt(trace.trace.gas),
   gasUsed: hexToBigInt(trace.trace.gasUsed),
-  error: trace.trace.error ? trace.trace.error.replace(/\0/g, "") : null,
-  revertReason: trace.trace.revertReason
-    ? trace.trace.revertReason.replace(/\0/g, "")
-    : null,
-  subcalls: trace.trace.subcalls,
 });

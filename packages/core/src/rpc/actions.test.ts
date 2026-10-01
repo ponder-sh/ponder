@@ -1,8 +1,89 @@
 import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
+import type { SyncBlock } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
+import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
+import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
-import { eth_getLogs } from "./actions.js";
+import {
+  debug_traceBlockByNumber,
+  eth_getLogs,
+  validateLogsAndBlock,
+} from "./actions.js";
+
+test("debug trace actions rebuild traceAddress from the call tree", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({ calls: [frame(), frame({ calls: [frame()] })] }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  await expect(
+    debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+  ).resolves.toMatchObject([
+    { trace: { traceAddress: "[]" } },
+    { trace: { traceAddress: "[0]" } },
+    { trace: { traceAddress: "[1]" } },
+    { trace: { traceAddress: "[1,0]" } },
+  ]);
+});
+
+test("debug trace actions exclude reverted traces and their children", async () => {
+  const frame = (overrides: Record<string, unknown> = {}) => ({
+    type: "CALL",
+    from: address,
+    to: address,
+    gas: "0x1",
+    gasUsed: "0x1",
+    input: "0x",
+    ...overrides,
+  });
+  const rpc = {
+    request: vi.fn(async () => [
+      {
+        txHash: hash,
+        result: frame({
+          calls: [
+            frame({ error: "execution reverted", calls: [frame()] }),
+            frame({
+              calls: [
+                frame({ error: "out of gas", revertReason: "reason" }),
+                frame(),
+              ],
+            }),
+          ],
+        }),
+      },
+      {
+        txHash: hash,
+        result: frame({ error: "execution reverted", calls: [frame()] }),
+      },
+    ]),
+  } as unknown as Rpc;
+
+  const traces = await debug_traceBlockByNumber(rpc, [
+    "0x1",
+    { tracer: "callTracer" },
+  ]);
+
+  expect(traces.map((trace) => trace.trace.traceAddress)).toStrictEqual([
+    "[]",
+    "[1]",
+    "[1,1]",
+  ]);
+});
 
 let eth_getLogsWithPagination: typeof import("./actions.js").eth_getLogsWithPagination;
 
@@ -305,3 +386,90 @@ test("eth_getLogsWithPagination uses fixed ranges and disables range retries", a
   ).rejects.toBe(error);
   expect(request).toHaveBeenCalledTimes(1);
 });
+
+const nonEmptyLogsBloom = `0x${"0".repeat(511)}1` as const;
+const logsRequest = {
+  method: "eth_getLogs",
+  params: [{ blockHash: hash }],
+} as const satisfies Extract<RequestParameters, { method: "eth_getLogs" }>;
+const blockRequest = {
+  method: "eth_getBlockByHash",
+  params: [hash, true],
+} as const satisfies Extract<
+  RequestParameters,
+  { method: "eth_getBlockByHash" }
+>;
+
+const createBlock = (block: { logsBloom: Hex }) =>
+  ({
+    hash,
+    number: "0x1",
+    transactions: [],
+    ...block,
+  }) as unknown as SyncBlock;
+
+test("validateLogsAndBlock throws for non-empty logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: nonEmptyLogsBloom }),
+      logsRequest,
+      blockRequest,
+      isAsyncExecutionChain(1),
+    ),
+  ).toThrow("The logs array has length 0");
+});
+
+test("validateLogsAndBlock allows zero logsBloom with no logs", () => {
+  expect(() =>
+    validateLogsAndBlock(
+      [],
+      createBlock({ logsBloom: zeroLogsBloom }),
+      logsRequest,
+      blockRequest,
+      isAsyncExecutionChain(1),
+    ),
+  ).not.toThrow();
+});
+
+test.each([143, 10143, 43114, 43113])(
+  "validateLogsAndBlock allows non-empty bloom with no logs on chain %i",
+  (chainId) => {
+    expect(() =>
+      validateLogsAndBlock(
+        [],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+        isAsyncExecutionChain(chainId),
+      ),
+    ).not.toThrow();
+  },
+);
+
+test.each([143, 10143, 43114, 43113])(
+  "validateLogsAndBlock still rejects mismatched block hashes on chain %i",
+  (chainId) => {
+    expect(() =>
+      validateLogsAndBlock(
+        [
+          {
+            address: `0x${"1".repeat(40)}`,
+            blockHash: `0x${"2".repeat(64)}`,
+            blockNumber: "0x1",
+            logIndex: "0x0",
+            data: "0x",
+            topics: [],
+            transactionHash: hash,
+            transactionIndex: "0x0",
+            removed: false,
+          },
+        ],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+        isAsyncExecutionChain(chainId),
+      ),
+    ).toThrow("has a 'log.blockHash'");
+  },
+);

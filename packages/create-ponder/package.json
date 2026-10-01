@@ -1,6 +1,6 @@
 {
   "name": "create-ponder",
-  "version": "0.17.10",
+  "version": "0.17.12",
   "type": "module",
   "description": "CLI tool to create Ponder projects",
   "license": "MIT",
@@ -47,9 +47,9 @@
     "dotenv": "^16.3.1",
     "rimraf": "^5.0.5",
     "tsup": "^8.0.1",
-    "vitest": "1.6.1"
+    "vitest": "5.0.2"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   }
 }

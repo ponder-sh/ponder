@@ -1,3 +1,4 @@
+import { satisfies } from "semver";
 import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
 import { createDatabase, type Database } from "@/database/index.js";
@@ -46,12 +47,11 @@ export async function start({
     mode: options.logFormat,
   });
 
-  const major = Number(process.versions.node.split(".")[0]);
-  if (major < 22) {
+  if (!satisfies(process.versions.node, ">=22.12")) {
     logger.error({
       msg: "Invalid Node.js version",
       version: process.versions.node,
-      expected: "22",
+      expected: ">=22.12",
     });
     process.exit(1);
   }

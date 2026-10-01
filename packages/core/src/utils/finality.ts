@@ -6,7 +6,10 @@ import type { Rpc } from "@/rpc/index.js";
 export const DEFAULT_REORG_WINDOW = 180;
 
 export const isAsyncExecutionChain = (chainId: number) =>
-  chainId === 143 || chainId === 10143;
+  chainId === 143 ||
+  chainId === 10143 ||
+  chainId === 43114 ||
+  chainId === 43113;
 
 /**
  * Finds a block whose timestamp is outside the reorg window.

@@ -1,5 +1,5 @@
 {
-  "id": "b30e2b07-2903-4fb5-a9c7-580e91948278",
+  "id": "6630b126-d353-4544-a261-380fbaebfe9b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -141,9 +141,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "trace_index": {
-          "name": "trace_index",
-          "type": "bigint",
+        "trace_address": {
+          "name": "trace_address",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         }

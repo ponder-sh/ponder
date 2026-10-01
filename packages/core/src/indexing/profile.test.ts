@@ -1,6 +1,6 @@
 import { getAbiItem, zeroAddress } from "viem";
 import { expect, test } from "vitest";
-import { ALICE } from "@/_test/constants.js";
+import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
@@ -846,6 +846,53 @@ test("recordProfilePattern() hint", () => {
       "functionName": "balanceOf",
     }
   `);
+});
+
+test("recordProfilePattern() hint with different args", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
+  const event = {
+    type: "log",
+    chain: getChain(),
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    eventCallback: eventCallbacks[0]!,
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: { from: ALICE, to: BOB },
+      log: {} as unknown as LogEvent["event"]["log"],
+      transaction: {} as LogEvent["event"]["transaction"],
+      block: { number: 5n } as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const hint = recordProfilePattern({
+    event,
+    args: {
+      address: zeroAddress,
+      abi: [getAbiItem({ abi: erc20ABI, name: "balanceOf" })],
+      functionName: "balanceOf",
+      args: [ALICE],
+    },
+    hints: [],
+  });
+
+  const pattern = recordProfilePattern({
+    event,
+    args: {
+      address: zeroAddress,
+      abi: [getAbiItem({ abi: erc20ABI, name: "balanceOf" })],
+      functionName: "balanceOf",
+      args: [BOB],
+    },
+    hints: [hint!],
+  });
+
+  expect(pattern).not.toBe(hint);
+  expect(pattern!.pattern.args).toStrictEqual([
+    { type: "derived", value: ["args", "to"] },
+  ]);
+  expect(recoverProfilePattern(pattern!.pattern, event).args).toStrictEqual([
+    BOB,
+  ]);
 });
 
 test("recordProfilePattern() cache immutable", () => {

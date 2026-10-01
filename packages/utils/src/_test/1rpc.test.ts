@@ -6,24 +6,20 @@ import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 const request = getRequest("https://1rpc.io/eth");
 const maxBlockRange = 1_000n;
 
-test(
-  "1rpc success",
-  async () => {
-    const logs = await request({
-      method: "eth_getLogs",
-      params: [
-        {
-          address: UNI,
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(fromBlock + maxBlockRange),
-        },
-      ],
-    });
+test("1rpc success", { timeout: 30_000 }, async () => {
+  const logs = await request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: UNI,
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(fromBlock + maxBlockRange),
+      },
+    ],
+  });
 
-    expect(logs).toHaveLength(9);
-  },
-  { timeout: 30_000 },
-);
+  expect(logs).toHaveLength(9);
+});
 
 test("1rpc block range", async () => {
   const params: Params = [

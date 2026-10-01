@@ -248,6 +248,124 @@ test("update mutable values", async () => {
   });
 });
 
+test("insert keeps writes to a found row", async () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+    snapshot: onchainTable("snapshot", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
+
+    const row = await indexingStore.db.find(schema.account, {
+      address: zeroAddress,
+    });
+    row!.balance = 20n;
+
+    await indexingStore.db.insert(schema.snapshot).values(row!);
+
+    expect(
+      await indexingStore.db.find(schema.snapshot, { address: zeroAddress }),
+    ).toMatchObject({ balance: 20n });
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ balance: 10n });
+
+    await indexingCache.flush();
+    indexingCache.clear();
+    indexingCache.invalidate();
+
+    expect(
+      await indexingStore.db.find(schema.snapshot, { address: zeroAddress }),
+    ).toMatchObject({ balance: 20n });
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ balance: 10n });
+  });
+});
+
+test("update keeps writes to a found row", async () => {
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n });
+
+    const row = await indexingStore.db.find(schema.account, {
+      address: zeroAddress,
+    });
+    row!.balance = 20n;
+
+    await indexingStore.db
+      .update(schema.account, { address: zeroAddress })
+      .set(row!);
+
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ balance: 20n });
+
+    await indexingCache.flush();
+    indexingCache.clear();
+    indexingCache.invalidate();
+
+    expect(
+      await indexingStore.db.find(schema.account, { address: zeroAddress }),
+    ).toMatchObject({ balance: 20n });
+  });
+});
+
 test("insert", async () => {
   const { database } = await setupDatabaseServices();
 
@@ -419,6 +537,62 @@ test("insert", async () => {
       address: "0x0000000000000000000000000000000000000001",
       balance: 32n,
     });
+  });
+});
+
+test("insert then", async () => {
+  const { database } = await setupDatabaseServices();
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const indexingCache = createIndexingCache({
+    common: context.common,
+    schemaBuild: { schema },
+    crashRecoveryCheckpoint: undefined,
+    eventCount: {},
+  });
+
+  const indexingStore = createIndexingStore({
+    common: context.common,
+    schemaBuild: { schema },
+    indexingCache,
+    indexingErrorHandler,
+  });
+
+  await database.userQB.transaction(async (tx) => {
+    indexingCache.qb = tx;
+    indexingStore.qb = tx;
+
+    const results: unknown[] = [];
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values({ address: zeroAddress, balance: 10n })
+      .then((result) => {
+        results.push(result);
+      });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      address: zeroAddress,
+      balance: 10n,
+    });
+
+    results.length = 0;
+
+    await indexingStore.db
+      .insert(schema.account)
+      .values([{ address: ALICE, balance: 10n }])
+      .then((result) => {
+        results.push(result);
+      });
+
+    expect(results).toHaveLength(1);
   });
 });
 

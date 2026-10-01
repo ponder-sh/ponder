@@ -42,6 +42,7 @@ import type {
   IntervalWithFilter,
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
+import { isAsyncExecutionChain } from "@/utils/finality.js";
 import type { Interval } from "@/utils/interval.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
@@ -256,6 +257,7 @@ export function createInMemoryHistoricalSync(params: {
                 method: "eth_getBlockByNumber",
                 params: [toHex(blockNumber), true],
               },
+              isAsyncExecutionChain(params.chain.id),
             );
           }
         }
