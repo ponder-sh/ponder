@@ -1,18 +1,14 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isMainThread } from "node:worker_threads";
 import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { glob } from "glob";
 import { Hono } from "hono";
 import superjson from "superjson";
 import { hexToNumber } from "viem";
-import { createServer } from "vite";
-import { ViteNodeRunner } from "vite-node/client";
-import { ViteNodeServer } from "vite-node/server";
-import { installSourcemapsSupport } from "vite-node/source-map";
-import { normalizeModuleId, toFilePath } from "vite-node/utils";
-import viteTsconfigPathsPlugin from "vite-tsconfig-paths";
+import { createServer, createServerModuleRunner, normalizePath } from "vite";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
 import type { Database } from "@/database/index.js";
@@ -42,7 +38,7 @@ import { safeBuildConfig, safeBuildIndexingFunctions } from "./config.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";
 import { safeBuildSchema } from "./schema.js";
-import { parseViteNodeError } from "./stacktrace.js";
+import { parseViteError } from "./stacktrace.js";
 
 declare global {
   var PONDER_COMMON: Common;
@@ -153,31 +149,79 @@ export const createBuild = async ({
     },
   };
 
+  // Define the directories and files that `ponder dev` does not watch.
+  const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
+  const ignoredFiles = [
+    path.join(common.options.rootDir, "ponder-env.d.ts"),
+    path.join(common.options.rootDir, ".env.local"),
+  ];
+
+  const isFileIgnored = (filePath: string) => {
+    const isInIgnoredDir = ignoredDirs.some((dir) => {
+      const rel = path.relative(dir, filePath);
+      return !rel.startsWith("..") && !path.isAbsolute(rel);
+    });
+
+    const isIgnoredFile = ignoredFiles.includes(filePath);
+    return isInIgnoredDir || isIgnoredFile;
+  };
+
   const viteDevServer = await createServer({
     root: common.options.rootDir,
+    // Do not load a "vite.config.ts" file from the project root.
+    configFile: false,
     cacheDir: path.join(common.options.ponderDir, "vite"),
     publicDir: false,
+    appType: "custom",
     customLogger: viteLogger,
-    server: { hmr: false },
-    plugins: [viteTsconfigPathsPlugin(), vitePluginPonder(common.options)],
+    server: {
+      // Do not create an HTTP server or register a SIGTERM listener.
+      middlewareMode: true,
+      hmr: false,
+      ws: false,
+      // Only `ponder dev` uses the file watcher. Isolated worker threads do not.
+      watch:
+        common.options.command === "dev" && isMainThread
+          ? { ignored: isFileIgnored }
+          : null,
+    },
+    resolve: { tsconfigPaths: true },
+    // Load `ponder` with Node instead of transforming it. This matters when `ponder`
+    // is a linked package, which Vite does not externalize by default.
+    ssr: { external: ["ponder"] },
+    plugins: [vitePluginPonder(common.options)],
   });
 
   common.buildShutdown.add(() => viteDevServer.close());
 
-  // This is Vite boilerplate (initializes the Rollup container).
-  await viteDevServer.pluginContainer.buildStart({});
-
-  const viteNodeServer = new ViteNodeServer(viteDevServer);
-  installSourcemapsSupport({
-    getSourceMap: (source) => viteNodeServer.getSourceMap(source),
+  const ssrEnvironment = viteDevServer.environments.ssr;
+  const moduleRunner = createServerModuleRunner(ssrEnvironment, {
+    hmr: false,
+    sourcemapInterceptor: "prepareStackTrace",
   });
 
-  const viteNodeRunner = new ViteNodeRunner({
-    root: viteDevServer.config.root,
-    fetchModule: (id) => viteNodeServer.fetchModule(id, "ssr"),
-    resolveId: (id, importer) => viteNodeServer.resolveId(id, importer, "ssr"),
-    debug: (process.env.DEBUG ?? "").includes("vite-node"),
-  });
+  common.buildShutdown.add(() => moduleRunner.close());
+
+  const invalidateDepTree = (files: string[]) => {
+    const invalidated = new Set<string>();
+
+    const invalidate = (id: string) => {
+      const node = moduleRunner.evaluatedModules.getModuleById(id);
+      if (node === undefined || invalidated.has(node.file)) return;
+      invalidated.add(node.file);
+      for (const importer of node.importers) invalidate(importer);
+      moduleRunner.evaluatedModules.invalidateModule(node);
+    };
+
+    for (const file of files) {
+      const nodes = moduleRunner.evaluatedModules.getModulesByFile(
+        normalizePath(file),
+      );
+      for (const node of nodes ?? []) invalidate(node.id);
+    }
+
+    return invalidated;
+  };
 
   const executeFile = async ({
     file,
@@ -187,11 +231,11 @@ export const createBuild = async ({
     { status: "success"; exports: any } | { status: "error"; error: Error }
   > => {
     try {
-      const exports = await viteNodeRunner.executeFile(file);
+      const exports = await moduleRunner.import(file);
       return { status: "success", exports } as const;
     } catch (error_) {
       const relativePath = path.relative(common.options.rootDir, file);
-      const error = parseViteNodeError(relativePath, error_ as Error);
+      const error = parseViteError(relativePath, error_ as Error);
       return { status: "error", error } as const;
     }
   };
@@ -320,7 +364,7 @@ export const createBuild = async ({
       }
       const contentHash = hash.digest("hex");
 
-      const exports = await viteNodeRunner.executeId("ponder:registry");
+      const exports = await moduleRunner.import("ponder:registry");
 
       return {
         status: "success",
@@ -569,40 +613,16 @@ export const createBuild = async ({
       };
     },
     async startDev({ onReload }) {
-      // Define the directories and files to ignore
-      const ignoredDirs = [
-        common.options.generatedDir,
-        common.options.ponderDir,
-      ];
-      const ignoredFiles = [
-        path.join(common.options.rootDir, "ponder-env.d.ts"),
-        path.join(common.options.rootDir, ".env.local"),
-      ];
-
-      const isFileIgnored = (filePath: string) => {
-        const isInIgnoredDir = ignoredDirs.some((dir) => {
-          const rel = path.relative(dir, filePath);
-          return !rel.startsWith("..") && !path.isAbsolute(rel);
-        });
-
-        const isIgnoredFile = ignoredFiles.includes(filePath);
-        return isInIgnoredDir || isIgnoredFile;
-      };
-
       const onFileChange = async (_file: string) => {
-        if (isFileIgnored(_file)) return;
+        const file = normalizePath(_file);
 
-        // Note that `toFilePath` always returns a POSIX path, even if you pass a Windows path.
-        const file = toFilePath(
-          normalizeModuleId(_file),
-          common.options.rootDir,
-        ).path;
+        // Invalidate the transform result for the updated file. Vite also does this
+        // in its own watcher listener, but that listener can run after this one.
+        ssrEnvironment.moduleGraph.onFileChange(file);
 
         // Invalidate all modules that depend on the updated files.
-        // Note that `invalidateDepTree` accepts and returns POSIX paths, even on Windows.
-        const invalidated = viteNodeRunner.moduleCache.invalidateDepTree([
-          file,
-        ]);
+        // Note that `invalidateDepTree` returns POSIX paths, even on Windows.
+        const invalidated = invalidateDepTree([file]);
 
         // If no files were invalidated, no need to reload.
         if (invalidated.size === 0) return;
@@ -648,29 +668,22 @@ export const createBuild = async ({
           hasSchemaUpdate === false &&
           hasIndexingUpdate === false
         ) {
-          viteNodeRunner.moduleCache.invalidateDepTree([
-            common.options.apiFile,
-          ]);
+          invalidateDepTree([common.options.apiFile]);
 
           onReload("api");
         } else {
           // Instead, just invalidate the files that have changed and ...
 
           // re-execute all files
-          viteNodeRunner.moduleCache.invalidateDepTree([
-            common.options.configFile,
-          ]);
-          viteNodeRunner.moduleCache.invalidateDepTree([
-            common.options.schemaFile,
-          ]);
-          viteNodeRunner.moduleCache.invalidateDepTree(
+          invalidateDepTree([common.options.configFile]);
+          invalidateDepTree([common.options.schemaFile]);
+          invalidateDepTree(
             glob.sync(indexingPattern, {
               ignore: [apiPattern, testFilePattern],
             }),
           );
-          viteNodeRunner.moduleCache.invalidateDepTree(glob.sync(apiPattern));
-          viteNodeRunner.moduleCache.deleteByModuleId("ponder:registry");
-          viteNodeRunner.moduleCache.deleteByModuleId("ponder:api");
+          invalidateDepTree(glob.sync(apiPattern));
+          invalidateDepTree(["ponder:registry", "ponder:api"]);
 
           onReload("indexing");
         }

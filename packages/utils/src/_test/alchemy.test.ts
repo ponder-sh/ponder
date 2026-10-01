@@ -6,24 +6,20 @@ import { fromBlock, getRequest, type Params, UNI, WETH } from "./utils.js";
 const request = getRequest(process.env.RPC_URL_ALCHEMY_1!);
 const maxBlockRange = 2000n;
 
-test(
-  "alchemy success response size",
-  async () => {
-    const logs = await request({
-      method: "eth_getLogs",
-      params: [
-        {
-          address: WETH,
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(fromBlock + maxBlockRange),
-        },
-      ],
-    });
+test("alchemy success response size", { timeout: 15_000 }, async () => {
+  const logs = await request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: WETH,
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(fromBlock + maxBlockRange),
+      },
+    ],
+  });
 
-    expect(logs).toHaveLength(140192);
-  },
-  { timeout: 15_000 },
-);
+  expect(logs).toHaveLength(140192);
+});
 
 test("alchemy success block range", async () => {
   const logs = await request({
