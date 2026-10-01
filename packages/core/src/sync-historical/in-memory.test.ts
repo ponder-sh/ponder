@@ -30,18 +30,21 @@ import {
   getPairWithFactoryIndexingBuild,
   testClient,
 } from "@/_test/utils.js";
-import type { Filter } from "@/internal/types.js";
-import { createRpc } from "@/rpc/index.js";
+import type { Filter, LogFilter } from "@/internal/types.js";
+import { createRpc, type RequestParameters } from "@/rpc/index.js";
 import {
   getRequiredIntervalsWithFilters,
   type IntervalWithFilter,
 } from "@/runtime/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import {
   createInMemoryHistoricalSync,
   mergeGeneratorIntervals,
 } from "./in-memory.js";
+
+type EthGetLogsRequest = Extract<RequestParameters, { method: "eth_getLogs" }>;
 
 beforeEach(setupCommon);
 beforeEach(setupAnvil);
@@ -309,8 +312,7 @@ test("syncBlockData() with block filter", async () => {
   expect(blockData.flatMap(({ blocks }) => blocks)).toHaveLength(3);
 });
 
-// TODO(kyle) remove `.fails` once the in-memory sync supports factories.
-test.fails("syncBlockData() with log factory", async () => {
+test("syncBlockData() with log factory", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -334,6 +336,8 @@ test.fails("syncBlockData() with log factory", async () => {
     address,
   });
 
+  const spy = vi.spyOn(rpc, "request");
+
   const historicalSync = createInMemoryHistoricalSync({
     common: context.common,
     chain,
@@ -354,10 +358,23 @@ test.fails("syncBlockData() with log factory", async () => {
   );
 
   expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+
+  // `eth_getLogs` for the child filter is narrowed to the child address
+  const topic0 = (eventCallbacks[0]!.filter as LogFilter).topic0;
+  const childLogsRequests = spy.mock.calls
+    .map(([request]) => request)
+    .filter(
+      (request): request is EthGetLogsRequest =>
+        request.method === "eth_getLogs" &&
+        (request as EthGetLogsRequest).params[0].topics?.[0] === topic0,
+    );
+  expect(childLogsRequests.length).toBeGreaterThan(0);
+  for (const request of childLogsRequests) {
+    expect(request.params[0].address).toStrictEqual([toLowerCase(pair)]);
+  }
 });
 
-// TODO(kyle) remove `.fails` once the in-memory sync supports factories.
-test.fails("syncBlockData() with log factory and no address", async () => {
+test("syncBlockData() with log factory and no address", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -694,8 +711,7 @@ test("syncBlockData() with many filters", async () => {
   expect(blockData.flatMap(({ blocks }) => blocks)).toHaveLength(2);
 });
 
-// TODO(kyle) remove `.fails` once the in-memory sync supports factories.
-test.fails("syncBlockData() handles many factory addresses", async () => {
+test("syncBlockData() handles many factory addresses", async () => {
   const chain = getChain();
   const rpc = createRpc({
     chain,
@@ -726,6 +742,8 @@ test.fails("syncBlockData() handles many factory addresses", async () => {
     address,
   });
 
+  const spy = vi.spyOn(rpc, "request");
+
   const childAddresses = setupChildAddresses(eventCallbacks);
   const historicalSync = createInMemoryHistoricalSync({
     common: context.common,
@@ -751,6 +769,20 @@ test.fails("syncBlockData() handles many factory addresses", async () => {
   expect(childAddresses.get(eventCallbacks[0].filter.address.id)!.size).toBe(
     11,
   );
+
+  // `eth_getLogs` for the child filter is not narrowed above the threshold
+  const topic0 = (eventCallbacks[0]!.filter as LogFilter).topic0;
+  const childLogsRequests = spy.mock.calls
+    .map(([request]) => request)
+    .filter(
+      (request): request is EthGetLogsRequest =>
+        request.method === "eth_getLogs" &&
+        (request as EthGetLogsRequest).params[0].topics?.[0] === topic0,
+    );
+  expect(childLogsRequests.length).toBeGreaterThan(0);
+  for (const request of childLogsRequests) {
+    expect(request.params[0].address).toBeUndefined();
+  }
 });
 
 test("syncBlockData() yields ordered block data", async () => {
