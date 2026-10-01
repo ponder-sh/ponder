@@ -69,22 +69,16 @@ jobs:
       matrix:
         database: [Postgres, PGlite]
         runtime: [node, bun]
-    services:
-      postgres:
-        # Note: An empty image skips the service for PGlite jobs.
-        image: ${{ matrix.database == 'Postgres' && 'postgres:17' || '' }}
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 1s
-          --health-timeout 5s
-          --health-retries 30
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
+
+      # Note: The runner image has Postgres preinstalled.
+      - name: Setup Postgres
+        if: ${{ matrix.database == 'Postgres' }}
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres'" -c "SELECT version()"
 
       - name: Setup
         uses: ./.github/actions/setup
