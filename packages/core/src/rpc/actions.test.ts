@@ -1,6 +1,6 @@
 import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
 import { expect, test, vi } from "vitest";
-import type { SyncBlock } from "@/internal/types.js";
+import type { SyncBlock, SyncTransaction } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
@@ -10,6 +10,7 @@ import {
   eth_getLogs,
   eth_getLogsWithPagination,
   eth_getTransactionReceipts,
+  standardizeTransactions,
   validateLogsAndBlock,
 } from "./actions.js";
 
@@ -102,7 +103,7 @@ const log = {
   transactionIndex: "0x0",
 };
 
-test("eth_getLogs chunks address arrays and merges responses", async () => {
+test("eth_getLogs chunks address arrays and merges responses in order", async () => {
   const addresses = Array.from(
     { length: 51 },
     (_, index) => `0x${index.toString(16).padStart(40, "0")}` as Address,
@@ -129,9 +130,10 @@ test("eth_getLogs chunks address arrays and merges responses", async () => {
     { method: "eth_getLogs" }
   >["params"] = [{ address: addresses }];
 
+  // Note: The second chunk has the earlier log.
   await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([
-    firstLog,
     secondLog,
+    firstLog,
   ]);
   expect(requests).toHaveLength(2);
   expect(requests.map((request) => request.params[0].address)).toStrictEqual([
@@ -139,6 +141,46 @@ test("eth_getLogs chunks address arrays and merges responses", async () => {
     [addresses[50]],
   ]);
   expect(params[0].address).toStrictEqual(addresses);
+});
+
+test("eth_getLogs sorts logs by block number and log index", async () => {
+  const logs = [
+    { ...log, blockNumber: "0x2", logIndex: "0x0" },
+    { ...log, blockNumber: "0x1", logIndex: "0x1" },
+    { ...log, blockNumber: "0x1", logIndex: "0x0" },
+  ];
+  const rpc = { request: vi.fn(async () => logs) } as unknown as Rpc;
+
+  const result = await eth_getLogs(rpc, [{ fromBlock: "0x1", toBlock: "0x2" }]);
+  expect(
+    result.map(({ blockNumber, logIndex }) => [blockNumber, logIndex]),
+  ).toStrictEqual([
+    ["0x1", "0x0"],
+    ["0x1", "0x1"],
+    ["0x2", "0x0"],
+  ]);
+});
+
+test("standardizeTransactions() sorts transactions by transaction index", () => {
+  const transaction = {
+    blockHash: hash,
+    blockNumber: "0x1",
+    from: address,
+    hash,
+    to: address,
+    transactionIndex: "0x0",
+  };
+  const transactions = standardizeTransactions(
+    [
+      { ...transaction, transactionIndex: "0x2" },
+      { ...transaction, transactionIndex: "0x0" },
+      { ...transaction, transactionIndex: "0x1" },
+    ] as unknown as SyncTransaction[],
+    { method: "eth_getBlockByNumber", params: ["0x1", true] },
+  );
+  expect(
+    transactions.map(({ transactionIndex }) => transactionIndex),
+  ).toStrictEqual(["0x0", "0x1", "0x2"]);
 });
 
 test("eth_getLogs skips empty address arrays", async () => {
@@ -285,23 +327,24 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
   ]);
 });
 
+const receipt = {
+  blockHash: hash,
+  blockNumber: "0x1",
+  contractAddress: null,
+  cumulativeGasUsed: "0x1",
+  effectiveGasPrice: "0x1",
+  from: address,
+  gasUsed: "0x1",
+  logs: [],
+  logsBloom: zeroLogsBloom,
+  status: "0x1",
+  to: address,
+  transactionHash: hash,
+  transactionIndex: "0x0",
+  type: "0x0",
+};
+
 test("eth_getTransactionReceipts falls back to eth_getTransactionReceipt per RPC", async () => {
-  const receipt = {
-    blockHash: hash,
-    blockNumber: "0x1",
-    contractAddress: null,
-    cumulativeGasUsed: "0x1",
-    effectiveGasPrice: "0x1",
-    from: address,
-    gasUsed: "0x1",
-    logs: [],
-    logsBloom: zeroLogsBloom,
-    status: "0x1",
-    to: address,
-    transactionHash: hash,
-    transactionIndex: "0x0",
-    type: "0x0",
-  };
   const request = vi.fn(async (request: RequestParameters) => {
     if (request.method === "eth_getBlockReceipts") {
       throw new Error("method not supported");
@@ -329,6 +372,51 @@ test("eth_getTransactionReceipts falls back to eth_getTransactionReceipt per RPC
     { request: { method: "eth_getBlockReceipts", params: [hash] } },
   ]);
   expect(otherRequest).toHaveBeenCalledTimes(1);
+});
+
+test("eth_getTransactionReceipts sorts receipts by transaction index", async () => {
+  const otherHash =
+    "0x3333333333333333333333333333333333333333333333333333333333333333" as const;
+  const receipts = [
+    { ...receipt, transactionHash: otherHash, transactionIndex: "0x1" },
+    { ...receipt, transactionHash: hash, transactionIndex: "0x0" },
+  ];
+  const params = {
+    blockHash: hash,
+    transactionHashes: new Set([otherHash, hash]),
+  };
+
+  const request = vi.fn(async () =>
+    receipts.map((receipt) => ({ ...receipt })),
+  );
+  const rpc = { request } as unknown as Rpc;
+  const [response] = await eth_getTransactionReceipts(rpc, params);
+  expect(
+    response!.receipts.map(({ transactionIndex }) => transactionIndex),
+  ).toStrictEqual(["0x0", "0x1"]);
+
+  const fallbackRequest = vi.fn(async (request: RequestParameters) => {
+    if (request.method === "eth_getBlockReceipts") {
+      throw new Error("method not supported");
+    }
+    return receipts.find(
+      (receipt) =>
+        receipt.transactionHash ===
+        (
+          request as Extract<
+            RequestParameters,
+            { method: "eth_getTransactionReceipt" }
+          >
+        ).params[0],
+    );
+  });
+  const fallbackRpc = { request: fallbackRequest } as unknown as Rpc;
+  const responses = await eth_getTransactionReceipts(fallbackRpc, params);
+  expect(
+    responses.flatMap(({ receipts }) =>
+      receipts.map(({ transactionIndex }) => transactionIndex),
+    ),
+  ).toStrictEqual(["0x0", "0x1"]);
 });
 
 test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ranges", async () => {

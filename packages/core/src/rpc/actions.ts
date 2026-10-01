@@ -289,6 +289,9 @@ const rpcsWithoutBlockReceipts = new WeakSet<Rpc>();
  * Fetch transaction receipts, falling back to individual requests when
  * eth_getBlockReceipts fails. Returns each response with its request so callers
  * can validate the full response before selecting the receipts they need.
+ *
+ * Note: Receipts are sorted by transaction index. The order of `transactionHashes`
+ * is not used.
  */
 export const eth_getTransactionReceipts = async (
   rpc: Rpc,
@@ -310,14 +313,19 @@ export const eth_getTransactionReceipts = async (
   if (transactionHashes.size === 0) return [];
 
   if (rpcsWithoutBlockReceipts.has(rpc)) {
-    return Promise.all(
+    const responses = await Promise.all(
       Array.from(transactionHashes).map(async (hash) => ({
         receipts: [await eth_getTransactionReceipt(rpc, [hash], context)],
         request: {
           method: "eth_getTransactionReceipt" as const,
-          params: [hash],
+          params: [hash] as [Hash],
         },
       })),
+    );
+    return responses.sort(
+      (a, b) =>
+        hexToNumber(a.receipts[0]!.transactionIndex) -
+        hexToNumber(b.receipts[0]!.transactionIndex),
     );
   }
 
@@ -1065,7 +1073,11 @@ export const standardizeTransactions = (
       throw error;
     }
   }
-  return transactions;
+
+  // Note: Sort transactions by transaction index. Do not rely on the rpc response order.
+  return transactions.sort(
+    (a, b) => hexToNumber(a.transactionIndex) - hexToNumber(b.transactionIndex),
+  );
 };
 
 /**
@@ -1219,7 +1231,12 @@ export const standardizeLogs = (
     }
   }
 
-  return logs;
+  // Note: Sort logs by block number and log index. Do not rely on the rpc response order.
+  return logs.sort(
+    (a, b) =>
+      hexToNumber(a.blockNumber) - hexToNumber(b.blockNumber) ||
+      hexToNumber(a.logIndex) - hexToNumber(b.logIndex),
+  );
 };
 
 /**
@@ -1465,7 +1482,11 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
   }
-  return receipts;
+
+  // Note: Sort receipts by transaction index. Do not rely on the rpc response order.
+  return receipts.sort(
+    (a, b) => hexToNumber(a.transactionIndex) - hexToNumber(b.transactionIndex),
+  );
 };
 
 function requestText(request: { method: string; params: any[] }): string {
