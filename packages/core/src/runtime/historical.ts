@@ -221,7 +221,7 @@ export async function* getHistoricalEventsOmnichain(params: {
           database: params.database,
           isCatchup,
         };
-        const eventGenerator = chain.persistRpcData
+        const eventGenerator = chain.rpcRequestCache
           ? getLocalEventGenerator(eventGeneratorParams)
           : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
@@ -507,7 +507,7 @@ export async function* getHistoricalEventsMultichain(params: {
           database: params.database,
           isCatchup,
         };
-        const eventGenerator = chain.persistRpcData
+        const eventGenerator = chain.rpcRequestCache
           ? getLocalEventGenerator(eventGeneratorParams)
           : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
@@ -724,7 +724,7 @@ export async function* getHistoricalEventsIsolated(params: {
       database: params.database,
       isCatchup,
     };
-    const eventGenerator = params.chain.persistRpcData
+    const eventGenerator = params.chain.rpcRequestCache
       ? getLocalEventGenerator(eventGeneratorParams)
       : getLocalInMemoryEventGenerator(eventGeneratorParams);
 

@@ -108,8 +108,11 @@ type ChainConfig<chain> = {
    * @deprecated Handled automatically instead.
    */
   maxRequestsPerSecond?: number;
-  /** Persist raw JSON-RPC response data. If `false`, historical data is kept in memory. Default: `true`. */
-  persistRpcData?: boolean;
+  /**
+   * Cache JSON-RPC data in the database and reuse it between runs. Set to `false`
+   * for a local node like Anvil. Default: `true`.
+   */
+  rpcRequestCache?: boolean;
   /**
    * Maximum block range for eth_getLogs. If undefined, Ponder will
    * attempt to determine the block range automatically based on error messages.

@@ -937,7 +937,7 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      if (params.chain.persistRpcData === false) break;
+      if (params.chain.rpcRequestCache === false) break;
 
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
