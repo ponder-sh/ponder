@@ -1354,12 +1354,26 @@ test("handleReorg() throws error for deep reorg", async () => {
   const blockData3 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
+  // Note: Block 4 does not exist, so the RPC can't return its logs.
+  const requestSpy = vi.spyOn(rpc, "request");
+  requestSpy.mockResolvedValueOnce([]);
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
   await drainAsyncGenerator(
     realtimeSync.sync({
       ...blockData3.block,
       number: "0x4",
       hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       parentHash: realtimeSync.unfinalizedBlocks[1]!.hash,
+    }),
+  );
+
+  expect(requestSpy.mock.calls[0]![0]).toMatchObject({ method: "eth_getLogs" });
+  expect(warnSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining("Encountered unrecoverable"),
+      }),
     }),
   );
 
