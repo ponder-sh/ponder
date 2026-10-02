@@ -1192,15 +1192,20 @@ export async function* getLocalInMemoryEventGenerator(params: {
     );
   }
 
-  // TODO(kyle) handle crash recovery
-  const {
-    intervals: requiredIntervals,
-    factoryIntervals: requiredFactoryIntervals,
-  } = getRequiredIntervalsWithFilters({
-    interval: [first, hexToNumber(last.number)],
+  const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
+
+  const { intervals: requiredIntervals } = getRequiredIntervalsWithFilters({
+    interval: [fromBlock, hexToNumber(last.number)],
     filters: params.eventCallbacks.map(({ filter }) => filter),
     cachedIntervals: params.cachedIntervals,
   });
+
+  const { factoryIntervals: requiredFactoryIntervals } =
+    getRequiredIntervalsWithFilters({
+      interval: [first, hexToNumber(last.number)],
+      filters: params.eventCallbacks.map(({ filter }) => filter),
+      cachedIntervals: params.cachedIntervals,
+    });
 
   const historicalSync = createInMemoryHistoricalSync({
     common: params.common,
@@ -1208,7 +1213,12 @@ export async function* getLocalInMemoryEventGenerator(params: {
     rpc: params.rpc,
     childAddress: params.childAddresses,
   });
-  let cursor = first;
+
+  params.common.metrics.ponder_historical_completed_blocks.inc(
+    label,
+    Math.max(0, Math.min(fromBlock, hexToNumber(last.number) + 1) - first),
+  );
+  let cursor = fromBlock;
 
   for await (const blockData of historicalSync.syncBlockData({
     requiredIntervals,

@@ -358,8 +358,7 @@ test("getLocalInMemoryEventGenerator() ignores intervals table", async () => {
   expect(requestSpy).toHaveBeenCalled();
 });
 
-// TODO(kyle) remove `.fails` once the in-memory sync starts from the crash recovery checkpoint.
-test.fails("getLocalInMemoryEventGenerator() with crash recovery checkpoint", async () => {
+test("getLocalInMemoryEventGenerator() with crash recovery checkpoint", async () => {
   const { syncStore } = await setupDatabaseServices();
   const chain = getChain({ rpcRequestCache: false });
   const rpc = createRpc({ chain, common: context.common });
@@ -410,13 +409,15 @@ test.fails("getLocalInMemoryEventGenerator() with crash recovery checkpoint", as
 
   const requestSpy = vi.spyOn(rpc, "request");
 
+  // Note: The crash recovery block is fetched again, the same as `getLocalEventGenerator`.
   const events = await drainAsyncGenerator(eventGenerator);
-  expect(events.flatMap(({ events }) => events)).toHaveLength(1);
+  expect(events.flatMap(({ events }) => events)).toHaveLength(2);
 
   const blockRequests = requestSpy.mock.calls
     .map(([request]) => request)
     .filter((request) => request.method === "eth_getBlockByNumber");
   expect(blockRequests).toStrictEqual([
+    { method: "eth_getBlockByNumber", params: ["0x1", true] },
     { method: "eth_getBlockByNumber", params: ["0x2", true] },
   ]);
 });
