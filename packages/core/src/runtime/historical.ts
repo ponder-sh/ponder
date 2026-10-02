@@ -1294,14 +1294,13 @@ export async function* getLocalInMemoryEventGenerator(params: {
     hexToNumber(last.timestamp),
   );
 
-  yield {
-    events: [],
-    checkpoint: params.to,
-    blockRange: [
-      Math.min(cursor, hexToNumber(last.number)),
-      hexToNumber(last.number),
-    ],
-  };
+  if (cursor <= hexToNumber(last.number)) {
+    yield {
+      events: [],
+      checkpoint: params.to,
+      blockRange: [cursor, hexToNumber(last.number)],
+    };
+  }
 
   params.common.logger.info({
     msg: "Finished fetching backfill JSON-RPC data",

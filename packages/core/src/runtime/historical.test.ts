@@ -219,7 +219,6 @@ test("getLocalInMemoryEventGenerator()", async () => {
   expect(events.map(({ blockRange }) => blockRange)).toStrictEqual([
     [0, 0],
     [1, 1],
-    [1, 1],
   ]);
 });
 
