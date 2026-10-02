@@ -12,6 +12,31 @@ import {
 } from "./decodeAbiParameters.js";
 import { toLowerCase } from "./lowercase.js";
 
+type DecodeEventLogInputs = {
+  isUnnamed: boolean;
+  indexedInputs: (readonly [AbiParameter, number])[];
+  nonIndexedInputs: AbiParameter[];
+};
+
+/** Inputs of each `abiItem`, so that they aren't recomputed for every log. */
+const inputsCache = new WeakMap<AbiEvent, DecodeEventLogInputs>();
+
+const getInputs = (abiItem: AbiEvent): DecodeEventLogInputs => {
+  let result = inputsCache.get(abiItem);
+  if (result === undefined) {
+    const { inputs } = abiItem;
+    result = {
+      isUnnamed: inputs?.some((x) => !("name" in x && x.name)),
+      indexedInputs: inputs
+        .map((x, i) => [x, i] as const)
+        .filter(([x]) => "indexed" in x && x.indexed),
+      nonIndexedInputs: inputs.filter((x) => !("indexed" in x && x.indexed)),
+    };
+    inputsCache.set(abiItem, result);
+  }
+  return result;
+};
+
 /**
  * Decode an event log.
  *
@@ -27,14 +52,11 @@ export function decodeEventLog({
   data: Hex;
 }): any {
   const { inputs } = abiItem;
-  const isUnnamed = inputs?.some((x) => !("name" in x && x.name));
+  const { isUnnamed, indexedInputs, nonIndexedInputs } = getInputs(abiItem);
 
   const args: any = isUnnamed ? [] : {};
 
   // Decode topics (indexed args).
-  const indexedInputs = inputs
-    .map((x, i) => [x, i] as const)
-    .filter(([x]) => "indexed" in x && x.indexed);
   for (let i = 0; i < indexedInputs.length; i++) {
     const [param, argIndex] = indexedInputs[i]!;
     const topic = topics[i + 1];
@@ -52,7 +74,6 @@ export function decodeEventLog({
   }
 
   // Decode data (non-indexed args).
-  const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   if (nonIndexedInputs.length > 0) {
     if (data && data !== "0x") {
       const out = [] as DecodeAbiParametersReturnType<typeof nonIndexedInputs>;
@@ -82,7 +103,8 @@ export function decodeEventLog({
     }
   }
 
-  return Object.values(args).length > 0 ? args : undefined;
+  // Note: Every input sets a value in `args`.
+  return inputs.length > 0 ? args : undefined;
 }
 
 const ARRAY_REGEX = /^(.*)\[(\d+)?\]$/;
