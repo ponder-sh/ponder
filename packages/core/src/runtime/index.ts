@@ -178,35 +178,44 @@ export async function getLocalSyncProgress(params: {
 }
 
 export async function getChildAddresses(params: {
+  chain: Chain;
   filters: Filter[];
   syncStore: SyncStore;
 }): Promise<ChildAddresses> {
   const childAddresses: ChildAddresses = new Map();
+
+  // Note: When the rpc cache is disabled, child addresses in the sync-store can be
+  // stale (e.g. from before an Anvil reset). Start empty and fetch them from the rpc.
+  const getFactoryChildAddresses = (factory: Factory) =>
+    params.chain.rpcRequestCache
+      ? params.syncStore.getChildAddresses({ factory })
+      : Promise.resolve(new Map<Address, number>());
+
   for (const filter of params.filters) {
     switch (filter.type) {
       case "log":
         if (isAddressFactory(filter.address)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: filter.address,
-          });
-          childAddresses.set(filter.address.id, _childAddresses);
+          childAddresses.set(
+            filter.address.id,
+            await getFactoryChildAddresses(filter.address),
+          );
         }
         break;
       case "transaction":
       case "transfer":
       case "trace":
         if (isAddressFactory(filter.fromAddress)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: filter.fromAddress,
-          });
-          childAddresses.set(filter.fromAddress.id, _childAddresses);
+          childAddresses.set(
+            filter.fromAddress.id,
+            await getFactoryChildAddresses(filter.fromAddress),
+          );
         }
 
         if (isAddressFactory(filter.toAddress)) {
-          const _childAddresses = await params.syncStore.getChildAddresses({
-            factory: filter.toAddress,
-          });
-          childAddresses.set(filter.toAddress.id, _childAddresses);
+          childAddresses.set(
+            filter.toAddress.id,
+            await getFactoryChildAddresses(filter.toAddress),
+          );
         }
 
         break;

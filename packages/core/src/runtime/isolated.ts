@@ -154,6 +154,7 @@ export async function runIsolated({
     cachedIntervals,
   });
   const childAddresses = await getChildAddresses({
+    chain,
     filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });

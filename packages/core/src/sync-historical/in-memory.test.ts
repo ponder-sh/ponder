@@ -30,7 +30,7 @@ import {
   getPairWithFactoryIndexingBuild,
   testClient,
 } from "@/_test/utils.js";
-import type { Filter, LogFilter } from "@/internal/types.js";
+import type { Factory, Filter, LogFilter } from "@/internal/types.js";
 import { createRpc, type RequestParameters } from "@/rpc/index.js";
 import {
   getRequiredIntervalsWithFilters,
@@ -372,6 +372,162 @@ test("syncBlockData() with log factory", async () => {
   for (const request of childLogsRequests) {
     expect(request.params[0].address).toStrictEqual([toLowerCase(pair)]);
   }
+});
+
+test.each(["contract start block", "crash recovery"])(
+  "syncBlockData() with log factory starting earlier than %s",
+  async (scenario) => {
+    // Note: One block per "eth_getLogs" page puts the factory's first page before
+    // the contract's start block.
+    const chain = {
+      ...getChain({ rpcRequestCache: false }),
+      ethGetLogsBlockRange: 1,
+    };
+    const rpc = createRpc({ chain, common: context.common });
+
+    const { address } = await deployFactory({ sender: ALICE });
+    const { address: pair } = await createPair({
+      factory: address,
+      sender: ALICE,
+    });
+    await swapPair({
+      pair,
+      amount0Out: 1n,
+      amount1Out: 1n,
+      to: ALICE,
+      sender: ALICE,
+    });
+
+    const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+    const filter = eventCallbacks[0]!.filter as LogFilter;
+    filter.fromBlock = scenario === "contract start block" ? 3 : 0;
+
+    const historicalSync = createInMemoryHistoricalSync({
+      common: context.common,
+      chain,
+      rpc,
+      childAddress: setupChildAddresses(eventCallbacks),
+    });
+    const requiredIntervals = getRequiredIntervalsWithFilters({
+      interval: [0, 3],
+      filters: [filter],
+      cachedIntervals: setupCachedIntervals(eventCallbacks),
+    });
+    // Crash recovery can move the required interval beyond the configured start.
+    requiredIntervals.intervals[0]!.interval[0] = 3;
+    expect(requiredIntervals.factoryIntervals[0]!.interval).toStrictEqual([
+      0, 3,
+    ]);
+
+    const blockData = await drainAsyncGenerator(
+      historicalSync.syncBlockData({
+        requiredIntervals: requiredIntervals.intervals,
+        requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+      }),
+    );
+
+    expect(blockData.map(({ cursor }) => cursor)).toStrictEqual([3]);
+    expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+    expect(blockData[0]!.logs[0]!.address).toBe(toLowerCase(pair));
+  },
+);
+
+test("syncBlockData() with trace factory waits for child addresses", async () => {
+  // Note: One block per "eth_getLogs" page, so the trace filter must wait for the
+  // factory to reach each block.
+  const chain = { ...getChain(), ethGetLogsBlockRange: 1 };
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  const { trace } = await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+    includeCallTraces: true,
+  });
+
+  const request = async (request: any) => {
+    if (request.method === "debug_traceBlockByNumber") {
+      if (request.params[0] === "0x3") {
+        return [{ txHash: trace.transactionHash, result: trace.trace }];
+      }
+      return [];
+    }
+    return rpc.request(request);
+  };
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc: {
+      ...rpc,
+      // @ts-expect-error
+      request,
+    },
+    childAddress: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 3],
+    filters: eventCallbacks
+      .filter(({ filter }) => filter.type === "trace")
+      .map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const result = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: requiredIntervals.intervals,
+      requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    }),
+  );
+
+  const traces = result.flatMap(({ traces }) => traces);
+  expect(traces).toHaveLength(1);
+  expect(traces[0]!.to).toBe(toLowerCase(pair));
+});
+
+test("syncBlockData() fetches child addresses without required intervals", async () => {
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
+  const childAddress = setupChildAddresses(eventCallbacks);
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress,
+  });
+
+  // Note: The contract `startBlock` is after the finalized block, but the factory
+  // `startBlock` is not.
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: [],
+      requiredFactoryIntervals: [{ factory: filter.address, interval: [1, 2] }],
+    }),
+  );
+
+  expect(blockData).toHaveLength(0);
+  expect(childAddress.get(filter.address.id)!.get(toLowerCase(pair))).toBe(2);
 });
 
 test("syncBlockData() with log factory and no address", async () => {

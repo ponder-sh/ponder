@@ -176,6 +176,7 @@ export async function runMultichain({
         cachedIntervals,
       });
       const childAddresses = await getChildAddresses({
+        chain,
         filters: eventCallbacks.map(({ filter }) => filter),
         syncStore,
       });

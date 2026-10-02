@@ -216,6 +216,11 @@ test("getLocalInMemoryEventGenerator()", async () => {
 
   const events = await drainAsyncGenerator(eventGenerator);
   expect(events.flatMap(({ events }) => events)).toHaveLength(2);
+  expect(events.map(({ blockRange }) => blockRange)).toStrictEqual([
+    [0, 0],
+    [1, 1],
+    [1, 1],
+  ]);
 });
 
 test("getLocalInMemoryEventGenerator() with start block after finalized block", async () => {
@@ -666,6 +671,7 @@ test("getHistoricalEventsMultichain()", async () => {
   });
 
   const childAddresses = await getChildAddresses({
+    chain,
     filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
@@ -727,6 +733,7 @@ test("getHistoricalEvents() omnichain", async () => {
   });
 
   const childAddresses = await getChildAddresses({
+    chain,
     filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });
@@ -788,6 +795,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async () => {
   });
 
   const childAddresses = await getChildAddresses({
+    chain,
     filters: eventCallbacks.map(({ filter }) => filter),
     syncStore,
   });

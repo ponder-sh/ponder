@@ -13,11 +13,17 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import {
+  createPair,
+  deployErc20,
+  deployFactory,
+  mintErc20,
+} from "@/_test/simulate.js";
 import {
   getBlocksIndexingBuild,
   getChain,
   getErc20IndexingBuild,
+  getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import type {
   BlockFilter,
@@ -43,6 +49,7 @@ import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import {
   type CachedIntervals,
   getCachedBlock,
+  getChildAddresses,
   getLocalSyncProgress,
   getRequiredIntervals,
   getRequiredIntervalsWithFilters,
@@ -983,4 +990,31 @@ test("historical events match realtime events", async () => {
       },
     ]
   `);
+});
+
+test("getChildAddresses() returns empty for rpcRequestCache: false", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
+
+  await syncStore.insertChildAddresses({
+    factory: filter.address,
+    childAddresses: new Map([[pair, 0]]),
+    chainId: 1,
+  });
+
+  const childAddresses = await getChildAddresses({
+    chain: getChain({ rpcRequestCache: false }),
+    filters: [filter],
+    syncStore,
+  });
+
+  expect(childAddresses.get(filter.address.id)!.size).toBe(0);
 });

@@ -36,6 +36,7 @@ import {
 } from "@/runtime/events.js";
 import {
   getChildAddress,
+  getFilterFactories,
   isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
@@ -53,11 +54,8 @@ import type {
 } from "@/runtime/index.js";
 import type { SyncStore } from "@/sync-store/index.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
+import { drainAsyncGenerator } from "@/utils/generators.js";
 import { type Interval, intervalBounds } from "@/utils/interval.js";
-import {
-  type PromiseWithResolvers,
-  promiseWithResolvers,
-} from "@/utils/promiseWithResolvers.js";
 import { startClock } from "@/utils/timer.js";
 
 type BlockData = Awaited<ReturnType<SyncStore["getEventData"]>>;
@@ -96,23 +94,101 @@ export function createInMemoryHistoricalSync(params: {
         });
       }
 
-      const factoryProgress = new Map<
-        Factory["id"],
-        {
-          /** Closest-to-tip block with all child addresses fetched (inclusive). */
-          block: number;
-          endBlock: number;
-          /** Resolved each time `block` increases. */
-          pwr: PromiseWithResolvers<void>;
+      /**
+       * Fetch the child addresses of `factory` in `interval`, one page for each
+       * `next()`. Yields the last block of each page.
+       */
+      async function* fetchChildAddressesWithPagination(
+        factory: Factory,
+        interval: Interval,
+      ): AsyncGenerator<number> {
+        const factoryChildAddresses = params.childAddress.get(factory.id)!;
+
+        let endClock = startClock();
+        for await (const page of eth_getLogsWithPagination(
+          params.rpc,
+          [
+            {
+              address: factory.address,
+              topics: [factory.eventSelector],
+              fromBlock: numberToHex(interval[0]),
+              toBlock: numberToHex(interval[1]),
+            },
+          ],
+          {
+            ...context,
+            ethGetLogsBlockRange: params.chain.ethGetLogsBlockRange,
+          },
+        )) {
+          let childAddressCount = 0;
+
+          for (const log of page.logs) {
+            if (isLogFactoryMatched({ factory, log }) === false) continue;
+
+            let address: Address;
+            try {
+              address = getChildAddress({ log, factory });
+            } catch (error) {
+              if (factory.address !== undefined) throw error;
+              params.common.logger.debug({
+                msg: "Failed to extract child address from log matched by factory using the provided ABI item",
+                chain: params.chain.name,
+                chain_id: params.chain.id,
+                factory: factory.sourceId,
+                block_number: hexToNumber(log.blockNumber),
+                log_index: hexToNumber(log.logIndex),
+                data: log.data,
+                topics: JSON.stringify(log.topics),
+              });
+              continue;
+            }
+
+            const blockNumber = hexToNumber(log.blockNumber);
+            const existingBlockNumber = factoryChildAddresses.get(address);
+            if (
+              existingBlockNumber === undefined ||
+              existingBlockNumber > blockNumber
+            ) {
+              factoryChildAddresses.set(address, blockNumber);
+              childAddressCount++;
+            }
+          }
+
+          params.common.logger.debug(
+            {
+              msg: "Fetched block range data",
+              chain: params.chain.name,
+              chain_id: params.chain.id,
+              data_type: "factory_log",
+              block_range: JSON.stringify([page.fromBlock, page.toBlock]),
+              log_count: page.logs.length,
+              child_address_count: childAddressCount,
+              duration: endClock(),
+            },
+            ["chain", "data_type", "block_range"],
+          );
+
+          yield page.toBlock;
+          endClock = startClock();
         }
-      >();
+      }
+
+      /**
+       * Closest-to-tip block with all child addresses fetched (inclusive), for each
+       * factory. `Infinity` once all child addresses are fetched.
+       *
+       * Note: Factories are not part of `mergeGeneratorIntervals`. Instead, the filters
+       * that depend on a factory fetch its pages when they need more child addresses.
+       */
+      const factoryProgress = new Map<Factory["id"], number>();
+      const factoryPages = new Map<Factory["id"], AsyncGenerator<number>>();
 
       for (const { factory, interval } of factoryIntervalsById.values()) {
-        factoryProgress.set(factory.id, {
-          block: interval[0] - 1,
-          endBlock: interval[1],
-          pwr: promiseWithResolvers<void>(),
-        });
+        factoryProgress.set(factory.id, interval[0] - 1);
+        factoryPages.set(
+          factory.id,
+          fetchChildAddressesWithPagination(factory, interval),
+        );
       }
 
       /**
@@ -121,103 +197,13 @@ export function createInMemoryHistoricalSync(params: {
       const perBlockLogs = new Map<number, Map<number, SyncLog>>();
 
       const intervalGenerators = new Map<
-        IntervalWithFilter | IntervalWithFactory,
+        IntervalWithFilter,
         AsyncGenerator<Interval>
       >();
 
-      for (const requiredFactoryInterval of factoryIntervalsById.values()) {
-        intervalGenerators.set(
-          requiredFactoryInterval,
-          (async function* (): AsyncGenerator<Interval> {
-            const { factory, interval } = requiredFactoryInterval;
-            const progress = factoryProgress.get(factory.id)!;
-            const factoryChildAddresses = params.childAddress.get(factory.id)!;
-
-            const setProgress = (block: number) => {
-              const previousPwr = progress.pwr;
-              progress.block = block;
-              progress.pwr = promiseWithResolvers<void>();
-              previousPwr.resolve();
-            };
-
-            let endClock = startClock();
-            for await (const page of eth_getLogsWithPagination(
-              params.rpc,
-              [
-                {
-                  address: factory.address,
-                  topics: [factory.eventSelector],
-                  fromBlock: numberToHex(interval[0]),
-                  toBlock: numberToHex(interval[1]),
-                },
-              ],
-              {
-                ...context,
-                ethGetLogsBlockRange: params.chain.ethGetLogsBlockRange,
-              },
-            )) {
-              let childAddressCount = 0;
-
-              for (const log of page.logs) {
-                if (isLogFactoryMatched({ factory, log }) === false) continue;
-
-                let address: Address;
-                try {
-                  address = getChildAddress({ log, factory });
-                } catch (error) {
-                  if (factory.address !== undefined) throw error;
-                  params.common.logger.debug({
-                    msg: "Failed to extract child address from log matched by factory using the provided ABI item",
-                    chain: params.chain.name,
-                    chain_id: params.chain.id,
-                    factory: factory.sourceId,
-                    block_number: hexToNumber(log.blockNumber),
-                    log_index: hexToNumber(log.logIndex),
-                    data: log.data,
-                    topics: JSON.stringify(log.topics),
-                  });
-                  continue;
-                }
-
-                const blockNumber = hexToNumber(log.blockNumber);
-                const existingBlockNumber = factoryChildAddresses.get(address);
-                if (
-                  existingBlockNumber === undefined ||
-                  existingBlockNumber > blockNumber
-                ) {
-                  factoryChildAddresses.set(address, blockNumber);
-                  childAddressCount++;
-                }
-              }
-
-              setProgress(page.toBlock);
-
-              params.common.logger.debug(
-                {
-                  msg: "Fetched block range data",
-                  chain: params.chain.name,
-                  chain_id: params.chain.id,
-                  data_type: "factory_log",
-                  block_range: JSON.stringify([page.fromBlock, page.toBlock]),
-                  log_count: page.logs.length,
-                  child_address_count: childAddressCount,
-                  duration: endClock(),
-                },
-                ["chain", "data_type", "block_range"],
-              );
-
-              yield [page.fromBlock, page.toBlock];
-              endClock = startClock();
-            }
-
-            setProgress(interval[1]);
-          })(),
-        );
-      }
-
       /**
        * Yield the sub-intervals of `interval` for which all `factories`
-       * have fetched child addresses.
+       * have fetched child addresses. Fetches factory pages as needed.
        */
       async function* paginateFactoryDependencies(
         interval: Interval,
@@ -226,27 +212,31 @@ export function createInMemoryHistoricalSync(params: {
         let cursor = interval[0];
 
         while (cursor <= interval[1]) {
-          const pendingFactories = factories.filter(
-            (id) =>
-              factoryProgress.has(id) &&
-              factoryProgress.get(id)!.block <
-                factoryProgress.get(id)!.endBlock,
+          const behind = factories.filter(
+            (id) => factoryProgress.get(id)! < cursor,
           );
 
-          const progressBlock = Math.min(
-            interval[1],
-            ...pendingFactories.map((id) => factoryProgress.get(id)!.block),
-          );
-
-          if (cursor <= progressBlock) {
-            yield [cursor, progressBlock];
-            cursor = progressBlock + 1;
+          if (behind.length > 0) {
+            // Note: Concurrent `next()` calls on one generator are queued, so filters
+            // that depend on the same factory do not repeat requests.
+            await Promise.all(
+              behind.map(async (id) => {
+                const result = await factoryPages.get(id)!.next();
+                factoryProgress.set(
+                  id,
+                  result.done ? Number.POSITIVE_INFINITY : result.value,
+                );
+              }),
+            );
             continue;
           }
 
-          await Promise.race(
-            pendingFactories.map((id) => factoryProgress.get(id)!.pwr.promise),
+          const progressBlock = Math.min(
+            interval[1],
+            ...factories.map((id) => factoryProgress.get(id)!),
           );
+          yield [cursor, progressBlock];
+          cursor = progressBlock + 1;
         }
       }
 
@@ -261,7 +251,12 @@ export function createInMemoryHistoricalSync(params: {
               case "transaction":
               case "trace":
               case "transfer":
-                yield interval;
+                // Note: `syncBlock` matches factory addresses, so it requires all
+                // child addresses up to each block.
+                yield* paginateFactoryDependencies(
+                  interval,
+                  getFilterFactories(filter).map(({ id }) => id),
+                );
                 break;
               case "log": {
                 const factory = isAddressFactory(filter.address)
@@ -355,10 +350,29 @@ export function createInMemoryHistoricalSync(params: {
         );
       }
 
-      const syncBlock = async (
-        blockNumber: number,
-      ): Promise<BlockData | undefined> => {
-        const endClock = startClock();
+      /**
+       * Returns `true` if `blockNumber` has required data.
+       */
+      const isBlockRequired = (blockNumber: number) =>
+        perBlockLogs.has(blockNumber) ||
+        requiredIntervals.some(({ filter, interval }) => {
+          if (blockNumber < interval[0] || blockNumber > interval[1]) {
+            return false;
+          }
+
+          // Note: Blocks with logs are in `perBlockLogs`.
+          if (filter.type === "log") return false;
+          if (filter.type === "block") {
+            return isBlockFilterMatched({
+              filter,
+              block: { number: BigInt(blockNumber) },
+            });
+          }
+          // Transaction, trace, and transfer filters require every block.
+          return true;
+        });
+
+      const syncBlock = async (blockNumber: number): Promise<BlockData> => {
         const filters = requiredIntervals
           .filter(
             ({ interval }) =>
@@ -385,6 +399,22 @@ export function createInMemoryHistoricalSync(params: {
           (filter): filter is Extract<Filter, { type: "log" }> =>
             filter.type === "log",
         );
+
+        // Note: `perBlockLogs` is keyed by log index.
+        const blockLogs = perBlockLogs.has(blockNumber)
+          ? Array.from(perBlockLogs.get(blockNumber)!.entries())
+              .sort(([a], [b]) => a - b)
+              .map(([, log]) => log)
+          : undefined;
+        perBlockLogs.delete(blockNumber);
+
+        const shouldRequestTraces =
+          traceFilters.some((filter) => isBlockInFilter(filter, blockNumber)) ||
+          transferFilters.some((filter) =>
+            isBlockInFilter(filter, blockNumber),
+          );
+
+        const endClock = startClock();
         let block: SyncBlock | undefined;
 
         const requiredTransactions = new Set<Hash>();
@@ -394,12 +424,6 @@ export function createInMemoryHistoricalSync(params: {
         // Logs
         ////////
 
-        const blockLogs = perBlockLogs.has(blockNumber)
-          ? Array.from(perBlockLogs.get(blockNumber)!.values()).sort(
-              (a, b) => hexToNumber(a.logIndex) - hexToNumber(b.logIndex),
-            )
-          : undefined;
-        perBlockLogs.delete(blockNumber);
         let logs: SyncLog[] = [];
         if (blockLogs !== undefined) {
           block = await eth_getBlockByNumber(
@@ -468,12 +492,6 @@ export function createInMemoryHistoricalSync(params: {
         ////////
         // Traces
         ////////
-
-        const shouldRequestTraces =
-          traceFilters.some((filter) => isBlockInFilter(filter, blockNumber)) ||
-          transferFilters.some((filter) =>
-            isBlockInFilter(filter, blockNumber),
-          );
 
         let traces: SyncTrace[] = [];
         if (shouldRequestTraces) {
@@ -615,16 +633,6 @@ export function createInMemoryHistoricalSync(params: {
         // Transactions
         ////////
 
-        // Return early if no data is fetched
-        if (
-          block === undefined &&
-          transactionFilters.some((filter) =>
-            isBlockInFilter(filter, blockNumber),
-          ) === false
-        ) {
-          return undefined;
-        }
-
         if (block === undefined) {
           block = await eth_getBlockByNumber(
             params.rpc,
@@ -740,22 +748,18 @@ export function createInMemoryHistoricalSync(params: {
        * Blocks that are fetched, but not yet yielded, in order. At most
        * `MAX_BLOCKS_IN_MEM` blocks are fetched ahead of the consumer.
        */
-      const pendingBlockData: Promise<BlockData | undefined>[] = [];
-
-      // Note: A factory `startBlock` can be before the contract `startBlock`. Skip
-      // those blocks, which only contain factory logs.
-      const startBlock = Math.min(
-        ...requiredIntervals.map(({ interval }) => interval[0]),
-      );
+      const pendingBlockData: Promise<BlockData>[] = [];
 
       for await (const interval of mergeGeneratorIntervals(
         intervalGenerators,
       )) {
         for (
-          let blockNumber = Math.max(interval[0], startBlock);
+          let blockNumber = interval[0];
           blockNumber <= interval[1];
           blockNumber++
         ) {
+          if (isBlockRequired(blockNumber) === false) continue;
+
           const promise = syncBlock(blockNumber);
           // Note: Prevent unhandled rejections for blocks that are not awaited yet or never
           // awaited (generator returned early). Errors are still thrown when awaited below.
@@ -763,15 +767,20 @@ export function createInMemoryHistoricalSync(params: {
           pendingBlockData.push(promise);
 
           if (pendingBlockData.length >= MAX_BLOCKS_IN_MEM) {
-            const result = await pendingBlockData.shift()!;
-            if (result !== undefined) yield result;
+            yield await pendingBlockData.shift()!;
           }
         }
       }
 
       while (pendingBlockData.length > 0) {
-        const result = await pendingBlockData.shift()!;
-        if (result !== undefined) yield result;
+        yield await pendingBlockData.shift()!;
+      }
+
+      // Note: Fetch all child addresses, even those after the last required block.
+      // Realtime sync requires them, e.g. when the contract `startBlock` is after the
+      // finalized block but the factory `startBlock` is not.
+      for (const pages of factoryPages.values()) {
+        await drainAsyncGenerator(pages);
       }
     },
   };

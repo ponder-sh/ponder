@@ -123,6 +123,9 @@ export async function* getHistoricalEventsOmnichain(params: {
             chain.id
           ) {
             from = crashRecoveryCheckpoint;
+          } else if (chain.rpcRequestCache === false) {
+            // Note: When the rpc cache is disabled, blocks in the sync-store can be stale.
+            from = syncProgress.getCheckpoint({ tag: "start" });
           } else {
             const fromBlock = await createSyncStore({
               common: params.common,
@@ -444,6 +447,9 @@ export async function* getHistoricalEventsMultichain(params: {
             chain.id
           ) {
             from = crashRecoveryCheckpoint;
+          } else if (chain.rpcRequestCache === false) {
+            // Note: When the rpc cache is disabled, blocks in the sync-store can be stale.
+            from = syncProgress.getCheckpoint({ tag: "start" });
           } else {
             const fromBlock = await createSyncStore({
               common: params.common,
@@ -1291,7 +1297,10 @@ export async function* getLocalInMemoryEventGenerator(params: {
   yield {
     events: [],
     checkpoint: params.to,
-    blockRange: [cursor, hexToNumber(last.number)],
+    blockRange: [
+      Math.min(cursor, hexToNumber(last.number)),
+      hexToNumber(last.number),
+    ],
   };
 
   params.common.logger.info({
