@@ -1,3 +1,4 @@
+import http from "node:http";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -267,19 +268,44 @@ test("custom hono route", async () => {
   expect(await response.text()).toBe("hi");
 });
 
-// Note that this test doesn't work because the `hono.request` method doesn't actually
-// create a socket connection, it just calls the request handler function directly.
-test.skip("kill", async () => {
+test("kill closes idle keep-alive connections", async () => {
   const { database } = await setupDatabaseServices();
 
-  const server = await createServer({
+  await createServer({
     common: context.common,
-    apiBuild: {
-      app: new Hono(),
-      port: context.common.options.port,
-    },
+    apiBuild: { app: new Hono(), port: context.common.options.port },
     database,
   });
 
-  expect(() => server.hono.request("/health")).rejects.toThrow();
+  const agent = new http.Agent({ keepAlive: true });
+  const response = await new Promise<http.IncomingMessage>(
+    (resolve, reject) => {
+      http
+        .get(
+          { agent, port: context.common.options.port, path: "/health" },
+          (res) => res.resume().on("end", () => resolve(res)),
+        )
+        .on("error", reject);
+    },
+  );
+  expect(response.statusCode).toBe(200);
+  expect(response.headers.connection).toBe("keep-alive");
+
+  const start = Date.now();
+  await context.common.apiShutdown.kill();
+  expect(Date.now() - start).toBeLessThan(500);
+
+  await expect(
+    fetch(`http://localhost:${context.common.options.port}/health`),
+  ).rejects.toThrow();
+
+  // The port can be bound again, which dev mode needs after a hot reload.
+  const server = http.createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(context.common.options.port, resolve);
+  });
+  await new Promise((resolve) => server.close(resolve));
+
+  agent.destroy();
 });

@@ -3,7 +3,6 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
-import { createHttpTerminator } from "http-terminator";
 import {
   type Database,
   getPonderCheckpointTable,
@@ -162,12 +161,20 @@ export async function createServer({
     );
   });
 
-  const terminator = createHttpTerminator({
-    server: httpServer,
-    gracefulTerminationTimeout: 1000,
-  });
-
-  common.apiShutdown.add(() => terminator.terminate());
+  common.apiShutdown.add(
+    () =>
+      new Promise<void>((resolve) => {
+        const timeout = setTimeout(
+          () => httpServer.closeAllConnections(),
+          1_000,
+        );
+        httpServer.close(() => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        httpServer.closeIdleConnections();
+      }),
+  );
 
   return { hono };
 }

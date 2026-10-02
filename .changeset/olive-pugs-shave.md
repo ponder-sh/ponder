@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Exported `encodeCheckpoint`, `decodeCheckpoint`, and the `Checkpoint` type.
+Exported the `encodeCheckpoint` and `decodeCheckpoint` utilities and the `Checkpoint` type from `ponder`.
