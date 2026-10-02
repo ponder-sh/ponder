@@ -352,7 +352,8 @@ export const createIndexingStore = ({
                           primaryKeyCache,
                         );
                         normalizeUpdateSet(table, ponderSet);
-                        for (const [key, value] of Object.entries(ponderSet)) {
+                        for (const key in ponderSet) {
+                          const value = ponderSet[key];
                           if (value === undefined) continue;
                           ponderRowUpdate[key] = value;
                         }
@@ -366,7 +367,8 @@ export const createIndexingStore = ({
                           primaryKeyCache,
                         );
                         normalizeUpdateSet(table, ponderSet);
-                        for (const [key, value] of Object.entries(ponderSet)) {
+                        for (const key in ponderSet) {
+                          const value = ponderSet[key];
                           if (value === undefined) continue;
                           ponderRowUpdate[key] = value;
                         }
@@ -550,7 +552,8 @@ export const createIndexingStore = ({
                 primaryKeyCache,
               );
               normalizeUpdateSet(table, ponderSet);
-              for (const [key, value] of Object.entries(ponderSet)) {
+              for (const key in ponderSet) {
+                const value = ponderSet[key];
                 if (value === undefined) continue;
                 ponderRowUpdate[key] = value;
               }
@@ -564,7 +567,8 @@ export const createIndexingStore = ({
                 primaryKeyCache,
               );
               normalizeUpdateSet(table, ponderSet);
-              for (const [key, value] of Object.entries(ponderSet)) {
+              for (const key in ponderSet) {
+                const value = ponderSet[key];
                 if (value === undefined) continue;
                 ponderRowUpdate[key] = value;
               }

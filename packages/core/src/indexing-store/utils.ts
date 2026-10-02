@@ -147,7 +147,9 @@ export const normalizeUpdateSet = (
   row: { [key: string]: unknown },
 ) => {
   const { columns } = getCachedTableColumns(table);
-  for (const [columnName, value] of Object.entries(row)) {
+  // Note: `row` is a plain object, so `for...in` only visits own keys.
+  for (const columnName in row) {
+    const value = row[columnName];
     const column = columns[columnName];
     if (value === undefined || column === undefined) continue;
     row[columnName] = normalizeColumn(column, value, true);
