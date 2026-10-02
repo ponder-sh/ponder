@@ -143,7 +143,7 @@ test("sync() gets missing block", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -180,7 +180,7 @@ test("sync() catches error", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -216,7 +216,7 @@ test("handleBlock() block event with log", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -281,7 +281,7 @@ test("sync() skips log request when bloom does not match on standard chains", as
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -313,7 +313,7 @@ test("sync() requests logs despite bloom mismatch on async-execution chains", as
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = { ...getChain({ finalityBlockCount: 2 }), id: 43114 };
+  const chain = { ...getChain({ reorgWindow: 2 }), id: 43114 };
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -355,7 +355,7 @@ test("sync() handles async-execution block with no logs and non-empty bloom", as
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = { ...getChain({ finalityBlockCount: 2 }), id: 43114 };
+  const chain = { ...getChain({ reorgWindow: 2 }), id: 43114 };
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -387,7 +387,7 @@ test("sync() requests logs for async-execution block headers", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = { ...getChain({ finalityBlockCount: 2 }), id: 43114 };
+  const chain = { ...getChain({ reorgWindow: 2 }), id: 43114 };
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -436,7 +436,7 @@ test.each([143, 10143, 43114, 43113])(
     const { common } = context;
     await setupDatabaseServices();
 
-    const chain = { ...getChain({ finalityBlockCount: 2 }), id: chainId };
+    const chain = { ...getChain({ reorgWindow: 2 }), id: chainId };
     const rpc = createRpc({ common, chain });
 
     const { address } = await deployErc20({ sender: ALICE });
@@ -495,7 +495,7 @@ test("handleBlock() block event with log factory", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -626,7 +626,7 @@ test("handleBlock() block event with factories shared by callbacks", async () =>
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -706,7 +706,7 @@ test("handleBlock() block event with log factory and no address", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -841,7 +841,7 @@ test("handleBlock() block event with log factory error", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -937,7 +937,7 @@ test("handleBlock() block event with block", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -987,7 +987,7 @@ test("handleBlock() block event with transaction", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   await transferEth({
@@ -1045,7 +1045,7 @@ test("handleBlock() block event with transfer", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const blockData = await transferEth({
@@ -1116,7 +1116,7 @@ test("handleBlock() block event with trace", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ chain, common });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1223,7 +1223,7 @@ test("handleBlock() finalize event", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 0 });
   const rpc = createRpc({
     chain,
     common,
@@ -1264,19 +1264,19 @@ test("handleBlock() finalize event", async () => {
     block: expect.any(Object),
   });
 
-  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
   expect(
     (syncResult[1] as Extract<RealtimeSyncEvent, { type: "finalize" }>).block
       .number,
-  ).toBe("0x2");
+  ).toBe("0x4");
 });
 
 test("handleReorg() finds common ancestor", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 10 });
   const rpc = createRpc({
     chain,
     common,
@@ -1324,7 +1324,7 @@ test("handleReorg() throws error for deep reorg", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 10 });
   const rpc = createRpc({
     chain,
     common,
@@ -1354,12 +1354,26 @@ test("handleReorg() throws error for deep reorg", async () => {
   const blockData3 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
+  // Note: Block 4 does not exist, so the RPC can't return its logs.
+  const requestSpy = vi.spyOn(rpc, "request");
+  requestSpy.mockResolvedValueOnce([]);
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
   await drainAsyncGenerator(
     realtimeSync.sync({
       ...blockData3.block,
       number: "0x4",
       hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       parentHash: realtimeSync.unfinalizedBlocks[1]!.hash,
+    }),
+  );
+
+  expect(requestSpy.mock.calls[0]![0]).toMatchObject({ method: "eth_getLogs" });
+  expect(warnSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining("Encountered unrecoverable"),
+      }),
     }),
   );
 

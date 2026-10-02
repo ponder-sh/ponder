@@ -44,7 +44,6 @@ test("getFragments() transaction filter", () => {
     ...EMPTY_TRANSACTION_FILTER,
     fromAddress: "0xa",
     toAddress: "0xb",
-    includeReverted: false,
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -159,7 +158,6 @@ test("getFragments() trace filter", () => {
     ...EMPTY_TRACE_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
-    includeReverted: false,
     functionSelector: "0xb",
     callType: "CALL",
   });
@@ -191,7 +189,6 @@ test("getFragments() transfer filter", () => {
     ...EMPTY_TRANSFER_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
-    includeReverted: false,
   });
 
   expect(fragments).toMatchInlineSnapshot(`
@@ -400,7 +397,6 @@ test("decodeFragment()", () => {
       toBlock: undefined,
     },
     toAddress: "0xb",
-    includeReverted: false,
     functionSelector: "0xd",
     callType: "CALL",
   });
@@ -413,7 +409,6 @@ test("decodeFragment()", () => {
     ...EMPTY_TRANSFER_FILTER,
     fromAddress: "0xa",
     toAddress: undefined,
-    includeReverted: false,
   });
 
   expect(

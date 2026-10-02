@@ -1,73 +1,51 @@
 import { readFileSync } from "node:fs";
+import { stripVTControlCharacters } from "node:util";
 import { codeFrameColumns } from "@babel/code-frame";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
-class ESBuildTransformError extends Error {
-  override name = "ESBuildTransformError";
+class TransformError extends Error {
+  override name = "TransformError";
 }
 
-class ESBuildBuildError extends Error {
-  override name = "ESBuildBuildError";
-}
+type ViteTransformError = Error & {
+  plugin?: string;
+  errors?: {
+    message: string;
+    loc?: { file?: string; line: number; column: number };
+  }[];
+};
 
-class ESBuildContextError extends Error {
-  override name = "ESBuildContextError";
-}
+export function parseViteError(file: string, error: Error): Error {
+  let resolvedError: Error;
 
-type ViteNodeError =
-  | ESBuildTransformError
-  | ESBuildBuildError
-  | ESBuildContextError
-  | Error;
+  // Vite adds `plugin` and `errors` to errors thrown by the transform pipeline.
+  const transformError =
+    (error as ViteTransformError).plugin !== undefined
+      ? (error as ViteTransformError).errors?.[0]
+      : undefined;
 
-export function parseViteNodeError(file: string, error: Error): ViteNodeError {
-  let resolvedError: ViteNodeError;
+  if (transformError !== undefined) {
+    // Handle Oxc transform errors. The first line of the message has the format:
+    // [PARSE_ERROR] Unexpected token
+    const detail = stripVTControlCharacters(transformError.message)
+      .split("\n")[0]!
+      .replace(/^\[[A-Z_]+\]\s*/, "");
 
-  if (/^(Transform failed|Build failed|Context failed)/.test(error.message)) {
-    // Handle ESBuild errors based on this error message construction logic:
-    // https://github.com/evanw/esbuild/blob/4e11b50fe3178ed0a78c077df78788d66304d379/lib/shared/common.ts#L1659
-    const errorKind = error.message.split(" with ")[0] as
-      | "Transform failed"
-      | "Build failed"
-      | "Context failed";
-    const innerError = error.message
-      .split("\n")
-      .slice(1)
-      .map((message) => {
-        let location: string | undefined;
-        let detail: string | undefined;
-        if (message.includes(": ERROR: ")) {
-          // /path/to/file.ts:11:9: ERROR: Expected ")" but found ";"
-          const s = message.split(": ERROR: ");
-          location = s[0];
-          detail = s[1];
-        } else {
-          // error: some error without a location
-          detail = message.slice(7);
-        }
-        return { location, detail };
-      })[0];
-
-    // If we aren't able to extract an inner error, just return the original.
-    if (!innerError) return error;
-
-    resolvedError =
-      errorKind === "Transform failed"
-        ? new ESBuildTransformError(innerError.detail)
-        : errorKind === "Build failed"
-          ? new ESBuildBuildError(innerError.detail)
-          : new ESBuildContextError(innerError.detail);
-    if (innerError.location)
-      resolvedError.stack = `    at ${innerError.location}`;
+    resolvedError = new TransformError(detail);
+    // Note that Oxc columns are 0-based, but stack trace columns are 1-based.
+    if (transformError.loc?.file) {
+      const { file, line, column } = transformError.loc;
+      resolvedError.stack = `    at ${file}:${line}:${column + 1}`;
+    }
   }
-  // If it's not an ESBuild error, it's a user-land vm.runModuleInContext execution error.
+  // If it's not a transform error, it's a user-land module execution error.
   // Attempt to build a user-land stack trace.
   else if (error.stack) {
     const stackFrames = parseStackTrace(error.stack);
 
     const userStackFrames = [];
     for (const rawStackFrame of stackFrames) {
-      if (rawStackFrame.methodName.includes("ViteNodeRunner.runModule")) break;
+      if (rawStackFrame.methodName.includes("runInlinedModule")) break;
       userStackFrames.push(rawStackFrame);
     }
 
@@ -88,13 +66,13 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
     resolvedError = error;
     resolvedError.stack = userStack;
   }
-  // Still a vm.runModuleInContext execution error, but no stack.
+  // Still a module execution error, but no stack.
   else {
     resolvedError = error;
   }
 
   // Attempt to build a code frame for the top of the user stack. This works for
-  // both ESBuild and vm.runModuleInContext errors.
+  // both transform and module execution errors.
   if (resolvedError.stack) {
     const userStackFrames = parseStackTrace(resolvedError.stack);
 
@@ -121,12 +99,7 @@ export function parseViteNodeError(file: string, error: Error): ViteNodeError {
 
   // Finally, add a useful relative file name and verb to the error message.
   const verb =
-    resolvedError.name === "ESBuildTransformError"
-      ? "transforming"
-      : resolvedError.name === "ESBuildBuildError" ||
-          resolvedError.name === "ESBuildContextError"
-        ? "building"
-        : "executing";
+    resolvedError.name === "TransformError" ? "transforming" : "executing";
 
   // This can throw with "Cannot set property message of [object Object] which has only a getter"
   try {

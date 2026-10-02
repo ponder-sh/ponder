@@ -5,24 +5,20 @@ import { fromBlock, getRequest, type Params, UNI, WETH } from "./utils.js";
 
 const request = getRequest(process.env.RPC_URL_INFURA_1!);
 
-test(
-  "infura success",
-  async () => {
-    const logs = await request({
-      method: "eth_getLogs",
-      params: [
-        {
-          address: UNI,
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(fromBlock + 1_000n),
-        },
-      ],
-    });
+test("infura success", { timeout: 15_000 }, async () => {
+  const logs = await request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: UNI,
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(fromBlock + 1_000n),
+      },
+    ],
+  });
 
-    expect(logs).toHaveLength(9);
-  },
-  { timeout: 15_000 },
-);
+  expect(logs).toHaveLength(9);
+});
 
 test("infura block range", async () => {
   const params: Params = [

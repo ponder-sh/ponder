@@ -61,11 +61,11 @@ Let's define call traces from three different perspectives.
 
 A call trace can be a **top-level call** or an **internal call**. A top-level call is from an externally-owned account, and an internal call is from another contract.
 
-To check if a call trace is a top-level call, use `event.trace.traceAddress.length === 0{:ts}`.
+To check if a call trace is a top-level call, use `event.trace.traceAddress === "[]"{:ts}`.
 
 ```ts [src/index.ts]
 ponder.on("ERC20.transfer()", async ({ event }) => {
-  const isTopLevelCall = event.trace.traceAddress.length === 0; // [!code focus]
+  const isTopLevelCall = event.trace.traceAddress === "[]"; // [!code focus]
   // ...
 });
 ```

@@ -29,7 +29,7 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
  * @dev The order of the schemas represents the order of the migrations.
  * @dev The schemas must match the files in "./sql".
  */
-export const PONDER_SYNC_SCHEMAS = ["ponder_sync"] as const;
+export const PONDER_SYNC_SCHEMAS = ["ponder_sync", "ponder_sync_1"] as const;
 /**
  * Latest database schema for the sync.
  */
@@ -157,7 +157,7 @@ export const traces = PONDER_SYNC.table(
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
     transactionIndex: t.integer().notNull(),
-    traceIndex: t.integer().notNull(),
+    traceAddress: t.integer().array().notNull(),
     from: t.varchar({ length: 42 }).notNull().$type<Address>(),
     to: t.varchar({ length: 42 }).$type<Address>(),
     input: t.text().notNull().$type<Hex>(),
@@ -166,9 +166,6 @@ export const traces = PONDER_SYNC.table(
     type: t.text().notNull(),
     gas: numeric78().notNull(),
     gasUsed: numeric78().notNull(),
-    error: t.text(),
-    revertReason: t.text(),
-    subcalls: t.integer().notNull(),
   }),
   (table) => [
     primaryKey({
@@ -177,7 +174,7 @@ export const traces = PONDER_SYNC.table(
         table.chainId,
         table.blockNumber,
         table.transactionIndex,
-        table.traceIndex,
+        table.traceAddress,
       ],
     }),
   ],

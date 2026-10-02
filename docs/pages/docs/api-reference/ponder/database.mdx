@@ -81,7 +81,17 @@ Note that crash recovery is disabled when running `ponder dev`.
 
 Ponder caches RPC request data to improve reindexing performance on hot reloads and redeployments. This includes logs, blocks, transactions, traces, and any RPC requests made with `context.client`.
 
-- The RPC request cache is located in the `ponder_sync` schema.
+- The RPC request cache is located in the `ponder_sync_1` schema.
 - The cache is durable and persists across instance restarts.
-- The cache query patterns are lock-free. It's safe for multiple instances to run in the same Postgres database at the same time (reading and writing to the same `ponder_sync` schema).
+- The cache query patterns are lock-free. It's safe for multiple instances to run in the same Postgres database at the same time (reading and writing to the same cache schema).
 - The cache does not store unfinalized data.
+
+### Cache migrations
+
+When a release changes the cache format, Ponder creates a new versioned schema (for example, `ponder_sync_1`) and copies the data from the previous schema into it on startup.
+
+Ponder does not change or drop the previous schema, so instances that use an older version of Ponder continue to work, but they do not share cache data with instances that use the new schema. After all instances use the new version, drop the previous schema to free disk space.
+
+```sql
+DROP SCHEMA ponder_sync CASCADE;
+```

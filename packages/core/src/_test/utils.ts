@@ -163,7 +163,6 @@ export const getErc20IndexingBuild = <
             functionSelector: toFunctionSelector(
               getAbiItem({ abi: erc20ABI, name: "transfer" }),
             ),
-            includeReverted: false,
             fromBlock: undefined,
             toBlock: undefined,
             hasTransactionReceipt: params.includeTransactionReceipts ?? false,
@@ -349,7 +348,6 @@ export const getPairWithFactoryIndexingBuild = <
             functionSelector: toFunctionSelector(
               getAbiItem({ abi: pairABI, name: "swap" }),
             ),
-            includeReverted: false,
             fromBlock: undefined,
             toBlock: undefined,
             hasTransactionReceipt: params.includeTransactionReceipts ?? false,
@@ -521,7 +519,6 @@ export const getAccountsIndexingBuild = (params: {
         sourceId: "Accounts",
         fromAddress: undefined,
         toAddress: toLowerCase(params.address),
-        includeReverted: false,
         fromBlock: undefined,
         toBlock: undefined,
         hasTransactionReceipt: true,
@@ -540,7 +537,6 @@ export const getAccountsIndexingBuild = (params: {
         sourceId: "Accounts",
         fromAddress: toLowerCase(params.address),
         toAddress: undefined,
-        includeReverted: false,
         fromBlock: undefined,
         toBlock: undefined,
         hasTransactionReceipt: true,
@@ -559,7 +555,6 @@ export const getAccountsIndexingBuild = (params: {
         sourceId: "Accounts",
         fromAddress: undefined,
         toAddress: toLowerCase(params.address),
-        includeReverted: false,
         fromBlock: undefined,
         toBlock: undefined,
         hasTransactionReceipt: false,
@@ -578,7 +573,6 @@ export const getAccountsIndexingBuild = (params: {
         sourceId: "Accounts",
         fromAddress: toLowerCase(params.address),
         toAddress: undefined,
-        includeReverted: false,
         fromBlock: undefined,
         toBlock: undefined,
         hasTransactionReceipt: false,
@@ -661,14 +655,14 @@ export const getSimulatedEvent = ({
   return events[0]!;
 };
 
-export const getChain = (params?: { finalityBlockCount?: number }) => {
+export const getChain = (params?: { reorgWindow?: number }) => {
   return {
     name: "mainnet",
     id: 1,
     rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
     ws: undefined,
     pollingInterval: 1_000,
-    finalityBlockCount: params?.finalityBlockCount ?? 1,
+    reorgWindow: params?.reorgWindow ?? 1,
     disableCache: false,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,

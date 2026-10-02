@@ -7,23 +7,19 @@ const request = getRequest("https://api.avax.network/ext/bc/C/rpc");
 const maxBlockRange = 2047n;
 const fromBlock = 53_164_500n;
 
-test(
-  "avalanche success",
-  async () => {
-    const logs = await request({
-      method: "eth_getLogs",
-      params: [
-        {
-          address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(fromBlock + maxBlockRange),
-        },
-      ],
-    });
-    expect(logs).toHaveLength(3135);
-  },
-  { timeout: 15_000 },
-);
+test("avalanche success", { timeout: 15_000 }, async () => {
+  const logs = await request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(fromBlock + maxBlockRange),
+      },
+    ],
+  });
+  expect(logs).toHaveLength(3135);
+});
 
 test("avalanche block range", async () => {
   const params: Params = [
