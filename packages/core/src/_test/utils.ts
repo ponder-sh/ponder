@@ -655,7 +655,10 @@ export const getSimulatedEvent = ({
   return events[0]!;
 };
 
-export const getChain = (params?: { reorgWindow?: number }) => {
+export const getChain = (params?: {
+  reorgWindow?: number;
+  rpcRequestCache?: boolean;
+}) => {
   return {
     name: "mainnet",
     id: 1,
@@ -663,7 +666,7 @@ export const getChain = (params?: { reorgWindow?: number }) => {
     ws: undefined,
     pollingInterval: 1_000,
     reorgWindow: params?.reorgWindow ?? 1,
-    rpcRequestCache: true,
+    rpcRequestCache: params?.rpcRequestCache ?? true,
     ethGetLogsBlockRange: undefined,
     viemChain: anvil,
   } satisfies Chain;
