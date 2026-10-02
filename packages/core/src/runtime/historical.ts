@@ -1063,7 +1063,7 @@ export async function* getLocalEventGenerator(params: {
       const blockRange = [cursor, queryCursor] satisfies [number, number];
 
       cursor = queryCursor + 1;
-      if (cursor >= toBlock) {
+      if (cursor > toBlock) {
         yield { events, checkpoint: params.to, blockRange };
       } else if (blocks.length > 0) {
         const checkpoint = encodeCheckpoint({
