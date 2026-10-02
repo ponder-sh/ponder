@@ -58,7 +58,6 @@ import {
   type PromiseWithResolvers,
   promiseWithResolvers,
 } from "@/utils/promiseWithResolvers.js";
-import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
 
 type BlockData = Awaited<ReturnType<SyncStore["getEventData"]>>;
@@ -737,12 +736,11 @@ export function createInMemoryHistoricalSync(params: {
 
       const MAX_BLOCKS_IN_MEM = 100;
 
-      const queue = createQueue({
-        browser: false,
-        initialStart: true,
-        concurrency: MAX_BLOCKS_IN_MEM,
-        worker: syncBlock,
-      });
+      /**
+       * Blocks that are fetched, but not yet yielded, in order. At most
+       * `MAX_BLOCKS_IN_MEM` blocks are fetched ahead of the consumer.
+       */
+      const pendingBlockData: Promise<BlockData | undefined>[] = [];
 
       // Note: A factory `startBlock` can be before the contract `startBlock`. Skip
       // those blocks, which only contain factory logs.
@@ -753,22 +751,27 @@ export function createInMemoryHistoricalSync(params: {
       for await (const interval of mergeGeneratorIntervals(
         intervalGenerators,
       )) {
-        const syncPromises: Promise<BlockData | undefined>[] = [];
-
         for (
           let blockNumber = Math.max(interval[0], startBlock);
           blockNumber <= interval[1];
           blockNumber++
         ) {
-          syncPromises.push(queue.add(blockNumber));
-        }
+          const promise = syncBlock(blockNumber);
+          // Note: Prevent unhandled rejections for blocks that are not awaited yet or never
+          // awaited (generator returned early). Errors are still thrown when awaited below.
+          promise.catch(() => {});
+          pendingBlockData.push(promise);
 
-        for (const promise of syncPromises) {
-          const result = await promise;
-          if (result === undefined) continue;
-
-          yield result;
+          if (pendingBlockData.length >= MAX_BLOCKS_IN_MEM) {
+            const result = await pendingBlockData.shift()!;
+            if (result !== undefined) yield result;
+          }
         }
+      }
+
+      while (pendingBlockData.length > 0) {
+        const result = await pendingBlockData.shift()!;
+        if (result !== undefined) yield result;
       }
     },
   };
