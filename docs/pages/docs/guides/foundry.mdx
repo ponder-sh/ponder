@@ -10,7 +10,7 @@ Foundry projects follow various development workflows (test-driven, deploy to a 
 
 Ponder's RPC request cache works well for live chains where the chain is generally immutable, but causes issues when indexing a local chain that "resets".
 
-Set `rpcRequestCache: false` to **disable the RPC request cache** for the Anvil chain. With this option set to `false`, Ponder syncs chain data in memory and does not cache `context.client` requests in the database.
+Set `rpcRequestCache: false` to **disable the RPC request cache** for the Anvil chain. With this option set to `false`, Ponder syncs block data and factory child addresses in memory, and does not cache `context.client` requests in the database.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";

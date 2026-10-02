@@ -109,8 +109,10 @@ type ChainConfig<chain> = {
    */
   maxRequestsPerSecond?: number;
   /**
-   * Cache JSON-RPC data in the database and reuse it between runs. Set to `false`
-   * for a local node like Anvil. Default: `true`.
+   * Cache JSON-RPC data in the database and reuse it between runs. This includes
+   * block data (blocks, logs, transactions, receipts, and traces), factory child
+   * addresses, and `context.client` requests. Set to `false` for a local node like
+   * Anvil. Default: `true`.
    */
   rpcRequestCache?: boolean;
   /**

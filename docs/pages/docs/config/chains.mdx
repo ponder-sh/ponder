@@ -201,7 +201,11 @@ export default createConfig({
 
 ## RPC request cache
 
-By default, Ponder [caches JSON-RPC data](/docs/api-reference/ponder/database#rpc-request-cache) in the database and reuses it between runs. Set `rpcRequestCache: false` to disable the cache for a chain. Ponder then fetches all data again each time it starts.
+By default, Ponder [caches JSON-RPC data](/docs/api-reference/ponder/database#rpc-request-cache) in the database and reuses it between runs. Set `rpcRequestCache: false` to disable the cache for a chain. Ponder then does not read or write these items in the database, and fetches them again each time it starts:
+
+- Block data (blocks, logs, transactions, transaction receipts, and traces)
+- Factory child addresses
+- `context.client` requests
 
 Disable the cache for a development node like Anvil, where the chain can reset, or for a node you run yourself, where fetching data again is cheaper than storing it in the database. [Read more](/docs/guides/foundry) about indexing Anvil.
 
