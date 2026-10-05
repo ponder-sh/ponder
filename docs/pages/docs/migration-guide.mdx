@@ -33,6 +33,15 @@ Ponder now requires Node.js `>=22.12`. The previous required version was `>=22`.
 
 ### New features
 
+#### Factory migration
+
+Ponder fixed two more cases of the factory cache bug from [`0.17`](#factory-cache-fix) that caused child contracts to silently miss events:
+
+- Two factories with overlapping lists of factory addresses, for example `[X, Y]` and `[X]`.
+- The same factory with a different `startBlock` or `endBlock`.
+
+The cache migration to `ponder_sync_1` does not copy factory data. On the first start, Ponder fetches factory child addresses and the events of child contracts again. No config change is required.
+
 #### Configurable reorg window
 
 Use the `reorgWindow` chain option in `ponder.config.ts` to control how long Ponder keeps the data that is necessary to recover from a reorg. The value is in seconds. The default is `180`, and the maximum is `600`. [Read more](/docs/config/chains#reorg-window) in the chain configuration docs.
