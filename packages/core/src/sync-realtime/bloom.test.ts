@@ -1,8 +1,8 @@
-import type { Hex } from "viem";
+import { type Hex, hexToBytes, hexToNumber } from "viem";
 import { expect, test } from "vitest";
 import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
-import { isFilterInBloom, isInBloom } from "./bloom.js";
+import { getLogFilterBloom, isFilterInBloom, isInBloom } from "./bloom.js";
 
 test("isInBloom", () => {
   let bloom =
@@ -12,19 +12,19 @@ test("isInBloom", () => {
   let topic =
     "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc" as Hex;
 
-  expect(isInBloom(bloom, address)).toBe(true);
-  expect(isInBloom(bloom, topic)).toBe(true);
+  expect(isInBloom(hexToBytes(bloom), address)).toBe(true);
+  expect(isInBloom(hexToBytes(bloom), topic)).toBe(true);
 
   bloom =
     "0x00000000000000000000008000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000044000200000000000000000002000000000000000000000040000000000000000000000000000020000000000000000000800000000000800000000000800000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808002000000000400000000000000000000000060000000000000000000000000000000000000000000000100000000000002000000" as Hex;
 
-  expect(isInBloom(bloom, address)).toBe(false);
-  expect(isInBloom(bloom, topic)).toBe(false);
+  expect(isInBloom(hexToBytes(bloom), address)).toBe(false);
+  expect(isInBloom(hexToBytes(bloom), topic)).toBe(false);
 
   topic =
     "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb" as Hex;
 
-  expect(isInBloom(bloom, topic)).toBe(true);
+  expect(isInBloom(hexToBytes(bloom), topic)).toBe(true);
 });
 
 test("isFilterInBloom returns false for out of range blocks", () => {
@@ -40,7 +40,13 @@ test("isFilterInBloom returns false for out of range blocks", () => {
     toBlock: 20,
   } satisfies LogFilter;
 
-  expect(isFilterInBloom({ block, filter })).toBe(false);
+  expect(
+    isFilterInBloom({
+      blockNumber: hexToNumber(block.number),
+      bloom: hexToBytes(block.logsBloom),
+      filter: getLogFilterBloom(filter),
+    }),
+  ).toBe(false);
 });
 
 test("isFilterInBloom returns false for missing topics", () => {
@@ -56,7 +62,13 @@ test("isFilterInBloom returns false for missing topics", () => {
       "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
   } satisfies LogFilter;
 
-  expect(isFilterInBloom({ block, filter })).toBe(false);
+  expect(
+    isFilterInBloom({
+      blockNumber: hexToNumber(block.number),
+      bloom: hexToBytes(block.logsBloom),
+      filter: getLogFilterBloom(filter),
+    }),
+  ).toBe(false);
 });
 
 test("isFilterInBloom returns true for undefined address", () => {
@@ -72,7 +84,13 @@ test("isFilterInBloom returns true for undefined address", () => {
     topic0: undefined,
   };
 
-  expect(isFilterInBloom({ block, filter })).toBe(true);
+  expect(
+    isFilterInBloom({
+      blockNumber: hexToNumber(block.number),
+      bloom: hexToBytes(block.logsBloom),
+      filter: getLogFilterBloom(filter),
+    }),
+  ).toBe(true);
 });
 
 test("isFilterInBloom returns true for factory with new child address", () => {
@@ -98,7 +116,13 @@ test("isFilterInBloom returns true for factory with new child address", () => {
     } satisfies LogFactory,
   } satisfies LogFilter;
 
-  expect(isFilterInBloom({ block, filter })).toBe(true);
+  expect(
+    isFilterInBloom({
+      blockNumber: hexToNumber(block.number),
+      bloom: hexToBytes(block.logsBloom),
+      filter: getLogFilterBloom(filter),
+    }),
+  ).toBe(true);
 });
 
 test("isFilterInBloom returns true for factory without new child address", () => {
@@ -126,7 +150,13 @@ test("isFilterInBloom returns true for factory without new child address", () =>
       "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb",
   } satisfies LogFilter;
 
-  expect(isFilterInBloom({ block, filter })).toBe(true);
+  expect(
+    isFilterInBloom({
+      blockNumber: hexToNumber(block.number),
+      bloom: hexToBytes(block.logsBloom),
+      filter: getLogFilterBloom(filter),
+    }),
+  ).toBe(true);
 });
 
 test("isFilterInBloom returns true for array of addresses", () => {
@@ -143,5 +173,11 @@ test("isFilterInBloom returns true for array of addresses", () => {
     topic0: undefined,
   };
 
-  expect(isFilterInBloom({ block, filter })).toBe(true);
+  expect(
+    isFilterInBloom({
+      blockNumber: hexToNumber(block.number),
+      bloom: hexToBytes(block.logsBloom),
+      filter: getLogFilterBloom(filter),
+    }),
+  ).toBe(true);
 });

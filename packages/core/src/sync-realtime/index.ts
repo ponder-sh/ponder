@@ -1,6 +1,7 @@
 import {
   type Address,
   type Hash,
+  hexToBytes,
   hexToNumber,
   numberToHex,
   zeroHash,
@@ -60,7 +61,12 @@ import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
-import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
+import {
+  getLogFilterBloom,
+  isFilterInBloom,
+  isInBloom,
+  zeroLogsBloom,
+} from "./bloom.js";
 
 export type RealtimeSync = {
   /**
@@ -176,6 +182,8 @@ export const createRealtimeSync = (
     }
   }
 
+  const logFilterBlooms = logFilters.map(getLogFilterBloom);
+
   const getLatestUnfinalizedBlock = () => {
     if (unfinalizedBlocks.length === 0) {
       return finalizedBlock;
@@ -214,12 +222,18 @@ export const createRealtimeSync = (
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
     // Async-execution chains cannot reliably use blooms to filter or validate logs.
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
-    const shouldRequestLogs = isAsyncExecution
-      ? logFilters.length > 0
-      : maybeBlockHeader.logsBloom === zeroLogsBloom ||
-        logFilters.some((filter) =>
-          isFilterInBloom({ block: maybeBlockHeader, filter }),
-        );
+    let shouldRequestLogs: boolean;
+    if (isAsyncExecution) {
+      shouldRequestLogs = logFilters.length > 0;
+    } else if (maybeBlockHeader.logsBloom === zeroLogsBloom) {
+      shouldRequestLogs = true;
+    } else {
+      const blockNumber = hexToNumber(maybeBlockHeader.number);
+      const bloom = hexToBytes(maybeBlockHeader.logsBloom);
+      shouldRequestLogs = logFilterBlooms.some((filter) =>
+        isFilterInBloom({ blockNumber, bloom, filter }),
+      );
+    }
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
@@ -261,37 +275,26 @@ export const createRealtimeSync = (
 
       if (isAsyncExecutionChain(args.chain.id) === false) {
         // Note: Exact `logsBloom` validations were considered too strict to add to `validateLogsAndBlock`.
+        const logsBloom = hexToBytes(block.logsBloom);
         let isInvalidLogsBloom = false;
         for (const log of logs) {
-          if (isInBloom(block.logsBloom, log.address) === false) {
+          if (isInBloom(logsBloom, log.address) === false) {
             isInvalidLogsBloom = true;
           }
 
-          if (
-            log.topics[0] &&
-            isInBloom(block.logsBloom, log.topics[0]) === false
-          ) {
+          if (log.topics[0] && isInBloom(logsBloom, log.topics[0]) === false) {
             isInvalidLogsBloom = true;
           }
 
-          if (
-            log.topics[1] &&
-            isInBloom(block.logsBloom, log.topics[1]) === false
-          ) {
+          if (log.topics[1] && isInBloom(logsBloom, log.topics[1]) === false) {
             isInvalidLogsBloom = true;
           }
 
-          if (
-            log.topics[2] &&
-            isInBloom(block.logsBloom, log.topics[2]) === false
-          ) {
+          if (log.topics[2] && isInBloom(logsBloom, log.topics[2]) === false) {
             isInvalidLogsBloom = true;
           }
 
-          if (
-            log.topics[3] &&
-            isInBloom(block.logsBloom, log.topics[3]) === false
-          ) {
+          if (log.topics[3] && isInBloom(logsBloom, log.topics[3]) === false) {
             isInvalidLogsBloom = true;
           }
 
