@@ -498,6 +498,86 @@ test.each([143, 10143, 43114, 43113])(
   },
 );
 
+test("sync() skips logs bloom warning for unmatched logs", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  // Note: The filter does not match the mint log.
+  const { eventCallbacks } = getErc20IndexingBuild({ address: BOB });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
+  await drainAsyncGenerator(
+    createRealtimeSync({
+      common,
+      chain,
+      rpc,
+      eventCallbacks,
+      syncProgress: { finalized: finalizedBlock },
+      childAddresses: new Map(),
+    }).sync({ ...block, logsBloom: zeroLogsBloom }),
+  );
+
+  expect(
+    warnSpy.mock.calls.some(
+      ([log]) =>
+        log.msg ===
+        "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
+    ),
+  ).toBe(false);
+});
+
+test("sync() logs bloom warning for factory logs", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  await createPair({ factory: address, sender: ALICE });
+
+  // Note: The factory matches the pair creation log, but the filter does not.
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
+  await drainAsyncGenerator(
+    createRealtimeSync({
+      common,
+      chain,
+      rpc,
+      eventCallbacks,
+      syncProgress: { finalized: finalizedBlock },
+      childAddresses: new Map([[filter.address.id, new Map()]]),
+    }).sync({ ...block, logsBloom: zeroLogsBloom }),
+  );
+
+  expect(
+    warnSpy.mock.calls.some(
+      ([log]) =>
+        log.msg ===
+        "Detected inconsistent RPC responses. Log not found in block.logsBloom.",
+    ),
+  ).toBe(true);
+});
+
 test("handleBlock() block event with log factory", async () => {
   const { common } = context;
   await setupDatabaseServices();
