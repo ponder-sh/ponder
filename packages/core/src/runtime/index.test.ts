@@ -619,6 +619,57 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
   `);
 });
 
+test("getRequiredIntervalsWithFilters() with factory and missing parent", async () => {
+  const parentX = "0xef2d6d194084c2de36e0dabfce45d046b37d1106";
+  const parentY = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
+
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      sourceId: "factory",
+      address: [parentX, parentY],
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
+    },
+  } satisfies LogFilter;
+
+  const [fragmentX, fragmentY] = getFactoryFragments(filter.address);
+
+  // @ts-expect-error
+  const cachedIntervals: CachedIntervals = new Map([
+    [
+      filter,
+      getFragments(filter).map(({ fragment }) => ({ fragment, intervals: [] })),
+    ],
+    [
+      filter.address,
+      [
+        { fragment: fragmentX!, intervals: [[0, 100]] },
+        { fragment: fragmentY!, intervals: [] },
+      ],
+    ],
+  ]);
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    filters: [filter],
+    interval: [0, 100],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals.factoryIntervals).toStrictEqual([
+    {
+      factory: { ...filter.address, address: [parentY] },
+      interval: [0, 100],
+    },
+  ]);
+});
+
 test("getRequiredIntervals() with factory", async () => {
   const filter = {
     ...EMPTY_LOG_FILTER,

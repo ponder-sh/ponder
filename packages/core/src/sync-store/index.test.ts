@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type Address,
   getAbiItem,
   hexToBigInt,
   hexToNumber,
@@ -40,6 +41,7 @@ import {
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Factory, LogFilter } from "@/internal/types.js";
+import { getFactoryFragmentIds } from "@/runtime/fragments.js";
 import { orderObject } from "@/utils/order.js";
 import { getFilterBlockRange } from "./index.js";
 import * as ponderSyncSchema from "./schema.js";
@@ -606,8 +608,9 @@ test("getChildAddresses()", async () => {
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
     chainId: 1,
   });
 
@@ -652,13 +655,15 @@ test("getChildAddresses() distinct", async () => {
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
     chainId: 1,
   });
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 3]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 3]])],
+    ]),
     chainId: 1,
   });
 
@@ -671,6 +676,81 @@ test("getChildAddresses() distinct", async () => {
       "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
     }
   `);
+});
+
+test("getChildAddresses() shares parents between factories", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const parentX = zeroAddress;
+  const parentY = "0x0000000000000000000000000000000000000001";
+  const childX: Address = "0x000000000000000000000000000000000000000a";
+  const childY: Address = "0x000000000000000000000000000000000000000b";
+  const childXY: Address = "0x000000000000000000000000000000000000000c";
+
+  const buildFactory = (address: Address | Address[]) =>
+    buildLogFactory({
+      chainId: 1,
+      sourceId: "Pair",
+      fromBlock: undefined,
+      toBlock: undefined,
+      ...factory({
+        address,
+        event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+        parameter: "pair",
+      }),
+    });
+
+  const factoryXY = buildFactory([parentX, parentY]);
+  const factoryX = buildFactory(parentX);
+  const factoryY = buildFactory(parentY);
+
+  const [fragmentX, fragmentY] = getFactoryFragmentIds(factoryXY);
+
+  await syncStore.insertChildAddresses({
+    childAddresses: new Map([
+      [
+        fragmentX!,
+        new Map([
+          [childX, 1],
+          [childXY, 4],
+        ]),
+      ],
+      [
+        fragmentY!,
+        new Map([
+          [childY, 2],
+          [childXY, 3],
+        ]),
+      ],
+    ]),
+    chainId: 1,
+  });
+
+  expect(
+    await syncStore.getChildAddresses({ factory: factoryXY }),
+  ).toStrictEqual(
+    new Map([
+      [childX, 1],
+      [childXY, 3],
+      [childY, 2],
+    ]),
+  );
+  expect(
+    await syncStore.getChildAddresses({ factory: factoryX }),
+  ).toStrictEqual(
+    new Map([
+      [childX, 1],
+      [childXY, 4],
+    ]),
+  );
+  expect(
+    await syncStore.getChildAddresses({ factory: factoryY }),
+  ).toStrictEqual(
+    new Map([
+      [childY, 2],
+      [childXY, 3],
+    ]),
+  );
 });
 
 test("getCrashRecoveryBlock()", async () => {
@@ -723,13 +803,15 @@ test("insertChildAddresses()", async () => {
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
     chainId: 1,
   });
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 3]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 3]])],
+    ]),
     chainId: 1,
   });
 

@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import type {
   BlockFilter,
   Factory,
+  FactoryFragmentId,
   Filter,
   FilterAddress,
   Fragment,
@@ -14,6 +15,7 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import { dedupe } from "@/utils/dedupe.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { isAddressFactory } from "./filter.js";
 
 export const isFragmentAddressFactory = (
@@ -65,6 +67,27 @@ export const getFactoryFragments = (factory: Factory): Fragment[] => {
 
   return fragments;
 };
+
+/** Returns the IDs of the `factory_log` fragments of `factory`, one per parent address. */
+export const getFactoryFragmentIds = (factory: Factory): FactoryFragmentId[] =>
+  getFactoryFragments(factory).map(encodeFragment) as FactoryFragmentId[];
+
+/**
+ * Returns the ID of the `factory_log` fragment for the parent that emitted `log`.
+ */
+export const getFactoryFragmentId = (
+  factory: Factory,
+  parentAddress: Address,
+): FactoryFragmentId =>
+  encodeFragment({
+    type: "factory_log",
+    chainId: factory.chainId,
+    address: factory.address === undefined ? null : toLowerCase(parentAddress),
+    eventSelector: factory.eventSelector,
+    childAddressLocation: factory.childAddressLocation,
+    fromBlock: factory.fromBlock ?? null,
+    toBlock: factory.toBlock ?? null,
+  }) as FactoryFragmentId;
 
 export const getAddressFragments = (
   address: Address | Address[] | Factory | undefined,
@@ -566,9 +589,8 @@ const recoverAddress = <filterAddress extends FilterAddress>(
     return dedupe(fragmentAddresses) as filterAddress;
   }
 
-  // Note: At this point, `baseAddress` is a factory. We explicitly don't try to recover the factory
-  // address from the fragments because we want a `insertChildAddresses` and `getChildAddresses` to
-  // use the factory as a stable key.
+  // Note: At this point, `baseAddress` is a factory. The factory address is not recovered from the
+  // fragments because child addresses are matched with the union of all parents of the factory.
 
   return baseAddress;
 };
@@ -580,6 +602,23 @@ const recoverTopic = (
   if (base === null) return null;
   if (typeof base === "string") return base;
   return dedupe(fragments) as Hex[];
+};
+
+/** Returns `baseFactory` with only the parent addresses of `fragments`. */
+export const recoverFactory = (
+  baseFactory: Factory,
+  fragments: Fragment[],
+): Factory => {
+  if (Array.isArray(baseFactory.address) === false) return baseFactory;
+
+  return {
+    ...baseFactory,
+    address: dedupe(
+      (fragments as Extract<Fragment, { type: "factory_log" }>[]).map(
+        (fragment) => fragment.address!,
+      ),
+    ),
+  };
 };
 
 export const recoverFilter = (

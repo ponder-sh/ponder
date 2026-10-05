@@ -20,6 +20,7 @@ import {
 import {
   getFactoryFragments,
   getFragments,
+  recoverFactory,
   recoverFilter,
 } from "@/runtime/fragments.js";
 import type { SyncStore } from "@/sync-store/index.js";
@@ -475,7 +476,10 @@ export const getRequiredIntervalsWithFilters = (params: {
         );
 
         requiredFactoryIntervals.push({
-          factory,
+          factory: recoverFactory(
+            factory,
+            requiredFactoryFragmentIntervals.map(({ fragment }) => fragment),
+          ),
           interval: requiredInterval,
         });
       }

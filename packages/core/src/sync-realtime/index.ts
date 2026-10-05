@@ -12,6 +12,7 @@ import type {
   Chain,
   EventCallback,
   Factory,
+  FactoryFragmentId,
   FactoryId,
   Filter,
   LightBlock,
@@ -51,6 +52,10 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
+import {
+  getFactoryFragmentId,
+  getFactoryFragmentIds,
+} from "@/runtime/fragments.js";
 import type { SyncProgress } from "@/runtime/index.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
@@ -79,7 +84,8 @@ export type BlockWithEventData = {
   transactionReceipts: SyncTransactionReceipt[];
   logs: SyncLog[];
   traces: SyncTrace[];
-  childAddresses: Map<Factory, Set<Address>>;
+  /** Child addresses found in the block per `factory_log` fragment ID. */
+  childAddresses: Map<FactoryFragmentId, Set<Address>>;
 };
 
 export type RealtimeSyncEvent =
@@ -129,6 +135,7 @@ export const createRealtimeSync = (
 
   const factories: Factory[] = [];
   const factoryIds = new Set<FactoryId>();
+  const factoryFragmentIds = new Map<Factory, FactoryFragmentId[]>();
   const logFilters: LogFilter[] = [];
   const traceFilters: TraceFilter[] = [];
   const transactionFilters: TransactionFilter[] = [];
@@ -167,6 +174,7 @@ export const createRealtimeSync = (
       if (factoryIds.has(factory.id)) continue;
       factoryIds.add(factory.id);
       factories.push(factory);
+      factoryFragmentIds.set(factory, getFactoryFragmentIds(factory));
     }
   }
 
@@ -475,14 +483,13 @@ export const createRealtimeSync = (
     ////////
 
     // Record `blockChildAddresses` that contain factory child addresses
-    const blockChildAddresses = new Map<Factory, Set<Address>>();
+    const blockChildAddresses: BlockWithEventData["childAddresses"] = new Map();
 
     const childAddressDecodeFailureIds = new Set<string>();
     let childAddressDecodeFailureCount = 0;
     let childAddressDecodeSuccessCount = 0;
 
     for (const factory of factories) {
-      blockChildAddresses.set(factory, new Set<Address>());
       for (const log of logs) {
         if (isLogFactoryMatched({ factory, log })) {
           let address: Address;
@@ -510,7 +517,11 @@ export const createRealtimeSync = (
               throw error;
             }
           }
-          blockChildAddresses.get(factory)!.add(address);
+          const fragmentId = getFactoryFragmentId(factory, log.address);
+          if (blockChildAddresses.has(fragmentId) === false) {
+            blockChildAddresses.set(fragmentId, new Set());
+          }
+          blockChildAddresses.get(fragmentId)!.add(address);
         }
       }
     }
@@ -712,15 +723,17 @@ export const createRealtimeSync = (
     matchedFilters: Set<Filter>;
   } => {
     // Update `childAddresses`
-    for (const factory of factories) {
-      const knownAddresses = childAddresses.get(factory.id)!;
-      const blockAddresses = blockChildAddresses.get(factory)!;
-      for (const address of blockAddresses) {
-        // Retain only addresses first discovered in this block in the persistence and reorg delta.
-        if (knownAddresses.has(address)) {
-          blockAddresses.delete(address);
-        } else {
-          knownAddresses.set(address, hexToNumber(block.number));
+    if (blockChildAddresses.size > 0) {
+      for (const factory of factories) {
+        const knownAddresses = childAddresses.get(factory.id)!;
+        for (const fragmentId of factoryFragmentIds.get(factory)!) {
+          const blockAddresses = blockChildAddresses.get(fragmentId);
+          if (blockAddresses === undefined) continue;
+          for (const address of blockAddresses) {
+            if (knownAddresses.has(address) === false) {
+              knownAddresses.set(address, hexToNumber(block.number));
+            }
+          }
         }
       }
     }
@@ -964,15 +977,21 @@ export const createRealtimeSync = (
 
     // remove reorged blocks from `childAddresses`
     for (const block of reorgedBlocks) {
+      const blockNumber = hexToNumber(block.number);
+      const blockChildAddresses = childAddressesPerBlock.get(blockNumber)!;
       for (const factory of factories) {
-        const addresses = childAddressesPerBlock
-          .get(hexToNumber(block.number))!
-          .get(factory)!;
-        for (const address of addresses) {
-          childAddresses.get(factory.id)!.delete(address);
+        const knownAddresses = childAddresses.get(factory.id)!;
+        for (const fragmentId of factoryFragmentIds.get(factory)!) {
+          const blockAddresses = blockChildAddresses.get(fragmentId);
+          if (blockAddresses === undefined) continue;
+          for (const address of blockAddresses) {
+            if (knownAddresses.get(address) === blockNumber) {
+              knownAddresses.delete(address);
+            }
+          }
         }
       }
-      childAddressesPerBlock.delete(hexToNumber(block.number));
+      childAddressesPerBlock.delete(blockNumber);
     }
 
     return {

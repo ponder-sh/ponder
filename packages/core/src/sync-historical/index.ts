@@ -14,6 +14,7 @@ import type {
   BlockFilter,
   Chain,
   Factory,
+  FactoryFragmentId,
   FactoryId,
   LogFilter,
   SyncBlock,
@@ -50,8 +51,8 @@ import {
   isTransferFilterMatched,
   mergeLogFiltersToRequests,
 } from "@/runtime/filter.js";
+import { getFactoryFragmentId } from "@/runtime/fragments.js";
 import type {
-  ChildAddresses,
   IntervalWithFactory,
   IntervalWithFilter,
 } from "@/runtime/index.js";
@@ -304,13 +305,13 @@ export const createHistoricalSync = (
   /**
    * Fetch child addresses for `factory` within `interval`
    *
-   * @dev Newly fetched child addresses are added into `args.childAddresses`
+   * @dev Fetched child addresses are added into `args.childAddresses`
    */
   const syncAddressFactory = async (
     factory: Factory,
     interval: Interval,
     context?: Parameters<Rpc["request"]>[1],
-  ): Promise<Map<Address, number>> => {
+  ): Promise<Map<FactoryFragmentId, Map<Address, number>>> => {
     const logs = await syncLogsDynamic(
       {
         address: factory.address,
@@ -321,7 +322,7 @@ export const createHistoricalSync = (
       context,
     );
 
-    const childAddresses = new Map<Address, number>();
+    const childAddresses = new Map<FactoryFragmentId, Map<Address, number>>();
     const factoryChildAddresses = args.childAddresses.get(factory.id)!;
 
     const childAddressDecodeFailureIds = new Set<string>();
@@ -355,15 +356,31 @@ export const createHistoricalSync = (
             throw error;
           }
         }
-        const existingBlockNumber = factoryChildAddresses.get(address);
-        const newBlockNumber = hexToNumber(log.blockNumber);
+        const blockNumber = hexToNumber(log.blockNumber);
 
+        // Note: Child addresses are stored per parent, so a child address that is
+        // already known from a different parent must also be stored for this parent.
+
+        const fragmentId = getFactoryFragmentId(factory, log.address);
+        if (childAddresses.has(fragmentId) === false) {
+          childAddresses.set(fragmentId, new Map());
+        }
+        const fragmentChildAddresses = childAddresses.get(fragmentId)!;
+
+        const fragmentBlockNumber = fragmentChildAddresses.get(address);
+        if (
+          fragmentBlockNumber === undefined ||
+          fragmentBlockNumber > blockNumber
+        ) {
+          fragmentChildAddresses.set(address, blockNumber);
+        }
+
+        const existingBlockNumber = factoryChildAddresses.get(address);
         if (
           existingBlockNumber === undefined ||
-          existingBlockNumber > newBlockNumber
+          existingBlockNumber > blockNumber
         ) {
-          childAddresses.set(address, newBlockNumber);
-          factoryChildAddresses.set(address, newBlockNumber);
+          factoryChildAddresses.set(address, blockNumber);
         }
       }
     }
@@ -390,7 +407,7 @@ export const createHistoricalSync = (
         logger: args.common.logger.child({ action: "fetch_block_data" }),
       };
       const endClock = startClock();
-      const childAddresses: ChildAddresses = new Map();
+      const childAddresses = new Map<FactoryFragmentId, Map<Address, number>>();
 
       // Dedupe factory intervals by factory id
 
@@ -418,10 +435,33 @@ export const createHistoricalSync = (
 
       await Promise.all(
         requiredFactoryIntervals.map(async ({ factory, interval }) => {
-          childAddresses.set(
-            factory.id,
-            await syncAddressFactory(factory, interval, context)!,
+          const factoryChildAddresses = await syncAddressFactory(
+            factory,
+            interval,
+            context,
           );
+
+          // Note: Factories can share a `factory_log` fragment.
+
+          for (const [
+            fragmentId,
+            fragmentChildAddresses,
+          ] of factoryChildAddresses) {
+            if (childAddresses.has(fragmentId) === false) {
+              childAddresses.set(fragmentId, fragmentChildAddresses);
+              continue;
+            }
+
+            const existing = childAddresses.get(fragmentId)!;
+            for (const [address, blockNumber] of fragmentChildAddresses) {
+              if (
+                existing.has(address) === false ||
+                existing.get(address)! > blockNumber
+              ) {
+                existing.set(address, blockNumber);
+              }
+            }
+          }
         }),
       );
 
@@ -478,18 +518,9 @@ export const createHistoricalSync = (
         ["chain", "block_range"],
       );
 
-      await promiseAllSettledWithThrow(
-        Array.from(childAddresses.entries()).map(
-          ([factoryId, childAddresses]) =>
-            syncStore.insertChildAddresses(
-              {
-                factory: factoryIntervalsById.get(factoryId)!.factory,
-                childAddresses,
-                chainId: args.chain.id,
-              },
-              context,
-            ),
-        ),
+      await syncStore.insertChildAddresses(
+        { childAddresses, chainId: args.chain.id },
+        context,
       );
 
       return logs;

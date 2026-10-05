@@ -26,8 +26,8 @@ CREATE TABLE "ponder_sync_1"."blocks" (
 --> statement-breakpoint
 CREATE TABLE "ponder_sync_1"."factories" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ponder_sync_1"."factories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"factory" jsonb NOT NULL,
-	CONSTRAINT "factories_factory_key" UNIQUE("factory")
+	"fragment_id" text NOT NULL,
+	CONSTRAINT "factories_fragment_id_key" UNIQUE("fragment_id")
 );
 --> statement-breakpoint
 CREATE TABLE "ponder_sync_1"."factory_addresses" (
@@ -137,7 +137,7 @@ INSERT INTO "ponder_sync_1"."rpc_request_results" ("request_hash", "chain_id", "
 --> statement-breakpoint
 INSERT INTO "ponder_sync_1"."intervals" ("fragment_id", "chain_id", "blocks") SELECT "fragment_id", "chain_id", "blocks" FROM "ponder_sync"."intervals" WHERE "fragment_id" NOT LIKE 'trace\_%' AND "fragment_id" NOT LIKE 'transfer\_%' AND "fragment_id" NOT LIKE 'factory\_%' AND "fragment_id" !~ '_(topic|offset)';
 --> statement-breakpoint
-CREATE INDEX "factories_factory_idx" ON "ponder_sync_1"."factories" USING btree ("factory");
+CREATE INDEX "factories_fragment_id_idx" ON "ponder_sync_1"."factories" USING btree ("fragment_id");
 --> statement-breakpoint
 CREATE INDEX "factory_addresses_factory_id_index" ON "ponder_sync_1"."factory_addresses" USING btree ("factory_id");
 --> statement-breakpoint
