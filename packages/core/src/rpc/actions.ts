@@ -1,9 +1,16 @@
 import {
+  type GetLogsRetryHelperParameters,
+  getLogsRetryHelper,
+} from "@ponder/utils";
+import {
   BlockNotFoundError,
+  type Hash,
   type Hex,
   hexToBigInt,
   hexToNumber,
   isHex,
+  numberToHex,
+  type RpcError,
   TransactionReceiptNotFoundError,
   zeroAddress,
   zeroHash,
@@ -122,6 +129,108 @@ export const eth_getLogs = async (
 };
 
 /**
+ * Data about the range passed to "eth_getLogs", shared among all log
+ * filters and log factories that use the same rpc.
+ */
+type LogsRequestMetadata = {
+  /** Estimate optimal range to use for "eth_getLogs" requests */
+  estimatedRange: number;
+  /** Range suggested by an error message */
+  confirmedRange?: number;
+};
+
+const logsRequestMetadataByRpc = new WeakMap<Rpc, LogsRequestMetadata>();
+
+const getLogsRequestMetadata = (rpc: Rpc): LogsRequestMetadata => {
+  let logsRequestMetadata = logsRequestMetadataByRpc.get(rpc);
+  if (logsRequestMetadata === undefined) {
+    logsRequestMetadata = { estimatedRange: 500 };
+    logsRequestMetadataByRpc.set(rpc, logsRequestMetadata);
+  }
+  return logsRequestMetadata;
+};
+
+/**
+ * Helper function for "eth_getLogs" rpc request with built in pagination.
+ * Handles different error types and retries the request if applicable, learning RPC limits.
+ */
+export async function* eth_getLogsWithPagination(
+  rpc: Rpc,
+  params: GetLogsRetryHelperParameters["params"],
+  context?: Parameters<Rpc["request"]>[1] & {
+    ethGetLogsBlockRange?: number;
+  },
+): AsyncGenerator<{ logs: SyncLog[]; fromBlock: number; toBlock: number }> {
+  const { address, topics } = params[0];
+  let cursor = hexToNumber(params[0].fromBlock);
+  const endBlock = hexToNumber(params[0].toBlock);
+
+  while (cursor <= endBlock) {
+    const logsRequestMetadata = getLogsRequestMetadata(rpc);
+    const range =
+      context?.ethGetLogsBlockRange ??
+      logsRequestMetadata.confirmedRange ??
+      logsRequestMetadata.estimatedRange;
+    const toBlock = Math.min(cursor + range - 1, endBlock);
+    const params: GetLogsRetryHelperParameters["params"] = [
+      {
+        address,
+        topics,
+        fromBlock: numberToHex(cursor),
+        toBlock: numberToHex(toBlock),
+      },
+    ];
+
+    let logs: SyncLog[];
+    try {
+      logs = await eth_getLogs(rpc, params, context);
+    } catch (error) {
+      if (context?.ethGetLogsBlockRange !== undefined) {
+        throw error;
+      }
+
+      const getLogsErrorResponse = getLogsRetryHelper({
+        params,
+        error: error as RpcError,
+      });
+
+      if (getLogsErrorResponse.shouldRetry === false) throw error;
+
+      const range =
+        hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+        hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
+        1;
+
+      context?.logger?.debug({
+        msg: "Updated eth_getLogs range",
+        range,
+      });
+
+      logsRequestMetadataByRpc.set(rpc, {
+        estimatedRange: range,
+        confirmedRange: getLogsErrorResponse.isSuggestedRange
+          ? range
+          : undefined,
+      });
+
+      continue;
+    }
+
+    if (
+      context?.ethGetLogsBlockRange === undefined &&
+      logsRequestMetadata.confirmedRange === undefined
+    ) {
+      logsRequestMetadata.estimatedRange = Math.round(
+        logsRequestMetadata.estimatedRange * 1.05,
+      );
+    }
+
+    yield { logs, fromBlock: cursor, toBlock };
+    cursor = toBlock + 1;
+  }
+}
+
+/**
  * Helper function for "eth_getTransactionReceipt" request.
  */
 export const eth_getTransactionReceipt = (
@@ -172,6 +281,70 @@ export const eth_getBlockReceipts = (
         params,
       });
     });
+
+/** Rpcs that failed "eth_getBlockReceipts", shared across sync modes. */
+const rpcsWithoutBlockReceipts = new WeakSet<Rpc>();
+
+/**
+ * Fetch transaction receipts, falling back to individual requests when
+ * eth_getBlockReceipts fails. Returns each response with its request so callers
+ * can validate the full response before selecting the receipts they need.
+ *
+ * Note: Receipts are sorted by transaction index. The order of `transactionHashes`
+ * is not used.
+ */
+export const eth_getTransactionReceipts = async (
+  rpc: Rpc,
+  params: {
+    blockHash: Hash;
+    transactionHashes: Set<Hash>;
+  },
+  context?: Parameters<Rpc["request"]>[1],
+): Promise<
+  {
+    receipts: SyncTransactionReceipt[];
+    request: Extract<
+      RequestParameters,
+      { method: "eth_getBlockReceipts" | "eth_getTransactionReceipt" }
+    >;
+  }[]
+> => {
+  const { blockHash, transactionHashes } = params;
+  if (transactionHashes.size === 0) return [];
+
+  if (rpcsWithoutBlockReceipts.has(rpc)) {
+    const responses = await Promise.all(
+      Array.from(transactionHashes).map(async (hash) => ({
+        receipts: [await eth_getTransactionReceipt(rpc, [hash], context)],
+        request: {
+          method: "eth_getTransactionReceipt" as const,
+          params: [hash] as [Hash],
+        },
+      })),
+    );
+    return responses.sort(
+      (a, b) =>
+        hexToNumber(a.receipts[0]!.transactionIndex) -
+        hexToNumber(b.receipts[0]!.transactionIndex),
+    );
+  }
+
+  try {
+    return [
+      {
+        receipts: await eth_getBlockReceipts(rpc, [blockHash], context),
+        request: { method: "eth_getBlockReceipts", params: [blockHash] },
+      },
+    ];
+  } catch (error) {
+    context?.logger?.warn({
+      msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
+      error: error as Error,
+    });
+    rpcsWithoutBlockReceipts.add(rpc);
+    return eth_getTransactionReceipts(rpc, params, context);
+  }
+};
 
 /**
  * Helper function for "debug_traceBlockByNumber" request.
@@ -900,7 +1073,11 @@ export const standardizeTransactions = (
       throw error;
     }
   }
-  return transactions;
+
+  // Note: Sort transactions by transaction index. Do not rely on the rpc response order.
+  return transactions.sort(
+    (a, b) => hexToNumber(a.transactionIndex) - hexToNumber(b.transactionIndex),
+  );
 };
 
 /**
@@ -1054,7 +1231,12 @@ export const standardizeLogs = (
     }
   }
 
-  return logs;
+  // Note: Sort logs by block number and log index. Do not rely on the rpc response order.
+  return logs.sort(
+    (a, b) =>
+      hexToNumber(a.blockNumber) - hexToNumber(b.blockNumber) ||
+      hexToNumber(a.logIndex) - hexToNumber(b.logIndex),
+  );
 };
 
 /**
@@ -1300,7 +1482,11 @@ export const standardizeTransactionReceipts = (
       throw error;
     }
   }
-  return receipts;
+
+  // Note: Sort receipts by transaction index. Do not rely on the rpc response order.
+  return receipts.sort(
+    (a, b) => hexToNumber(a.transactionIndex) - hexToNumber(b.transactionIndex),
+  );
 };
 
 function requestText(request: { method: string; params: any[] }): string {

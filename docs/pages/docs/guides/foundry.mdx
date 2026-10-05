@@ -6,11 +6,11 @@ Foundry projects follow various development workflows (test-driven, deploy to a 
 
 ## Configure the `anvil` chain
 
-### Disable caching
+### Disable the RPC request cache
 
 Ponder's RPC request cache works well for live chains where the chain is generally immutable, but causes issues when indexing a local chain that "resets".
 
-Use the `disableCache` option to **disable RPC request caching** for the Anvil chain. With this option set to true, Ponder will clear the cache on start up and between hot reloads.
+Set `cacheRpcRequests: false` to **disable the RPC request cache** for the Anvil chain. With this option set to `false`, Ponder fetches all data directly from the RPC on each restart.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -20,7 +20,7 @@ export default createConfig({
     anvil: {
       id: 31337,
       rpc: "http://127.0.0.1:8545",
-      disableCache: true,  // [!code hl]
+      cacheRpcRequests: false,  // [!code hl]
     },
   },
   // ...
@@ -96,7 +96,7 @@ export default createConfig({
     anvil: {
       id: 31337,
       rpc: "http://127.0.0.1:8545",
-      disableCache: true,
+      cacheRpcRequests: false,
     },
   },
   contracts: {

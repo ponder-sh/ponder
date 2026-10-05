@@ -85,6 +85,7 @@ Ponder caches RPC request data to improve reindexing performance on hot reloads 
 - The cache is durable and persists across instance restarts.
 - The cache query patterns are lock-free. It's safe for multiple instances to run in the same Postgres database at the same time (reading and writing to the same cache schema).
 - The cache does not store unfinalized data.
+- Chains with `cacheRpcRequests: false` do not read or write the cache. This includes block data, factory child addresses, and `context.client` requests.
 
 ### Cache migrations
 

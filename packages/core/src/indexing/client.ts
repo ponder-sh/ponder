@@ -734,26 +734,30 @@ export const createCachedViemClient = ({
             ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
           );
 
-          common.metrics.ponder_indexing_rpc_prefetch_total.inc(
-            {
-              chain: chain.name,
-              method: "eth_call",
-              type: "database",
-            },
-            dbRequests.length,
-          );
+          // Note: Without the rpc request cache, all requests miss the database.
+          let cachedResults: (string | undefined)[] = [];
+          if (chain.cacheRpcRequests) {
+            common.metrics.ponder_indexing_rpc_prefetch_total.inc(
+              {
+                chain: chain.name,
+                method: "eth_call",
+                type: "database",
+              },
+              dbRequests.length,
+            );
 
-          const cachedResults = await syncStore.getRpcRequestResults(
-            {
-              requests: dbRequests.map(({ request }) => request),
-              chainId,
-            },
-            context,
-          );
+            cachedResults = await syncStore.getRpcRequestResults(
+              {
+                requests: dbRequests.map(({ request }) => request),
+                chainId,
+              },
+              context,
+            );
+          }
 
           for (let i = 0; i < dbRequests.length; i++) {
             const request = dbRequests[i]!;
-            const cachedResult = cachedResults[i]!;
+            const cachedResult = cachedResults[i];
 
             if (cachedResult !== undefined) {
               cache
@@ -916,14 +920,16 @@ export const cachedTransport =
             (request) => results.has(request) === false,
           );
 
-          const dbResults = await syncStore.getRpcRequestResults(
-            { requests: dbRequests, chainId: chain.id },
-            context,
-          );
+          const dbResults = chain.cacheRpcRequests
+            ? await syncStore.getRpcRequestResults(
+                { requests: dbRequests, chainId: chain.id },
+                context,
+              )
+            : [];
 
           for (let i = 0; i < dbRequests.length; i++) {
             const request = dbRequests[i]!;
-            const result = dbResults[i]!;
+            const result = dbResults[i];
 
             if (result !== undefined) {
               common.metrics.ponder_indexing_rpc_requests_total.inc({
@@ -1004,19 +1010,21 @@ export const cachedTransport =
 
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
-          syncStore
-            .insertRpcRequestResults(
-              {
-                requests: Array.from(requestsToInsert).map((request) => ({
-                  request,
-                  blockNumber: encodedBlockNumber,
-                  result: JSON.stringify(results.get(request)!.returnData),
-                })),
-                chainId: chain.id,
-              },
-              context,
-            )
-            .catch(() => {});
+          if (chain.cacheRpcRequests) {
+            syncStore
+              .insertRpcRequestResults(
+                {
+                  requests: Array.from(requestsToInsert).map((request) => ({
+                    request,
+                    blockNumber: encodedBlockNumber,
+                    result: JSON.stringify(results.get(request)!.returnData),
+                  })),
+                  chainId: chain.id,
+                },
+                context,
+              )
+              .catch(() => {});
+          }
 
           // Note: at this point, it is an invariant that either `allowFailure` is true or
           // there are no failed requests.
@@ -1073,7 +1081,10 @@ export const cachedTransport =
 
               if (result instanceof Error) throw result;
 
-              if (UNCACHED_RESPONSES.includes(result) === false) {
+              if (
+                chain.cacheRpcRequests &&
+                UNCACHED_RESPONSES.includes(result) === false
+              ) {
                 // Note: insertRpcRequestResults errors can be ignored and not awaited, since
                 // the response is already fetched.
                 syncStore
@@ -1105,10 +1116,12 @@ export const cachedTransport =
             return decodeResponse(cachedResult);
           }
 
-          const [cachedResult] = await syncStore.getRpcRequestResults(
-            { requests: [body], chainId: chain.id },
-            context,
-          );
+          const [cachedResult] = chain.cacheRpcRequests
+            ? await syncStore.getRpcRequestResults(
+                { requests: [body], chainId: chain.id },
+                context,
+              )
+            : [undefined];
 
           if (cachedResult !== undefined) {
             common.metrics.ponder_indexing_rpc_requests_total.inc({
@@ -1128,7 +1141,10 @@ export const cachedTransport =
 
           const response = await rpc.request(body, context);
 
-          if (UNCACHED_RESPONSES.includes(response) === false) {
+          if (
+            chain.cacheRpcRequests &&
+            UNCACHED_RESPONSES.includes(response) === false
+          ) {
             // Note: insertRpcRequestResults errors can be ignored and not awaited, since
             // the response is already fetched.
             syncStore

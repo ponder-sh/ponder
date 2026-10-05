@@ -937,7 +937,7 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      if (params.chain.disableCache) break;
+      if (params.chain.cacheRpcRequests === false) break;
 
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
@@ -1091,16 +1091,18 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await createSyncStore({
-        common: params.common,
-        qb: params.database.syncQB,
-      }).pruneRpcRequestResults(
-        {
-          chainId: params.chain.id,
-          blocks: event.reorgedBlocks,
-        },
-        { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
-      );
+      if (params.chain.cacheRpcRequests) {
+        await createSyncStore({
+          common: params.common,
+          qb: params.database.syncQB,
+        }).pruneRpcRequestResults(
+          {
+            chainId: params.chain.id,
+            blocks: event.reorgedBlocks,
+          },
+          { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
+        );
+      }
 
       break;
     }
