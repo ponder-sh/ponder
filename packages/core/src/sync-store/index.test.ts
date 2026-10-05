@@ -358,6 +358,8 @@ test("getIntervals() does not copy filter intervals to factory intervals for v0.
               "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
               "childAddressLocation": "topic1",
               "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+              "fromBlock": 10,
+              "toBlock": 20,
             },
             "chainId": 1,
             "includeTransactionReceipts": false,
@@ -1465,8 +1467,7 @@ test("getIntervals() does not infer factory intervals from log filter intervals 
   });
 
   // Change the factory identity by introducing a fromBlock. This produces a
-  // new factory_log_* fragment ID, while the log_* fragment ID remains the
-  // same because it does not encode fromBlock for factory addresses.
+  // new factory_log_* fragment ID and a new log_* fragment ID.
   const factoryV2 = buildLogFactory({
     chainId: 1,
     sourceId: "Pair",
@@ -1497,12 +1498,65 @@ test("getIntervals() does not infer factory intervals from log filter intervals 
     .get(factoryV2)!
     .flatMap(({ intervals }) => intervals);
 
-  // The log filter should still see the previously synced range.
-  expect(filterIntervals).toEqual([[0, 20]]);
-
-  // The factory must NOT inherit the log filter's intervals, because the
-  // factory identity changed and no child addresses have been discovered for
-  // the new factory range. Reporting a complete interval here would cause the
-  // sync engine to skip child discovery and silently miss child events.
+  expect(filterIntervals).toEqual([]);
   expect(factoryIntervals).toEqual([]);
+});
+
+test("getIntervals() does not use log filter intervals from a factory with a different range", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const filterV1 = {
+    ...EMPTY_LOG_FILTER,
+    sourceId: "Pair",
+    fromBlock: undefined,
+    address: buildLogFactory({
+      chainId: 1,
+      sourceId: "Pair",
+      fromBlock: 3,
+      toBlock: undefined,
+      ...factory({
+        address: zeroAddress,
+        event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+        parameter: "pair",
+      }),
+    }),
+  };
+  const filterV2 = {
+    ...EMPTY_LOG_FILTER,
+    sourceId: "Pair",
+    fromBlock: undefined,
+    address: buildLogFactory({
+      chainId: 1,
+      sourceId: "Pair",
+      fromBlock: undefined,
+      toBlock: undefined,
+      ...factory({
+        address: zeroAddress,
+        event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+        parameter: "pair",
+      }),
+    }),
+  };
+
+  await syncStore.insertIntervals({
+    intervals: [{ filter: filterV1, interval: [3, 20] }],
+    factoryIntervals: [
+      { factory: filterV1.address as Factory, interval: [3, 20] },
+      { factory: filterV2.address as Factory, interval: [0, 20] },
+    ],
+    chainId: 1,
+  });
+
+  const intervals = await syncStore.getIntervals({ filters: [filterV2] });
+
+  // Note: The factory is complete, but the log filter intervals were synced
+  // with the child addresses of a different factory range.
+  expect(
+    intervals
+      .get(filterV2.address as Factory)!
+      .flatMap(({ intervals }) => intervals),
+  ).toEqual([[0, 20]]);
+  expect(
+    intervals.get(filterV2)!.flatMap(({ intervals }) => intervals),
+  ).toEqual([]);
 });

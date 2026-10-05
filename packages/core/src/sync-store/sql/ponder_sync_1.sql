@@ -135,11 +135,7 @@ INSERT INTO "ponder_sync_1"."logs" ("chain_id", "block_number", "log_index", "tr
 --> statement-breakpoint
 INSERT INTO "ponder_sync_1"."rpc_request_results" ("request_hash", "chain_id", "block_number", "result") SELECT "request_hash", "chain_id", "block_number", "result" FROM "ponder_sync"."rpc_request_results";
 --> statement-breakpoint
-INSERT INTO "ponder_sync_1"."intervals" ("fragment_id", "chain_id", "blocks") SELECT "fragment_id", "chain_id", "blocks" FROM "ponder_sync"."intervals" WHERE "fragment_id" NOT LIKE 'trace\_%' AND "fragment_id" NOT LIKE 'transfer\_%';
---> statement-breakpoint
-INSERT INTO "ponder_sync_1"."factories" ("id", "factory") OVERRIDING SYSTEM VALUE SELECT "id", "factory" FROM "ponder_sync"."factories";
---> statement-breakpoint
-INSERT INTO "ponder_sync_1"."factory_addresses" ("id", "factory_id", "chain_id", "block_number", "address") OVERRIDING SYSTEM VALUE SELECT "id", "factory_id", "chain_id", "block_number", "address" FROM "ponder_sync"."factory_addresses";
+INSERT INTO "ponder_sync_1"."intervals" ("fragment_id", "chain_id", "blocks") SELECT "fragment_id", "chain_id", "blocks" FROM "ponder_sync"."intervals" WHERE "fragment_id" NOT LIKE 'trace\_%' AND "fragment_id" NOT LIKE 'transfer\_%' AND "fragment_id" NOT LIKE 'factory\_%' AND "fragment_id" !~ '_(topic|offset)';
 --> statement-breakpoint
 CREATE INDEX "factories_factory_idx" ON "ponder_sync_1"."factories" USING btree ("factory");
 --> statement-breakpoint
@@ -158,11 +154,3 @@ ANALYZE "ponder_sync_1"."logs";
 ANALYZE "ponder_sync_1"."rpc_request_results";
 --> statement-breakpoint
 ANALYZE "ponder_sync_1"."intervals";
---> statement-breakpoint
-ANALYZE "ponder_sync_1"."factories";
---> statement-breakpoint
-ANALYZE "ponder_sync_1"."factory_addresses";
---> statement-breakpoint
-SELECT setval('"ponder_sync_1"."factories_id_seq"', COALESCE(MAX("id"), 1), MAX("id") IS NOT NULL) FROM "ponder_sync_1"."factories";
---> statement-breakpoint
-SELECT setval('"ponder_sync_1"."factory_addresses_id_seq"', COALESCE(MAX("id"), 1), MAX("id") IS NOT NULL) FROM "ponder_sync_1"."factory_addresses";

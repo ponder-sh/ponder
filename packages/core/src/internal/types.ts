@@ -187,12 +187,14 @@ export type FragmentAddress =
       address: Address | null;
       eventSelector: Factory["eventSelector"];
       childAddressLocation: Factory["childAddressLocation"];
+      fromBlock: number | null;
+      toBlock: number | null;
     }
   | null;
 
 export type FragmentAddressId =
   | Address
-  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}_${number | null}_${number | null}`
   | null;
 export type FragmentTopic = Hex | null;
 

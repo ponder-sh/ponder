@@ -82,13 +82,13 @@ export const getAddressFragments = (
         address: fragmentAddress ?? null,
         eventSelector: address.eventSelector,
         childAddressLocation: address.childAddressLocation,
+        fromBlock: address.fromBlock ?? null,
+        toBlock: address.toBlock ?? null,
       } satisfies FragmentAddress;
 
       fragments.push({
         fragment,
-        adjacentIds: [
-          `${fragmentAddress ?? null}_${address.eventSelector}_${address.childAddressLocation}` as const,
-        ],
+        adjacentIds: [fragmentAddressToId(fragment)],
       });
     }
   } else {
@@ -319,7 +319,7 @@ export const fragmentAddressToId = (
 ): FragmentAddressId => {
   if (fragmentAddress === null) return null;
   if (typeof fragmentAddress === "string") return fragmentAddress;
-  return `${fragmentAddress.address}_${fragmentAddress.eventSelector}_${fragmentAddress.childAddressLocation}`;
+  return `${fragmentAddress.address}_${fragmentAddress.eventSelector}_${fragmentAddress.childAddressLocation}_${fragmentAddress.fromBlock}_${fragmentAddress.toBlock}`;
 };
 
 export const encodeFragment = (fragment: Fragment): FragmentId => {
@@ -345,25 +345,30 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
   const decodeFragmentAddress = (offset: number): FragmentAddress => {
     const fragmentAddressId = fragmentId.split("_").slice(offset);
 
-    if (fragmentAddressId[0] === "null") {
-      return null;
-    }
-
-    if (fragmentAddressId.length === 1) {
-      return fragmentAddressId[0] as Address;
-    }
-
+    // Note: A factory without an address starts with "null", so it must be
+    // detected before the null address.
     if (
       fragmentAddressId.length >= 3 &&
       (fragmentAddressId[2]!.startsWith("topic") ||
         fragmentAddressId[2]!.startsWith("offset"))
     ) {
       return {
-        address: fragmentAddressId[0] as Address,
+        address:
+          fragmentAddressId[0] === "null"
+            ? null
+            : (fragmentAddressId[0] as Address),
         eventSelector: fragmentAddressId[1] as Hex,
         childAddressLocation:
           fragmentAddressId[2] as Factory["childAddressLocation"],
+        fromBlock:
+          fragmentAddressId[3] === "null" ? null : Number(fragmentAddressId[3]),
+        toBlock:
+          fragmentAddressId[4] === "null" ? null : Number(fragmentAddressId[4]),
       } satisfies FragmentAddress;
+    }
+
+    if (fragmentAddressId[0] === "null") {
+      return null;
     }
 
     return fragmentAddressId[0] as Address;
@@ -382,7 +387,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
     case "transaction": {
       const fragmentFromAddress = decodeFragmentAddress(2);
       if (isFragmentAddressFactory(fragmentFromAddress)) {
-        const fragmentToAddress = decodeFragmentAddress(5);
+        const fragmentToAddress = decodeFragmentAddress(7);
         return {
           type: "transaction",
           chainId: Number(chainId),
@@ -402,9 +407,9 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
     case "trace": {
       const fragmentFromAddress = decodeFragmentAddress(2);
       if (isFragmentAddressFactory(fragmentFromAddress)) {
-        const fragmentToAddress = decodeFragmentAddress(5);
+        const fragmentToAddress = decodeFragmentAddress(7);
         if (isFragmentAddressFactory(fragmentToAddress)) {
-          const [, , , , , , , , functionSelector, includeTxr] =
+          const [, , , , , , , , , , , , functionSelector, includeTxr] =
             fragmentId.split("_");
           return {
             type: "trace",
@@ -415,7 +420,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
             includeTransactionReceipts: includeTxr === "1",
           };
         }
-        const [, , , , , , functionSelector, includeTxr] =
+        const [, , , , , , , , functionSelector, includeTxr] =
           fragmentId.split("_");
         return {
           type: "trace",
@@ -429,7 +434,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
 
       const fragmentToAddress = decodeFragmentAddress(3);
       if (isFragmentAddressFactory(fragmentToAddress)) {
-        const [, , , , , , functionSelector, includeTxr] =
+        const [, , , , , , , , functionSelector, includeTxr] =
           fragmentId.split("_");
         return {
           type: "trace",
@@ -454,7 +459,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
     case "log": {
       const fragmentAddress = decodeFragmentAddress(2);
       if (isFragmentAddressFactory(fragmentAddress)) {
-        const [, , , , , topic0, topic1, topic2, topic3, includeTxr] =
+        const [, , , , , , , topic0, topic1, topic2, topic3, includeTxr] =
           fragmentId.split("_");
         return {
           type: "log",
@@ -485,9 +490,9 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
     case "transfer": {
       const fragmentFromAddress = decodeFragmentAddress(2);
       if (isFragmentAddressFactory(fragmentFromAddress)) {
-        const fragmentToAddress = decodeFragmentAddress(5);
+        const fragmentToAddress = decodeFragmentAddress(7);
         if (isFragmentAddressFactory(fragmentToAddress)) {
-          const [, , , , , , , , includeTxr] = fragmentId.split("_");
+          const [, , , , , , , , , , , , includeTxr] = fragmentId.split("_");
           return {
             type: "transfer",
             chainId: Number(chainId),
@@ -496,7 +501,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
             includeTransactionReceipts: includeTxr === "1",
           };
         }
-        const [, , , , , , includeTxr] = fragmentId.split("_");
+        const [, , , , , , , , includeTxr] = fragmentId.split("_");
         return {
           type: "transfer",
           chainId: Number(chainId),
@@ -508,7 +513,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
 
       const fragmentToAddress = decodeFragmentAddress(3);
       if (isFragmentAddressFactory(fragmentToAddress)) {
-        const [, , , , , , includeTxr] = fragmentId.split("_");
+        const [, , , , , , , , includeTxr] = fragmentId.split("_");
         return {
           type: "transfer",
           chainId: Number(chainId),
