@@ -129,6 +129,66 @@ test("getLocalEventGenerator() pagination", async () => {
   expect(events.length).toBeGreaterThan(1);
 });
 
+test("getLocalEventGenerator() pagination checkpoints", async () => {
+  const { database, syncStore } = await setupDatabaseServices();
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  await testClient.mine({ blocks: 2 });
+
+  const cachedIntervals = await getCachedIntervals({
+    chain,
+    syncStore,
+    filters: eventCallbacks.map(({ filter }) => filter),
+  });
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    filters: eventCallbacks.map(({ filter }) => filter),
+    chain,
+    rpc,
+    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x2", true]),
+    cachedIntervals,
+  });
+
+  const eventGenerator = getLocalEventGenerator({
+    common: context.common,
+    chain,
+    rpc,
+    database,
+    eventCallbacks,
+    childAddresses: new Map(),
+    syncProgress,
+    cachedIntervals,
+    from: syncProgress.getCheckpoint({ tag: "start" })!,
+    to: syncProgress.getCheckpoint({ tag: "finalized" })!,
+    limit: 1,
+    isCatchup: false,
+  });
+
+  const batches = await drainAsyncGenerator(eventGenerator);
+
+  // Note: Each batch checkpoint must be greater than all events in the
+  // following batches, otherwise events are ordered and recovered incorrectly.
+
+  let previousCheckpoint = "";
+  for (const { events, checkpoint } of batches) {
+    expect(checkpoint > previousCheckpoint).toBe(true);
+    for (const event of events) {
+      expect(event.checkpoint > previousCheckpoint).toBe(true);
+      expect(event.checkpoint <= checkpoint).toBe(true);
+    }
+    previousCheckpoint = checkpoint;
+  }
+  expect(batches.at(-1)!.checkpoint).toBe(
+    syncProgress.getCheckpoint({ tag: "finalized" })!,
+  );
+});
+
 test("getLocalEventGenerator() pagination with zero interval", async () => {
   const { database, syncStore } = await setupDatabaseServices();
   const chain = getChain();
