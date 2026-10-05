@@ -176,7 +176,7 @@ test("getLocalEventGenerator() pagination with zero interval", async () => {
 
 test("getLocalInMemoryEventGenerator()", async () => {
   const { syncStore } = await setupDatabaseServices();
-  const chain = getChain({ rpcRequestCache: false });
+  const chain = getChain({ cacheRpcRequests: false });
   const rpc = createRpc({ chain, common: context.common });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -224,7 +224,7 @@ test("getLocalInMemoryEventGenerator()", async () => {
 
 test("getLocalInMemoryEventGenerator() with start block after finalized block", async () => {
   const { syncStore } = await setupDatabaseServices();
-  const chain = getChain({ rpcRequestCache: false });
+  const chain = getChain({ cacheRpcRequests: false });
   const rpc = createRpc({ chain, common: context.common });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -322,7 +322,7 @@ test("getLocalInMemoryEventGenerator() ignores intervals table", async () => {
 
   expect(intervals).toHaveLength(1);
 
-  const inMemoryChain = getChain({ rpcRequestCache: false });
+  const inMemoryChain = getChain({ cacheRpcRequests: false });
   inMemoryChain.reorgWindow = 0;
 
   cachedIntervals = await getCachedIntervals({
@@ -364,7 +364,7 @@ test("getLocalInMemoryEventGenerator() ignores intervals table", async () => {
 
 test("getLocalInMemoryEventGenerator() with crash recovery checkpoint", async () => {
   const { syncStore } = await setupDatabaseServices();
-  const chain = getChain({ rpcRequestCache: false });
+  const chain = getChain({ cacheRpcRequests: false });
   const rpc = createRpc({ chain, common: context.common });
 
   const { eventCallbacks } = getBlocksIndexingBuild({

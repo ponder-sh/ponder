@@ -187,7 +187,7 @@ export async function getChildAddresses(params: {
   // Note: When the rpc cache is disabled, child addresses in the sync-store can be
   // stale (e.g. from before an Anvil reset). Start empty and fetch them from the rpc.
   const getFactoryChildAddresses = (factory: Factory) =>
-    params.chain.rpcRequestCache
+    params.chain.cacheRpcRequests
       ? params.syncStore.getChildAddresses({ factory })
       : Promise.resolve(new Map<Address, number>());
 
@@ -235,7 +235,7 @@ export async function getCachedIntervals(params: {
    * Note: `intervalsCache` is not updated after a new interval is synced.
    */
   let cachedIntervals: CachedIntervals;
-  if (params.chain.rpcRequestCache === false) {
+  if (params.chain.cacheRpcRequests === false) {
     cachedIntervals = new Map();
     for (const filter of params.filters) {
       cachedIntervals.set(filter, []);

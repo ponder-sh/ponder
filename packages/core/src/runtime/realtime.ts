@@ -937,7 +937,7 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      if (params.chain.rpcRequestCache === false) break;
+      if (params.chain.cacheRpcRequests === false) break;
 
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
@@ -1091,7 +1091,7 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      if (params.chain.rpcRequestCache) {
+      if (params.chain.cacheRpcRequests) {
         await createSyncStore({
           common: params.common,
           qb: params.database.syncQB,

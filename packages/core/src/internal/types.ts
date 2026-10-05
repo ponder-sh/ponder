@@ -300,7 +300,7 @@ export type Chain = {
   ws: string | undefined;
   pollingInterval: number;
   reorgWindow: number;
-  rpcRequestCache: boolean;
+  cacheRpcRequests: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
 };

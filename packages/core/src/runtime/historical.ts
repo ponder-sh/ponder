@@ -123,7 +123,7 @@ export async function* getHistoricalEventsOmnichain(params: {
             chain.id
           ) {
             from = crashRecoveryCheckpoint;
-          } else if (chain.rpcRequestCache === false) {
+          } else if (chain.cacheRpcRequests === false) {
             // Note: When the rpc cache is disabled, blocks in the sync-store can be stale.
             from = syncProgress.getCheckpoint({ tag: "start" });
           } else {
@@ -224,7 +224,7 @@ export async function* getHistoricalEventsOmnichain(params: {
           database: params.database,
           isCatchup,
         };
-        const eventGenerator = chain.rpcRequestCache
+        const eventGenerator = chain.cacheRpcRequests
           ? getLocalEventGenerator(eventGeneratorParams)
           : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
@@ -447,7 +447,7 @@ export async function* getHistoricalEventsMultichain(params: {
             chain.id
           ) {
             from = crashRecoveryCheckpoint;
-          } else if (chain.rpcRequestCache === false) {
+          } else if (chain.cacheRpcRequests === false) {
             // Note: When the rpc cache is disabled, blocks in the sync-store can be stale.
             from = syncProgress.getCheckpoint({ tag: "start" });
           } else {
@@ -513,7 +513,7 @@ export async function* getHistoricalEventsMultichain(params: {
           database: params.database,
           isCatchup,
         };
-        const eventGenerator = chain.rpcRequestCache
+        const eventGenerator = chain.cacheRpcRequests
           ? getLocalEventGenerator(eventGeneratorParams)
           : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
@@ -730,7 +730,7 @@ export async function* getHistoricalEventsIsolated(params: {
       database: params.database,
       isCatchup,
     };
-    const eventGenerator = params.chain.rpcRequestCache
+    const eventGenerator = params.chain.cacheRpcRequests
       ? getLocalEventGenerator(eventGeneratorParams)
       : getLocalInMemoryEventGenerator(eventGeneratorParams);
 

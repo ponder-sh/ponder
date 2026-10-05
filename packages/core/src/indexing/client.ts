@@ -736,7 +736,7 @@ export const createCachedViemClient = ({
 
           // Note: Without the rpc request cache, all requests miss the database.
           let cachedResults: (string | undefined)[] = [];
-          if (chain.rpcRequestCache) {
+          if (chain.cacheRpcRequests) {
             common.metrics.ponder_indexing_rpc_prefetch_total.inc(
               {
                 chain: chain.name,
@@ -920,7 +920,7 @@ export const cachedTransport =
             (request) => results.has(request) === false,
           );
 
-          const dbResults = chain.rpcRequestCache
+          const dbResults = chain.cacheRpcRequests
             ? await syncStore.getRpcRequestResults(
                 { requests: dbRequests, chainId: chain.id },
                 context,
@@ -1010,7 +1010,7 @@ export const cachedTransport =
 
           // Note: insertRpcRequestResults errors can be ignored and not awaited, since
           // the response is already fetched.
-          if (chain.rpcRequestCache) {
+          if (chain.cacheRpcRequests) {
             syncStore
               .insertRpcRequestResults(
                 {
@@ -1082,7 +1082,7 @@ export const cachedTransport =
               if (result instanceof Error) throw result;
 
               if (
-                chain.rpcRequestCache &&
+                chain.cacheRpcRequests &&
                 UNCACHED_RESPONSES.includes(result) === false
               ) {
                 // Note: insertRpcRequestResults errors can be ignored and not awaited, since
@@ -1116,7 +1116,7 @@ export const cachedTransport =
             return decodeResponse(cachedResult);
           }
 
-          const [cachedResult] = chain.rpcRequestCache
+          const [cachedResult] = chain.cacheRpcRequests
             ? await syncStore.getRpcRequestResults(
                 { requests: [body], chainId: chain.id },
                 context,
@@ -1142,7 +1142,7 @@ export const cachedTransport =
           const response = await rpc.request(body, context);
 
           if (
-            chain.rpcRequestCache &&
+            chain.cacheRpcRequests &&
             UNCACHED_RESPONSES.includes(response) === false
           ) {
             // Note: insertRpcRequestResults errors can be ignored and not awaited, since

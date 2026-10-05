@@ -92,7 +92,7 @@ test("request() block dependent method", async () => {
 });
 
 test("request() block dependent method without rpc request cache", async () => {
-  const chain = getChain({ rpcRequestCache: false });
+  const chain = getChain({ cacheRpcRequests: false });
   const rpc = createRpc({
     chain,
     common: context.common,
@@ -385,7 +385,7 @@ test("request() multicall", async () => {
 });
 
 test("request() multicall without rpc request cache", async () => {
-  const chain = getChain({ rpcRequestCache: false });
+  const chain = getChain({ cacheRpcRequests: false });
   const rpc = createRpc({
     chain,
     common: context.common,
@@ -599,7 +599,7 @@ test("prefetch() uses profile metadata", async () => {
 });
 
 test("prefetch() without rpc request cache", async () => {
-  const chain = getChain({ rpcRequestCache: false });
+  const chain = getChain({ cacheRpcRequests: false });
   const rpc = createRpc({
     chain,
     common: context.common,

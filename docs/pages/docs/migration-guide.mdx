@@ -54,7 +54,7 @@ export default createConfig({
 
 #### RPC request cache option
 
-The `rpcRequestCache` chain option replaces `disableCache`. The default is `true`. Set `rpcRequestCache: false` to keep chain data in memory and not write it to the database. This option also disables the cache for `context.client`. Use it for a local node like Anvil, or for a node where it is faster to fetch data again than to store it. [Read more](/docs/config/chains#rpc-request-cache) in the chain configuration docs.
+The `cacheRpcRequests` chain option replaces `disableCache`. The default is `true`. Set `cacheRpcRequests: false` to keep chain data in memory and not write it to the database. This option also disables the cache for `context.client`. Use it for a local node like Anvil, or for a node where it is faster to fetch data again than to store it. [Read more](/docs/config/chains#rpc-request-cache) in the chain configuration docs.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -65,7 +65,7 @@ export default createConfig({
       id: 31337,
       rpc: "http://127.0.0.1:8545",
       disableCache: true, // [!code --]
-      rpcRequestCache: false, // [!code ++]
+      cacheRpcRequests: false, // [!code ++]
     },
   },
   // ...

@@ -380,7 +380,7 @@ test.each(["contract start block", "crash recovery"])(
     // Note: One block per "eth_getLogs" page puts the factory's first page before
     // the contract's start block.
     const chain = {
-      ...getChain({ rpcRequestCache: false }),
+      ...getChain({ cacheRpcRequests: false }),
       ethGetLogsBlockRange: 1,
     };
     const rpc = createRpc({ chain, common: context.common });

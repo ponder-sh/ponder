@@ -992,7 +992,7 @@ test("historical events match realtime events", async () => {
   `);
 });
 
-test("getChildAddresses() returns empty for rpcRequestCache: false", async () => {
+test("getChildAddresses() returns empty for cacheRpcRequests: false", async () => {
   const { syncStore } = await setupDatabaseServices();
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -1011,7 +1011,7 @@ test("getChildAddresses() returns empty for rpcRequestCache: false", async () =>
   });
 
   const childAddresses = await getChildAddresses({
-    chain: getChain({ rpcRequestCache: false }),
+    chain: getChain({ cacheRpcRequests: false }),
     filters: [filter],
     syncStore,
   });
