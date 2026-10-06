@@ -286,6 +286,24 @@ test("isTransferFilterMatched()", async () => {
   });
   expect(isMatched).toBe(true);
 
+  // `DELEGATECALL` and `CALLCODE` frames do not move value
+
+  for (const type of ["DELEGATECALL", "CALLCODE"] as const) {
+    isMatched = isTransferFilterMatched({
+      filter,
+      block: blockData.block,
+      trace: { ...blockData.trace.trace, type },
+    });
+    expect(isMatched).toBe(false);
+  }
+
+  isMatched = isTransferFilterMatched({
+    filter,
+    block: blockData.block,
+    trace: { ...blockData.trace.trace, type: "CREATE" },
+  });
+  expect(isMatched).toBe(true);
+
   blockData.trace.trace.value = "0x0";
 
   isMatched = isTransferFilterMatched({
@@ -324,6 +342,13 @@ test("isTraceFilterMatched()", async () => {
     trace: blockData.trace.trace,
   });
   expect(isMatched).toBe(true);
+
+  isMatched = isTraceFilterMatched({
+    filter,
+    block: blockData.block,
+    trace: { ...blockData.trace.trace, type: "STATICCALL" },
+  });
+  expect(isMatched).toBe(false);
 
   blockData.trace.trace.to = zeroAddress;
 

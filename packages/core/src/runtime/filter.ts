@@ -408,8 +408,6 @@ export const isTransactionFilterMatched = ({
     return false;
   }
 
-  // NOTE: `filter.includeReverted` is intentionally ignored
-
   return true;
 };
 
@@ -459,7 +457,9 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  // NOTE: `filter.callType` and `filter.includeReverted` is intentionally ignored
+  if (filter.callType !== undefined && filter.callType !== trace.type) {
+    return false;
+  }
 
   return true;
 };
@@ -492,6 +492,12 @@ export const isTransferFilterMatched = ({
     return false;
   }
 
+  // Note: `DELEGATECALL` frames report the parent call's value, and `CALLCODE`
+  // frames send value to the caller itself. Neither moves value.
+  if (trace.type === "DELEGATECALL" || trace.type === "CALLCODE") {
+    return false;
+  }
+
   if (
     isAddressFactory(filter.fromAddress) === false &&
     isValueMatched(
@@ -511,8 +517,6 @@ export const isTransferFilterMatched = ({
   ) {
     return false;
   }
-
-  // NOTE: `filter.includeReverted` is intentionally ignored
 
   return true;
 };
@@ -693,7 +697,7 @@ export const requiredTransactionReceiptInclude: RequiredTransactionReceiptColumn
   ["status", "from", "to"];
 
 export const defaultTraceInclude: (keyof Trace)[] = [
-  "traceIndex",
+  "traceAddress",
   "type",
   "from",
   "to",
@@ -701,20 +705,16 @@ export const defaultTraceInclude: (keyof Trace)[] = [
   "gasUsed",
   "input",
   "output",
-  "error",
-  "revertReason",
   "value",
-  "subcalls",
 ];
 
 export const requiredTraceInclude: RequiredTraceColumns[] = [
-  "traceIndex",
+  "traceAddress",
   "type",
   "from",
   "to",
   "input",
   "output",
-  "error",
   "value",
 ];
 

@@ -12,6 +12,7 @@ import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
 import {
   decodeFragment,
+  getFactoryFragmentIds,
   getFragments,
   isFragmentAddressFactory,
 } from "@ponder/runtime/fragments.js";
@@ -30,9 +31,9 @@ import {
   inArray,
   is,
   isNotNull,
-  isNull,
   lte,
   not,
+  notInArray,
   or,
   type SQL,
   sql,
@@ -59,6 +60,14 @@ import { getJoinConditions } from "./sql.js";
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
+// Apps with small block ranges. In-memory sync fetches all data through the simulated rpc on every start.
+const IN_MEMORY_SYNC_APPS = [
+  "assessment",
+  "feature-multichain",
+  "reference-erc20",
+  "super-assessment",
+  "uniswap-v4",
+];
 
 // inputs
 
@@ -129,6 +138,9 @@ export const SIM_PARAMS = {
     [true, false],
     "realtime-block-has-transactions",
   ),
+  CACHE_RPC_REQUESTS: IN_MEMORY_SYNC_APPS.includes(APP_ID)
+    ? pick([true, false], "cache-rpc-requests")
+    : true,
 };
 
 // 1. Setup database
@@ -139,6 +151,19 @@ export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
 });
 
 await DB.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
+
+// Note: `migrateSync()` does not copy all data from an earlier sync schema (e.g. factory
+// intervals). A template without the latest sync schema causes a large uncached sync.
+const templateSyncSchema = await APP_DB.execute(
+  sql`SELECT 1 FROM information_schema.schemata WHERE schema_name = ${PONDER_SYNC.PONDER_SYNC_SCHEMA}`,
+);
+if (templateSyncSchema.rows.length === 0) {
+  console.error(
+    `INFRA ERROR: Template database "${APP_ID}" does not have the "${PONDER_SYNC.PONDER_SYNC_SCHEMA}" schema. Migrate and sync the template before running simulations.`,
+  );
+  await DB.execute(sql.raw(`DROP DATABASE IF EXISTS "${UUID}" WITH (FORCE)`));
+  process.exit(2);
+}
 await APP_DB.execute(
   sql.raw(
     "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
@@ -161,12 +186,6 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
-    const {
-      id: _,
-      sourceId: _sourceId,
-      ...matchedFilterAddress
-    } = filterAddress as Factory;
-
     return inArray(
       addressColumn,
       APP_DB.select({ address: PONDER_SYNC.factoryAddresses.address })
@@ -174,14 +193,14 @@ const getAddressCondition = <
         .where(
           and(
             gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
-            eq(
+            inArray(
               PONDER_SYNC.factoryAddresses.factoryId,
               APP_DB.select({ id: PONDER_SYNC.factories.id })
                 .from(PONDER_SYNC.factories)
                 .where(
-                  eq(
-                    PONDER_SYNC.factories.factory,
-                    matchedFilterAddress as Factory,
+                  inArray(
+                    PONDER_SYNC.factories.fragmentId,
+                    getFactoryFragmentIds(filterAddress as Factory),
                   ),
                 ),
             ),
@@ -345,6 +364,96 @@ const onBuild = async (app: PonderApp) => {
       migrationsFolder: "./apps/super-assessment/migrations",
     });
 
+    // Trace index of each trace that matches at least one trace or transfer filter
+
+    await APP_DB.execute(
+      sql`CREATE TABLE IF NOT EXISTS expected_trace_indexes (
+        chain_id bigint NOT NULL,
+        block_number bigint NOT NULL,
+        transaction_index integer NOT NULL,
+        trace_address integer[] NOT NULL,
+        trace_index bigint NOT NULL
+      )`,
+    );
+    await APP_DB.execute(sql`TRUNCATE expected_trace_indexes`);
+
+    const matchedTraceConditions: SQL[] = [];
+    for (const { filter } of app.indexingBuild.eventCallbacks.flat()) {
+      if (filter.type !== "trace" && filter.type !== "transfer") continue;
+
+      for (const { fragment } of getFragments(filter)) {
+        if (fragment.type !== "trace" && fragment.type !== "transfer") continue;
+
+        matchedTraceConditions.push(
+          and(
+            eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+            getAddressCondition(
+              fragment.fromAddress,
+              PONDER_SYNC.traces,
+              "from",
+              filter.fromAddress,
+            ),
+            getAddressCondition(
+              fragment.toAddress,
+              PONDER_SYNC.traces,
+              "to",
+              filter.toAddress,
+            ),
+            filter.type === "trace" && filter.callType
+              ? eq(PONDER_SYNC.traces.type, filter.callType)
+              : undefined,
+            fragment.type === "trace" && fragment.functionSelector
+              ? eq(
+                  sql`substring(traces.input from 1 for 10)`,
+                  fragment.functionSelector,
+                )
+              : undefined,
+            filter.type === "transfer"
+              ? and(
+                  isNotNull(PONDER_SYNC.traces.value),
+                  gt(PONDER_SYNC.traces.value, 0n),
+                  notInArray(PONDER_SYNC.traces.type, [
+                    "DELEGATECALL",
+                    "CALLCODE",
+                  ]),
+                )
+              : undefined,
+            filter.fromBlock
+              ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
+              : undefined,
+            filter.toBlock
+              ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
+              : undefined,
+          )!,
+        );
+      }
+    }
+
+    if (matchedTraceConditions.length > 0) {
+      const matchedTraces = APP_DB.selectDistinct({
+        chainId: PONDER_SYNC.traces.chainId,
+        blockNumber: PONDER_SYNC.traces.blockNumber,
+        transactionIndex: PONDER_SYNC.traces.transactionIndex,
+        traceAddress: PONDER_SYNC.traces.traceAddress,
+      })
+        .from(PONDER_SYNC.traces)
+        .innerJoin(
+          PONDER_SYNC.blocks,
+          getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+        )
+        .where(or(...matchedTraceConditions));
+
+      await APP_DB.execute(
+        sql`INSERT INTO expected_trace_indexes
+          SELECT chain_id, block_number, transaction_index, trace_address,
+            row_number() OVER (
+              PARTITION BY chain_id, block_number, transaction_index
+              ORDER BY trace_address
+            ) - 1
+          FROM (${matchedTraces}) AS matched_traces`,
+      );
+    }
+
     for (const eventCallback of app.indexingBuild.eventCallbacks.flat()) {
       const filter = eventCallback.filter;
       const blockConditions = [
@@ -507,7 +616,12 @@ const onBuild = async (app: PonderApp) => {
             lpad(traces.block_number::text, 16, '0') ||
             lpad(traces.transaction_index::text, 16, '0') ||
             '7' ||
-            lpad(traces.trace_index::text, 16, '0'))`,
+            lpad((SELECT expected.trace_index FROM expected_trace_indexes AS expected
+              WHERE expected.chain_id = traces.chain_id
+                AND expected.block_number = traces.block_number
+                AND expected.transaction_index = traces.transaction_index
+                AND expected.trace_address = traces.trace_address
+            )::text, 16, '0'))`,
             );
 
             const condition = and(
@@ -524,9 +638,6 @@ const onBuild = async (app: PonderApp) => {
                 "to",
                 filter.toAddress,
               ),
-              filter.includeReverted
-                ? undefined
-                : isNull(PONDER_SYNC.traces.error),
               filter.callType
                 ? eq(PONDER_SYNC.traces.type, filter.callType)
                 : undefined,
@@ -609,7 +720,7 @@ const onBuild = async (app: PonderApp) => {
                 name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: traceCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
-                traceIndex: PONDER_SYNC.traces.traceIndex,
+                traceAddress: PONDER_SYNC.traces.traceAddress,
               })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
@@ -737,12 +848,17 @@ const onBuild = async (app: PonderApp) => {
           case "transfer": {
             const transferCheckpoint = sql.raw(
               `
-              (lpad(blocks.timestamp::text, 10, '0') ||
-              lpad(traces.chain_id::text, 16, '0') ||
-              lpad(traces.block_number::text, 16, '0') ||
-              lpad(traces.transaction_index::text, 16, '0') ||
-              '7' ||
-              lpad(traces.trace_index::text, 16, '0'))`,
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(traces.chain_id::text, 16, '0') ||
+            lpad(traces.block_number::text, 16, '0') ||
+            lpad(traces.transaction_index::text, 16, '0') ||
+            '7' ||
+            lpad((SELECT expected.trace_index FROM expected_trace_indexes AS expected
+              WHERE expected.chain_id = traces.chain_id
+                AND expected.block_number = traces.block_number
+                AND expected.transaction_index = traces.transaction_index
+                AND expected.trace_address = traces.trace_address
+            )::text, 16, '0'))`,
             );
 
             const condition = and(
@@ -761,9 +877,7 @@ const onBuild = async (app: PonderApp) => {
               ),
               isNotNull(PONDER_SYNC.traces.value),
               gt(PONDER_SYNC.traces.value, 0n),
-              filter.includeReverted
-                ? undefined
-                : isNull(PONDER_SYNC.traces.error),
+              notInArray(PONDER_SYNC.traces.type, ["DELEGATECALL", "CALLCODE"]),
               ...blockConditions,
             );
 
@@ -837,7 +951,7 @@ const onBuild = async (app: PonderApp) => {
                 name: sql.raw(`'${eventCallback.name}'`).as("name"),
                 id: transferCheckpoint.as("id"),
                 chainId: PONDER_SYNC.traces.chainId,
-                traceIndex: PONDER_SYNC.traces.traceIndex,
+                traceAddress: PONDER_SYNC.traces.traceAddress,
               })
                 .from(PONDER_SYNC.traces)
                 .innerJoin(
@@ -966,7 +1080,7 @@ const onBuild = async (app: PonderApp) => {
             break;
           }
           case "trace": {
-            // Note: `includeReverted` and `callType` not supported
+            // Note: `callType` not supported
             const condition = and(
               eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
               getAddressCondition(
@@ -1106,7 +1220,6 @@ const onBuild = async (app: PonderApp) => {
             break;
           }
           case "transfer": {
-            // Note: `includeReverted` not supported
             const condition = and(
               eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
               getAddressCondition(
@@ -1286,6 +1399,8 @@ const onBuild = async (app: PonderApp) => {
     //     .delete(PONDER_SYNC.intervals)
     //     .where(eq(PONDER_SYNC.intervals.chainId, BigInt(chain.id)));
     // }
+
+    chain.cacheRpcRequests = SIM_PARAMS.CACHE_RPC_REQUESTS;
 
     // replace rpc with simulated transport
 

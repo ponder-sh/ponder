@@ -12,6 +12,7 @@ import type {
   Chain,
   EventCallback,
   Factory,
+  FactoryFragmentId,
   FactoryId,
   Filter,
   LightBlock,
@@ -30,9 +31,8 @@ import {
   debug_traceBlockByHash,
   eth_getBlockByHash,
   eth_getBlockByNumber,
-  eth_getBlockReceipts,
   eth_getLogs,
-  eth_getTransactionReceipt,
+  eth_getTransactionReceipts,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -51,6 +51,10 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "@/runtime/filter.js";
+import {
+  getFactoryFragmentId,
+  getFactoryFragmentIds,
+} from "@/runtime/fragments.js";
 import type { SyncProgress } from "@/runtime/index.js";
 import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
@@ -79,7 +83,8 @@ export type BlockWithEventData = {
   transactionReceipts: SyncTransactionReceipt[];
   logs: SyncLog[];
   traces: SyncTrace[];
-  childAddresses: Map<Factory, Set<Address>>;
+  /** Child addresses found in the block per `factory_log` fragment ID. */
+  childAddresses: Map<FactoryFragmentId, Set<Address>>;
 };
 
 export type RealtimeSyncEvent =
@@ -106,7 +111,6 @@ const MAX_QUEUED_BLOCKS = 50;
 export const createRealtimeSync = (
   args: CreateRealtimeSyncParameters,
 ): RealtimeSync => {
-  let isBlockReceipts = true;
   let finalizedBlock: LightBlock = args.syncProgress.finalized;
   const childAddresses = args.childAddresses;
   /** Annotates `childAddresses` for efficient lookup by block number */
@@ -129,6 +133,7 @@ export const createRealtimeSync = (
 
   const factories: Factory[] = [];
   const factoryIds = new Set<FactoryId>();
+  const factoryFragmentIds = new Map<Factory, FactoryFragmentId[]>();
   const logFilters: LogFilter[] = [];
   const traceFilters: TraceFilter[] = [];
   const transactionFilters: TransactionFilter[] = [];
@@ -167,103 +172,9 @@ export const createRealtimeSync = (
       if (factoryIds.has(factory.id)) continue;
       factoryIds.add(factory.id);
       factories.push(factory);
+      factoryFragmentIds.set(factory, getFactoryFragmentIds(factory));
     }
   }
-
-  const syncTransactionReceipts = async (
-    block: SyncBlock,
-    transactionHashes: Set<Hash>,
-    ethGetBlockMethod: "eth_getBlockByHash" | "eth_getBlockByNumber",
-    context?: Parameters<Rpc["request"]>[1],
-  ): Promise<SyncTransactionReceipt[]> => {
-    if (transactionHashes.size === 0) {
-      return [];
-    }
-
-    if (isBlockReceipts === false) {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) => {
-          const receipt = await eth_getTransactionReceipt(
-            args.rpc,
-            [hash],
-            context,
-          );
-
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            ethGetBlockMethod === "eth_getBlockByNumber"
-              ? {
-                  method: "eth_getBlockByNumber",
-                  params: [block.number, true],
-                }
-              : {
-                  method: "eth_getBlockByHash",
-                  params: [block.hash, true],
-                },
-          );
-
-          return receipt;
-        }),
-      );
-
-      return transactionReceipts;
-    }
-
-    let blockReceipts: SyncTransactionReceipt[];
-    try {
-      blockReceipts = await eth_getBlockReceipts(
-        args.rpc,
-        [block.hash],
-        context,
-      );
-    } catch (_error) {
-      const error = _error as Error;
-      args.common.logger.warn({
-        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
-        action: "fetch block data",
-        chain: args.chain.name,
-        chain_id: args.chain.id,
-        error,
-      });
-
-      isBlockReceipts = false;
-      return syncTransactionReceipts(
-        block,
-        transactionHashes,
-        ethGetBlockMethod,
-        context,
-      );
-    }
-
-    validateReceiptsAndBlock(
-      blockReceipts,
-      block,
-      {
-        method: "eth_getBlockReceipts",
-        params: [block.hash],
-      },
-      ethGetBlockMethod === "eth_getBlockByNumber"
-        ? {
-            method: "eth_getBlockByNumber",
-            params: [block.number, true],
-          }
-        : {
-            method: "eth_getBlockByHash",
-            params: [block.hash, true],
-          },
-    );
-
-    const transactionReceipts = blockReceipts.filter((receipt) =>
-      transactionHashes.has(receipt.transactionHash),
-    );
-
-    return transactionReceipts;
-  };
 
   const getLatestUnfinalizedBlock = () => {
     if (unfinalizedBlocks.length === 0) {
@@ -475,14 +386,13 @@ export const createRealtimeSync = (
     ////////
 
     // Record `blockChildAddresses` that contain factory child addresses
-    const blockChildAddresses = new Map<Factory, Set<Address>>();
+    const blockChildAddresses: BlockWithEventData["childAddresses"] = new Map();
 
     const childAddressDecodeFailureIds = new Set<string>();
     let childAddressDecodeFailureCount = 0;
     let childAddressDecodeSuccessCount = 0;
 
     for (const factory of factories) {
-      blockChildAddresses.set(factory, new Set<Address>());
       for (const log of logs) {
         if (isLogFactoryMatched({ factory, log })) {
           let address: Address;
@@ -510,7 +420,11 @@ export const createRealtimeSync = (
               throw error;
             }
           }
-          blockChildAddresses.get(factory)!.add(address);
+          const fragmentId = getFactoryFragmentId(factory, log.address);
+          if (blockChildAddresses.has(fragmentId) === false) {
+            blockChildAddresses.set(fragmentId, new Set());
+          }
+          blockChildAddresses.get(fragmentId)!.add(address);
         }
       }
     }
@@ -659,11 +573,25 @@ export const createRealtimeSync = (
     // Transaction Receipts
     ////////
 
-    const transactionReceipts = await syncTransactionReceipts(
-      block,
-      requiredTransactionReceipts,
-      ethGetBlockMethod,
+    const receiptResponses = await eth_getTransactionReceipts(
+      args.rpc,
+      { blockHash: block.hash, transactionHashes: requiredTransactionReceipts },
       context,
+    );
+    const transactionReceipts = receiptResponses.flatMap(
+      ({ receipts, request }) => {
+        validateReceiptsAndBlock(
+          receipts,
+          block,
+          request,
+          ethGetBlockMethod === "eth_getBlockByNumber"
+            ? { method: "eth_getBlockByNumber", params: [block.number, true] }
+            : { method: "eth_getBlockByHash", params: [block.hash, true] },
+        );
+        return receipts.filter((receipt) =>
+          requiredTransactionReceipts.has(receipt.transactionHash),
+        );
+      },
     );
 
     let childAddressCount = 0;
@@ -712,15 +640,17 @@ export const createRealtimeSync = (
     matchedFilters: Set<Filter>;
   } => {
     // Update `childAddresses`
-    for (const factory of factories) {
-      const knownAddresses = childAddresses.get(factory.id)!;
-      const blockAddresses = blockChildAddresses.get(factory)!;
-      for (const address of blockAddresses) {
-        // Retain only addresses first discovered in this block in the persistence and reorg delta.
-        if (knownAddresses.has(address)) {
-          blockAddresses.delete(address);
-        } else {
-          knownAddresses.set(address, hexToNumber(block.number));
+    if (blockChildAddresses.size > 0) {
+      for (const factory of factories) {
+        const knownAddresses = childAddresses.get(factory.id)!;
+        for (const fragmentId of factoryFragmentIds.get(factory)!) {
+          const blockAddresses = blockChildAddresses.get(fragmentId);
+          if (blockAddresses === undefined) continue;
+          for (const address of blockAddresses) {
+            if (knownAddresses.has(address) === false) {
+              knownAddresses.set(address, hexToNumber(block.number));
+            }
+          }
         }
       }
     }
@@ -964,15 +894,21 @@ export const createRealtimeSync = (
 
     // remove reorged blocks from `childAddresses`
     for (const block of reorgedBlocks) {
+      const blockNumber = hexToNumber(block.number);
+      const blockChildAddresses = childAddressesPerBlock.get(blockNumber)!;
       for (const factory of factories) {
-        const addresses = childAddressesPerBlock
-          .get(hexToNumber(block.number))!
-          .get(factory)!;
-        for (const address of addresses) {
-          childAddresses.get(factory.id)!.delete(address);
+        const knownAddresses = childAddresses.get(factory.id)!;
+        for (const fragmentId of factoryFragmentIds.get(factory)!) {
+          const blockAddresses = blockChildAddresses.get(fragmentId);
+          if (blockAddresses === undefined) continue;
+          for (const address of blockAddresses) {
+            if (knownAddresses.get(address) === blockNumber) {
+              knownAddresses.delete(address);
+            }
+          }
         }
       }
-      childAddressesPerBlock.delete(hexToNumber(block.number));
+      childAddressesPerBlock.delete(blockNumber);
     }
 
     return {
@@ -1156,20 +1092,24 @@ export const createRealtimeSync = (
       blockCallback,
     };
 
-    // Determine if a new range has become finalized by evaluating if the
-    // latest block number is 2 * finalityBlockCount >= finalized block number.
-    // Essentially, there is a range the width of finalityBlockCount that is entirely
-    // finalized.
-
+    // Finalize the oldest contiguous blocks that are outside the timestamp
+    // based reorg window.
     const blockMovesFinality =
-      hexToNumber(block.number) >=
-      hexToNumber(finalizedBlock.number) + 2 * args.chain.finalityBlockCount;
+      hexToNumber(block.timestamp) -
+        hexToNumber(unfinalizedBlocks[0]!.timestamp) >=
+      args.chain.reorgWindow;
     if (blockMovesFinality) {
-      const pendingFinalizedBlock = unfinalizedBlocks.find(
-        (lb) =>
-          hexToNumber(lb.number) ===
-          hexToNumber(block.number) - args.chain.finalityBlockCount,
-      )!;
+      let pendingFinalizedBlock = unfinalizedBlocks[0]!;
+      for (const candidate of unfinalizedBlocks) {
+        if (
+          hexToNumber(block.timestamp) - hexToNumber(candidate.timestamp) >=
+          args.chain.reorgWindow
+        ) {
+          pendingFinalizedBlock = candidate;
+        } else {
+          break;
+        }
+      }
 
       args.common.logger.debug({
         msg: "Removed finalized blocks from local chain",

@@ -14,13 +14,13 @@ import type {
   BlockFilter,
   Chain,
   Factory,
+  FactoryFragmentId,
   FactoryId,
   LogFilter,
   SyncBlock,
   SyncLog,
   SyncTrace,
   SyncTransaction,
-  SyncTransactionReceipt,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
@@ -28,9 +28,8 @@ import type {
 import {
   debug_traceBlockByNumber,
   eth_getBlockByNumber,
-  eth_getBlockReceipts,
   eth_getLogs,
-  eth_getTransactionReceipt,
+  eth_getTransactionReceipts,
   validateLogsAndBlock,
   validateReceiptsAndBlock,
   validateTracesAndBlock,
@@ -50,8 +49,8 @@ import {
   isTransferFilterMatched,
   mergeLogFiltersToRequests,
 } from "@/runtime/filter.js";
+import { getFactoryFragmentId } from "@/runtime/fragments.js";
 import type {
-  ChildAddresses,
   IntervalWithFactory,
   IntervalWithFilter,
 } from "@/runtime/index.js";
@@ -100,11 +99,6 @@ type CreateHistoricalSyncParameters = {
 export const createHistoricalSync = (
   args: CreateHistoricalSyncParameters,
 ): HistoricalSync => {
-  /**
-   * Flag to fetch transaction receipts through eth_getBlockReceipts (true) or eth_getTransactionReceipt (false)
-   */
-  let isBlockReceipts = true;
-
   /**
    * Data about the range passed to "eth_getLogs" share among all log
    * filters and log factories.
@@ -222,95 +216,16 @@ export const createHistoricalSync = (
     return logs;
   };
 
-  const syncTransactionReceipts = async (
-    block: SyncBlock,
-    transactionHashes: Set<Hash>,
-    context?: Parameters<Rpc["request"]>[1],
-  ): Promise<SyncTransactionReceipt[]> => {
-    if (transactionHashes.size === 0) {
-      return [];
-    }
-
-    if (isBlockReceipts === false) {
-      const transactionReceipts = await Promise.all(
-        Array.from(transactionHashes).map(async (hash) => {
-          const receipt = await eth_getTransactionReceipt(
-            args.rpc,
-            [hash],
-            context,
-          );
-
-          validateReceiptsAndBlock(
-            [receipt],
-            block,
-            {
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            },
-            {
-              method: "eth_getBlockByNumber",
-              params: [block.number, true],
-            },
-          );
-
-          return receipt;
-        }),
-      );
-
-      return transactionReceipts;
-    }
-
-    let blockReceipts: SyncTransactionReceipt[];
-    try {
-      blockReceipts = await eth_getBlockReceipts(
-        args.rpc,
-        [block.hash],
-        context,
-      );
-    } catch (_error) {
-      const error = _error as Error;
-      args.common.logger.warn({
-        msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
-        action: "fetch_block_data",
-        chain: args.chain.name,
-        chain_id: args.chain.id,
-        error,
-      });
-
-      isBlockReceipts = false;
-      return syncTransactionReceipts(block, transactionHashes, context);
-    }
-
-    validateReceiptsAndBlock(
-      blockReceipts,
-      block,
-      {
-        method: "eth_getBlockReceipts",
-        params: [block.hash],
-      },
-      {
-        method: "eth_getBlockByNumber",
-        params: [block.number, true],
-      },
-    );
-
-    const transactionReceipts = blockReceipts.filter((receipt) =>
-      transactionHashes.has(receipt.transactionHash),
-    );
-
-    return transactionReceipts;
-  };
-
   /**
    * Fetch child addresses for `factory` within `interval`
    *
-   * @dev Newly fetched child addresses are added into `args.childAddresses`
+   * @dev Fetched child addresses are added into `args.childAddresses`
    */
   const syncAddressFactory = async (
     factory: Factory,
     interval: Interval,
     context?: Parameters<Rpc["request"]>[1],
-  ): Promise<Map<Address, number>> => {
+  ): Promise<Map<FactoryFragmentId, Map<Address, number>>> => {
     const logs = await syncLogsDynamic(
       {
         address: factory.address,
@@ -321,7 +236,7 @@ export const createHistoricalSync = (
       context,
     );
 
-    const childAddresses = new Map<Address, number>();
+    const childAddresses = new Map<FactoryFragmentId, Map<Address, number>>();
     const factoryChildAddresses = args.childAddresses.get(factory.id)!;
 
     const childAddressDecodeFailureIds = new Set<string>();
@@ -355,15 +270,31 @@ export const createHistoricalSync = (
             throw error;
           }
         }
-        const existingBlockNumber = factoryChildAddresses.get(address);
-        const newBlockNumber = hexToNumber(log.blockNumber);
+        const blockNumber = hexToNumber(log.blockNumber);
 
+        // Note: Child addresses are stored per parent, so a child address that is
+        // already known from a different parent must also be stored for this parent.
+
+        const fragmentId = getFactoryFragmentId(factory, log.address);
+        if (childAddresses.has(fragmentId) === false) {
+          childAddresses.set(fragmentId, new Map());
+        }
+        const fragmentChildAddresses = childAddresses.get(fragmentId)!;
+
+        const fragmentBlockNumber = fragmentChildAddresses.get(address);
+        if (
+          fragmentBlockNumber === undefined ||
+          fragmentBlockNumber > blockNumber
+        ) {
+          fragmentChildAddresses.set(address, blockNumber);
+        }
+
+        const existingBlockNumber = factoryChildAddresses.get(address);
         if (
           existingBlockNumber === undefined ||
-          existingBlockNumber > newBlockNumber
+          existingBlockNumber > blockNumber
         ) {
-          childAddresses.set(address, newBlockNumber);
-          factoryChildAddresses.set(address, newBlockNumber);
+          factoryChildAddresses.set(address, blockNumber);
         }
       }
     }
@@ -390,7 +321,7 @@ export const createHistoricalSync = (
         logger: args.common.logger.child({ action: "fetch_block_data" }),
       };
       const endClock = startClock();
-      const childAddresses: ChildAddresses = new Map();
+      const childAddresses = new Map<FactoryFragmentId, Map<Address, number>>();
 
       // Dedupe factory intervals by factory id
 
@@ -418,10 +349,33 @@ export const createHistoricalSync = (
 
       await Promise.all(
         requiredFactoryIntervals.map(async ({ factory, interval }) => {
-          childAddresses.set(
-            factory.id,
-            await syncAddressFactory(factory, interval, context)!,
+          const factoryChildAddresses = await syncAddressFactory(
+            factory,
+            interval,
+            context,
           );
+
+          // Note: Factories can share a `factory_log` fragment.
+
+          for (const [
+            fragmentId,
+            fragmentChildAddresses,
+          ] of factoryChildAddresses) {
+            if (childAddresses.has(fragmentId) === false) {
+              childAddresses.set(fragmentId, fragmentChildAddresses);
+              continue;
+            }
+
+            const existing = childAddresses.get(fragmentId)!;
+            for (const [address, blockNumber] of fragmentChildAddresses) {
+              if (
+                existing.has(address) === false ||
+                existing.get(address)! > blockNumber
+              ) {
+                existing.set(address, blockNumber);
+              }
+            }
+          }
         }),
       );
 
@@ -478,18 +432,9 @@ export const createHistoricalSync = (
         ["chain", "block_range"],
       );
 
-      await promiseAllSettledWithThrow(
-        Array.from(childAddresses.entries()).map(
-          ([factoryId, childAddresses]) =>
-            syncStore.insertChildAddresses(
-              {
-                factory: factoryIntervalsById.get(factoryId)!.factory,
-                childAddresses,
-                chainId: args.chain.id,
-              },
-              context,
-            ),
-        ),
+      await syncStore.insertChildAddresses(
+        { childAddresses, chainId: args.chain.id },
+        context,
       );
 
       return logs;
@@ -839,9 +784,24 @@ export const createHistoricalSync = (
         // Transaction Receipts
         ////////
 
-        const transactionReceipts = await syncTransactionReceipts(
-          block,
-          requiredTransactionReceipts,
+        const receiptResponses = await eth_getTransactionReceipts(
+          args.rpc,
+          {
+            blockHash: block.hash,
+            transactionHashes: requiredTransactionReceipts,
+          },
+          context,
+        );
+        const transactionReceipts = receiptResponses.flatMap(
+          ({ receipts, request }) => {
+            validateReceiptsAndBlock(receipts, block, request, {
+              method: "eth_getBlockByNumber",
+              params: [block.number, true],
+            });
+            return receipts.filter((receipt) =>
+              requiredTransactionReceipts.has(receipt.transactionHash),
+            );
+          },
         );
 
         blockCount += 1;
@@ -879,11 +839,7 @@ export const createHistoricalSync = (
       let receiptCount = 0;
       let traceCount = 0;
 
-      // Same memory usage as `sync-realtime`.
-      const MAX_BLOCKS_IN_MEM = Math.max(
-        args.chain.finalityBlockCount * 2,
-        100,
-      );
+      const MAX_BLOCKS_IN_MEM = 100;
 
       if (requiredIntervals.length > 0) {
         const queue = createQueue({

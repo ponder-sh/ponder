@@ -98,12 +98,22 @@ type ChainConfig<chain> = {
   /** Polling interval (in ms). Default: `1_000`. */
   pollingInterval?: number;
   /**
+   * The duration, in seconds, for which Ponder retains
+   * the data required to recover from a chain reorganization. Default: `180`.
+   * Maximum: `600`.
+   */
+  reorgWindow?: number;
+  /**
    * Maximum number of RPC requests per second.
    * @deprecated Handled automatically instead.
    */
   maxRequestsPerSecond?: number;
-  /** Disable RPC request caching. Default: `false`. */
-  disableCache?: boolean;
+  /**
+   * Cache JSON-RPC data in the database and reuse it between runs. This includes
+   * block data (blocks, logs, transactions, receipts, and traces), factory child
+   * addresses, and `context.client` requests. Default: `true`.
+   */
+  cacheRpcRequests?: boolean;
   /**
    * Maximum block range for eth_getLogs. If undefined, Ponder will
    * attempt to determine the block range automatically based on error messages.

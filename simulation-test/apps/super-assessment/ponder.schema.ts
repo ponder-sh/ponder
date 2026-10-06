@@ -53,7 +53,7 @@ export const traces = onchainTable(
     name: t.text().notNull(),
     id: t.varchar({ length: 75 }).notNull(),
     chainId: t.int8({ mode: "number" }).notNull(),
-    traceIndex: t.int8({ mode: "number" }).notNull(),
+    traceAddress: t.integer().array().notNull(),
   }),
   (table) => ({
     pk: primaryKey({ columns: [table.name, table.id] }),

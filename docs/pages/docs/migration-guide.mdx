@@ -1,5 +1,94 @@
 # Migration guide [Upgrade to a new version of Ponder]
 
+## 0.18
+
+### Breaking changes
+
+#### Call trace type and migration
+
+The `event.trace` object changed:
+
+- Added `traceAddress`. It is the path of the call in the nested call tree.
+- Removed `traceIndex` and `subcalls`. Use `traceAddress` instead.
+- Removed `error` and `revertReason`. Ponder does not index reverted calls, so these properties were always `undefined`.
+
+```ts [src/index.ts]
+ponder.on("ERC20.transfer()", async ({ event }) => {
+  event.trace.traceIndex; // [!code --]
+  event.trace.subcalls; // [!code --]
+  event.trace.error; // [!code --]
+  event.trace.revertReason; // [!code --]
+  event.trace.traceAddress; // [!code ++]
+  // ...
+});
+```
+
+On the first start, Ponder migrates the RPC cache from the `ponder_sync` schema to a new `ponder_rpc_cache_1` schema. The migration does not copy call trace data, so Ponder fetches call traces and native transfers again. The migration can take several minutes for a large RPC cache. [Read more](/docs/api-reference/ponder/database#cache-migrations) about cache migrations.
+
+Apps that use `0.17` can continue to use the same database, but they do not share cache data with apps that use `0.18`. If the `ponder_sync` schema was created before `0.10`, the migration fails with the error `"ponder_sync" migration failed. Please first update to v0.10 or "DROP SCHEMA ponder_sync CASCADE".`
+
+#### Native transfers exclude `DELEGATECALL` and `CALLCODE` frames
+
+Account `transfer:from` and `transfer:to` events no longer include `DELEGATECALL` or `CALLCODE` call frames, because these frames do not move value.
+
+#### Removed `disableCache`
+
+The `disableCache` chain option was removed. [See below](#rpc-request-cache-option) for the replacement.
+
+#### Updated system requirements
+
+Ponder now requires Node.js `>=22.12`. The previous required version was `>=22`.
+
+### New features
+
+#### Factory migration
+
+Ponder fixed two more cases of the factory cache bug from [`0.17`](#factory-cache-fix) that caused child contracts to silently miss events:
+
+- Two factories with overlapping lists of factory addresses, for example `[X, Y]` and `[X]`.
+- The same factory with a different `startBlock` or `endBlock`.
+
+The cache migration to `ponder_rpc_cache_1` does not copy factory data. On the first start, Ponder fetches factory child addresses and the events of child contracts again. No config change is required.
+
+#### Configurable reorg window
+
+Use the `reorgWindow` chain option in `ponder.config.ts` to control how long Ponder keeps the data that is necessary to recover from a reorg. The value is in seconds. The default is `180`, and the maximum is `600`. [Read more](/docs/config/chains#reorg-window) in the chain configuration docs.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+      reorgWindow: 300, // 5 minutes [!code focus]
+    },
+  },
+  // ...
+});
+```
+
+#### RPC request cache option
+
+The `cacheRpcRequests` chain option replaces `disableCache`. The default is `true`. Set `cacheRpcRequests: false` to always fetch RPC requests on-the-fly rather than use the RPC request cache. This option also disables the cache for `context.client`. Use it for a local node like Anvil, or for a node where it is faster to fetch data again than to store it. [Read more](/docs/config/chains#rpc-request-cache) in the chain configuration docs.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    anvil: {
+      id: 31337,
+      rpc: "http://127.0.0.1:8545",
+      disableCache: true, // [!code --]
+      cacheRpcRequests: false, // [!code ++]
+    },
+  },
+  // ...
+});
+```
+
 ## 0.17
 
 ### Breaking changes

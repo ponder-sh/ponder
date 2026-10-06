@@ -22,46 +22,42 @@ test("coinbase success", async () => {
   expect(logs).toHaveLength(77);
 });
 
-test(
-  "coinbase block range",
-  async () => {
-    const params: Params = [
+test("coinbase block range", { timeout: 15_000 }, async () => {
+  const params: Params = [
+    {
+      address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",
+      fromBlock: numberToHex(fromBlock),
+      toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
+    },
+  ];
+
+  const error = await request({
+    method: "eth_getLogs",
+    params,
+  }).catch((error) => error);
+
+  expect(error).toBeInstanceOf(LimitExceededRpcError);
+  expect(JSON.stringify(error)).includes(
+    "please limit the query to at most 1000 blocks",
+  );
+
+  const retry = getLogsRetryHelper({
+    params,
+    error,
+  });
+
+  expect(retry).toStrictEqual({
+    shouldRetry: true,
+    isSuggestedRange: true,
+    ranges: [
       {
-        address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",
         fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(fromBlock + maxBlockRange),
+      },
+      {
+        fromBlock: numberToHex(fromBlock + maxBlockRange + 1n),
         toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
       },
-    ];
-
-    const error = await request({
-      method: "eth_getLogs",
-      params,
-    }).catch((error) => error);
-
-    expect(error).toBeInstanceOf(LimitExceededRpcError);
-    expect(JSON.stringify(error)).includes(
-      "please limit the query to at most 1000 blocks",
-    );
-
-    const retry = getLogsRetryHelper({
-      params,
-      error,
-    });
-
-    expect(retry).toStrictEqual({
-      shouldRetry: true,
-      isSuggestedRange: true,
-      ranges: [
-        {
-          fromBlock: numberToHex(fromBlock),
-          toBlock: numberToHex(fromBlock + maxBlockRange),
-        },
-        {
-          fromBlock: numberToHex(fromBlock + maxBlockRange + 1n),
-          toBlock: numberToHex(fromBlock + maxBlockRange + 1n),
-        },
-      ],
-    });
-  },
-  { timeout: 15_000 },
-);
+    ],
+  });
+});

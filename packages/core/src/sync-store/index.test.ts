@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type Address,
   getAbiItem,
   hexToBigInt,
   hexToNumber,
@@ -13,6 +14,7 @@ import {
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,
   EMPTY_TRACE_FILTER,
+  EMPTY_TRANSFER_FILTER,
 } from "@/_test/constants.js";
 import { factoryABI } from "@/_test/generated.js";
 import {
@@ -39,6 +41,7 @@ import {
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Factory, LogFilter } from "@/internal/types.js";
+import { getFactoryFragmentIds } from "@/runtime/fragments.js";
 import { orderObject } from "@/utils/order.js";
 import { getFilterBlockRange } from "./index.js";
 import * as ponderSyncSchema from "./schema.js";
@@ -357,6 +360,8 @@ test("getIntervals() does not copy filter intervals to factory intervals for v0.
               "address": "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
               "childAddressLocation": "topic1",
               "eventSelector": "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+              "fromBlock": 10,
+              "toBlock": 20,
             },
             "chainId": 1,
             "includeTransactionReceipts": false,
@@ -603,8 +608,9 @@ test("getChildAddresses()", async () => {
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
     chainId: 1,
   });
 
@@ -649,13 +655,15 @@ test("getChildAddresses() distinct", async () => {
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
     chainId: 1,
   });
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 3]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 3]])],
+    ]),
     chainId: 1,
   });
 
@@ -668,6 +676,81 @@ test("getChildAddresses() distinct", async () => {
       "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be" => 0,
     }
   `);
+});
+
+test("getChildAddresses() shares parents between factories", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const parentX = zeroAddress;
+  const parentY = "0x0000000000000000000000000000000000000001";
+  const childX: Address = "0x000000000000000000000000000000000000000a";
+  const childY: Address = "0x000000000000000000000000000000000000000b";
+  const childXY: Address = "0x000000000000000000000000000000000000000c";
+
+  const buildFactory = (address: Address | Address[]) =>
+    buildLogFactory({
+      chainId: 1,
+      sourceId: "Pair",
+      fromBlock: undefined,
+      toBlock: undefined,
+      ...factory({
+        address,
+        event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+        parameter: "pair",
+      }),
+    });
+
+  const factoryXY = buildFactory([parentX, parentY]);
+  const factoryX = buildFactory(parentX);
+  const factoryY = buildFactory(parentY);
+
+  const [fragmentX, fragmentY] = getFactoryFragmentIds(factoryXY);
+
+  await syncStore.insertChildAddresses({
+    childAddresses: new Map([
+      [
+        fragmentX!,
+        new Map([
+          [childX, 1],
+          [childXY, 4],
+        ]),
+      ],
+      [
+        fragmentY!,
+        new Map([
+          [childY, 2],
+          [childXY, 3],
+        ]),
+      ],
+    ]),
+    chainId: 1,
+  });
+
+  expect(
+    await syncStore.getChildAddresses({ factory: factoryXY }),
+  ).toStrictEqual(
+    new Map([
+      [childX, 1],
+      [childXY, 3],
+      [childY, 2],
+    ]),
+  );
+  expect(
+    await syncStore.getChildAddresses({ factory: factoryX }),
+  ).toStrictEqual(
+    new Map([
+      [childX, 1],
+      [childXY, 4],
+    ]),
+  );
+  expect(
+    await syncStore.getChildAddresses({ factory: factoryY }),
+  ).toStrictEqual(
+    new Map([
+      [childY, 2],
+      [childXY, 3],
+    ]),
+  );
 });
 
 test("getCrashRecoveryBlock()", async () => {
@@ -719,16 +802,17 @@ test("insertChildAddresses()", async () => {
 
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
-  await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
-    chainId: 1,
-  });
-  await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 3]]),
-    chainId: 1,
-  });
+  for (const blockNumber of [3, 0, 5]) {
+    await syncStore.insertChildAddresses({
+      childAddresses: new Map([
+        [
+          getFactoryFragmentIds(filter.address)[0]!,
+          new Map([[pair, blockNumber]]),
+        ],
+      ]),
+      chainId: 1,
+    });
+  }
 
   const factories = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.factories).execute(),
@@ -738,7 +822,8 @@ test("insertChildAddresses()", async () => {
   );
 
   expect(factories).toHaveLength(1);
-  expect(factoryAddresses).toHaveLength(2);
+  expect(factoryAddresses).toHaveLength(1);
+  expect(factoryAddresses[0]!.blockNumber).toBe(0n);
 });
 
 test("insertLogs()", async () => {
@@ -1073,10 +1158,10 @@ test("getEventData() applies one block range to logs and traces queries", async 
       : (query as { text: string; values: unknown[] }),
   );
   const logsQuery = queries.find(({ text }) =>
-    text.includes('from "ponder_sync"."logs"'),
+    text.includes(`from "${ponderSyncSchema.PONDER_SYNC_SCHEMA}"."logs"`),
   );
   const tracesQuery = queries.find(({ text }) =>
-    text.includes('from "ponder_sync"."traces"'),
+    text.includes(`from "${ponderSyncSchema.PONDER_SYNC_SCHEMA}"."traces"`),
   );
 
   expect(logsQuery).toBeDefined();
@@ -1087,6 +1172,50 @@ test("getEventData() applies one block range to logs and traces queries", async 
   expect(tracesQuery!.text.match(/"block_number" >=/g)).toHaveLength(1);
   expect(tracesQuery!.text.match(/"block_number" <=/g)).toHaveLength(1);
   expect(tracesQuery!.values).toEqual(expect.arrayContaining([30n, 70n]));
+});
+
+test("getEventData() orders traces by execution order", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  const blockData = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const traceAddresses = [[], [0], [1], [1, 0], [1, 2], [1, 10], [2]];
+
+  await syncStore.insertTraces({
+    traces: [...traceAddresses].reverse().map((traceAddress) => ({
+      trace: {
+        ...blockData.trace,
+        trace: { ...blockData.trace.trace, traceAddress },
+      },
+      block: blockData.block,
+      transaction: blockData.transaction,
+    })),
+    chainId: 1,
+  });
+
+  const { traces } = await syncStore.getEventData({
+    filters: [EMPTY_TRANSFER_FILTER],
+    fromBlock: 0,
+    toBlock: 10,
+    chainId: 1,
+    limit: 10,
+  });
+
+  expect(traces.map((trace) => trace.traceAddress)).toStrictEqual(
+    traceAddresses,
+  );
 });
 
 test("getEventBlockData() pagination", async () => {
@@ -1412,8 +1541,7 @@ test("getIntervals() does not infer factory intervals from log filter intervals 
   });
 
   // Change the factory identity by introducing a fromBlock. This produces a
-  // new factory_log_* fragment ID, while the log_* fragment ID remains the
-  // same because it does not encode fromBlock for factory addresses.
+  // new factory_log_* fragment ID and a new log_* fragment ID.
   const factoryV2 = buildLogFactory({
     chainId: 1,
     sourceId: "Pair",
@@ -1444,12 +1572,65 @@ test("getIntervals() does not infer factory intervals from log filter intervals 
     .get(factoryV2)!
     .flatMap(({ intervals }) => intervals);
 
-  // The log filter should still see the previously synced range.
-  expect(filterIntervals).toEqual([[0, 20]]);
-
-  // The factory must NOT inherit the log filter's intervals, because the
-  // factory identity changed and no child addresses have been discovered for
-  // the new factory range. Reporting a complete interval here would cause the
-  // sync engine to skip child discovery and silently miss child events.
+  expect(filterIntervals).toEqual([]);
   expect(factoryIntervals).toEqual([]);
+});
+
+test("getIntervals() does not use log filter intervals from a factory with a different range", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const filterV1 = {
+    ...EMPTY_LOG_FILTER,
+    sourceId: "Pair",
+    fromBlock: undefined,
+    address: buildLogFactory({
+      chainId: 1,
+      sourceId: "Pair",
+      fromBlock: 3,
+      toBlock: undefined,
+      ...factory({
+        address: zeroAddress,
+        event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+        parameter: "pair",
+      }),
+    }),
+  };
+  const filterV2 = {
+    ...EMPTY_LOG_FILTER,
+    sourceId: "Pair",
+    fromBlock: undefined,
+    address: buildLogFactory({
+      chainId: 1,
+      sourceId: "Pair",
+      fromBlock: undefined,
+      toBlock: undefined,
+      ...factory({
+        address: zeroAddress,
+        event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+        parameter: "pair",
+      }),
+    }),
+  };
+
+  await syncStore.insertIntervals({
+    intervals: [{ filter: filterV1, interval: [3, 20] }],
+    factoryIntervals: [
+      { factory: filterV1.address as Factory, interval: [3, 20] },
+      { factory: filterV2.address as Factory, interval: [0, 20] },
+    ],
+    chainId: 1,
+  });
+
+  const intervals = await syncStore.getIntervals({ filters: [filterV2] });
+
+  // Note: The factory is complete, but the log filter intervals were synced
+  // with the child addresses of a different factory range.
+  expect(
+    intervals
+      .get(filterV2.address as Factory)!
+      .flatMap(({ intervals }) => intervals),
+  ).toEqual([[0, 20]]);
+  expect(
+    intervals.get(filterV2)!.flatMap(({ intervals }) => intervals),
+  ).toEqual([]);
 });

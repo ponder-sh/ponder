@@ -6,6 +6,7 @@ import type {
   Event,
   EventCallback,
   Factory,
+  FactoryFragmentId,
   Filter,
   IndexingBuild,
   SyncBlock,
@@ -937,21 +938,21 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      if (params.chain.disableCache) break;
+      if (params.chain.cacheRpcRequests === false) break;
 
       // Add finalized blocks, logs, transactions, receipts, and traces to the sync-store.
 
-      const childAddresses = new Map<Factory, Map<Address, number>>();
+      const childAddresses = new Map<FactoryFragmentId, Map<Address, number>>();
 
       for (const block of finalizedBlocks) {
-        for (const [factory, addresses] of block.childAddresses) {
-          if (childAddresses.has(factory) === false) {
-            childAddresses.set(factory, new Map());
+        for (const [fragmentId, addresses] of block.childAddresses) {
+          if (childAddresses.has(fragmentId) === false) {
+            childAddresses.set(fragmentId, new Map());
           }
           for (const address of addresses) {
-            if (childAddresses.get(factory)!.has(address) === false) {
+            if (childAddresses.get(fragmentId)!.has(address) === false) {
               childAddresses
-                .get(factory)!
+                .get(fragmentId)!
                 .set(address, hexToNumber(block.block.number));
             }
           }
@@ -1002,14 +1003,10 @@ export async function handleRealtimeSyncEvent(
               ),
               chainId: params.chain.id,
             }),
-            ...Array.from(childAddresses.entries()).map(
-              ([factory, childAddresses]) =>
-                syncStore.insertChildAddresses({
-                  factory,
-                  childAddresses,
-                  chainId: params.chain.id,
-                }),
-            ),
+            syncStore.insertChildAddresses({
+              childAddresses,
+              chainId: params.chain.id,
+            }),
           ]);
 
           const intervals: {
@@ -1091,16 +1088,18 @@ export async function handleRealtimeSyncEvent(
         } else break;
       }
 
-      await createSyncStore({
-        common: params.common,
-        qb: params.database.syncQB,
-      }).pruneRpcRequestResults(
-        {
-          chainId: params.chain.id,
-          blocks: event.reorgedBlocks,
-        },
-        { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
-      );
+      if (params.chain.cacheRpcRequests) {
+        await createSyncStore({
+          common: params.common,
+          qb: params.database.syncQB,
+        }).pruneRpcRequestResults(
+          {
+            chainId: params.chain.id,
+            blocks: event.reorgedBlocks,
+          },
+          { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
+        );
+      }
 
       break;
     }

@@ -13,11 +13,17 @@ import {
   setupDatabaseServices,
   setupIsolatedDatabase,
 } from "@/_test/setup.js";
-import { deployErc20, mintErc20 } from "@/_test/simulate.js";
+import {
+  createPair,
+  deployErc20,
+  deployFactory,
+  mintErc20,
+} from "@/_test/simulate.js";
 import {
   getBlocksIndexingBuild,
   getChain,
   getErc20IndexingBuild,
+  getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import type {
   BlockFilter,
@@ -38,11 +44,16 @@ import {
   syncLogToInternal,
   syncTransactionToInternal,
 } from "./events.js";
-import { getFactoryFragments, getFragments } from "./fragments.js";
+import {
+  getFactoryFragmentIds,
+  getFactoryFragments,
+  getFragments,
+} from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import {
   type CachedIntervals,
   getCachedBlock,
+  getChildAddresses,
   getLocalSyncProgress,
   getRequiredIntervals,
   getRequiredIntervalsWithFilters,
@@ -619,6 +630,57 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
   `);
 });
 
+test("getRequiredIntervalsWithFilters() with factory and missing parent", async () => {
+  const parentX = "0xef2d6d194084c2de36e0dabfce45d046b37d1106";
+  const parentY = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
+
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: {
+      id: "id",
+      type: "log",
+      chainId: 1,
+      sourceId: "factory",
+      address: [parentX, parentY],
+      eventSelector:
+        "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+      childAddressLocation: "topic1",
+      fromBlock: undefined,
+      toBlock: undefined,
+    },
+  } satisfies LogFilter;
+
+  const [fragmentX, fragmentY] = getFactoryFragments(filter.address);
+
+  // @ts-expect-error
+  const cachedIntervals: CachedIntervals = new Map([
+    [
+      filter,
+      getFragments(filter).map(({ fragment }) => ({ fragment, intervals: [] })),
+    ],
+    [
+      filter.address,
+      [
+        { fragment: fragmentX!, intervals: [[0, 100]] },
+        { fragment: fragmentY!, intervals: [] },
+      ],
+    ],
+  ]);
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    filters: [filter],
+    interval: [0, 100],
+    cachedIntervals,
+  });
+
+  expect(requiredIntervals.factoryIntervals).toStrictEqual([
+    {
+      factory: { ...filter.address, address: [parentY] },
+      interval: [0, 100],
+    },
+  ]);
+});
+
 test("getRequiredIntervals() with factory", async () => {
   const filter = {
     ...EMPTY_LOG_FILTER,
@@ -983,4 +1045,32 @@ test("historical events match realtime events", async () => {
       },
     ]
   `);
+});
+
+test("getChildAddresses() returns empty for cacheRpcRequests: false", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
+
+  await syncStore.insertChildAddresses({
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
+    chainId: 1,
+  });
+
+  const childAddresses = await getChildAddresses({
+    chain: getChain({ cacheRpcRequests: false }),
+    filters: [filter],
+    syncStore,
+  });
+
+  expect(childAddresses.get(filter.address.id)!.size).toBe(0);
 });

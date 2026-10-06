@@ -6,7 +6,6 @@ import {
   eq,
   gte,
   inArray,
-  isNull,
   lt,
   lte,
   or,
@@ -26,6 +25,7 @@ import type { Logger } from "@/internal/logger.js";
 import type {
   BlockFilter,
   Factory,
+  FactoryFragmentId,
   Filter,
   Fragment,
   FragmentId,
@@ -61,6 +61,7 @@ import {
 } from "@/runtime/filter.js";
 import {
   encodeFragment,
+  getFactoryFragmentIds,
   getFactoryFragments,
   getFragments,
 } from "@/runtime/fragments.js";
@@ -98,8 +99,8 @@ export type SyncStore = {
   >;
   insertChildAddresses(
     args: {
-      factory: Factory;
-      childAddresses: Map<Address, number>;
+      /** Child addresses and block numbers per `factory_log` fragment ID. */
+      childAddresses: Map<FactoryFragmentId, Map<Address, number>>;
       chainId: number;
     },
     context?: { logger?: Logger },
@@ -431,40 +432,52 @@ export const createSyncStore = ({
 
       return result;
     },
-    insertChildAddresses: async (
-      { factory, childAddresses, chainId },
-      context,
-    ) => {
+    insertChildAddresses: async ({ childAddresses, chainId }, context) => {
       if (childAddresses.size === 0) return;
 
-      const { id, sourceId: _sourceId, ..._factory } = factory;
+      const factories = await qb.wrap(
+        { label: "insert_factories" },
+        (db) =>
+          db
+            .insert(PONDER_SYNC.factories)
+            .values(
+              Array.from(childAddresses.keys()).map((fragmentId) => ({
+                fragmentId,
+              })),
+            )
+            // @ts-expect-error bug with drizzle-orm
+            .returning({
+              id: PONDER_SYNC.factories.id,
+              fragmentId: PONDER_SYNC.factories.fragmentId,
+            })
+            // Note: `DO UPDATE` makes `RETURNING` include rows that already exist.
+            .onConflictDoUpdate({
+              target: PONDER_SYNC.factories.fragmentId,
+              set: { fragmentId: sql`excluded.fragment_id` },
+            }),
+        context,
+      );
+
+      const factoryIds = new Map<FactoryFragmentId, number>();
+      for (const { id, fragmentId } of factories) {
+        factoryIds.set(fragmentId, id);
+      }
 
       const batchSize = Math.floor(
-        common.options.databaseMaxQueryParameters / 3,
+        common.options.databaseMaxQueryParameters / 4,
       );
 
       const values: (typeof PONDER_SYNC.factoryAddresses.$inferInsert)[] = [];
 
-      const factoryInsert = qb.raw.$with("factory_insert").as(
-        qb.raw
-          .insert(PONDER_SYNC.factories)
-          .values({ factory: _factory })
-          // @ts-expect-error bug with drizzle-orm
-          .returning({ id: PONDER_SYNC.factories.id })
-          .onConflictDoUpdate({
-            target: PONDER_SYNC.factories.factory,
-            set: { factory: sql`excluded.factory` },
-          }),
-      );
-
-      for (const [address, blockNumber] of childAddresses) {
-        values.push({
-          // @ts-expect-error
-          factoryId: sql`(SELECT id FROM factory_insert)`,
-          chainId: BigInt(chainId),
-          blockNumber: BigInt(blockNumber),
-          address,
-        });
+      for (const [fragmentId, _childAddresses] of childAddresses) {
+        for (const [address, blockNumber] of _childAddresses) {
+          values.push({
+            factoryId: factoryIds.get(fragmentId)!,
+            chainId: BigInt(chainId),
+            blockNumber: BigInt(blockNumber),
+            address,
+          });
+        }
       }
 
       for (let i = 0; i < values.length; i += batchSize) {
@@ -472,59 +485,58 @@ export const createSyncStore = ({
           { label: "insert_child_addresses" },
           (db) =>
             db
-              .with(factoryInsert)
               .insert(PONDER_SYNC.factoryAddresses)
-              .values(values.slice(i, i + batchSize)),
+              .values(values.slice(i, i + batchSize))
+              // Note: Live and historical sync can insert a child address that is
+              // already stored. Keep one row per parent with the earliest block number.
+              .onConflictDoUpdate({
+                target: [
+                  PONDER_SYNC.factoryAddresses.factoryId,
+                  PONDER_SYNC.factoryAddresses.address,
+                ],
+                set: { blockNumber: sql`excluded.block_number` },
+                setWhere: sql`excluded.block_number < ${PONDER_SYNC.factoryAddresses.blockNumber}`,
+              }),
           context,
         );
       }
     },
-    getChildAddresses: ({ factory }, context) => {
-      const { id, sourceId: _sourceId, ..._factory } = factory;
+    getChildAddresses: async ({ factory }, context) => {
+      const fragmentIds = getFactoryFragmentIds(factory);
 
-      const factoryInsert = qb.raw.$with("factory_insert").as(
-        qb.raw
-          .insert(PONDER_SYNC.factories)
-          .values({ factory: _factory })
-          // @ts-expect-error bug with drizzle-orm
-          .returning({ id: PONDER_SYNC.factories.id })
-          .onConflictDoUpdate({
-            target: PONDER_SYNC.factories.factory,
-            set: { factory: sql`excluded.factory` },
-          }),
+      const rows = await qb.wrap(
+        { label: "select_child_addresses" },
+        (db) =>
+          db
+            .select({
+              address: PONDER_SYNC.factoryAddresses.address,
+              blockNumber: PONDER_SYNC.factoryAddresses.blockNumber,
+            })
+            .from(PONDER_SYNC.factoryAddresses)
+            .innerJoin(
+              PONDER_SYNC.factories,
+              eq(
+                PONDER_SYNC.factoryAddresses.factoryId,
+                PONDER_SYNC.factories.id,
+              ),
+            )
+            .where(inArray(PONDER_SYNC.factories.fragmentId, fragmentIds)),
+        context,
       );
 
-      return qb
-        .wrap(
-          { label: "select_child_addresses" },
-          (db) =>
-            db
-              .with(factoryInsert)
-              .select({
-                address: PONDER_SYNC.factoryAddresses.address,
-                blockNumber: PONDER_SYNC.factoryAddresses.blockNumber,
-              })
-              .from(PONDER_SYNC.factoryAddresses)
-              .where(
-                eq(
-                  PONDER_SYNC.factoryAddresses.factoryId,
-                  qb.raw.select({ id: factoryInsert.id }).from(factoryInsert),
-                ),
-              ),
-          context,
-        )
-        .then((rows) => {
-          const result = new Map<Address, number>();
-          for (const { address, blockNumber } of rows) {
-            if (
-              result.has(address) === false ||
-              result.get(address)! > Number(blockNumber)
-            ) {
-              result.set(address, Number(blockNumber));
-            }
-          }
-          return result;
-        });
+      // Note: A child address can have more than one row, because more than one parent
+      // can emit it. The earliest block number is used.
+
+      const result = new Map<Address, number>();
+      for (const { address, blockNumber } of rows) {
+        if (
+          result.has(address) === false ||
+          result.get(address)! > Number(blockNumber)
+        ) {
+          result.set(address, Number(blockNumber));
+        }
+      }
+      return result;
     },
     getSafeCrashRecoveryBlock: async ({ chainId, timestamp }, context) => {
       const rows = await qb.wrap(
@@ -734,7 +746,7 @@ export const createSyncStore = ({
                   PONDER_SYNC.traces.chainId,
                   PONDER_SYNC.traces.blockNumber,
                   PONDER_SYNC.traces.transactionIndex,
-                  PONDER_SYNC.traces.traceIndex,
+                  PONDER_SYNC.traces.traceAddress,
                 ],
               }),
           context,
@@ -916,8 +928,7 @@ export const createSyncStore = ({
         output: PONDER_SYNC.traces.output,
         value: PONDER_SYNC.traces.value,
         type: PONDER_SYNC.traces.type,
-        error: PONDER_SYNC.traces.error,
-        traceIndex: PONDER_SYNC.traces.traceIndex,
+        traceAddress: PONDER_SYNC.traces.traceAddress,
       };
 
       for (const column of unionFilterIncludeTrace(filters)) {
@@ -948,7 +959,7 @@ export const createSyncStore = ({
         .orderBy(
           asc(PONDER_SYNC.traces.blockNumber),
           asc(PONDER_SYNC.traces.transactionIndex),
-          asc(PONDER_SYNC.traces.traceIndex),
+          asc(PONDER_SYNC.traces.traceAddress),
         )
         .limit(limit);
 
@@ -1190,14 +1201,6 @@ export const createSyncStore = ({
 
         if (trace.output === null) {
           internalTrace.output = undefined;
-        }
-
-        if (trace.error === null) {
-          internalTrace.error = undefined;
-        }
-
-        if (trace.revertReason === null) {
-          internalTrace.revertReason = undefined;
         }
       }
 
@@ -1589,10 +1592,6 @@ export const transferFilter = (filter: TransferFilter): SQL => {
   conditions.push(addressFilter(filter.fromAddress, PONDER_SYNC.traces.from));
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.traces.to));
 
-  if (filter.includeReverted === false) {
-    conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
-
   return and(...conditions)!;
 };
 
@@ -1601,10 +1600,6 @@ export const traceFilter = (filter: TraceFilter): SQL => {
 
   conditions.push(addressFilter(filter.fromAddress, PONDER_SYNC.traces.from));
   conditions.push(addressFilter(filter.toAddress, PONDER_SYNC.traces.to));
-
-  if (filter.includeReverted === false) {
-    conditions.push(isNull(PONDER_SYNC.traces.error));
-  }
 
   if (filter.callType !== undefined) {
     conditions.push(eq(PONDER_SYNC.traces.type, filter.callType));

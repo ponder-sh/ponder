@@ -1,4 +1,4 @@
-import { hexToNumber, numberToHex } from "viem";
+import { hexToNumber } from "viem";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import { ShutdownError } from "@/internal/errors.js";
@@ -14,6 +14,7 @@ import type {
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import type { Rpc } from "@/rpc/index.js";
 import { buildEvents, decodeEvents } from "@/runtime/events.js";
+import { createInMemoryHistoricalSync } from "@/sync-historical/in-memory.js";
 import { createHistoricalSync } from "@/sync-historical/index.js";
 import { createSyncStore, type SyncStore } from "@/sync-store/index.js";
 import {
@@ -24,6 +25,7 @@ import {
   ZERO_CHECKPOINT,
 } from "@/utils/checkpoint.js";
 import { estimate } from "@/utils/estimate.js";
+import { getFinalizedBlock } from "@/utils/finality.js";
 import { formatPercentage } from "@/utils/format.js";
 import {
   bufferAsyncGenerator,
@@ -70,6 +72,7 @@ export async function* getHistoricalEventsOmnichain(params: {
 > {
   let pendingEvents: Event[] = [];
   let isCatchup = false;
+  let lastUnfinalizedRefetch = Date.now();
   const perChainCursor = new Map<Chain, string>();
 
   while (true) {
@@ -120,6 +123,9 @@ export async function* getHistoricalEventsOmnichain(params: {
             chain.id
           ) {
             from = crashRecoveryCheckpoint;
+          } else if (chain.cacheRpcRequests === false) {
+            // Note: When the rpc cache is disabled, blocks in the sync-store can be stale.
+            from = syncProgress.getCheckpoint({ tag: "start" });
           } else {
             const fromBlock = await createSyncStore({
               common: params.common,
@@ -200,7 +206,7 @@ export async function* getHistoricalEventsOmnichain(params: {
           ]),
         });
 
-        const eventGenerator = getLocalEventGenerator({
+        const eventGeneratorParams = {
           common: params.common,
           chain,
           rpc,
@@ -217,7 +223,10 @@ export async function* getHistoricalEventsOmnichain(params: {
             ) + 6,
           database: params.database,
           isCatchup,
-        });
+        };
+        const eventGenerator = chain.cacheRpcRequests
+          ? getLocalEventGenerator(eventGeneratorParams)
+          : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
         for await (let {
           events: rawEvents,
@@ -311,6 +320,17 @@ export async function* getHistoricalEventsOmnichain(params: {
       yield { type: "events", result: mergeResults };
     }
 
+    if (
+      params.indexingBuild.chains.every(
+        (chain) =>
+          Date.now() - lastUnfinalizedRefetch <
+          Math.max(chain.reorgWindow * 1_000, 30_000),
+      )
+    ) {
+      break;
+    }
+    lastUnfinalizedRefetch = Date.now();
+
     const context = {
       logger: params.common.logger.child({ action: "refetch_finalized_block" }),
       retryNullBlockRequest: true,
@@ -324,19 +344,13 @@ export async function* getHistoricalEventsOmnichain(params: {
 
         return eth_getBlockByNumber(rpc, ["latest", false], context)
           .then((latest) =>
-            eth_getBlockByNumber(
+            getFinalizedBlock({
+              chain,
               rpc,
-              [
-                numberToHex(
-                  Math.max(
-                    hexToNumber(latest.number) - chain.finalityBlockCount,
-                    0,
-                  ),
-                ),
-                false,
-              ],
-              context,
-            ),
+              latestBlock: latest,
+              lowerBound:
+                params.perChainSync.get(chain)!.syncProgress.finalized,
+            }),
           )
           .then((finalizedBlock) => {
             const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
@@ -353,29 +367,20 @@ export async function* getHistoricalEventsOmnichain(params: {
       }),
     );
 
-    let shouldCatchup = false;
-
     for (let i = 0; i < params.indexingBuild.chains.length; i++) {
       const chain = params.indexingBuild.chains[i]!;
       const oldFinalizedBlock =
         params.perChainSync.get(chain)!.syncProgress.finalized;
-      const newFinalizedBlock = finalizedBlocks[i]!;
+      const finalizedBlock = finalizedBlocks[i]!;
 
       if (
-        hexToNumber(newFinalizedBlock.number) -
-          hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount
+        hexToNumber(finalizedBlock.number) <
+        hexToNumber(oldFinalizedBlock.number)
       ) {
-        shouldCatchup = true;
-        break;
+        throw new Error(
+          `Finalized block for chain "${chain.name}" cannot move backwards`,
+        );
       }
-    }
-
-    if (shouldCatchup === false) break;
-
-    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
-      const chain = params.indexingBuild.chains[i]!;
-      const finalizedBlock = finalizedBlocks[i]!;
 
       params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
     }
@@ -442,6 +447,9 @@ export async function* getHistoricalEventsMultichain(params: {
             chain.id
           ) {
             from = crashRecoveryCheckpoint;
+          } else if (chain.cacheRpcRequests === false) {
+            // Note: When the rpc cache is disabled, blocks in the sync-store can be stale.
+            from = syncProgress.getCheckpoint({ tag: "start" });
           } else {
             const fromBlock = await createSyncStore({
               common: params.common,
@@ -487,7 +495,7 @@ export async function* getHistoricalEventsMultichain(params: {
           ]),
         });
 
-        const eventGenerator = getLocalEventGenerator({
+        const eventGeneratorParams = {
           common: params.common,
           chain,
           rpc,
@@ -504,7 +512,10 @@ export async function* getHistoricalEventsMultichain(params: {
             ) + 6,
           database: params.database,
           isCatchup,
-        });
+        };
+        const eventGenerator = chain.cacheRpcRequests
+          ? getLocalEventGenerator(eventGeneratorParams)
+          : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
         for await (const {
           events: rawEvents,
@@ -563,7 +574,13 @@ export async function* getHistoricalEventsMultichain(params: {
 
     yield* mergeAsyncGenerators(eventGenerators);
 
-    if (Date.now() - lastUnfinalizedRefetch < 30_000) {
+    if (
+      params.indexingBuild.chains.every(
+        (chain) =>
+          Date.now() - lastUnfinalizedRefetch <
+          Math.max(chain.reorgWindow * 1_000, 30_000),
+      )
+    ) {
       break;
     }
     lastUnfinalizedRefetch = Date.now();
@@ -580,20 +597,14 @@ export async function* getHistoricalEventsMultichain(params: {
         const rpc = params.indexingBuild.rpcs[i]!;
 
         return eth_getBlockByNumber(rpc, ["latest", false], context)
-          .then((latest) =>
-            eth_getBlockByNumber(
+          .then((latestBlock) =>
+            getFinalizedBlock({
+              chain,
               rpc,
-              [
-                numberToHex(
-                  Math.max(
-                    hexToNumber(latest.number) - chain.finalityBlockCount,
-                    0,
-                  ),
-                ),
-                false,
-              ],
-              context,
-            ),
+              latestBlock,
+              lowerBound:
+                params.perChainSync.get(chain)!.syncProgress.finalized,
+            }),
           )
           .then((finalizedBlock) => {
             const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
@@ -610,29 +621,18 @@ export async function* getHistoricalEventsMultichain(params: {
       }),
     );
 
-    let shouldCatchup = false;
-
-    for (let i = 0; i < params.indexingBuild.chains.length; i++) {
-      const chain = params.indexingBuild.chains[i]!;
-      const oldFinalizedBlock =
-        params.perChainSync.get(chain)!.syncProgress.finalized;
-      const newFinalizedBlock = finalizedBlocks[i]!;
-
-      if (
-        hexToNumber(newFinalizedBlock.number) -
-          hexToNumber(oldFinalizedBlock.number) >
-        chain.finalityBlockCount
-      ) {
-        shouldCatchup = true;
-        break;
-      }
-    }
-
-    if (shouldCatchup === false) break;
-
     for (let i = 0; i < params.indexingBuild.chains.length; i++) {
       const chain = params.indexingBuild.chains[i]!;
       const finalizedBlock = finalizedBlocks[i]!;
+      const oldFinalizedBlock =
+        params.perChainSync.get(chain)!.syncProgress.finalized;
+
+      if (
+        hexToNumber(finalizedBlock.number) <
+        hexToNumber(oldFinalizedBlock.number)
+      ) {
+        continue;
+      }
 
       params.perChainSync.get(chain)!.syncProgress.finalized = finalizedBlock;
     }
@@ -712,7 +712,7 @@ export async function* getHistoricalEventsIsolated(params: {
       ]),
     });
 
-    const eventGenerator = getLocalEventGenerator({
+    const eventGeneratorParams = {
       common: params.common,
       chain: params.chain,
       rpc,
@@ -729,7 +729,10 @@ export async function* getHistoricalEventsIsolated(params: {
         ) + 6,
       database: params.database,
       isCatchup,
-    });
+    };
+    const eventGenerator = params.chain.cacheRpcRequests
+      ? getLocalEventGenerator(eventGeneratorParams)
+      : getLocalInMemoryEventGenerator(eventGeneratorParams);
 
     for await (const {
       events: rawEvents,
@@ -784,7 +787,13 @@ export async function* getHistoricalEventsIsolated(params: {
 
     cursor = to;
 
-    if (Date.now() - lastUnfinalizedRefetch < 30_000) {
+    if (
+      params.indexingBuild.chains.every(
+        (chain) =>
+          Date.now() - lastUnfinalizedRefetch <
+          Math.max(chain.reorgWindow * 1_000, 30_000),
+      )
+    ) {
       break;
     }
     lastUnfinalizedRefetch = Date.now();
@@ -800,19 +809,12 @@ export async function* getHistoricalEventsIsolated(params: {
       ["latest", false],
       context,
     ).then((latest) =>
-      eth_getBlockByNumber(
+      getFinalizedBlock({
+        chain: params.chain,
         rpc,
-        [
-          numberToHex(
-            Math.max(
-              hexToNumber(latest.number) - params.chain.finalityBlockCount,
-              0,
-            ),
-          ),
-          false,
-        ],
-        context,
-      ),
+        latestBlock: latest,
+        lowerBound: params.syncProgress.finalized,
+      }),
     );
 
     const finalizedBlockNumber = hexToNumber(finalizedBlock.number);
@@ -825,9 +827,7 @@ export async function* getHistoricalEventsIsolated(params: {
     });
 
     if (
-      hexToNumber(finalizedBlock.number) -
-        hexToNumber(params.syncProgress.finalized.number) <=
-      params.chain.finalityBlockCount
+      finalizedBlockNumber < hexToNumber(params.syncProgress.finalized.number)
     ) {
       break;
     }
@@ -1005,7 +1005,11 @@ export async function* getLocalEventGenerator(params: {
   limit: number;
   database: Database;
   isCatchup: boolean;
-}) {
+}): AsyncGenerator<{
+  events: RawEvent[];
+  checkpoint: string;
+  blockRange: [number, number];
+}> {
   const syncStore = createSyncStore({
     common: params.common,
     qb: params.database.syncQB,
@@ -1079,7 +1083,7 @@ export async function* getLocalEventGenerator(params: {
       const blockRange = [cursor, queryCursor] satisfies [number, number];
 
       cursor = queryCursor + 1;
-      if (cursor >= toBlock) {
+      if (cursor > toBlock) {
         yield { events, checkpoint: params.to, blockRange };
       } else if (blocks.length > 0) {
         const checkpoint = encodeCheckpoint({
@@ -1092,6 +1096,218 @@ export async function* getLocalEventGenerator(params: {
       }
     }
   }
+}
+
+export async function* getLocalInMemoryEventGenerator(params: {
+  common: Common;
+  chain: Chain;
+  rpc: Rpc;
+  eventCallbacks: EventCallback[];
+  childAddresses: ChildAddresses;
+  syncProgress: SyncProgress;
+  cachedIntervals: CachedIntervals;
+  from: string;
+  to: string;
+  limit: number;
+  isCatchup: boolean;
+}): AsyncGenerator<{
+  events: RawEvent[];
+  checkpoint: string;
+  blockRange: [number, number];
+}> {
+  const backfillEndClock = startClock();
+  const label = { chain: params.chain.name };
+
+  let first = hexToNumber(params.syncProgress.start.number);
+  const last =
+    params.syncProgress.end === undefined
+      ? params.syncProgress.finalized
+      : hexToNumber(params.syncProgress.end.number) >
+          hexToNumber(params.syncProgress.finalized.number)
+        ? params.syncProgress.finalized
+        : params.syncProgress.end;
+
+  if (
+    hexToNumber(params.syncProgress.start.number) >
+    hexToNumber(params.syncProgress.finalized.number)
+  ) {
+    params.syncProgress.current = params.syncProgress.finalized;
+
+    params.common.logger.info({
+      msg: "Skipped fetching backfill JSON-RPC data (chain only requires live indexing)",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      finalized_block: hexToNumber(params.syncProgress.finalized.number),
+      start_block: hexToNumber(params.syncProgress.start.number),
+    });
+
+    params.common.metrics.ponder_sync_block.set(
+      label,
+      hexToNumber(params.syncProgress.current.number),
+    );
+    params.common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      hexToNumber(params.syncProgress.current.timestamp),
+    );
+    params.common.metrics.ponder_historical_total_blocks.set(label, 0);
+    params.common.metrics.ponder_historical_cached_blocks.set(label, 0);
+    params.common.metrics.ponder_historical_completed_blocks.set(label, 0);
+
+    return;
+  }
+
+  const totalInterval = [
+    hexToNumber(params.syncProgress.start.number),
+    hexToNumber(last.number),
+  ] satisfies Interval;
+
+  const total = totalInterval[1] - totalInterval[0] + 1;
+
+  params.common.metrics.ponder_historical_total_blocks.set(label, total);
+  params.common.metrics.ponder_historical_cached_blocks.set(label, 0);
+
+  if (params.syncProgress.current === undefined) {
+    if (params.isCatchup === false) {
+      params.common.logger.info({
+        msg: "Started fetching backfill JSON-RPC data",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+      });
+    }
+  } else {
+    params.common.metrics.ponder_sync_block.set(
+      label,
+      hexToNumber(params.syncProgress.current.number),
+    );
+    params.common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      hexToNumber(params.syncProgress.current.timestamp),
+    );
+
+    if (params.isCatchup === false) {
+      params.common.logger.info({
+        msg: "Started fetching backfill JSON-RPC data",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+      });
+    }
+
+    first = Math.max(
+      first,
+      hexToNumber(params.syncProgress.current.number) + 1,
+    );
+  }
+
+  const fromBlock = Number(decodeCheckpoint(params.from).blockNumber);
+
+  const { intervals: requiredIntervals } = getRequiredIntervalsWithFilters({
+    interval: [fromBlock, hexToNumber(last.number)],
+    filters: params.eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: params.cachedIntervals,
+  });
+
+  const { factoryIntervals: requiredFactoryIntervals } =
+    getRequiredIntervalsWithFilters({
+      interval: [first, hexToNumber(last.number)],
+      filters: params.eventCallbacks.map(({ filter }) => filter),
+      cachedIntervals: params.cachedIntervals,
+    });
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: params.common,
+    chain: params.chain,
+    rpc: params.rpc,
+    childAddress: params.childAddresses,
+  });
+
+  params.common.metrics.ponder_historical_completed_blocks.inc(
+    label,
+    Math.max(0, Math.min(fromBlock, hexToNumber(last.number) + 1) - first),
+  );
+  let cursor = fromBlock;
+
+  for await (const blockData of historicalSync.syncBlockData({
+    requiredIntervals,
+    requiredFactoryIntervals,
+  })) {
+    const endClock = startClock();
+    const rawEvents = buildEvents({
+      eventCallbacks: params.eventCallbacks,
+      blocks: blockData.blocks,
+      logs: blockData.logs,
+      transactions: blockData.transactions,
+      transactionReceipts: blockData.transactionReceipts,
+      traces: blockData.traces,
+      childAddresses: params.childAddresses,
+      chainId: params.chain.id,
+    });
+
+    params.common.logger.trace({
+      msg: "Constructed events from block data",
+      chain: params.chain.name,
+      chain_id: params.chain.id,
+      block_range: JSON.stringify([cursor, blockData.cursor]),
+      event_count: rawEvents.length,
+      duration: endClock(),
+    });
+
+    params.common.metrics.ponder_historical_extract_duration.inc(
+      { step: "build" },
+      endClock(),
+    );
+    params.common.metrics.ponder_historical_completed_blocks.inc(
+      label,
+      blockData.cursor - cursor + 1,
+    );
+
+    const blockRange = [cursor, blockData.cursor] satisfies [number, number];
+    cursor = blockData.cursor + 1;
+
+    const lastBlock = blockData.blocks[blockData.blocks.length - 1]!;
+    params.common.metrics.ponder_sync_block.set(
+      label,
+      Number(lastBlock.number),
+    );
+    params.common.metrics.ponder_sync_block_timestamp.set(
+      label,
+      Number(lastBlock.timestamp),
+    );
+    const checkpoint = encodeCheckpoint({
+      ...MAX_CHECKPOINT,
+      blockTimestamp: lastBlock.timestamp,
+      chainId: BigInt(params.chain.id),
+      blockNumber: lastBlock.number,
+    });
+
+    yield { events: rawEvents, checkpoint, blockRange };
+  }
+
+  // Advance through the entire scanned range, including blocks without events.
+  params.syncProgress.current = last;
+  params.common.metrics.ponder_historical_completed_blocks.inc(
+    label,
+    Math.max(0, hexToNumber(last.number) - cursor + 1),
+  );
+  params.common.metrics.ponder_sync_block.set(label, hexToNumber(last.number));
+  params.common.metrics.ponder_sync_block_timestamp.set(
+    label,
+    hexToNumber(last.timestamp),
+  );
+
+  if (cursor <= hexToNumber(last.number)) {
+    yield {
+      events: [],
+      checkpoint: params.to,
+      blockRange: [cursor, hexToNumber(last.number)],
+    };
+  }
+
+  params.common.logger.info({
+    msg: "Finished fetching backfill JSON-RPC data",
+    chain: params.chain.name,
+    chain_id: params.chain.id,
+    duration: backfillEndClock(),
+  });
 }
 
 export async function* getLocalSyncGenerator(params: {
@@ -1149,6 +1365,7 @@ export async function* getLocalSyncGenerator(params: {
     );
     params.common.metrics.ponder_historical_total_blocks.set(label, 0);
     params.common.metrics.ponder_historical_cached_blocks.set(label, 0);
+    params.common.metrics.ponder_historical_completed_blocks.set(label, 0);
 
     return;
   }
@@ -1173,8 +1390,16 @@ export async function* getLocalSyncGenerator(params: {
     total - required,
   );
 
-  // Handle cache hit
-  if (params.syncProgress.current !== undefined) {
+  if (params.syncProgress.current === undefined) {
+    if (params.isCatchup === false) {
+      params.common.logger.info({
+        msg: "Started fetching backfill JSON-RPC data",
+        chain: params.chain.name,
+        chain_id: params.chain.id,
+        cache_rate: "0%",
+      });
+    }
+  } else {
     params.common.metrics.ponder_sync_block.set(
       label,
       hexToNumber(params.syncProgress.current.number),
@@ -1215,13 +1440,6 @@ export async function* getLocalSyncGenerator(params: {
       first,
       hexToNumber(params.syncProgress.current.number) + 1,
     );
-  } else {
-    params.common.logger.info({
-      msg: "Started fetching backfill JSON-RPC data",
-      chain: params.chain.name,
-      chain_id: params.chain.id,
-      cache_rate: "0%",
-    });
   }
 
   const historicalSync = createHistoricalSync(params);
@@ -1312,13 +1530,12 @@ export async function* getLocalSyncGenerator(params: {
             logs,
             syncStore,
           });
-          if (params.chain.disableCache === false) {
-            await syncStore.insertIntervals({
-              intervals: requiredIntervals,
-              factoryIntervals: requiredFactoryIntervals,
-              chainId: params.chain.id,
-            });
-          }
+
+          await syncStore.insertIntervals({
+            intervals: requiredIntervals,
+            factoryIntervals: requiredFactoryIntervals,
+            chainId: params.chain.id,
+          });
 
           return closestToTipBlock;
         })

@@ -6,7 +6,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { Address, Hash, Hex } from "viem";
-import type { Factory, FragmentId } from "@/internal/types.js";
+import type { FactoryFragmentId, FragmentId } from "@/internal/types.js";
 
 const nummultirange = customType<{ data: string }>({
   dataType() {
@@ -27,9 +27,16 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
  * Database schemas for the sync.
  *
  * @dev The order of the schemas represents the order of the migrations.
- * @dev The schemas must match the files in "./sql".
+ * @dev Each schema after the first must have a directory in "./sql" with
+ * "create.sql" and "copy.sql".
+ *
+ * @dev The first schema is the legacy "ponder_sync" schema. Ponder no longer
+ * creates it, and only copies data from it.
  */
-export const PONDER_SYNC_SCHEMAS = ["ponder_sync"] as const;
+export const PONDER_SYNC_SCHEMAS = [
+  "ponder_sync",
+  "ponder_rpc_cache_1",
+] as const;
 /**
  * Latest database schema for the sync.
  */
@@ -157,7 +164,7 @@ export const traces = PONDER_SYNC.table(
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
     transactionIndex: t.integer().notNull(),
-    traceIndex: t.integer().notNull(),
+    traceAddress: t.integer().array().notNull(),
     from: t.varchar({ length: 42 }).notNull().$type<Address>(),
     to: t.varchar({ length: 42 }).$type<Address>(),
     input: t.text().notNull().$type<Hex>(),
@@ -166,9 +173,6 @@ export const traces = PONDER_SYNC.table(
     type: t.text().notNull(),
     gas: numeric78().notNull(),
     gasUsed: numeric78().notNull(),
-    error: t.text(),
-    revertReason: t.text(),
-    subcalls: t.integer().notNull(),
   }),
   (table) => [
     primaryKey({
@@ -177,7 +181,7 @@ export const traces = PONDER_SYNC.table(
         table.chainId,
         table.blockNumber,
         table.transactionIndex,
-        table.traceIndex,
+        table.traceAddress,
       ],
     }),
   ],
@@ -209,40 +213,33 @@ export const intervals = PONDER_SYNC.table("intervals", (t) => ({
   blocks: nummultirange().notNull(),
 }));
 
+/**
+ * Parents of child addresses.
+ */
 export const factories = PONDER_SYNC.table(
   "factories",
   (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
-    factory: t
-      .jsonb()
-      .$type<
-        Pick<
-          Factory,
-          | "type"
-          | "chainId"
-          | "address"
-          | "eventSelector"
-          | "childAddressLocation"
-          | "fromBlock"
-          | "toBlock"
-        >
-      >()
-      .notNull(),
+    fragmentId: t.text().notNull().$type<FactoryFragmentId>(),
   }),
   (table) => [
-    index("factories_factory_idx").on(table.factory),
-    unique("factories_factory_key").on(table.factory),
+    index("factories_fragment_id_idx").on(table.fragmentId),
+    unique("factories_fragment_id_key").on(table.fragmentId),
   ],
 );
 
 export const factoryAddresses = PONDER_SYNC.table(
   "factory_addresses",
   (t) => ({
-    id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
     factoryId: t.integer().notNull(), // references `factories.id`
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
     address: t.text().$type<Address>().notNull(),
   }),
-  (table) => [index("factory_addresses_factory_id_index").on(table.factoryId)],
+  (table) => [
+    primaryKey({
+      name: "factory_addresses_pkey",
+      columns: [table.factoryId, table.address],
+    }),
+  ],
 );

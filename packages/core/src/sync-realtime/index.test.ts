@@ -1,4 +1,10 @@
-import { getAbiItem, type Hex, parseEther } from "viem";
+import {
+  type Address,
+  getAbiItem,
+  type Hex,
+  hexToNumber,
+  parseEther,
+} from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
@@ -37,6 +43,7 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
+import { getFactoryFragmentIds } from "@/runtime/fragments.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import { zeroLogsBloom } from "./bloom.js";
 import { createRealtimeSync, type RealtimeSyncEvent } from "./index.js";
@@ -143,7 +150,7 @@ test("sync() gets missing block", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -180,7 +187,7 @@ test("sync() catches error", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -216,7 +223,7 @@ test("handleBlock() block event with log", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -281,7 +288,7 @@ test("sync() skips log request when bloom does not match on standard chains", as
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -313,7 +320,7 @@ test("sync() requests logs despite bloom mismatch on async-execution chains", as
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = { ...getChain({ finalityBlockCount: 2 }), id: 43114 };
+  const chain = { ...getChain({ reorgWindow: 2 }), id: 43114 };
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -355,7 +362,7 @@ test("sync() handles async-execution block with no logs and non-empty bloom", as
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = { ...getChain({ finalityBlockCount: 2 }), id: 43114 };
+  const chain = { ...getChain({ reorgWindow: 2 }), id: 43114 };
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -387,7 +394,7 @@ test("sync() requests logs for async-execution block headers", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = { ...getChain({ finalityBlockCount: 2 }), id: 43114 };
+  const chain = { ...getChain({ reorgWindow: 2 }), id: 43114 };
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -436,7 +443,7 @@ test.each([143, 10143, 43114, 43113])(
     const { common } = context;
     await setupDatabaseServices();
 
-    const chain = { ...getChain({ finalityBlockCount: 2 }), id: chainId };
+    const chain = { ...getChain({ reorgWindow: 2 }), id: chainId };
     const rpc = createRpc({ common, chain });
 
     const { address } = await deployErc20({ sender: ALICE });
@@ -495,7 +502,7 @@ test("handleBlock() block event with log factory", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -576,44 +583,15 @@ test("handleBlock() block event with log factory", async () => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[1]?.logs).toHaveLength(1);
 
-  expect(data[0]?.childAddresses).toMatchObject(
+  expect(data[0]?.childAddresses).toStrictEqual(
     new Map([
       [
-        {
-          address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-          chainId: 1,
-          childAddressLocation: "topic1",
-          eventSelector:
-            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-          fromBlock: undefined,
-          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-          sourceId: "Pair",
-          toBlock: undefined,
-          type: "log",
-        },
+        getFactoryFragmentIds(filter.address)[0]!,
         new Set(["0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"]),
       ],
     ]),
   );
-  expect(data[1]?.childAddresses).toMatchObject(
-    new Map([
-      [
-        {
-          address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-          chainId: 1,
-          childAddressLocation: "topic1",
-          eventSelector:
-            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-          fromBlock: undefined,
-          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-          sourceId: "Pair",
-          toBlock: undefined,
-          type: "log",
-        },
-        new Set(),
-      ],
-    ]),
-  );
+  expect(data[1]?.childAddresses).toStrictEqual(new Map());
 
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[1]?.traces).toHaveLength(0);
@@ -626,7 +604,7 @@ test("handleBlock() block event with factories shared by callbacks", async () =>
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -694,19 +672,19 @@ test("handleBlock() block event with factories shared by callbacks", async () =>
     realtimeSync.sync(block),
   )) as Extract<RealtimeSyncEvent, { type: "block" }>[];
 
-  expect(blockEvent?.childAddresses.get(fromFactory)).toEqual(
-    new Set([ALICE.toLowerCase()]),
-  );
-  expect(blockEvent?.childAddresses.get(toFactory)).toEqual(
-    new Set([BOB.toLowerCase()]),
-  );
+  expect(
+    blockEvent?.childAddresses.get(getFactoryFragmentIds(fromFactory)[0]!),
+  ).toEqual(new Set([ALICE.toLowerCase()]));
+  expect(
+    blockEvent?.childAddresses.get(getFactoryFragmentIds(toFactory)[0]!),
+  ).toEqual(new Set([BOB.toLowerCase()]));
 });
 
 test("handleBlock() block event with log factory and no address", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -789,46 +767,15 @@ test("handleBlock() block event with log factory and no address", async () => {
   expect(data[0]?.logs).toHaveLength(0);
   expect(data[1]?.logs).toHaveLength(1);
 
-  expect(data[0]?.childAddresses.size).toBe(1);
-
-  expect(data[0]?.childAddresses).toMatchObject(
+  expect(data[0]?.childAddresses).toStrictEqual(
     new Map([
       [
-        {
-          address: undefined,
-          chainId: 1,
-          childAddressLocation: "topic1",
-          eventSelector:
-            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-          fromBlock: undefined,
-          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-          sourceId: "Pair",
-          toBlock: undefined,
-          type: "log",
-        },
+        getFactoryFragmentIds(filter.address)[0]!,
         new Set(["0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"]),
       ],
     ]),
   );
-  expect(data[1]?.childAddresses).toMatchObject(
-    new Map([
-      [
-        {
-          address: undefined,
-          chainId: 1,
-          childAddressLocation: "topic1",
-          eventSelector:
-            "0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137",
-          fromBlock: undefined,
-          id: "log_0x5fbdb2315678afecb367f032d93f642f64180aa3_1_topic1_0x17aa8d0e85db1d0531a8181b5bb84e1d4ed744db1cadd8814acd3d181ff30137_undefined_undefined",
-          sourceId: "Pair",
-          toBlock: undefined,
-          type: "log",
-        },
-        new Set(),
-      ],
-    ]),
-  );
+  expect(data[1]?.childAddresses).toStrictEqual(new Map());
 
   expect(data[0]?.traces).toHaveLength(0);
   expect(data[1]?.traces).toHaveLength(0);
@@ -841,7 +788,7 @@ test("handleBlock() block event with log factory error", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
@@ -937,7 +884,7 @@ test("handleBlock() block event with block", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
@@ -987,7 +934,7 @@ test("handleBlock() block event with transaction", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   await transferEth({
@@ -1045,7 +992,7 @@ test("handleBlock() block event with transfer", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
   const blockData = await transferEth({
@@ -1116,7 +1063,7 @@ test("handleBlock() block event with trace", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ chain, common });
 
   const { address } = await deployErc20({ sender: ALICE });
@@ -1223,7 +1170,7 @@ test("handleBlock() finalize event", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 0 });
   const rpc = createRpc({
     chain,
     common,
@@ -1264,19 +1211,19 @@ test("handleBlock() finalize event", async () => {
     block: expect.any(Object),
   });
 
-  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
 
   expect(
     (syncResult[1] as Extract<RealtimeSyncEvent, { type: "finalize" }>).block
       .number,
-  ).toBe("0x2");
+  ).toBe("0x4");
 });
 
 test("handleReorg() finds common ancestor", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 10 });
   const rpc = createRpc({
     chain,
     common,
@@ -1320,11 +1267,104 @@ test("handleReorg() finds common ancestor", async () => {
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
 });
 
+test("handleReorg() removes child addresses with more than one parent", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10 });
+  const rpc = createRpc({ common, chain });
+
+  const { address: parentX } = await deployErc20({ sender: ALICE });
+  const { address: parentY } = await deployErc20({ sender: ALICE });
+  const { block: finalizedBlock } = await simulateBlock();
+
+  const { block: block1 } = await simulateBlock();
+  const { block: block2 } = await mintErc20({
+    erc20: parentX,
+    to: BOB,
+    amount: 1n,
+    sender: ALICE,
+  });
+  const { block: block3 } = await mintErc20({
+    erc20: parentY,
+    to: BOB,
+    amount: 1n,
+    sender: ALICE,
+  });
+  const { block: block4 } = await simulateBlock();
+
+  const factory = buildLogFactory({
+    address: [parentX, parentY],
+    event: getAbiItem({ abi: erc20ABI, name: "Transfer" }),
+    parameter: "to",
+    chainId: chain.id,
+    sourceId: "To",
+    fromBlock: undefined,
+    toBlock: undefined,
+  });
+
+  const { eventCallbacks: templateCallbacks } = getErc20IndexingBuild({
+    address: parentX,
+  });
+  const eventCallbacks = [
+    {
+      ...templateCallbacks[0],
+      filter: {
+        ...(templateCallbacks[0].filter as LogFilter),
+        address: factory,
+      },
+    },
+  ] satisfies EventCallback[];
+
+  const childAddresses = setupChildAddresses(eventCallbacks);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses,
+  });
+
+  const data = (await drainAsyncGenerator(
+    realtimeSync.sync(block4),
+  )) as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  const [fragmentX, fragmentY] = getFactoryFragmentIds(factory);
+  const child = BOB.toLowerCase() as Address;
+
+  // Note: Each parent records the child address, so that it is stored for each parent.
+
+  expect(data.map((event) => event.childAddresses)).toStrictEqual([
+    new Map(),
+    new Map([[fragmentX, new Set([child])]]),
+    new Map([[fragmentY, new Set([child])]]),
+    new Map(),
+  ]);
+  expect(childAddresses.get(factory.id)).toStrictEqual(
+    new Map([[child, hexToNumber(block2.number)]]),
+  );
+
+  // Reorg the block where the second parent emitted the child address.
+  await drainAsyncGenerator(realtimeSync.sync(block3));
+
+  expect(childAddresses.get(factory.id)).toStrictEqual(
+    new Map([[child, hexToNumber(block2.number)]]),
+  );
+
+  // Reorg the block where the child address was first found.
+  await drainAsyncGenerator(realtimeSync.sync(block1));
+
+  expect(childAddresses.get(factory.id)).toStrictEqual(new Map());
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
+});
+
 test("handleReorg() throws error for deep reorg", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  const chain = getChain({ finalityBlockCount: 2 });
+  const chain = getChain({ reorgWindow: 10 });
   const rpc = createRpc({
     chain,
     common,
@@ -1354,12 +1394,26 @@ test("handleReorg() throws error for deep reorg", async () => {
   const blockData3 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
+  // Note: Block 4 does not exist, so the RPC can't return its logs.
+  const requestSpy = vi.spyOn(rpc, "request");
+  requestSpy.mockResolvedValueOnce([]);
+  const warnSpy = vi.spyOn(common.logger, "warn");
+
   await drainAsyncGenerator(
     realtimeSync.sync({
       ...blockData3.block,
       number: "0x4",
       hash: "0x0000000000000000000000000000000000000000000000000000000000000000",
       parentHash: realtimeSync.unfinalizedBlocks[1]!.hash,
+    }),
+  );
+
+  expect(requestSpy.mock.calls[0]![0]).toMatchObject({ method: "eth_getLogs" });
+  expect(warnSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining("Encountered unrecoverable"),
+      }),
     }),
   );
 

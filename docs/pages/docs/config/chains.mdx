@@ -177,11 +177,37 @@ export default createConfig({
 });
 ```
 
-## Disable caching
+## Reorg window
 
-Use the `disableCache` option to disable caching for RPC responses. The default is `false`.
+The `reorgWindow` option controls how long Ponder retains the data required to automatically recover from a chain reorganization. The value is measured in seconds and defaults to `180` (3 minutes).
 
-Set this option to `true` when indexing a development node like Anvil, where the chain state / history may change. [Read more](/docs/guides/foundry) about indexing Anvil.
+Increasing `reorgWindow` lets Ponder recover from older reorgs, but increases memory and database usage. Decreasing it reduces resource usage, but increases the chance that Ponder encounters an unrecoverable reorg and crashes with a fatal error.
+
+The value must be an integer between `0` and `600` (10 minutes). Setting `reorgWindow` to `0` disables automatic reorg recovery by treating each block as finalized immediately. Ponder will still detect reorgs and crash with a fatal error rather than continue with inconsistent data.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+      reorgWindow: 300, // 5 minutes [!code focus]
+    },
+  },
+});
+```
+
+## RPC request cache
+
+By default, Ponder [caches JSON-RPC data](/docs/api-reference/ponder/database#rpc-request-cache) in the database and reuses it between runs. Set `cacheRpcRequests: false` to disable the cache for a chain. Ponder then does not read or write these items in the database, and fetches them again each time it starts:
+
+- Block data (blocks, logs, transactions, transaction receipts, and traces)
+- Factory child addresses
+- `context.client` requests
+
+Disable the cache for a development node like Anvil, where the chain can reset, or for a node you run yourself, where fetching data again is cheaper than storing it in the database. [Read more](/docs/guides/foundry) about indexing Anvil.
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
@@ -191,7 +217,7 @@ export default createConfig({
     anvil: {
       id: 31337,
       rpc: "http://127.0.0.1:8545",
-      disableCache: true, // [!code focus]
+      cacheRpcRequests: false, // [!code focus]
     },
   },
 });

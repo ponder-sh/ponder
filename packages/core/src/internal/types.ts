@@ -60,10 +60,6 @@ export type Filter =
 
 /**
  * Filter that matches addresses.
- *
- * @dev This object is used as a unique constraint in the `ponder_sync.factories` table.
- * Any changes to the type must be backwards compatible and probably requires updating
- * `syncStore.getChildAddresses` and `syncStore.insertChildAddresses`.
  */
 export type Factory = LogFactory;
 export type FilterAddress<
@@ -91,7 +87,6 @@ export type TransactionFilter<
   sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
-  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   hasTransactionReceipt: true;
@@ -113,7 +108,6 @@ export type TraceFilter<
   toAddress: FilterAddress<toFactory>;
   functionSelector: Hex;
   callType: Trace["type"] | undefined;
-  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   hasTransactionReceipt: boolean;
@@ -156,7 +150,6 @@ export type TransferFilter<
   sourceId: string;
   fromAddress: FilterAddress<fromFactory>;
   toAddress: FilterAddress<toFactory>;
-  includeReverted: boolean;
   fromBlock: number | undefined;
   toBlock: number | undefined;
   hasTransactionReceipt: boolean;
@@ -190,12 +183,14 @@ export type FragmentAddress =
       address: Address | null;
       eventSelector: Factory["eventSelector"];
       childAddressLocation: Factory["childAddressLocation"];
+      fromBlock: number | null;
+      toBlock: number | null;
     }
   | null;
 
 export type FragmentAddressId =
   | Address
-  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}_${number | null}_${number | null}`
   | null;
 export type FragmentTopic = Hex | null;
 
@@ -262,7 +257,10 @@ export type FragmentId =
   /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation}_{fromBlock}_{toBlock} */
   | `factory_log_${number}_${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}_${number | null}_${number | null}`;
 
+export type FactoryFragmentId = Extract<FragmentId, `factory_${string}`>;
+
 // Contract
+
 export type Contract = {
   abi: Abi;
   address?: Address | readonly Address[];
@@ -302,8 +300,8 @@ export type Chain = {
   rpc: string | string[] | Transport;
   ws: string | undefined;
   pollingInterval: number;
-  finalityBlockCount: number;
-  disableCache: boolean;
+  reorgWindow: number;
+  cacheRpcRequests: boolean;
   ethGetLogsBlockRange: number | undefined;
   viemChain: ViemChain | undefined;
 };
@@ -410,7 +408,7 @@ export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
 export type SyncTrace = {
-  trace: DebugTrace["result"] & { index: number; subcalls: number };
+  trace: DebugTrace["result"] & { traceAddress: number[] };
   transactionHash: DebugTrace["txHash"];
 };
 export type SyncLog = ViemLog<Hex, Hex, false>;
@@ -435,8 +433,7 @@ export type RequiredTraceColumns =
   | "output"
   | "value"
   | "type"
-  | "error"
-  | "traceIndex";
+  | "traceAddress";
 export type RequiredLogColumns = keyof Log;
 
 export type RequiredInternalBlockColumns = RequiredBlockColumns;

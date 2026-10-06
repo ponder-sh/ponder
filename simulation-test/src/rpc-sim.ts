@@ -55,6 +55,36 @@ export const sim =
       return _transport.request(body);
     };
 
+    /** Get a block from the rpc cache, without simulated errors. */
+    const getCachedBlock = async (number: number): Promise<RpcBlock> => {
+      const block = await DB.select({ body: RPC_SCHEMA.blocks.body })
+        .from(RPC_SCHEMA.blocks)
+        .where(
+          and(
+            eq(RPC_SCHEMA.blocks.chainId, chain!.id),
+            eq(RPC_SCHEMA.blocks.number, number),
+          ),
+        )
+        .then((blocks) => blocks[0]);
+
+      if (block) return block.body as RpcBlock;
+
+      // Note: The realtime block engine reads the same cache and expects full transactions.
+      const result = (await _request({
+        method: "eth_getBlockByNumber",
+        params: [toHex(number), true],
+      })) as RpcBlock;
+      await DB.insert(RPC_SCHEMA.blocks)
+        .values({
+          chainId: chain!.id,
+          number,
+          hash: result.hash,
+          body: result,
+        })
+        .onConflictDoNothing();
+      return result;
+    };
+
     const request = async (body: any) => {
       if (PONDER_RPC_METHODS.includes(body.method) === false) {
         throw new Error("Unsupported method");
@@ -88,13 +118,19 @@ export const sim =
         const index = APP.indexingBuild.chains.findIndex(
           (_chain) => _chain.id === chain.id,
         );
-        const number = hexToNumber(
-          APP.indexingBuild.finalizedBlocks[index]!.number,
-        );
+        const finalizedBlock = APP.indexingBuild.finalizedBlocks[index]!;
+        const chainConfig = APP.indexingBuild.chains[index]!;
+        const targetTimestamp =
+          hexToNumber(finalizedBlock.timestamp) + chainConfig.reorgWindow;
+        let number = hexToNumber(finalizedBlock.number);
 
-        body.params[0] = toHex(
-          number + APP.indexingBuild.chains[index].finalityBlockCount,
-        );
+        while (true) {
+          const block = await getCachedBlock(number + 1);
+          number += 1;
+          if (hexToNumber(block.timestamp) >= targetTimestamp) break;
+        }
+
+        body.params[0] = toHex(number);
       }
 
       // block tag validation
@@ -511,6 +547,13 @@ export const sim =
     })({ chain, retryCount: 0 });
   };
 
+/** Deterministic hash for a reorged block. */
+const getReorgHash = (chainId: number, blockNumber: string, kind: string) =>
+  `0x${crypto
+    .createHash("sha256")
+    .update(`${SEED}_reorg_${chainId}_${blockNumber}_${kind}`)
+    .digest("hex")}` as Hash;
+
 export type RpcBlockHeader = Omit<RpcBlock, "transactions"> & {
   transactions: Address[] | undefined;
 };
@@ -614,12 +657,12 @@ export const realtimeBlockEngine = async (
       if (r < SIM_PARAMS.REALTIME_REORG_RATE / 2) {
         block = blocks.get(chainId)![blocks.get(chainId)!.length - 3]!;
       } else {
-        const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+        const hash = getReorgHash(chainId, nextBlock.number!, "shallow");
         block = { ...block, hash, logsBloom: zeroLogsBloom, transactions: [] };
       }
     } else if (random() < SIM_PARAMS.REALTIME_DEEP_REORG_RATE) {
       block = blocks.get(chainId)![1]!;
-      const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+      const hash = getReorgHash(chainId, nextBlock.number!, "deep");
       block = { ...block, hash, logsBloom: zeroLogsBloom, transactions: [] };
     }
 

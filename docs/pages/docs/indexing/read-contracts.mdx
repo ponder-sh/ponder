@@ -184,9 +184,11 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
   The `blockTag` option is not supported by custom client actions.
 :::
 
-### Caching
+### Request caching
 
 Most RPC requests made using `context.client` are cached in the database. When an indexing function calls a method with a specific set of arguments for the first time, it will make an RPC request. Any subsequent calls to the same method with the same arguments will be served from the cache.
+
+If the chain sets [`cacheRpcRequests: false`](/docs/config/chains#rpc-request-cache), `context.client` does not read or write the database cache.
 
 See the [full list](https://github.com/ponder-sh/ponder/blob/main/packages/core/src/indexing/client.ts#L73-L121) of cache-enabled RPC methods in the source code.
 

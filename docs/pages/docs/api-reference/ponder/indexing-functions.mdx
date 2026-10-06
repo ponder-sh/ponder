@@ -126,6 +126,8 @@ type TransactionEvent = {
 
 Native transfer events are specified using `"AccountName:transfer:from"` or `"AccountName:transfer:to"`.
 
+A native transfer is a call frame with a `value` more than zero. `DELEGATECALL` and `CALLCODE` frames are not native transfers, because they do not move value.
+
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
 
@@ -519,15 +521,9 @@ type Trace = {
   input: Hex;
   /** Output of the call, if any. */
   output?: Hex;
-  /** Error message, if any. */
-  error?: string;
-  /** Why this call reverted, if it reverted. */
-  revertReason?: string;
   /** Value transferred. */
   value: bigint | null;
-  /** Index of this trace in the transaction. */
-  traceIndex: number;
-  /** Number of subcalls. */
-  subcalls: number;
+  /** Path through the nested call tree. */
+  traceAddress: number[];
 };
 ```
