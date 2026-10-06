@@ -8,6 +8,7 @@ import {
   type Address,
   custom,
   type Hash,
+  type Hex,
   hexToNumber,
   type RpcBlock,
   type RpcLog,
@@ -37,6 +38,10 @@ const PONDER_RPC_METHODS = [
   "debug_traceBlockByHash",
   "eth_call",
 ] as const;
+
+/** Returns true if `value` is a hex encoded block number. */
+const isQuantity = (value: unknown): value is Hex =>
+  typeof value === "string" && /^0x[0-9a-fA-F]+$/.test(value);
 
 /** Number of blocks of the rpc cache to read in one query for `eth_getLogs`. */
 const LOGS_BATCH_SIZE = 50;
@@ -196,6 +201,34 @@ export const sim =
             body.params[0].toBlock === "latest"
           ) {
             throw new Error("Block tag not supported");
+          }
+          break;
+      }
+
+      // block number validation
+      //
+      // Note: A JSON-RPC provider rejects an invalid block number (for example "0xNaN") or
+      // an `eth_getLogs` range with `fromBlock` after `toBlock`.
+
+      switch (body.method) {
+        case "eth_getBlockByNumber":
+        case "debug_traceBlockByNumber":
+          if (isQuantity(body.params[0]) === false) {
+            throw new Error("invalid argument 0: hex string is invalid");
+          }
+          break;
+        case "eth_getLogs":
+          if ("fromBlock" in body.params[0] || "toBlock" in body.params[0]) {
+            const { fromBlock, toBlock } = body.params[0];
+            if (
+              isQuantity(fromBlock) === false ||
+              isQuantity(toBlock) === false
+            ) {
+              throw new Error("invalid argument 0: hex string is invalid");
+            }
+            if (hexToNumber(fromBlock) > hexToNumber(toBlock)) {
+              throw new Error("invalid block range params");
+            }
           }
           break;
       }
