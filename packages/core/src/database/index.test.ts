@@ -600,6 +600,79 @@ test("migrateSync() excludes trace and transfer intervals from ponder_sync", asy
   await context.common.shutdown.kill();
 });
 
+test("migrateSync() excludes factories, child addresses, and factory intervals from ponder_sync", async () => {
+  const database = createDatabase({
+    common: context.common,
+    namespace: { schema: "public", viewsSchema: undefined },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "multichain",
+    },
+    schemaBuild: {
+      schema: {},
+      statements: buildSchema({
+        schema: {},
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrateSync();
+  await database.adminQB.wrap((db) =>
+    db.execute(sql`DROP SCHEMA ponder_sync_1 CASCADE`),
+  );
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`INSERT INTO ponder_sync.factories (id, factory) OVERRIDING SYSTEM VALUE VALUES
+        (1, '{"type":"log","chainId":1,"address":"0xa","eventSelector":"0xe","childAddressLocation":"topic1"}')`,
+    ),
+  );
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`INSERT INTO ponder_sync.factory_addresses (factory_id, chain_id, block_number, address) VALUES
+        (1, 1, 6, '0x1')`,
+    ),
+  );
+  await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`INSERT INTO ponder_sync.intervals (fragment_id, chain_id, blocks) VALUES
+        ('factory_log_1_0xa_0xe_topic1_null_null', 1, '{[5,10]}'),
+        ('log_1_0xa_0xe_topic1_0xf_null_null_null_0', 1, '{[5,10]}'),
+        ('log_1_null_0xe_offset0_0xf_null_null_null_0', 1, '{[5,10]}'),
+        ('transaction_1_0xa_0xe_topic1_null', 1, '{[5,10]}'),
+        ('transaction_1_0xb_0xa_0xe_topic1', 1, '{[5,10]}'),
+        ('log_1_0xa_0xf_null_null_null_0', 1, '{[0,10]}'),
+        ('transaction_1_0xa_0xb', 1, '{[0,10]}')`,
+    ),
+  );
+
+  await database.migrateSync();
+
+  const { rows: intervals } = await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`SELECT fragment_id FROM ponder_sync_1.intervals ORDER BY fragment_id`,
+    ),
+  );
+  expect(intervals).toEqual([
+    { fragment_id: "log_1_0xa_0xf_null_null_null_0" },
+    { fragment_id: "transaction_1_0xa_0xb" },
+  ]);
+
+  const { rows: factories } = await database.adminQB.wrap((db) =>
+    db.execute(sql`SELECT id FROM ponder_sync_1.factories`),
+  );
+  expect(factories).toEqual([]);
+
+  const { rows: childAddresses } = await database.adminQB.wrap((db) =>
+    db.execute(sql`SELECT address FROM ponder_sync_1.factory_addresses`),
+  );
+  expect(childAddresses).toEqual([]);
+
+  // Skip the metadata unlock because these tests only initialize the sync schema.
+  context.common.options.command = "list";
+  await context.common.shutdown.kill();
+});
+
 test("migrateSync() rejects outdated legacy migrations", async () => {
   const database = createDatabase({
     common: context.common,

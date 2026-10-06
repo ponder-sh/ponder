@@ -6,7 +6,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { Address, Hash, Hex } from "viem";
-import type { Factory, FragmentId } from "@/internal/types.js";
+import type { FactoryFragmentId, FragmentId } from "@/internal/types.js";
 
 const nummultirange = customType<{ data: string }>({
   dataType() {
@@ -206,40 +206,33 @@ export const intervals = PONDER_SYNC.table("intervals", (t) => ({
   blocks: nummultirange().notNull(),
 }));
 
+/**
+ * Parents of child addresses.
+ */
 export const factories = PONDER_SYNC.table(
   "factories",
   (t) => ({
     id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
-    factory: t
-      .jsonb()
-      .$type<
-        Pick<
-          Factory,
-          | "type"
-          | "chainId"
-          | "address"
-          | "eventSelector"
-          | "childAddressLocation"
-          | "fromBlock"
-          | "toBlock"
-        >
-      >()
-      .notNull(),
+    fragmentId: t.text().notNull().$type<FactoryFragmentId>(),
   }),
   (table) => [
-    index("factories_factory_idx").on(table.factory),
-    unique("factories_factory_key").on(table.factory),
+    index("factories_fragment_id_idx").on(table.fragmentId),
+    unique("factories_fragment_id_key").on(table.fragmentId),
   ],
 );
 
 export const factoryAddresses = PONDER_SYNC.table(
   "factory_addresses",
   (t) => ({
-    id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
     factoryId: t.integer().notNull(), // references `factories.id`
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
     address: t.text().$type<Address>().notNull(),
   }),
-  (table) => [index("factory_addresses_factory_id_index").on(table.factoryId)],
+  (table) => [
+    primaryKey({
+      name: "factory_addresses_pkey",
+      columns: [table.factoryId, table.address],
+    }),
+  ],
 );

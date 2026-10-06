@@ -60,10 +60,6 @@ export type Filter =
 
 /**
  * Filter that matches addresses.
- *
- * @dev This object is used as a unique constraint in the `ponder_sync.factories` table.
- * Any changes to the type must be backwards compatible and probably requires updating
- * `syncStore.getChildAddresses` and `syncStore.insertChildAddresses`.
  */
 export type Factory = LogFactory;
 export type FilterAddress<
@@ -187,12 +183,14 @@ export type FragmentAddress =
       address: Address | null;
       eventSelector: Factory["eventSelector"];
       childAddressLocation: Factory["childAddressLocation"];
+      fromBlock: number | null;
+      toBlock: number | null;
     }
   | null;
 
 export type FragmentAddressId =
   | Address
-  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}`
+  | `${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}_${number | null}_${number | null}`
   | null;
 export type FragmentTopic = Hex | null;
 
@@ -259,7 +257,10 @@ export type FragmentId =
   /** factory_log_{chainId}_{address}_{eventSelector}_{childAddressLocation}_{fromBlock}_{toBlock} */
   | `factory_log_${number}_${Address | null}_${Factory["eventSelector"]}_${Factory["childAddressLocation"]}_${number | null}_${number | null}`;
 
+export type FactoryFragmentId = Extract<FragmentId, `factory_${string}`>;
+
 // Contract
+
 export type Contract = {
   abi: Abi;
   address?: Address | readonly Address[];

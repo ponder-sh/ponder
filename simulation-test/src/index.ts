@@ -12,6 +12,7 @@ import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
 import {
   decodeFragment,
+  getFactoryFragmentIds,
   getFragments,
   isFragmentAddressFactory,
 } from "@ponder/runtime/fragments.js";
@@ -161,12 +162,6 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
-    const {
-      id: _,
-      sourceId: _sourceId,
-      ...matchedFilterAddress
-    } = filterAddress as Factory;
-
     return inArray(
       addressColumn,
       APP_DB.select({ address: PONDER_SYNC.factoryAddresses.address })
@@ -174,14 +169,14 @@ const getAddressCondition = <
         .where(
           and(
             gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
-            eq(
+            inArray(
               PONDER_SYNC.factoryAddresses.factoryId,
               APP_DB.select({ id: PONDER_SYNC.factories.id })
                 .from(PONDER_SYNC.factories)
                 .where(
-                  eq(
-                    PONDER_SYNC.factories.factory,
-                    matchedFilterAddress as Factory,
+                  inArray(
+                    PONDER_SYNC.factories.fragmentId,
+                    getFactoryFragmentIds(filterAddress as Factory),
                   ),
                 ),
             ),

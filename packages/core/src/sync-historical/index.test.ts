@@ -1,6 +1,7 @@
 import {
   getAbiItem,
   type Hex,
+  hexToNumber,
   toEventSelector,
   zeroAddress,
   zeroHash,
@@ -36,12 +37,15 @@ import {
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
+import type { EventCallback, LogFactory, LogFilter } from "@/internal/types.js";
 import { createRpc } from "@/rpc/index.js";
 import {
   getCachedIntervals,
+  getChildAddresses,
   getRequiredIntervalsWithFilters,
 } from "@/runtime/index.js";
 import * as ponderSyncSchema from "@/sync-store/schema.js";
+import type { Interval } from "@/utils/interval.js";
 import { createHistoricalSync } from "./index.js";
 
 beforeEach(setupCommon);
@@ -466,6 +470,106 @@ test("sync() with log factory", async () => {
   );
 
   expect(intervals).toHaveLength(2);
+});
+
+test("sync() with log factory shares parents between factories", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address: parentX } = await deployFactory({ sender: ALICE });
+  const { address: parentY } = await deployFactory({ sender: ALICE });
+  const { address: pairX } = await createPair({
+    factory: parentX,
+    sender: ALICE,
+  });
+  const { address: pairY } = await createPair({
+    factory: parentY,
+    sender: ALICE,
+  });
+
+  const { block } = await simulateBlock();
+  const interval: Interval = [1, hexToNumber(block.number)];
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address: parentX,
+  });
+  const callbackX = eventCallbacks[0];
+  const filterX = callbackX.filter as LogFilter<LogFactory>;
+  const callbackXY = {
+    ...callbackX,
+    filter: {
+      ...filterX,
+      address: { ...filterX.address, id: "xy", address: [parentX, parentY] },
+    },
+  } satisfies EventCallback;
+
+  // Sync the factory with both parents.
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: setupChildAddresses([callbackXY]),
+  });
+
+  const requiredIntervalsXY = getRequiredIntervalsWithFilters({
+    interval,
+    filters: [callbackXY.filter],
+    cachedIntervals: setupCachedIntervals([callbackXY]),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval,
+    requiredIntervals: requiredIntervalsXY.intervals,
+    requiredFactoryIntervals: requiredIntervalsXY.factoryIntervals,
+    syncStore,
+  });
+  await historicalSync.syncBlockData({
+    interval,
+    requiredIntervals: requiredIntervalsXY.intervals,
+    logs,
+    syncStore,
+  });
+  await syncStore.insertIntervals({
+    intervals: requiredIntervalsXY.intervals,
+    factoryIntervals: requiredIntervalsXY.factoryIntervals,
+    chainId: chain.id,
+  });
+
+  // The factory with one parent uses the cached data of that parent.
+
+  const requiredIntervalsX = getRequiredIntervalsWithFilters({
+    interval,
+    filters: [filterX],
+    cachedIntervals: await getCachedIntervals({
+      chain,
+      syncStore,
+      filters: [filterX],
+    }),
+  });
+
+  expect(requiredIntervalsX.intervals).toHaveLength(0);
+  expect(requiredIntervalsX.factoryIntervals).toHaveLength(0);
+
+  const childAddressesX = await getChildAddresses({
+    filters: [filterX],
+    syncStore,
+  });
+  const childAddressesXY = await getChildAddresses({
+    filters: [callbackXY.filter],
+    syncStore,
+  });
+
+  expect(
+    Array.from(childAddressesX.get(filterX.address.id)!.keys()),
+  ).toStrictEqual([pairX.toLowerCase()]);
+  expect(Array.from(childAddressesXY.get("xy")!.keys()).sort()).toStrictEqual(
+    [pairX.toLowerCase(), pairY.toLowerCase()].sort(),
+  );
 });
 
 test("sync() with log factory and no address", async () => {

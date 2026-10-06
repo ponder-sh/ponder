@@ -26,16 +26,16 @@ CREATE TABLE "ponder_sync_1"."blocks" (
 --> statement-breakpoint
 CREATE TABLE "ponder_sync_1"."factories" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ponder_sync_1"."factories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"factory" jsonb NOT NULL,
-	CONSTRAINT "factories_factory_key" UNIQUE("factory")
+	"fragment_id" text NOT NULL,
+	CONSTRAINT "factories_fragment_id_key" UNIQUE("fragment_id")
 );
 --> statement-breakpoint
 CREATE TABLE "ponder_sync_1"."factory_addresses" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ponder_sync_1"."factory_addresses_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"factory_id" integer NOT NULL,
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
-	"address" text NOT NULL
+	"address" text NOT NULL,
+	CONSTRAINT "factory_addresses_pkey" PRIMARY KEY("factory_id","address")
 );
 --> statement-breakpoint
 CREATE TABLE "ponder_sync_1"."intervals" (
@@ -135,15 +135,9 @@ INSERT INTO "ponder_sync_1"."logs" ("chain_id", "block_number", "log_index", "tr
 --> statement-breakpoint
 INSERT INTO "ponder_sync_1"."rpc_request_results" ("request_hash", "chain_id", "block_number", "result") SELECT "request_hash", "chain_id", "block_number", "result" FROM "ponder_sync"."rpc_request_results";
 --> statement-breakpoint
-INSERT INTO "ponder_sync_1"."intervals" ("fragment_id", "chain_id", "blocks") SELECT "fragment_id", "chain_id", "blocks" FROM "ponder_sync"."intervals" WHERE "fragment_id" NOT LIKE 'trace\_%' AND "fragment_id" NOT LIKE 'transfer\_%';
+INSERT INTO "ponder_sync_1"."intervals" ("fragment_id", "chain_id", "blocks") SELECT "fragment_id", "chain_id", "blocks" FROM "ponder_sync"."intervals" WHERE "fragment_id" NOT LIKE 'trace\_%' AND "fragment_id" NOT LIKE 'transfer\_%' AND "fragment_id" NOT LIKE 'factory\_%' AND "fragment_id" !~ '_(topic|offset)';
 --> statement-breakpoint
-INSERT INTO "ponder_sync_1"."factories" ("id", "factory") OVERRIDING SYSTEM VALUE SELECT "id", "factory" FROM "ponder_sync"."factories";
---> statement-breakpoint
-INSERT INTO "ponder_sync_1"."factory_addresses" ("id", "factory_id", "chain_id", "block_number", "address") OVERRIDING SYSTEM VALUE SELECT "id", "factory_id", "chain_id", "block_number", "address" FROM "ponder_sync"."factory_addresses";
---> statement-breakpoint
-CREATE INDEX "factories_factory_idx" ON "ponder_sync_1"."factories" USING btree ("factory");
---> statement-breakpoint
-CREATE INDEX "factory_addresses_factory_id_index" ON "ponder_sync_1"."factory_addresses" USING btree ("factory_id");
+CREATE INDEX "factories_fragment_id_idx" ON "ponder_sync_1"."factories" USING btree ("fragment_id");
 --> statement-breakpoint
 CREATE INDEX "rpc_request_results_chain_id_block_number_index" ON "ponder_sync_1"."rpc_request_results" USING btree ("chain_id","block_number");
 --> statement-breakpoint
@@ -158,11 +152,3 @@ ANALYZE "ponder_sync_1"."logs";
 ANALYZE "ponder_sync_1"."rpc_request_results";
 --> statement-breakpoint
 ANALYZE "ponder_sync_1"."intervals";
---> statement-breakpoint
-ANALYZE "ponder_sync_1"."factories";
---> statement-breakpoint
-ANALYZE "ponder_sync_1"."factory_addresses";
---> statement-breakpoint
-SELECT setval('"ponder_sync_1"."factories_id_seq"', COALESCE(MAX("id"), 1), MAX("id") IS NOT NULL) FROM "ponder_sync_1"."factories";
---> statement-breakpoint
-SELECT setval('"ponder_sync_1"."factory_addresses_id_seq"', COALESCE(MAX("id"), 1), MAX("id") IS NOT NULL) FROM "ponder_sync_1"."factory_addresses";
