@@ -97,19 +97,27 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - A simulated RPC or DB error is not automatically a test failure; Ponder is expected to recover from many injected transient failures.
 - Treat any CI job cancelled because of a timeout as a test failure.
 - On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
+- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema, or a run made more than `SIM_LIVE_RPC_REQUEST_LIMIT` (default `5000`) live RPC requests because the template or rpc cache is missing data. At the end of a run, the runner prints `Live RPC requests: N`; a healthy run is near `0`.
+- `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). It is only picked for apps whose blocks are all in the rpc cache (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
 
 ## Infra / Railway / Monitoring CI
 - Scheduled CI is defined in `.github/workflows/simulation-test.yml`.
 - The fuzz workflow currently runs four times per day with cron `0 0,6,12,18 * * *`.
-- The scheduled matrix runs each configured app for three iterations. The `iteration` value is only a matrix label; it does not seed the test.
-- The same workflow includes known-failure seeds, but that job only runs on manual `workflow_dispatch`.
+- Each matrix job builds once, then `run-seeds.sh` runs the app's seeds from `regression-seeds.txt` and a number of random seeds. Each seed has a 15 minute timeout. The job step summary lists the result of each seed (`pass`, `FAIL`, `INFRA ERROR`, or `TIMEOUT`).
+- Add a seed to `regression-seeds.txt` after it finds a bug. CI runs these seeds on every run, including scheduled runs.
 - One-off reproductions in CI use `.github/workflows/simulation-test-single.yml`, which accepts an app and seed.
 - CI runs on self-hosted runners and uses GitHub secrets for `DATABASE_URL` and RPC URLs. Current workflow env sets `PGDATABASE=railway`, indicating the shared Postgres service is Railway-backed.
 - Simulation workflows call the shared `.github/actions/setup` action with `foundry: "false"`. These jobs do not need Foundry, and skipping it avoids self-hosted runner glibc/toolchain failures during setup.
 - The cleanup job runs after the fuzz jobs and calls `bun run src/cleanup-database.ts` to delete successful UUID databases.
 - Monitor failures in GitHub Actions first, then use the printed seed and UUID plus the `metadata` table and remaining run database for deeper inspection.
 - If Railway is unreachable from an AWS/dev instance but works from a laptop, ask DevOps to check whether outbound TCP to the Railway Postgres proxy host and port is allowed from that instance.
+
+## Sync Schema Migrations
+- When a Ponder change adds a new sync schema (for example `ponder_sync` to `ponder_sync_1`), every app template must get the new schema before simulations run on that branch. Otherwise each run migrates the clone, and the harness exits with `INFRA ERROR`.
+- `migrateSync()` does not copy all data. For example, the `ponder_sync_1` migration does not copy factory data, factory child intervals, traces, or trace and transfer intervals. A template with only migrated data makes Ponder sync that data again through the simulated RPC, which reads the rpc cache one block at a time. For a large factory range, this cannot finish.
+- After a migration, sync the missing data into the template once with the real RPC: run the app with `ponder start` against the template database in a temporary schema until it is ready, then drop that schema. For `super-assessment`, use the config without `SEED` (the union of all seeded configs).
+- Apps on `main` read only the sync schemas that `main` knows. Adding a new sync schema to a template does not affect `main`.
 
 ## Safety Notes
 - Treat shared simulation infrastructure as stateful. Template databases, RPC cache tables, metadata, and failed run databases may all be useful for debugging.
@@ -123,6 +131,8 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - `src/db-sim.ts`: database fault injection.
 - `src/create-app.ts`: app template database creation.
 - `src/cleanup-database.ts`: successful run database cleanup.
+- `run-seeds.sh`: CI runner for the regression seeds and random seeds of one app.
+- `regression-seeds.txt`: seeds that found bugs.
 - `schema.ts`: shared metadata and RPC cache schema.
 - `.github/workflows/simulation-test.yml`: scheduled fuzz workflow.
 - `.github/workflows/simulation-test-single.yml`: manual single-seed workflow.
