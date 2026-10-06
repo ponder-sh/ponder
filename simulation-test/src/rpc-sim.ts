@@ -44,7 +44,7 @@ const isQuantity = (value: unknown): value is Hex =>
   typeof value === "string" && /^0x[0-9a-fA-F]+$/.test(value);
 
 /** Number of blocks of the rpc cache to read in one query for `eth_getLogs`. */
-const LOGS_BATCH_SIZE = 50;
+const LOGS_BATCH_SIZE = 10;
 
 const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
   concurrency: 1,
