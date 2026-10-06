@@ -55,11 +55,18 @@ import packageJson from "../../packages/core/package.json";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
-import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
+import {
+  getLiveRpcRequestCount,
+  type RpcBlockHeader,
+  realtimeBlockEngine,
+  sim,
+} from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
+// Apps with all blocks in the rpc cache. These apps can run without the sync-store cache.
+const IN_MEMORY_SYNC_APPS = ["assessment", "feature-multichain", "uniswap-v4"];
 
 // inputs
 
@@ -130,6 +137,9 @@ export const SIM_PARAMS = {
     [true, false],
     "realtime-block-has-transactions",
   ),
+  CACHE_RPC_REQUESTS: IN_MEMORY_SYNC_APPS.includes(APP_ID)
+    ? pick([true, false], "cache-rpc-requests")
+    : true,
 };
 
 // 1. Setup database
@@ -140,6 +150,19 @@ export const APP_DB = drizzle(`${DATABASE_URL!}/${UUID}`, {
 });
 
 await DB.execute(sql.raw(`CREATE DATABASE "${UUID}" TEMPLATE "${APP_ID}"`));
+
+// Note: `migrateSync()` does not copy all data from an earlier sync schema (e.g. factory
+// intervals). A template without the latest sync schema causes a large uncached sync.
+const templateSyncSchema = await APP_DB.execute(
+  sql`SELECT 1 FROM information_schema.schemata WHERE schema_name = ${PONDER_SYNC.PONDER_SYNC_SCHEMA}`,
+);
+if (templateSyncSchema.rows.length === 0) {
+  console.error(
+    `INFRA ERROR: Template database "${APP_ID}" does not have the "${PONDER_SYNC.PONDER_SYNC_SCHEMA}" schema. Migrate and sync the template before running simulations.`,
+  );
+  await DB.execute(sql.raw(`DROP DATABASE IF EXISTS "${UUID}" WITH (FORCE)`));
+  process.exit(2);
+}
 await APP_DB.execute(
   sql.raw(
     "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
@@ -1376,6 +1399,8 @@ const onBuild = async (app: PonderApp) => {
     //     .where(eq(PONDER_SYNC.intervals.chainId, BigInt(chain.id)));
     // }
 
+    chain.cacheRpcRequests = SIM_PARAMS.CACHE_RPC_REQUESTS;
+
     // replace rpc with simulated transport
 
     chain.rpc = sim(
@@ -1499,6 +1524,7 @@ if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
 }
 
 console.log("Killing app");
+console.log(`Live RPC requests: ${getLiveRpcRequestCount()}`);
 
 await kill!();
 

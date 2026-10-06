@@ -29,6 +29,18 @@ const PONDER_RPC_METHODS = [
   "eth_call",
 ] as const;
 
+/**
+ * Maximum number of requests to the live RPC per run. Most requests must be served by
+ * the rpc cache. More live requests means the template database or rpc cache is
+ * missing data, which is an infrastructure error, not a Ponder bug.
+ */
+const LIVE_RPC_REQUEST_LIMIT = Number(
+  process.env.SIM_LIVE_RPC_REQUEST_LIMIT ?? 5_000,
+);
+let liveRpcRequestCount = 0;
+
+export const getLiveRpcRequestCount = () => liveRpcRequestCount;
+
 const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
   concurrency: 1,
   initialStart: true,
@@ -52,7 +64,44 @@ export const sim =
     const _transport = transport({ chain });
 
     const _request = (body: any) => {
+      liveRpcRequestCount += 1;
+      if (liveRpcRequestCount > LIVE_RPC_REQUEST_LIMIT) {
+        console.error(
+          `INFRA ERROR: More than ${LIVE_RPC_REQUEST_LIMIT} live RPC requests (last: ${body.method} on chain ${chain!.id}). The template database or rpc cache is missing data.`,
+        );
+        process.exit(2);
+      }
       return _transport.request(body);
+    };
+
+    /** Get a block from the rpc cache, without simulated errors. */
+    const getCachedBlock = async (number: number): Promise<RpcBlock> => {
+      const block = await DB.select({ body: RPC_SCHEMA.blocks.body })
+        .from(RPC_SCHEMA.blocks)
+        .where(
+          and(
+            eq(RPC_SCHEMA.blocks.chainId, chain!.id),
+            eq(RPC_SCHEMA.blocks.number, number),
+          ),
+        )
+        .then((blocks) => blocks[0]);
+
+      if (block) return block.body as RpcBlock;
+
+      // Note: The realtime block engine reads the same cache and expects full transactions.
+      const result = (await _request({
+        method: "eth_getBlockByNumber",
+        params: [toHex(number), true],
+      })) as RpcBlock;
+      await DB.insert(RPC_SCHEMA.blocks)
+        .values({
+          chainId: chain!.id,
+          number,
+          hash: result.hash,
+          body: result,
+        })
+        .onConflictDoNothing();
+      return result;
     };
 
     const request = async (body: any) => {
@@ -95,10 +144,7 @@ export const sim =
         let number = hexToNumber(finalizedBlock.number);
 
         while (true) {
-          const block = await _request({
-            method: "eth_getBlockByNumber",
-            params: [toHex(number + 1), false],
-          });
+          const block = await getCachedBlock(number + 1);
           number += 1;
           if (hexToNumber(block.timestamp) >= targetTimestamp) break;
         }
@@ -520,6 +566,13 @@ export const sim =
     })({ chain, retryCount: 0 });
   };
 
+/** Deterministic hash for a reorged block. */
+const getReorgHash = (chainId: number, blockNumber: string, kind: string) =>
+  `0x${crypto
+    .createHash("sha256")
+    .update(`${SEED}_reorg_${chainId}_${blockNumber}_${kind}`)
+    .digest("hex")}` as Hash;
+
 export type RpcBlockHeader = Omit<RpcBlock, "transactions"> & {
   transactions: Address[] | undefined;
 };
@@ -623,12 +676,12 @@ export const realtimeBlockEngine = async (
       if (r < SIM_PARAMS.REALTIME_REORG_RATE / 2) {
         block = blocks.get(chainId)![blocks.get(chainId)!.length - 3]!;
       } else {
-        const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+        const hash = getReorgHash(chainId, nextBlock.number!, "shallow");
         block = { ...block, hash, logsBloom: zeroLogsBloom, transactions: [] };
       }
     } else if (random() < SIM_PARAMS.REALTIME_DEEP_REORG_RATE) {
       block = blocks.get(chainId)![1]!;
-      const hash = `0x${crypto.randomBytes(32).toString("hex")}` as Hash;
+      const hash = getReorgHash(chainId, nextBlock.number!, "deep");
       block = { ...block, hash, logsBloom: zeroLogsBloom, transactions: [] };
     }
 
