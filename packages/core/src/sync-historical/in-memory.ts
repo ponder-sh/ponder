@@ -213,7 +213,8 @@ export function createInMemoryHistoricalSync(params: {
 
         while (cursor <= interval[1]) {
           const behind = factories.filter(
-            (id) => factoryProgress.get(id)! < cursor,
+            (id) =>
+              (factoryProgress.get(id) ?? Number.POSITIVE_INFINITY) < cursor,
           );
 
           if (behind.length > 0) {
@@ -233,7 +234,9 @@ export function createInMemoryHistoricalSync(params: {
 
           const progressBlock = Math.min(
             interval[1],
-            ...factories.map((id) => factoryProgress.get(id)!),
+            ...factories.map(
+              (id) => factoryProgress.get(id) ?? Number.POSITIVE_INFINITY,
+            ),
           );
           yield [cursor, progressBlock];
           cursor = progressBlock + 1;

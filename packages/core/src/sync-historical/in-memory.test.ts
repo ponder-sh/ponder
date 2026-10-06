@@ -530,6 +530,49 @@ test("syncBlockData() fetches child addresses without required intervals", async
   expect(childAddress.get(filter.address.id)!.get(toLowerCase(pair))).toBe(2);
 });
 
+test("syncBlockData() with log factory and no factory interval", async () => {
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
+
+  // Note: An earlier pass fetched the child address. A catch-up pass does not fetch
+  // the factory again, for example when the factory `endBlock` is before the
+  // catch-up range.
+  const childAddress = setupChildAddresses(eventCallbacks);
+  childAddress.get(filter.address.id)!.set(toLowerCase(pair), 2);
+
+  const historicalSync = createInMemoryHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddress,
+  });
+
+  const blockData = await drainAsyncGenerator(
+    historicalSync.syncBlockData({
+      requiredIntervals: [{ filter, interval: [3, 3] }],
+      requiredFactoryIntervals: [],
+    }),
+  );
+
+  expect(blockData.flatMap(({ logs }) => logs)).toHaveLength(1);
+});
+
 test("syncBlockData() with log factory and no address", async () => {
   const chain = getChain();
   const rpc = createRpc({
