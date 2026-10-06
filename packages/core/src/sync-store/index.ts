@@ -256,8 +256,7 @@ export const createSyncStore = ({
         values.push({
           fragmentId: fragmentId,
           chainId: BigInt(chainId),
-          // @ts-expect-error
-          blocks: sql.raw(`nummultirange(${numranges})`),
+          blocks: sql.raw(`nummultirange(${numranges})`) as unknown as string,
         });
       }
 
