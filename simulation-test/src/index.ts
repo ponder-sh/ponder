@@ -978,9 +978,7 @@ const onBuild = async (app: PonderApp) => {
         }
       }
     }
-  }
 
-  if (APP_ID === "super-assessment") {
     const expectedRows = await APP_DB.execute(
       sql`SELECT name, count(*) AS count FROM expected.blocks GROUP BY name ORDER BY name`,
     );
