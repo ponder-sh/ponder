@@ -26,6 +26,7 @@ import {
 } from "viem";
 import { WebSocket } from "ws";
 import type { Common } from "@/internal/common.js";
+import { ShutdownError } from "@/internal/errors.js";
 import type { Logger } from "@/internal/logger.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
@@ -361,6 +362,10 @@ export const createRpc = ({
     await new Promise((resolve) => setImmediate(resolve));
 
     while (true) {
+      // Note: Bucket reactivation timeouts are cleared during shutdown, so an inactive
+      // bucket never becomes available again.
+      if (common.shutdown.isKilled) throw new ShutdownError();
+
       // Remove old request per second data
       const timestamp = Math.floor(Date.now() / 1000);
       for (const bucket of buckets) {
@@ -460,6 +465,8 @@ export const createRpc = ({
       const logger = context?.logger ?? common.logger;
 
       for (let i = 0; i <= RETRY_COUNT; i++) {
+        if (common.shutdown.isKilled) throw new ShutdownError();
+
         let endClock = startClock();
         const t = setTimeout(() => {
           logger.warn({

@@ -2,6 +2,7 @@ import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import { simulateBlock } from "@/_test/simulate.js";
 import { getChain } from "@/_test/utils.js";
+import { ShutdownError } from "@/internal/errors.js";
 import { createRpc, sanitizeLogTopics } from "./index.js";
 
 beforeEach(setupCommon);
@@ -33,6 +34,20 @@ test("createRpc() handles rate limiting", async () => {
   );
 
   await rpc.request({ method: "eth_blockNumber" });
+});
+
+test("createRpc() rejects requests after shutdown", async () => {
+  const chain = getChain();
+  const rpc = createRpc({
+    common: context.common,
+    chain,
+  });
+
+  await context.common.shutdown.kill();
+
+  await expect(rpc.request({ method: "eth_blockNumber" })).rejects.toThrow(
+    ShutdownError,
+  );
 });
 
 test("createRpc() retry BlockNotFoundError", async () => {
