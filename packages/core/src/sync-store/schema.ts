@@ -33,7 +33,10 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
  * @dev The first schema is the legacy "ponder_sync" schema. Ponder no longer
  * creates it, and only copies data from it.
  */
-export const PONDER_SYNC_SCHEMAS = ["ponder_sync", "ponder_sync_1"] as const;
+export const PONDER_SYNC_SCHEMAS = [
+  "ponder_sync",
+  "ponder_rpc_cache_1",
+] as const;
 /**
  * Latest database schema for the sync.
  */

@@ -23,7 +23,7 @@ ponder.on("ERC20.transfer()", async ({ event }) => {
 });
 ```
 
-On the first start, Ponder migrates the RPC cache from the `ponder_sync` schema to a new `ponder_sync_1` schema. The migration does not copy call trace data, so Ponder fetches call traces and native transfers again. The migration can take several minutes for a large RPC cache. [Read more](/docs/api-reference/ponder/database#cache-migrations) about cache migrations.
+On the first start, Ponder migrates the RPC cache from the `ponder_sync` schema to a new `ponder_rpc_cache_1` schema. The migration does not copy call trace data, so Ponder fetches call traces and native transfers again. The migration can take several minutes for a large RPC cache. [Read more](/docs/api-reference/ponder/database#cache-migrations) about cache migrations.
 
 Apps that use `0.17` can continue to use the same database, but they do not share cache data with apps that use `0.18`. If the `ponder_sync` schema was created before `0.10`, the migration fails with the error `"ponder_sync" migration failed. Please first update to v0.10 or "DROP SCHEMA ponder_sync CASCADE".`
 
@@ -44,7 +44,7 @@ Ponder fixed two more cases of the factory cache bug from [`0.17`](#factory-cach
 - Two factories with overlapping lists of factory addresses, for example `[X, Y]` and `[X]`.
 - The same factory with a different `startBlock` or `endBlock`.
 
-The cache migration to `ponder_sync_1` does not copy factory data. On the first start, Ponder fetches factory child addresses and the events of child contracts again. No config change is required.
+The cache migration to `ponder_rpc_cache_1` does not copy factory data. On the first start, Ponder fetches factory child addresses and the events of child contracts again. No config change is required.
 
 #### Configurable reorg window
 

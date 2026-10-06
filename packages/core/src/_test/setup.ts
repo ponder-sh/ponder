@@ -124,7 +124,7 @@ export async function setupIsolatedDatabase() {
         -- Drop every sync schema so migrateSync() cannot mistake a partially
         -- cleaned schema for an already-migrated database.
         DROP SCHEMA IF EXISTS "ponder_sync" CASCADE;
-        DROP SCHEMA IF EXISTS "ponder_sync_1" CASCADE;
+        DROP SCHEMA IF EXISTS "ponder_rpc_cache_1" CASCADE;
         -- Loop over all user-defined schemas
         FOR schema IN SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'
         LOOP

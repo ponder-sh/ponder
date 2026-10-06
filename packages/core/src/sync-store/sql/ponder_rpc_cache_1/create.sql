@@ -1,6 +1,6 @@
-CREATE SCHEMA "ponder_sync_1";
+CREATE SCHEMA "ponder_rpc_cache_1";
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."blocks" (
+CREATE TABLE "ponder_rpc_cache_1"."blocks" (
 	"chain_id" bigint NOT NULL,
 	"number" bigint NOT NULL,
 	"timestamp" bigint NOT NULL,
@@ -24,13 +24,13 @@ CREATE TABLE "ponder_sync_1"."blocks" (
 	CONSTRAINT "blocks_pkey" PRIMARY KEY("chain_id","number")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."factories" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ponder_sync_1"."factories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+CREATE TABLE "ponder_rpc_cache_1"."factories" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ponder_rpc_cache_1"."factories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"fragment_id" text NOT NULL,
 	CONSTRAINT "factories_fragment_id_key" UNIQUE("fragment_id")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."factory_addresses" (
+CREATE TABLE "ponder_rpc_cache_1"."factory_addresses" (
 	"factory_id" integer NOT NULL,
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
@@ -38,13 +38,13 @@ CREATE TABLE "ponder_sync_1"."factory_addresses" (
 	CONSTRAINT "factory_addresses_pkey" PRIMARY KEY("factory_id","address")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."intervals" (
+CREATE TABLE "ponder_rpc_cache_1"."intervals" (
 	"fragment_id" text PRIMARY KEY NOT NULL,
 	"chain_id" bigint NOT NULL,
 	"blocks" "nummultirange" NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."logs" (
+CREATE TABLE "ponder_rpc_cache_1"."logs" (
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
 	"log_index" integer NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE "ponder_sync_1"."logs" (
 	CONSTRAINT "logs_pkey" PRIMARY KEY("chain_id","block_number","log_index")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."rpc_request_results" (
+CREATE TABLE "ponder_rpc_cache_1"."rpc_request_results" (
 	"request_hash" text NOT NULL,
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint,
@@ -68,7 +68,7 @@ CREATE TABLE "ponder_sync_1"."rpc_request_results" (
 	CONSTRAINT "rpc_request_results_pkey" PRIMARY KEY("chain_id","request_hash")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."traces" (
+CREATE TABLE "ponder_rpc_cache_1"."traces" (
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
 	"transaction_index" integer NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE "ponder_sync_1"."traces" (
 	CONSTRAINT "traces_pkey" PRIMARY KEY("chain_id","block_number","transaction_index","trace_address")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."transaction_receipts" (
+CREATE TABLE "ponder_rpc_cache_1"."transaction_receipts" (
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
 	"transaction_index" integer NOT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE "ponder_sync_1"."transaction_receipts" (
 	CONSTRAINT "transaction_receipts_pkey" PRIMARY KEY("chain_id","block_number","transaction_index")
 );
 --> statement-breakpoint
-CREATE TABLE "ponder_sync_1"."transactions" (
+CREATE TABLE "ponder_rpc_cache_1"."transactions" (
 	"chain_id" bigint NOT NULL,
 	"block_number" bigint NOT NULL,
 	"transaction_index" integer NOT NULL,
@@ -125,6 +125,6 @@ CREATE TABLE "ponder_sync_1"."transactions" (
 	CONSTRAINT "transactions_pkey" PRIMARY KEY("chain_id","block_number","transaction_index")
 );
 --> statement-breakpoint
-CREATE INDEX "factories_fragment_id_idx" ON "ponder_sync_1"."factories" USING btree ("fragment_id");
+CREATE INDEX "factories_fragment_id_idx" ON "ponder_rpc_cache_1"."factories" USING btree ("fragment_id");
 --> statement-breakpoint
-CREATE INDEX "rpc_request_results_chain_id_block_number_index" ON "ponder_sync_1"."rpc_request_results" USING btree ("chain_id","block_number");
+CREATE INDEX "rpc_request_results_chain_id_block_number_index" ON "ponder_rpc_cache_1"."rpc_request_results" USING btree ("chain_id","block_number");

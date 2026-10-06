@@ -453,7 +453,7 @@ test("migrateSync() creates only the latest sync schema", async () => {
   await database.migrateSync();
 
   const tables = await database.adminQB.wrap((db) =>
-    db.select().from(TABLES).where(eq(TABLES.table_schema, "ponder_sync_1")),
+    db.select().from(TABLES).where(eq(TABLES.table_schema, "ponder_rpc_cache_1")),
   );
   expect(tables.map((table) => table.table_name).sort()).toEqual([
     "blocks",
@@ -604,7 +604,7 @@ test("migrateSync() excludes trace and transfer intervals from ponder_sync", asy
 
   const { rows } = await database.adminQB.wrap((db) =>
     db.execute(
-      sql`SELECT fragment_id FROM ponder_sync_1.intervals ORDER BY fragment_id`,
+      sql`SELECT fragment_id FROM ponder_rpc_cache_1.intervals ORDER BY fragment_id`,
     ),
   );
   expect(rows).toEqual([
@@ -664,7 +664,7 @@ test("migrateSync() excludes factories, child addresses, and factory intervals f
 
   const { rows: intervals } = await database.adminQB.wrap((db) =>
     db.execute(
-      sql`SELECT fragment_id FROM ponder_sync_1.intervals ORDER BY fragment_id`,
+      sql`SELECT fragment_id FROM ponder_rpc_cache_1.intervals ORDER BY fragment_id`,
     ),
   );
   expect(intervals).toEqual([
@@ -673,12 +673,12 @@ test("migrateSync() excludes factories, child addresses, and factory intervals f
   ]);
 
   const { rows: factories } = await database.adminQB.wrap((db) =>
-    db.execute(sql`SELECT id FROM ponder_sync_1.factories`),
+    db.execute(sql`SELECT id FROM ponder_rpc_cache_1.factories`),
   );
   expect(factories).toEqual([]);
 
   const { rows: childAddresses } = await database.adminQB.wrap((db) =>
-    db.execute(sql`SELECT address FROM ponder_sync_1.factory_addresses`),
+    db.execute(sql`SELECT address FROM ponder_rpc_cache_1.factory_addresses`),
   );
   expect(childAddresses).toEqual([]);
 
@@ -822,7 +822,7 @@ test("migrateSync() copies ponder_sync from one snapshot", async () => {
   // Note: The interval is not copied, because it was committed after the migration
   // snapshot. The copied tables are consistent with each other.
   const { rows } = await database.adminQB.wrap((db) =>
-    db.execute(sql`SELECT fragment_id FROM ponder_sync_1.intervals`),
+    db.execute(sql`SELECT fragment_id FROM ponder_rpc_cache_1.intervals`),
   );
   expect(rows).toEqual([]);
 

@@ -29,6 +29,7 @@ import type {
   Schema,
   SchemaBuild,
 } from "@/internal/types.js";
+import { PONDER_SYNC_SCHEMAS } from "@/sync-store/schema.js";
 import { createPool, getDatabaseName } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { getNextAvailablePort } from "@/utils/port.js";
@@ -443,17 +444,20 @@ export const createBuild = async ({
         return { status: "error", error } as const;
       }
 
-      if (schema === "ponder_sync") {
+      if ((PONDER_SYNC_SCHEMAS as readonly string[]).includes(schema)) {
         const error = new BuildError(
-          `Invalid schema name. "ponder_sync" is a reserved schema name.`,
+          `Invalid schema name. "${schema}" is a reserved schema name.`,
         );
         error.stack = undefined;
         return { status: "error", error } as const;
       }
 
-      if (viewsSchema === "ponder_sync") {
+      if (
+        viewsSchema !== undefined &&
+        (PONDER_SYNC_SCHEMAS as readonly string[]).includes(viewsSchema)
+      ) {
         const error = new BuildError(
-          `Invalid views schema name. "ponder_sync" is a reserved schema name.`,
+          `Invalid views schema name. "${viewsSchema}" is a reserved schema name.`,
         );
         error.stack = undefined;
         return { status: "error", error } as const;

@@ -115,8 +115,8 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - If Railway is unreachable from an AWS/dev instance but works from a laptop, ask DevOps to check whether outbound TCP to the Railway Postgres proxy host and port is allowed from that instance.
 
 ## Sync Schema Migrations
-- When a Ponder change adds a new sync schema (for example `ponder_sync` to `ponder_sync_1`), every app template must get the new schema before simulations run on that branch. Otherwise each run migrates the clone, and the harness exits with `INFRA ERROR`.
-- `migrateSync()` does not copy all data. For example, the `ponder_sync_1` migration does not copy factory data, factory child intervals, traces, or trace and transfer intervals. A template with only migrated data makes Ponder sync that data again through the simulated RPC, which reads the rpc cache one block at a time. For a large factory range, this cannot finish.
+- When a Ponder change adds a new sync schema (for example `ponder_sync` to `ponder_rpc_cache_1`), every app template must get the new schema before simulations run on that branch. Otherwise each run migrates the clone, and the harness exits with `INFRA ERROR`.
+- `migrateSync()` does not copy all data. For example, the `ponder_rpc_cache_1` migration does not copy factory data, factory child intervals, traces, or trace and transfer intervals. A template with only migrated data makes Ponder sync that data again through the simulated RPC, which reads the rpc cache one block at a time. For a large factory range, this cannot finish.
 - After a migration, sync the missing data into the template once with the real RPC: run the app with `ponder start` against the template database in a temporary schema until it is ready, then drop that schema. For `super-assessment`, use the config without `SEED` (the union of all seeded configs).
 - Apps on `main` read only the sync schemas that `main` knows. Adding a new sync schema to a template does not affect `main`.
 
