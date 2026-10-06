@@ -5,7 +5,6 @@ import { watch } from "chokidar";
 import { execa } from "execa";
 import { glob } from "glob";
 import pc from "picocolors";
-import { rimraf } from "rimraf";
 
 const PACKAGE_NAME = "@PONDER/CORE";
 
@@ -39,8 +38,10 @@ async function build() {
     log.cli("Build start");
     const startTime = Date.now();
 
-    await rimraf("dist");
-    log.cli("Cleaned output folder");
+    // Keep `dist` so that `tsc` can reuse `dist/tsconfig.build.tsbuildinfo` and
+    // skip unchanged files. Remove outputs whose source file no longer exists.
+    const pruneCount = pruneStaleOutputs();
+    log.cli(`Pruned ${pruneCount} stale output files`);
 
     const tscResult = await execa("tsc", ["--project", TSCONFIG], {
       reject: false,
@@ -130,6 +131,24 @@ async function watchMode() {
       process.exit(0);
     });
   });
+}
+
+function pruneStaleOutputs() {
+  let count = 0;
+  for (const dir of ["dist/esm", "dist/types"]) {
+    for (const filePath of glob.sync(`${dir}/**/*`, { nodir: true })) {
+      const relativePath = path.relative(dir, filePath);
+      const sourcePath = path.join(
+        "src",
+        relativePath.replace(/(\.d\.ts|\.js)(\.map)?$/, ".ts"),
+      );
+      if (!fs.existsSync(sourcePath)) {
+        fs.rmSync(filePath);
+        count++;
+      }
+    }
+  }
+  return count;
 }
 
 const importRegex = /from ['"](@\/[^'"]*)['"]/g;
