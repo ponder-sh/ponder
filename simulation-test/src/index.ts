@@ -32,6 +32,7 @@ import {
   isNotNull,
   lte,
   not,
+  notInArray,
   or,
   type SQL,
   sql,
@@ -344,6 +345,96 @@ const onBuild = async (app: PonderApp) => {
       migrationsFolder: "./apps/super-assessment/migrations",
     });
 
+    // Trace index of each trace that matches at least one trace or transfer filter
+
+    await APP_DB.execute(
+      sql`CREATE TABLE IF NOT EXISTS expected_trace_indexes (
+        chain_id bigint NOT NULL,
+        block_number bigint NOT NULL,
+        transaction_index integer NOT NULL,
+        trace_address integer[] NOT NULL,
+        trace_index bigint NOT NULL
+      )`,
+    );
+    await APP_DB.execute(sql`TRUNCATE expected_trace_indexes`);
+
+    const matchedTraceConditions: SQL[] = [];
+    for (const { filter } of app.indexingBuild.eventCallbacks.flat()) {
+      if (filter.type !== "trace" && filter.type !== "transfer") continue;
+
+      for (const { fragment } of getFragments(filter)) {
+        if (fragment.type !== "trace" && fragment.type !== "transfer") continue;
+
+        matchedTraceConditions.push(
+          and(
+            eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+            getAddressCondition(
+              fragment.fromAddress,
+              PONDER_SYNC.traces,
+              "from",
+              filter.fromAddress,
+            ),
+            getAddressCondition(
+              fragment.toAddress,
+              PONDER_SYNC.traces,
+              "to",
+              filter.toAddress,
+            ),
+            filter.type === "trace" && filter.callType
+              ? eq(PONDER_SYNC.traces.type, filter.callType)
+              : undefined,
+            fragment.type === "trace" && fragment.functionSelector
+              ? eq(
+                  sql`substring(traces.input from 1 for 10)`,
+                  fragment.functionSelector,
+                )
+              : undefined,
+            filter.type === "transfer"
+              ? and(
+                  isNotNull(PONDER_SYNC.traces.value),
+                  gt(PONDER_SYNC.traces.value, 0n),
+                  notInArray(PONDER_SYNC.traces.type, [
+                    "DELEGATECALL",
+                    "CALLCODE",
+                  ]),
+                )
+              : undefined,
+            filter.fromBlock
+              ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
+              : undefined,
+            filter.toBlock
+              ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
+              : undefined,
+          )!,
+        );
+      }
+    }
+
+    if (matchedTraceConditions.length > 0) {
+      const matchedTraces = APP_DB.selectDistinct({
+        chainId: PONDER_SYNC.traces.chainId,
+        blockNumber: PONDER_SYNC.traces.blockNumber,
+        transactionIndex: PONDER_SYNC.traces.transactionIndex,
+        traceAddress: PONDER_SYNC.traces.traceAddress,
+      })
+        .from(PONDER_SYNC.traces)
+        .innerJoin(
+          PONDER_SYNC.blocks,
+          getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+        )
+        .where(or(...matchedTraceConditions));
+
+      await APP_DB.execute(
+        sql`INSERT INTO expected_trace_indexes
+          SELECT chain_id, block_number, transaction_index, trace_address,
+            row_number() OVER (
+              PARTITION BY chain_id, block_number, transaction_index
+              ORDER BY trace_address
+            ) - 1
+          FROM (${matchedTraces}) AS matched_traces`,
+      );
+    }
+
     for (const eventCallback of app.indexingBuild.eventCallbacks.flat()) {
       const filter = eventCallback.filter;
       const blockConditions = [
@@ -506,11 +597,11 @@ const onBuild = async (app: PonderApp) => {
             lpad(traces.block_number::text, 16, '0') ||
             lpad(traces.transaction_index::text, 16, '0') ||
             '7' ||
-            lpad((SELECT count(*) FROM traces AS all_traces
-              WHERE all_traces.chain_id = traces.chain_id
-                AND all_traces.block_number = traces.block_number
-                AND all_traces.transaction_index = traces.transaction_index
-                AND all_traces.trace_address < traces.trace_address
+            lpad((SELECT expected.trace_index FROM expected_trace_indexes AS expected
+              WHERE expected.chain_id = traces.chain_id
+                AND expected.block_number = traces.block_number
+                AND expected.transaction_index = traces.transaction_index
+                AND expected.trace_address = traces.trace_address
             )::text, 16, '0'))`,
             );
 
@@ -738,17 +829,17 @@ const onBuild = async (app: PonderApp) => {
           case "transfer": {
             const transferCheckpoint = sql.raw(
               `
-              (lpad(blocks.timestamp::text, 10, '0') ||
-              lpad(traces.chain_id::text, 16, '0') ||
-              lpad(traces.block_number::text, 16, '0') ||
-              lpad(traces.transaction_index::text, 16, '0') ||
-              '7' ||
-              lpad((SELECT count(*) FROM traces AS all_traces
-                WHERE all_traces.chain_id = traces.chain_id
-                  AND all_traces.block_number = traces.block_number
-                  AND all_traces.transaction_index = traces.transaction_index
-                  AND all_traces.trace_address < traces.trace_address
-              )::text, 16, '0'))`,
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(traces.chain_id::text, 16, '0') ||
+            lpad(traces.block_number::text, 16, '0') ||
+            lpad(traces.transaction_index::text, 16, '0') ||
+            '7' ||
+            lpad((SELECT expected.trace_index FROM expected_trace_indexes AS expected
+              WHERE expected.chain_id = traces.chain_id
+                AND expected.block_number = traces.block_number
+                AND expected.transaction_index = traces.transaction_index
+                AND expected.trace_address = traces.trace_address
+            )::text, 16, '0'))`,
             );
 
             const condition = and(
@@ -767,6 +858,7 @@ const onBuild = async (app: PonderApp) => {
               ),
               isNotNull(PONDER_SYNC.traces.value),
               gt(PONDER_SYNC.traces.value, 0n),
+              notInArray(PONDER_SYNC.traces.type, ["DELEGATECALL", "CALLCODE"]),
               ...blockConditions,
             );
 

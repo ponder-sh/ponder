@@ -232,21 +232,22 @@ export const buildEvents = ({
   transactionReceiptsIndex = 0;
 
   let traceIndex = 0;
-  let previousTrace: InternalTrace | undefined;
+  let traceBlockNumber: number | undefined;
+  let traceTransactionIndex: number | undefined;
   for (const trace of traces) {
     const blockNumber = trace.blockNumber;
     const transactionIndex = trace.transactionIndex;
 
     if (
-      previousTrace?.blockNumber === blockNumber &&
-      previousTrace.transactionIndex === transactionIndex
+      blockNumber !== traceBlockNumber ||
+      transactionIndex !== traceTransactionIndex
     ) {
-      traceIndex += 1;
-    } else {
       traceIndex = 0;
+      traceBlockNumber = blockNumber;
+      traceTransactionIndex = transactionIndex;
     }
 
-    previousTrace = trace;
+    const eventCount = events.length;
 
     while (
       blocksIndex < blocks.length &&
@@ -407,6 +408,9 @@ export const buildEvents = ({
         });
       }
     }
+
+    // Note: Increment `traceIndex` only if the trace matched at least one filter
+    if (events.length > eventCount) traceIndex++;
   }
 
   blocksIndex = 0;

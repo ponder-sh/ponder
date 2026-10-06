@@ -21,6 +21,7 @@ import type {
   BlockEvent,
   Event,
   InternalBlock,
+  InternalTrace,
   InternalTransaction,
   InternalTransactionReceipt,
   LogEvent,
@@ -28,7 +29,10 @@ import type {
   TraceEvent,
   TransferEvent,
 } from "@/internal/types.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import {
+  decodeCheckpoint,
+  ZERO_CHECKPOINT_STRING,
+} from "@/utils/checkpoint.js";
 import { buildEvents, decodeEvents, splitEvents } from "./events.js";
 
 beforeEach(setupCommon);
@@ -462,4 +466,136 @@ test("buildEvents() transaction matches receipt by transaction index", async () 
   expect(() => build([receipt(0, "success")])).toThrow(
     "Missing transaction receipt for block 1 and transaction index 1",
   );
+});
+
+test("buildEvents() trace index ignores traces that match no filter", async () => {
+  const erc20 = "0x1111111111111111111111111111111111111111";
+  const alice = ALICE.toLowerCase() as `0x${string}`;
+  const bob = BOB.toLowerCase() as `0x${string}`;
+
+  const eventCallbacks = [
+    ...getErc20IndexingBuild({ address: erc20, includeCallTraces: true })
+      .eventCallbacks,
+    ...getAccountsIndexingBuild({ address: ALICE }).eventCallbacks.filter(
+      ({ filter }) => filter.type === "transfer",
+    ),
+  ];
+
+  const block = {
+    number: 1n,
+    timestamp: 1n,
+    hash: toHex(1, { size: 32 }),
+  } as InternalBlock;
+  const transactions = [
+    {
+      blockNumber: 1,
+      transactionIndex: 0,
+      hash: toHex(0, { size: 32 }),
+      from: alice,
+      to: erc20,
+      type: "legacy",
+    },
+    {
+      blockNumber: 1,
+      transactionIndex: 1,
+      hash: toHex(1, { size: 32 }),
+      from: alice,
+      to: erc20,
+      type: "legacy",
+    },
+  ] as InternalTransaction[];
+
+  const transferInput = encodeFunctionData({
+    abi: erc20ABI,
+    functionName: "transfer",
+    args: [BOB, parseEther("1")],
+  });
+
+  // Matched by the ERC20 call trace filter
+  const call0: InternalTrace = {
+    type: "CALL",
+    from: alice,
+    to: erc20,
+    input: transferInput,
+    output: undefined,
+    value: 0n,
+    gas: 0n,
+    gasUsed: 0n,
+    traceAddress: [],
+    blockNumber: 1,
+    transactionIndex: 0,
+  };
+  // Matched by the `transfer:from` filter
+  const transfer0: InternalTrace = {
+    type: "CALL",
+    from: alice,
+    to: bob,
+    input: "0x",
+    output: undefined,
+    value: parseEther("1"),
+    gas: 0n,
+    gasUsed: 0n,
+    traceAddress: [3],
+    blockNumber: 1,
+    transactionIndex: 0,
+  };
+  // Matched by the ERC20 call trace filter
+  const call1: InternalTrace = {
+    ...call0,
+    transactionIndex: 1,
+  };
+
+  const exact = buildEvents({
+    eventCallbacks,
+    blocks: [block],
+    logs: [],
+    transactions,
+    transactionReceipts: [],
+    traces: [call0, transfer0, call1],
+    childAddresses: new Map(),
+    chainId: 1,
+  });
+  const superset = buildEvents({
+    eventCallbacks,
+    blocks: [block],
+    logs: [],
+    transactions,
+    transactionReceipts: [],
+    traces: [
+      call0,
+      // `STATICCALL` frame with a selector of the ERC20 ABI
+      {
+        ...call0,
+        type: "STATICCALL",
+        from: erc20,
+        input: encodeFunctionData({
+          abi: erc20ABI,
+          functionName: "balanceOf",
+          args: [BOB],
+        }),
+        value: null,
+        traceAddress: [0],
+      },
+      // `CALL` frame without value
+      { ...transfer0, value: 0n, traceAddress: [1] },
+      // `DELEGATECALL` frame that reports the value of its parent call
+      { ...transfer0, type: "DELEGATECALL", traceAddress: [2] },
+      transfer0,
+      call1,
+    ],
+    childAddresses: new Map(),
+    chainId: 1,
+  });
+
+  expect(exact.map((event) => event.trace!.traceAddress)).toStrictEqual([
+    [],
+    [3],
+    [],
+  ]);
+  expect(superset.map((event) => event.checkpoint)).toStrictEqual(
+    exact.map((event) => event.checkpoint),
+  );
+  expect(
+    exact.map((event) => decodeCheckpoint(event.checkpoint).eventIndex),
+  ).toStrictEqual([0n, 1n, 0n]);
 });
