@@ -78,6 +78,11 @@ const IN_MEMORY_SYNC_APPS = [
 
 /** Maximum time in milliseconds for the app to shut down. */
 const SHUTDOWN_TIMEOUT = 30_000;
+/**
+ * Maximum time in milliseconds for a run. It is less than the CI job timeout, so that a
+ * run that does not complete fails with a clear error and a reproduction command.
+ */
+const RUN_TIMEOUT = 12 * 60_000;
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const APP_ID = process.argv[2];
@@ -1718,6 +1723,13 @@ const onBuild = async (app: PonderApp) => {
 
   return app;
 };
+
+setTimeout(() => {
+  console.error(
+    `ERROR: Run did not complete within ${RUN_TIMEOUT / 60_000} minutes`,
+  );
+  process.exit(1);
+}, RUN_TIMEOUT).unref();
 
 process.on("exit", (code) => {
   if (code !== 0) {
