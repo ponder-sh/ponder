@@ -7,6 +7,7 @@ import type {
   EventCallback,
   Factory,
   FragmentAddress,
+  LightBlock,
 } from "@ponder/internal/types.js";
 import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
@@ -92,6 +93,14 @@ export let APP: PonderApp | undefined;
 export let IS_REALTIME = false;
 export let RESTART_COUNT = 0;
 
+/**
+ * Block that the simulated "latest" block is derived from, for each chain. It is after the
+ * mocked finalized block when the finalized block advances during the backfill.
+ */
+export const FINALIZED_TARGETS = new Map<number, LightBlock>();
+/** Finalized block number of the app, for each chain. */
+export const APP_FINALIZED = new Map<number, number>();
+
 // sim params
 
 export const pick = <T>(possibilities: T[] | readonly T[], tag: string): T => {
@@ -132,13 +141,23 @@ export const SIM_PARAMS = {
   UNFINALIZED_BLOCKS: pick([0, 0, 50, 100, 250, 300], "unfinalized-blocks"),
   REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING:
-    APP_ID === "assessment"
+    APP_ID === "assessment" || APP_ID === "super-assessment"
       ? pick(["multichain", "omnichain", "experimental_isolated"], "ordering")
       : pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",
   ),
+  SYNC_EVENTS_QUERY_SIZE: pick([50, 200, 2_000], "sync-events-query-size"),
+  FACTORY_ADDRESS_COUNT_THRESHOLD: pick(
+    [1_000, 20, 1],
+    "factory-address-count-threshold",
+  ),
+  INDEXING_CACHE_MAX_BYTES: pick(
+    [undefined, 64 * 1024],
+    "indexing-cache-max-bytes",
+  ),
+  FINALIZED_ADVANCE_BLOCKS: pick([0, 0, 10, 30], "finalized-advance-blocks"),
   HISTORICAL_SHUTDOWN_PROGRESS: pick(
     [undefined, undefined, 0.25, 0.5, 0.75],
     "historical-shutdown-progress",
@@ -271,8 +290,16 @@ const pwr = promiseWithResolvers<void>();
  */
 const onBuild = async (app: PonderApp) => {
   APP = app;
+  FINALIZED_TARGETS.clear();
+  APP_FINALIZED.clear();
 
-  app.common.options.syncEventsQuerySize = 200;
+  app.common.options.syncEventsQuerySize = SIM_PARAMS.SYNC_EVENTS_QUERY_SIZE;
+  app.common.options.factoryAddressCountThreshold =
+    SIM_PARAMS.FACTORY_ADDRESS_COUNT_THRESHOLD;
+  if (SIM_PARAMS.INDEXING_CACHE_MAX_BYTES !== undefined) {
+    app.common.options.indexingCacheMaxBytes =
+      SIM_PARAMS.INDEXING_CACHE_MAX_BYTES;
+  }
   // Note: this forces the app to run in a single thread.
   app.common.options.maxThreads = 1;
 
@@ -1462,6 +1489,29 @@ const onBuild = async (app: PonderApp) => {
           false,
         ]);
       }
+
+      const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
+      APP_FINALIZED.set(chain.id, hexToNumber(finalizedBlock.number));
+
+      // Note: Advance the finalized block once during the backfill. The app refetches the
+      // finalized block after the first pass and syncs the new range in a catch-up pass.
+      const advancedBlockNumber = Math.min(
+        hexToNumber(finalizedBlock.number) +
+          SIM_PARAMS.FINALIZED_ADVANCE_BLOCKS,
+        end - 20,
+      );
+      if (advancedBlockNumber > hexToNumber(finalizedBlock.number)) {
+        FINALIZED_TARGETS.set(
+          chain.id,
+          await eth_getBlockByNumber(rpc, [
+            numberToHex(advancedBlockNumber),
+            false,
+          ]),
+        );
+        app.common.options.backfillFinalizedRefetchInterval = 0;
+      } else {
+        FINALIZED_TARGETS.set(chain.id, finalizedBlock);
+      }
     }
 
     // TODO(kyle) delete unfinalized data
@@ -1521,6 +1571,14 @@ const onBuild = async (app: PonderApp) => {
         let isAccepted: boolean;
 
         for await (block of getRealtimeBlockGenerator(chain.id)) {
+          // Note: The app can finalize blocks in a catch-up pass. It must not receive a
+          // block at or before its finalized block.
+          if (
+            hexToNumber(block.number!) <=
+            (APP_FINALIZED.get(chain.id) ?? Number.NEGATIVE_INFINITY)
+          ) {
+            continue;
+          }
           isAccepted = await onBlock(block);
         }
         // Note: last block must be accepted before shutdown

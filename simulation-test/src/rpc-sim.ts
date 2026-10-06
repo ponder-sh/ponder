@@ -15,7 +15,16 @@ import {
   toHex,
 } from "viem";
 import * as RPC_SCHEMA from "../schema.js";
-import { APP, DB, IS_REALTIME, restart, SEED, SIM_PARAMS } from "./index.js";
+import {
+  APP,
+  APP_FINALIZED,
+  DB,
+  FINALIZED_TARGETS,
+  IS_REALTIME,
+  restart,
+  SEED,
+  SIM_PARAMS,
+} from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -118,17 +127,47 @@ export const sim =
         const index = APP.indexingBuild.chains.findIndex(
           (_chain) => _chain.id === chain.id,
         );
-        const finalizedBlock = APP.indexingBuild.finalizedBlocks[index]!;
+        const finalizedBlock =
+          FINALIZED_TARGETS.get(chain.id) ??
+          APP.indexingBuild.finalizedBlocks[index]!;
         const chainConfig = APP.indexingBuild.chains[index]!;
         const targetTimestamp =
           hexToNumber(finalizedBlock.timestamp) + chainConfig.reorgWindow;
         let number = hexToNumber(finalizedBlock.number);
 
+        let latestBlock: RpcBlock;
         while (true) {
-          const block = await getCachedBlock(number + 1);
+          latestBlock = await getCachedBlock(number + 1);
           number += 1;
-          if (hexToNumber(block.timestamp) >= targetTimestamp) break;
+          if (hexToNumber(latestBlock.timestamp) >= targetTimestamp) break;
         }
+
+        // Note: The app finalizes the last block that is at least `reorgWindow` seconds
+        // before the latest block. Record it, so that the realtime block engine does not
+        // send blocks that the app already finalized.
+        let appFinalized =
+          chainConfig.reorgWindow === 0
+            ? number
+            : hexToNumber(finalizedBlock.number);
+        for (let n = appFinalized + 1; n < number; n++) {
+          const block = await getCachedBlock(n);
+          if (
+            hexToNumber(block.timestamp) >
+            hexToNumber(latestBlock!.timestamp) - chainConfig.reorgWindow
+          ) {
+            break;
+          }
+          appFinalized = n;
+        }
+        if (APP_FINALIZED.has(chain.id)) {
+          APP_FINALIZED.set(
+            chain.id,
+            Math.max(APP_FINALIZED.get(chain.id)!, appFinalized),
+          );
+        }
+
+        // Note: Only advance the finalized block once.
+        APP.common.options.backfillFinalizedRefetchInterval = undefined;
 
         body.params[0] = toHex(number);
       }
