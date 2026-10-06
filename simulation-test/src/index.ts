@@ -181,13 +181,13 @@ export const SIM_PARAMS = {
 };
 
 // Note: The previous run must start with an empty sync store, so that the tested config
-// only reuses data that the previous run synced.
-SIM_PARAMS.SYNC_STORE =
-  APP_ID !== "super-assessment"
-    ? "template"
-    : SIM_PARAMS.PREVIOUS_RUN
-      ? "empty"
-      : pick(["template", "template", "empty"], "sync-store");
+// only reuses data that the previous run synced. An empty sync store is only picked for
+// apps with small block ranges, because the app syncs all data through the simulated rpc.
+SIM_PARAMS.SYNC_STORE = SIM_PARAMS.PREVIOUS_RUN
+  ? "empty"
+  : IN_MEMORY_SYNC_APPS.includes(APP_ID)
+    ? pick(["template", "template", "empty"], "sync-store")
+    : "template";
 
 // 1. Setup database
 
