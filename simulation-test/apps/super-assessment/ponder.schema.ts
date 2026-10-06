@@ -15,7 +15,7 @@ export const blocks = onchainTable(
     hash: t.text().notNull(),
   }),
   (table) => ({
-    pk: primaryKey({ columns: [table.name, table.id] }),
+    pk: primaryKey({ columns: [table.name, table.id, table.chainId] }),
   }),
 );
 
@@ -29,7 +29,7 @@ export const transactions = onchainTable(
     hash: t.text().notNull(),
   }),
   (table) => ({
-    pk: primaryKey({ columns: [table.name, table.id] }),
+    pk: primaryKey({ columns: [table.name, table.id, table.chainId] }),
   }),
 );
 
@@ -43,7 +43,7 @@ export const transactionReceipts = onchainTable(
     hash: t.text().notNull(),
   }),
   (table) => ({
-    pk: primaryKey({ columns: [table.name, table.id] }),
+    pk: primaryKey({ columns: [table.name, table.id, table.chainId] }),
   }),
 );
 
@@ -56,7 +56,7 @@ export const traces = onchainTable(
     traceAddress: t.integer().array().notNull(),
   }),
   (table) => ({
-    pk: primaryKey({ columns: [table.name, table.id] }),
+    pk: primaryKey({ columns: [table.name, table.id, table.chainId] }),
   }),
 );
 
@@ -69,6 +69,6 @@ export const logs = onchainTable(
     logIndex: t.int8({ mode: "number" }).notNull(),
   }),
   (table) => ({
-    pk: primaryKey({ columns: [table.name, table.id] }),
+    pk: primaryKey({ columns: [table.name, table.id, table.chainId] }),
   }),
 );
