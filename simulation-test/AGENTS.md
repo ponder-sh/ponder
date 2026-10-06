@@ -98,7 +98,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - Treat any CI job cancelled because of a timeout as a test failure.
 - On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
 - Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema.
-- `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). It is only picked for apps whose blocks are all in the rpc cache (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
+- `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). In-memory sync does not use the template's sync data, so it fetches all data through the simulated RPC on every start and crash recovery restart. It is only picked for apps with small block ranges (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
 
 ## Infra / Railway / Monitoring CI

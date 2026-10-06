@@ -60,7 +60,7 @@ import { getJoinConditions } from "./sql.js";
 
 // Large apps that shouldn't be synced, use cached data instead
 const CACHED_APPS = ["the-compact", "basepaint"];
-// Apps with all blocks in the rpc cache. These apps can run without the sync-store cache.
+// Apps with small block ranges. In-memory sync fetches all data through the simulated rpc on every start.
 const IN_MEMORY_SYNC_APPS = [
   "assessment",
   "feature-multichain",
