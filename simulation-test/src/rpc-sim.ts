@@ -163,6 +163,11 @@ export const sim =
           appFinalized = n;
         }
         if (APP_FINALIZED.has(chain.id)) {
+          if (appFinalized > APP_FINALIZED.get(chain.id)!) {
+            console.log(
+              `Advanced finalized block from ${APP_FINALIZED.get(chain.id)} to ${appFinalized} on chain ${chain.id}`,
+            );
+          }
           APP_FINALIZED.set(
             chain.id,
             Math.max(APP_FINALIZED.get(chain.id)!, appFinalized),
