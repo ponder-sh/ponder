@@ -6,15 +6,15 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Note: Seeds that found bugs. These run on every run, including scheduled runs.
   simulation-test-known-failures:
-    if: github.event_name == 'workflow_dispatch'
     name: Simulation Test Known Failures
     runs-on: self-hosted
-    timeout-minutes: 60
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -72,7 +72,7 @@ jobs:
   simulation-test-fuzz:
     name: Simulation Test Fuzz
     runs-on: self-hosted
-    timeout-minutes: 60
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
