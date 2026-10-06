@@ -36,10 +36,10 @@ Usage: ponder dev [options]
 Start the development server with hot reloading
 
 Options:
-  --schema <SCHEMA>          Database schema (max: 45 characters)
-  --disable-ui               Disable the terminal UI
+  --schema <SCHEMA>          Database schema
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
+  --disable-ui               Disable the terminal UI
   -h, --help                 display help for command
 ```
 
@@ -56,8 +56,8 @@ Usage: ponder start [options]
 Start the production server
 
 Options:
-  --schema <SCHEMA>          Database schema (max: 45 characters)
-  --views-schema <SCHEMA>    Views database schema (max: 45 characters)
+  --schema <SCHEMA>          Database schema
+  --views-schema <SCHEMA>    Views database schema
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
@@ -78,7 +78,7 @@ Usage: ponder serve [options]
 Start the production HTTP server without the indexer
 
 Options:
-  --schema <SCHEMA>          Database schema (max: 45 characters)
+  --schema <SCHEMA>          Database schema
   -p, --port <PORT>          Port for the web server (default: 42069)
   -H, --hostname <HOSTNAME>  Hostname for the web server (default: "0.0.0.0" or "::")
   -h, --help                 display help for command
@@ -108,11 +108,11 @@ Creates views for the views pattern. [Read more](/docs/production/self-hosting#v
 ```bash
 Usage: ponder create-views [options]
 
-Create database views for the views pattern
+Create database views
 
 Options:
-  --schema <SCHEMA>          Database schema (max: 45 characters)
-  --views-schema <SCHEMA>    Views database schema (max: 45 characters)
+  --schema <SCHEMA>          Source database schema
+  --views-schema <SCHEMA>    Target database schema
   -h, --help                 display help for command
 ```
 
