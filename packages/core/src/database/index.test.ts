@@ -453,7 +453,10 @@ test("migrateSync() creates only the latest sync schema", async () => {
   await database.migrateSync();
 
   const tables = await database.adminQB.wrap((db) =>
-    db.select().from(TABLES).where(eq(TABLES.table_schema, "ponder_rpc_cache_1")),
+    db
+      .select()
+      .from(TABLES)
+      .where(eq(TABLES.table_schema, "ponder_rpc_cache_1")),
   );
   expect(tables.map((table) => table.table_name).sort()).toEqual([
     "blocks",
