@@ -6,6 +6,7 @@ import { getPrimaryKeyColumns } from "@ponder/drizzle/index.js";
 import type {
   EventCallback,
   Factory,
+  FactoryFragmentId,
   FragmentAddress,
   LightBlock,
 } from "@ponder/internal/types.js";
@@ -1173,7 +1174,6 @@ const onBuild = async (app: PonderApp) => {
 
   if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0 && IS_PREVIOUS_RUN === false) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
-      if (interval.fragmentId.startsWith("factory_")) continue;
       const intervals: [number, number][] = JSON.parse(
         `[${interval.blocks.slice(1, -1)}]`,
       );
@@ -1205,7 +1205,45 @@ const onBuild = async (app: PonderApp) => {
 
       resultIntervals = intervalUnion(resultIntervals);
 
-      // TODO(kyle) Determine which factory intervals should be removed.
+      // Note: Remove the child addresses of a factory that were created in the removed
+      // blocks. The app must sync the removed blocks of the factory again.
+      if (interval.fragmentId.startsWith("factory_log_")) {
+        const [factory] = await APP_DB.select({ id: PONDER_SYNC.factories.id })
+          .from(PONDER_SYNC.factories)
+          .where(
+            eq(
+              PONDER_SYNC.factories.fragmentId,
+              interval.fragmentId as FactoryFragmentId,
+            ),
+          );
+
+        if (factory) {
+          await APP_DB.delete(PONDER_SYNC.factoryAddresses).where(
+            and(
+              eq(PONDER_SYNC.factoryAddresses.factoryId, factory.id),
+              resultIntervals.length === 0
+                ? undefined
+                : not(
+                    or(
+                      ...resultIntervals.map(
+                        ([from, to]) =>
+                          and(
+                            gte(
+                              PONDER_SYNC.factoryAddresses.blockNumber,
+                              BigInt(from),
+                            ),
+                            lte(
+                              PONDER_SYNC.factoryAddresses.blockNumber,
+                              BigInt(to),
+                            ),
+                          )!,
+                      ),
+                    )!,
+                  ),
+            ),
+          );
+        }
+      }
 
       for (const blocks of resultIntervals) {
         const fragment = decodeFragment(interval.fragmentId);
