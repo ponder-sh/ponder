@@ -104,8 +104,9 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 ## Infra / Railway / Monitoring CI
 - Scheduled CI is defined in `.github/workflows/simulation-test.yml`.
 - The fuzz workflow currently runs four times per day with cron `0 0,6,12,18 * * *`.
-- Each matrix job builds once, then `run-seeds.sh` runs the app's seeds from `regression-seeds.txt` and a number of random seeds. Each seed has a 15 minute timeout. The job step summary lists the result of each seed (`pass`, `FAIL`, `INFRA ERROR`, or `TIMEOUT`).
-- Add a seed to `regression-seeds.txt` after it finds a bug. CI runs these seeds on every run, including scheduled runs.
+- The scheduled matrix runs each configured app for three iterations. The `iteration` value is only a matrix label; it does not seed the test.
+- The `simulation-test-known-failures` job runs seeds that found bugs on every run, including scheduled runs. Add a seed to its matrix after it finds a bug.
+- Each job has a 15 minute timeout. A healthy job takes less than 5 minutes.
 - One-off reproductions in CI use `.github/workflows/simulation-test-single.yml`, which accepts an app and seed.
 - CI runs on self-hosted runners and uses GitHub secrets for `DATABASE_URL` and RPC URLs. Current workflow env sets `PGDATABASE=railway`, indicating the shared Postgres service is Railway-backed.
 - Simulation workflows call the shared `.github/actions/setup` action with `foundry: "false"`. These jobs do not need Foundry, and skipping it avoids self-hosted runner glibc/toolchain failures during setup.
@@ -131,8 +132,6 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - `src/db-sim.ts`: database fault injection.
 - `src/create-app.ts`: app template database creation.
 - `src/cleanup-database.ts`: successful run database cleanup.
-- `run-seeds.sh`: CI runner for the regression seeds and random seeds of one app.
-- `regression-seeds.txt`: seeds that found bugs.
 - `schema.ts`: shared metadata and RPC cache schema.
 - `.github/workflows/simulation-test.yml`: scheduled fuzz workflow.
 - `.github/workflows/simulation-test-single.yml`: manual single-seed workflow.
