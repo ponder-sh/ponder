@@ -224,11 +224,15 @@ export const factories = PONDER_SYNC.table(
 export const factoryAddresses = PONDER_SYNC.table(
   "factory_addresses",
   (t) => ({
-    id: t.integer().primaryKey().generatedAlwaysAsIdentity(),
     factoryId: t.integer().notNull(), // references `factories.id`
     chainId: t.bigint({ mode: "bigint" }).notNull(),
     blockNumber: t.bigint({ mode: "bigint" }).notNull(),
     address: t.text().$type<Address>().notNull(),
   }),
-  (table) => [index("factory_addresses_factory_id_index").on(table.factoryId)],
+  (table) => [
+    primaryKey({
+      name: "factory_addresses_pkey",
+      columns: [table.factoryId, table.address],
+    }),
+  ],
 );

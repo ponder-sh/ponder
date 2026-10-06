@@ -486,7 +486,17 @@ export const createSyncStore = ({
           (db) =>
             db
               .insert(PONDER_SYNC.factoryAddresses)
-              .values(values.slice(i, i + batchSize)),
+              .values(values.slice(i, i + batchSize))
+              // Note: Live and historical sync can insert a child address that is
+              // already stored. Keep one row per parent with the earliest block number.
+              .onConflictDoUpdate({
+                target: [
+                  PONDER_SYNC.factoryAddresses.factoryId,
+                  PONDER_SYNC.factoryAddresses.address,
+                ],
+                set: { blockNumber: sql`excluded.block_number` },
+                setWhere: sql`excluded.block_number < ${PONDER_SYNC.factoryAddresses.blockNumber}`,
+              }),
           context,
         );
       }
@@ -515,7 +525,7 @@ export const createSyncStore = ({
       );
 
       // Note: A child address can have more than one row, because more than one parent
-      // or more than one log can emit it. The earliest block number is used.
+      // can emit it. The earliest block number is used.
 
       const result = new Map<Address, number>();
       for (const { address, blockNumber } of rows) {

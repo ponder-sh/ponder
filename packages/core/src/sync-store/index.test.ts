@@ -802,18 +802,17 @@ test("insertChildAddresses()", async () => {
 
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
-  await syncStore.insertChildAddresses({
-    childAddresses: new Map([
-      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
-    ]),
-    chainId: 1,
-  });
-  await syncStore.insertChildAddresses({
-    childAddresses: new Map([
-      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 3]])],
-    ]),
-    chainId: 1,
-  });
+  for (const blockNumber of [3, 0, 5]) {
+    await syncStore.insertChildAddresses({
+      childAddresses: new Map([
+        [
+          getFactoryFragmentIds(filter.address)[0]!,
+          new Map([[pair, blockNumber]]),
+        ],
+      ]),
+      chainId: 1,
+    });
+  }
 
   const factories = await database.syncQB.wrap((db) =>
     db.select().from(ponderSyncSchema.factories).execute(),
@@ -823,7 +822,8 @@ test("insertChildAddresses()", async () => {
   );
 
   expect(factories).toHaveLength(1);
-  expect(factoryAddresses).toHaveLength(2);
+  expect(factoryAddresses).toHaveLength(1);
+  expect(factoryAddresses[0]!.blockNumber).toBe(0n);
 });
 
 test("insertLogs()", async () => {

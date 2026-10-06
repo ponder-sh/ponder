@@ -663,7 +663,7 @@ test("migrateSync() excludes factories, child addresses, and factory intervals f
   expect(factories).toEqual([]);
 
   const { rows: childAddresses } = await database.adminQB.wrap((db) =>
-    db.execute(sql`SELECT id FROM ponder_sync_1.factory_addresses`),
+    db.execute(sql`SELECT address FROM ponder_sync_1.factory_addresses`),
   );
   expect(childAddresses).toEqual([]);
 
