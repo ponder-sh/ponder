@@ -324,7 +324,8 @@ export async function* getHistoricalEventsOmnichain(params: {
       params.indexingBuild.chains.every(
         (chain) =>
           Date.now() - lastUnfinalizedRefetch <
-          Math.max(chain.reorgWindow * 1_000, 30_000),
+          (params.common.options.backfillFinalizedRefetchInterval ??
+            Math.max(chain.reorgWindow * 1_000, 30_000)),
       )
     ) {
       break;
@@ -578,7 +579,8 @@ export async function* getHistoricalEventsMultichain(params: {
       params.indexingBuild.chains.every(
         (chain) =>
           Date.now() - lastUnfinalizedRefetch <
-          Math.max(chain.reorgWindow * 1_000, 30_000),
+          (params.common.options.backfillFinalizedRefetchInterval ??
+            Math.max(chain.reorgWindow * 1_000, 30_000)),
       )
     ) {
       break;
@@ -791,7 +793,8 @@ export async function* getHistoricalEventsIsolated(params: {
       params.indexingBuild.chains.every(
         (chain) =>
           Date.now() - lastUnfinalizedRefetch <
-          Math.max(chain.reorgWindow * 1_000, 30_000),
+          (params.common.options.backfillFinalizedRefetchInterval ??
+            Math.max(chain.reorgWindow * 1_000, 30_000)),
       )
     ) {
       break;

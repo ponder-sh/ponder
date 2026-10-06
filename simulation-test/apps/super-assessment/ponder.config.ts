@@ -68,6 +68,16 @@ const possibleContractFilters = [
       ] as Address[],
     },
   },
+  // No filter
+  undefined,
+  // More than one topic
+  {
+    event: "Transfer",
+    args: {
+      from: [zeroAddress, "0x000000000000000000000000000000000000dead"],
+      to: [zeroAddress, "0x000000000000000000000000000000000000dead"],
+    },
+  },
 ] as const;
 
 const pairCreated = parseAbiItem(
@@ -109,20 +119,118 @@ const pickFactory = (
         parameter: "pair",
         endBlock: blocks.startBlock + 200,
       }),
+      // Child address location instead of parameter name
+      factory({ address, event: pairCreated, location: "offset0" }),
     ],
     tag,
   );
 
-const contractBlocks = {
-  mainnet: pick(possibleMainnetBlocks, "contract_blocks_mainnet"),
-  base: pick(possibleBaseBlocks, "contract_blocks_base"),
-  optimism: pick(possibleOptimismBlocks, "contract_blocks_optimism"),
+type ChainName = "mainnet" | "base" | "optimism";
+
+const possibleBlocks = {
+  mainnet: possibleMainnetBlocks,
+  base: possibleBaseBlocks,
+  optimism: possibleOptimismBlocks,
+} as const;
+
+/** Addresses with data in the template database, for each chain. */
+const addresses = {
+  mainnet: {
+    contract: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    account: "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
+    list: [
+      "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
+      "0xc944E90C64B2c07662A292be6244BDf05Cda44a7",
+    ],
+    factory: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+  },
+  base: {
+    contract: "0x4200000000000000000000000000000000000006",
+    account: "0x3304E22DDaa22bCdC5fCa2269b418046aE7b566A",
+    list: [
+      "0x64b88c73A5DfA78D1713fE1b4c69a22d7E0faAa7",
+      "0x4A3A6Dd60A34bB2Aba60D73B4C88315E9CeB6A3D",
+    ],
+    factory: "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+  },
+  optimism: {
+    contract: "0x4200000000000000000000000000000000000006",
+    account: "0xacD03D601e5bB1B275Bb94076fF46ED9D753435A",
+    list: [
+      "0x67CCEA5bb16181E7b4109c9c2143c24a1c2205Be",
+      "0xFdb794692724153d1488CcdBE0C56c252596735F",
+    ],
+    factory: "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
+  },
+} as const satisfies Record<
+  ChainName,
+  { contract: Address; account: Address; list: Address[]; factory: Address }
+>;
+
+const pickContract = (prefix: string, chain: ChainName) => {
+  const blocks = pick(possibleBlocks[chain], `${prefix}_blocks_${chain}`);
+  const filter = pick(possibleContractFilters, `${prefix}_filter_${chain}`);
+  return {
+    address: pick(
+      [
+        addresses[chain].contract,
+        addresses[chain].list,
+        pickFactory(
+          addresses[chain].factory,
+          blocks,
+          `${prefix}_factory_${chain}`,
+        ),
+      ],
+      `${prefix}_address_${chain}`,
+    ),
+    includeCallTraces: pick(
+      [true, false],
+      `${prefix}_includeCallTraces_${chain}`,
+    ),
+    includeTransactionReceipts: pick(
+      [true, false],
+      `${prefix}_includeTransactionReceipts_${chain}`,
+    ),
+    ...(filter ? { filter } : {}),
+    ...blocks,
+  };
 };
-const accountBlocks = {
-  mainnet: pick(possibleMainnetBlocks, "account_blocks_mainnet"),
-  base: pick(possibleBaseBlocks, "account_blocks_base"),
-  optimism: pick(possibleOptimismBlocks, "account_blocks_optimism"),
+
+const pickAccount = (prefix: string, chain: ChainName) => {
+  const blocks = pick(possibleBlocks[chain], `${prefix}_blocks_${chain}`);
+  return {
+    address: pick(
+      [
+        addresses[chain].account,
+        addresses[chain].list,
+        pickFactory(
+          addresses[chain].factory,
+          blocks,
+          `${prefix}_factory_${chain}`,
+        ),
+      ],
+      `${prefix}_address_${chain}`,
+    ),
+    includeTransactionReceipts: pick(
+      [true, false],
+      `${prefix}_includeTransactionReceipts_${chain}`,
+    ),
+    ...blocks,
+  };
 };
+
+const pickBlock = (prefix: string, chain: ChainName) => ({
+  interval: pick([50, 88, 152], `${prefix}_interval_${chain}`),
+  ...pick(possibleBlocks[chain], `${prefix}_blocks_${chain}`),
+});
+
+const abi = parseAbi([
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+  "function transfer(address to, uint256 amount) external returns (bool)",
+]);
+
+// Note: `d` and `b2` are second sources of the same kind. They can have the same
+// addresses and blocks as `c` and `b`, with other options.
 
 export default process.env.SEED
   ? createConfig({
@@ -140,92 +248,19 @@ export default process.env.SEED
       },
       contracts: {
         c: {
-          abi: parseAbi([
-            "event Transfer(address indexed from, address indexed to, uint256 value)",
-            "function transfer(address to, uint256 amount) external returns (bool)",
-          ]),
+          abi,
           chain: {
-            mainnet: {
-              address: pick(
-                [
-                  "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-                  [
-                    "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
-                    "0xc944E90C64B2c07662A292be6244BDf05Cda44a7",
-                  ] as Address[],
-                  pickFactory(
-                    "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-                    contractBlocks.mainnet,
-                    "contract_factory_mainnet",
-                  ),
-                ],
-                "contract_address_mainnet",
-              ),
-              includeCallTraces: pick(
-                [true, false],
-                "contract_includeCallTraces_mainnet",
-              ),
-              includeTransactionReceipts: pick(
-                [true, false],
-                "contract_includeTransactionReceipts_mainnet",
-              ),
-              filter: pick(possibleContractFilters, "contract_filter_mainnet"),
-              ...contractBlocks.mainnet,
-            },
-            base: {
-              address: pick(
-                [
-                  "0x4200000000000000000000000000000000000006",
-                  [
-                    "0x64b88c73A5DfA78D1713fE1b4c69a22d7E0faAa7",
-                    "0x4A3A6Dd60A34bB2Aba60D73B4C88315E9CeB6A3D",
-                  ],
-                  pickFactory(
-                    "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
-                    contractBlocks.base,
-                    "contract_factory_base",
-                  ),
-                ],
-                "contract_address_base",
-              ),
-              includeCallTraces: pick(
-                [true, false],
-                "contract_includeCallTraces_base",
-              ),
-              includeTransactionReceipts: pick(
-                [true, false],
-                "contract_includeTransactionReceipts_base",
-              ),
-              filter: pick(possibleContractFilters, "contract_filter_base"),
-              ...contractBlocks.base,
-            },
-            optimism: {
-              address: pick(
-                [
-                  "0x4200000000000000000000000000000000000006",
-                  [
-                    "0x67CCEA5bb16181E7b4109c9c2143c24a1c2205Be",
-                    "0xFdb794692724153d1488CcdBE0C56c252596735F",
-                  ],
-                  pickFactory(
-                    "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
-                    contractBlocks.optimism,
-                    "contract_factory_optimism",
-                  ),
-                ],
-                "contract_address_optimism",
-              ),
-              includeCallTraces: pick(
-                [true, false],
-                "contract_includeCallTraces_optimism",
-              ),
-              includeTransactionReceipts: pick(
-                [true, false],
-                "contract_includeTransactionReceipts_optimism",
-              ),
-              filter: pick(possibleContractFilters, "contract_filter_optimism"),
-              ...contractBlocks.optimism,
-            },
+            mainnet: pickContract("contract", "mainnet"),
+            base: pickContract("contract", "base"),
+            optimism: pickContract("contract", "optimism"),
+          },
+        },
+        d: {
+          abi,
+          chain: {
+            mainnet: pickContract("contract_d", "mainnet"),
+            base: pickContract("contract_d", "base"),
+            optimism: pickContract("contract_d", "optimism"),
           },
         },
       },
@@ -233,90 +268,25 @@ export default process.env.SEED
         a: {
           address: zeroAddress,
           chain: {
-            mainnet: {
-              address: pick(
-                [
-                  "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5",
-                  [
-                    "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
-                    "0xc944E90C64B2c07662A292be6244BDf05Cda44a7",
-                  ] as Address[],
-                  pickFactory(
-                    "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-                    accountBlocks.mainnet,
-                    "account_factory_mainnet",
-                  ),
-                ],
-                "account_address_mainnet",
-              ),
-              includeTransactionReceipts: pick(
-                [true, false],
-                "account_includeTransactionReceipts_mainnet",
-              ),
-              ...accountBlocks.mainnet,
-            },
-            base: {
-              address: pick(
-                [
-                  "0x3304E22DDaa22bCdC5fCa2269b418046aE7b566A",
-                  [
-                    "0x64b88c73A5DfA78D1713fE1b4c69a22d7E0faAa7",
-                    "0x4A3A6Dd60A34bB2Aba60D73B4C88315E9CeB6A3D",
-                  ],
-                  pickFactory(
-                    "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
-                    accountBlocks.base,
-                    "account_factory_base",
-                  ),
-                ],
-                "account_address_base",
-              ),
-              includeTransactionReceipts: pick(
-                [true, false],
-                "account_includeTransactionReceipts_base",
-              ),
-              ...accountBlocks.base,
-            },
-            optimism: {
-              address: pick(
-                [
-                  "0xacD03D601e5bB1B275Bb94076fF46ED9D753435A",
-                  [
-                    "0x67CCEA5bb16181E7b4109c9c2143c24a1c2205Be",
-                    "0xFdb794692724153d1488CcdBE0C56c252596735F",
-                  ],
-                  pickFactory(
-                    "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
-                    accountBlocks.optimism,
-                    "account_factory_optimism",
-                  ),
-                ],
-                "account_address_optimism",
-              ),
-              includeTransactionReceipts: pick(
-                [true, false],
-                "account_includeTransactionReceipts_optimism",
-              ),
-              ...accountBlocks.optimism,
-            },
+            mainnet: pickAccount("account", "mainnet"),
+            base: pickAccount("account", "base"),
+            optimism: pickAccount("account", "optimism"),
           },
         },
       },
       blocks: {
         b: {
           chain: {
-            mainnet: {
-              interval: pick([50, 88, 152], "block_interval_mainnet"),
-              ...pick(possibleMainnetBlocks, "block_blocks_mainnet"),
-            },
-            base: {
-              interval: pick([50, 88, 152], "block_interval_base"),
-              ...pick(possibleBaseBlocks, "block_blocks_base"),
-            },
-            optimism: {
-              interval: pick([50, 88, 152], "block_interval_optimism"),
-              ...pick(possibleOptimismBlocks, "block_blocks_optimism"),
-            },
+            mainnet: pickBlock("block", "mainnet"),
+            base: pickBlock("block", "base"),
+            optimism: pickBlock("block", "optimism"),
+          },
+        },
+        b2: {
+          chain: {
+            mainnet: pickBlock("block_b2", "mainnet"),
+            base: pickBlock("block_b2", "base"),
+            optimism: pickBlock("block_b2", "optimism"),
           },
         },
       },
