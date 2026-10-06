@@ -127,6 +127,16 @@ const pickFactory = (
 
 type ChainName = "mainnet" | "base" | "optimism";
 
+/**
+ * Returns the pick tag for an option that the previous config picks again.
+ *
+ * Note: The simulation can run a previous config on the same sync store before the tested
+ * config. It has the same addresses and blocks, but other factory, filter, receipt, and
+ * trace options.
+ */
+const previous = (tag: string) =>
+  process.env.SIM_PREVIOUS_RUN === "true" ? `${tag}_previous` : tag;
+
 const possibleBlocks = {
   mainnet: possibleMainnetBlocks,
   base: possibleBaseBlocks,
@@ -169,7 +179,10 @@ const addresses = {
 
 const pickContract = (prefix: string, chain: ChainName) => {
   const blocks = pick(possibleBlocks[chain], `${prefix}_blocks_${chain}`);
-  const filter = pick(possibleContractFilters, `${prefix}_filter_${chain}`);
+  const filter = pick(
+    possibleContractFilters,
+    previous(`${prefix}_filter_${chain}`),
+  );
   return {
     address: pick(
       [
@@ -178,18 +191,18 @@ const pickContract = (prefix: string, chain: ChainName) => {
         pickFactory(
           addresses[chain].factory,
           blocks,
-          `${prefix}_factory_${chain}`,
+          previous(`${prefix}_factory_${chain}`),
         ),
       ],
       `${prefix}_address_${chain}`,
     ),
     includeCallTraces: pick(
       [true, false],
-      `${prefix}_includeCallTraces_${chain}`,
+      previous(`${prefix}_includeCallTraces_${chain}`),
     ),
     includeTransactionReceipts: pick(
       [true, false],
-      `${prefix}_includeTransactionReceipts_${chain}`,
+      previous(`${prefix}_includeTransactionReceipts_${chain}`),
     ),
     ...(filter ? { filter } : {}),
     ...blocks,
@@ -206,14 +219,14 @@ const pickAccount = (prefix: string, chain: ChainName) => {
         pickFactory(
           addresses[chain].factory,
           blocks,
-          `${prefix}_factory_${chain}`,
+          previous(`${prefix}_factory_${chain}`),
         ),
       ],
       `${prefix}_address_${chain}`,
     ),
     includeTransactionReceipts: pick(
       [true, false],
-      `${prefix}_includeTransactionReceipts_${chain}`,
+      previous(`${prefix}_includeTransactionReceipts_${chain}`),
     ),
     ...blocks,
   };
