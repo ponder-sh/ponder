@@ -23,7 +23,7 @@ import {
   getReorgTableName,
 } from "@/drizzle/onchain.js";
 import type { Common } from "@/internal/common.js";
-import { MigrationError } from "@/internal/errors.js";
+import { MigrationError, UniqueConstraintError } from "@/internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -427,19 +427,11 @@ export const createDatabase = ({
           ? drizzleNodePg(driver.admin, { casing: "snake_case" })
           : drizzlePglite(driver.instance, { casing: "snake_case" });
 
-      const migratedSchemas = await adminQB.wrap(
-        { label: "migrate_sync" },
-        () =>
+      const migratedSchemas = await adminQB
+        .wrap({ label: "migrate_sync" }, () =>
           db.transaction(
             async (tx) => {
               await tx.execute(sql`SET LOCAL statement_timeout = 3600000`);
-
-              if (driver.dialect === "postgres") {
-                // Serialize schema checks and creation across concurrent app startups.
-                await tx.execute(
-                  sql`SELECT pg_advisory_xact_lock(hashtext('ponder_sync'))`,
-                );
-              }
 
               const dbSchemas = await tx
                 .select()
@@ -518,9 +510,21 @@ export const createDatabase = ({
               }
               return migratedSchemas;
             },
-            { isolationLevel: "read committed" },
+            { isolationLevel: "repeatable read" },
           ),
-      );
+        )
+        .catch((error) => {
+          // Note: Concurrent startups wait on `CREATE SCHEMA` until the first one
+          // commits, then fail with a unique violation. The first startup migrated
+          // the schemas.
+          if (
+            error instanceof UniqueConstraintError &&
+            error.message.includes("pg_namespace_nspname_index")
+          ) {
+            return [];
+          }
+          throw error;
+        });
 
       for (const { schema, duration } of migratedSchemas) {
         common.logger.info({ msg: `Migrated '${schema}' schema`, duration });

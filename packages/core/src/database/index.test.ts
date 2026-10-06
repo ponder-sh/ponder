@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
+import pg from "pg";
 import { zeroAddress } from "viem";
 import { beforeEach, expect, test } from "vitest";
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
@@ -677,6 +678,69 @@ test("migrateSync() handles concurrent migrations", async () => {
   expect(
     await database.syncQB.wrap((db) => db.select().from(rpcRequestResults)),
   ).toEqual([cachedResult]);
+
+  // Skip the metadata unlock because these tests only initialize the sync schema.
+  context.common.options.command = "list";
+  await context.common.shutdown.kill();
+});
+
+test("migrateSync() copies ponder_sync from one snapshot", async () => {
+  if (context.databaseConfig.kind !== "postgres") return;
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: { schema: "public", viewsSchema: undefined },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "multichain",
+    },
+    schemaBuild: {
+      schema: {},
+      statements: buildSchema({
+        schema: {},
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  await database.migrateSync();
+  await database.adminQB.wrap((db) =>
+    db.execute(sql`DROP SCHEMA ponder_sync_1 CASCADE`),
+  );
+
+  // A `0.17` app commits an interval while the migration waits to copy "intervals".
+  const client = new pg.Client(context.databaseConfig.poolConfig);
+  await client.connect();
+  await client.query("BEGIN");
+  await client.query(
+    "LOCK TABLE ponder_sync.intervals IN ACCESS EXCLUSIVE MODE",
+  );
+  await client.query(
+    `INSERT INTO ponder_sync.intervals (fragment_id, chain_id, blocks)
+    VALUES ('log_1_null_null_null_null_null_0', 1, '{[1,10]}')`,
+  );
+
+  const migration = database.migrateSync();
+
+  while (true) {
+    const { rows } = await client.query(
+      `SELECT 1 FROM pg_locks
+      WHERE relation = 'ponder_sync.intervals'::regclass AND NOT granted`,
+    );
+    if (rows.length > 0) break;
+    await wait(10);
+  }
+
+  await client.query("COMMIT");
+  await client.end();
+  await migration;
+
+  // Note: The interval is not copied, because it was committed after the migration
+  // snapshot. The copied tables are consistent with each other.
+  const { rows } = await database.adminQB.wrap((db) =>
+    db.execute(sql`SELECT fragment_id FROM ponder_sync_1.intervals`),
+  );
+  expect(rows).toEqual([]);
 
   // Skip the metadata unlock because these tests only initialize the sync schema.
   context.common.options.command = "list";
