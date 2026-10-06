@@ -1,0 +1,110 @@
+# API endpoints [Customize the HTTP server]
+
+Ponder supports **custom API endpoints** with direct access to the database and other useful resources.
+
+Custom API endpoints offer more flexibility than GraphQL or SQL over HTTP queries, making it possible to serve web requests with complex SQL queries, data from external sources, authentication, and more.
+
+## Guide
+
+::::steps
+
+### Open `src/api/index.ts`
+
+Ponder's API server uses [Hono](https://hono.dev/), a fast and lightweight HTTP router. The `src/api/index.ts` file **must** default export a Hono instance.
+
+```ts [src/api/index.ts (minimal)]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+export default app;
+```
+
+### Register a route handler
+
+To customize the server, register routes and middleware on the Hono instance before exporting it.
+
+```ts [src/api/index.ts]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/hello", (c) => {
+  // [!code focus]
+  return c.text("Hello, world!"); // [!code focus]
+}); // [!code focus]
+
+export default app;
+```
+
+### Test the endpoint
+
+To test the endpoint, start the development server and visit the route in your browser.
+
+```text [Response]
+Hello, world!
+```
+
+Hono supports all HTTP methods, custom middleware, cookies, JSX, and more. Visit the [Hono documentation](https://hono.dev/docs) for more details.
+
+::::
+
+## Resources
+
+The `ponder:api` virtual module includes useful resources for custom API endpoints.
+
+### Database queries
+
+The `db` object exported from `ponder:api` is a ready-to-use Drizzle database instance. This is the same database instance that powers GraphQL and SQL over HTTP queries.
+
+Use the `db` object to run read-only SQL queries within custom API endpoints.
+
+```ts [src/api/index.ts]
+import { db } from "ponder:api"; // [!code focus]
+import { accounts } from "ponder:schema";
+import { Hono } from "hono";
+import { eq } from "ponder";
+
+const app = new Hono();
+
+app.get("/account/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const account = await db // [!code focus]
+    .select() // [!code focus]
+    .from(accounts) // [!code focus]
+    .where(eq(accounts.address, address)); // [!code focus]
+
+  return c.json(account);
+});
+
+export default app;
+```
+
+### RPC requests
+
+The `publicClients` object exported from `ponder:api` is a collection of Viem [Public Client](https://viem.sh/docs/clients/public) objects — one for each chain defined in `ponder.config.ts`, using the same transports.
+
+Use these clients to make RPC requests within custom API endpoints.
+
+```ts [src/api/index.ts]
+import { publicClients } from "ponder:api"; // [!code focus]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/balance/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const balance = await publicClients["base"].getBalance({ address }); // [!code focus]
+
+  return c.json({ address, balance });
+});
+
+export default app;
+```
+
+## More examples
+
+- [**Basic usage**](https://github.com/ponder-sh/ponder/tree/main/examples/feature-api-functions/src/api/index.ts) - An app with custom endpoints serving ERC-20 data.
+- [**Usage with offchain data**](https://github.com/ponder-sh/ponder/blob/main/examples/with-offchain/ponder/src/api/index.ts) - An app that includes data from offchain sources.

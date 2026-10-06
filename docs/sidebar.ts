@@ -113,6 +113,138 @@ export const sidebar = {
       items: [{ text: "Observability", link: "/docs/advanced/observability" }],
     },
   ],
+  "/docs/0.17/": [
+    {
+      text: "Introduction",
+      items: [
+        { text: "Get started", link: "/docs/0.17/get-started" },
+        { text: "Requirements", link: "/docs/0.17/requirements" },
+        { text: "Database", link: "/docs/0.17/database" },
+        { text: "Migration guide", link: "/docs/0.17/migration-guide" },
+      ],
+    },
+    {
+      text: "Config",
+      items: [
+        { text: "Chains", link: "/docs/0.17/config/chains" },
+        { text: "Contracts", link: "/docs/0.17/config/contracts" },
+        { text: "Accounts", link: "/docs/0.17/config/accounts" },
+        { text: "Block intervals", link: "/docs/0.17/config/block-intervals" },
+      ],
+    },
+    {
+      text: "Schema",
+      items: [
+        { text: "Tables", link: "/docs/0.17/schema/tables" },
+        { text: "Relations", link: "/docs/0.17/schema/relations" },
+        { text: "Views", link: "/docs/0.17/schema/views" },
+      ],
+    },
+    {
+      text: "Indexing",
+      items: [
+        { text: "Overview", link: "/docs/0.17/indexing/overview" },
+        { text: "Write to the database", link: "/docs/0.17/indexing/write" },
+        {
+          text: "Read contract data",
+          link: "/docs/0.17/indexing/read-contracts",
+        },
+      ],
+    },
+    {
+      text: "Query",
+      items: [
+        {
+          text: "HTTP",
+          items: [
+            { text: "SQL over HTTP", link: "/docs/0.17/query/sql-over-http" },
+            { text: "GraphQL", link: "/docs/0.17/query/graphql" },
+            { text: "API endpoints", link: "/docs/0.17/query/api-endpoints" },
+          ],
+        },
+        { text: "Direct SQL", link: "/docs/0.17/query/direct-sql" },
+      ],
+    },
+    {
+      text: "Production",
+      items: [
+        { text: "Railway", link: "/docs/0.17/production/railway" },
+        { text: "Self-hosting", link: "/docs/0.17/production/self-hosting" },
+      ],
+    },
+    {
+      text: "Guides",
+      items: [
+        { text: "Factory pattern", link: "/docs/0.17/guides/factory" },
+        {
+          text: "Isolated indexing",
+          link: "/docs/0.17/guides/isolated-indexing",
+        },
+        { text: "Call traces", link: "/docs/0.17/guides/call-traces" },
+        { text: "Transaction receipts", link: "/docs/0.17/guides/receipts" },
+        { text: "Time-series data", link: "/docs/0.17/guides/time-series" },
+        { text: "Offchain data", link: "/docs/0.17/guides/offchain-data" },
+        { text: "Foundry", link: "/docs/0.17/guides/foundry" },
+        { text: "Bun", link: "/docs/0.17/guides/bun" },
+      ],
+    },
+    {
+      text: "API reference",
+      items: [
+        {
+          text: "create-ponder",
+          link: "/docs/0.17/api-reference/create-ponder",
+        },
+        {
+          text: "ponder",
+          items: [
+            {
+              text: "CLI (dev, start, serve)",
+              link: "/docs/0.17/api-reference/ponder/cli",
+            },
+            {
+              text: "ponder.config.ts",
+              link: "/docs/0.17/api-reference/ponder/config",
+            },
+            {
+              text: "ponder.schema.ts",
+              link: "/docs/0.17/api-reference/ponder/schema",
+            },
+            {
+              text: "Indexing functions",
+              link: "/docs/0.17/api-reference/ponder/indexing-functions",
+            },
+            {
+              text: "API endpoints",
+              link: "/docs/0.17/api-reference/ponder/api-endpoints",
+            },
+            {
+              text: "Database reference",
+              link: "/docs/0.17/api-reference/ponder/database",
+            },
+          ],
+        },
+        {
+          text: "@ponder/client",
+          link: "/docs/0.17/api-reference/ponder-client",
+        },
+        {
+          text: "@ponder/react",
+          link: "/docs/0.17/api-reference/ponder-react",
+        },
+        {
+          text: "@ponder/utils",
+          link: "/docs/0.17/api-reference/ponder-utils",
+        },
+      ],
+    },
+    {
+      text: "Advanced",
+      items: [
+        { text: "Observability", link: "/docs/0.17/advanced/observability" },
+      ],
+    },
+  ],
   "/docs/0.15/": [
     {
       text: "Introduction",
@@ -751,6 +883,10 @@ export const sidebar = {
 } satisfies Sidebar;
 
 export function getCanonicalSubpath(subpath: string): string | null {
+  if (subpath.startsWith("/docs/0.17")) {
+    return canonicalSubpathsMap0_17[subpath] ?? null;
+  }
+
   if (subpath.startsWith("/docs/0.15")) {
     return canonicalSubpathsMap0_15[subpath] ?? null;
   }
@@ -776,8 +912,8 @@ export function getCanonicalSubpath(subpath: string): string | null {
 
 export function getBestSubpathForVersion(
   subpath: string,
-  fromVersion: "0.10" | "0.11" | "0.12" | "0.14" | "0.15" | "latest",
-  toVersion: "0.10" | "0.11" | "0.12" | "0.14" | "0.15" | "latest",
+  fromVersion: "0.10" | "0.11" | "0.12" | "0.14" | "0.15" | "0.17" | "latest",
+  toVersion: "0.10" | "0.11" | "0.12" | "0.14" | "0.15" | "0.17" | "latest",
 ): string {
   if (toVersion === "latest") {
     const canonical = getCanonicalSubpath(subpath);
@@ -785,7 +921,15 @@ export function getBestSubpathForVersion(
   }
 
   if (fromVersion === "latest") {
-    if (toVersion === "0.15") {
+    if (toVersion === "0.17") {
+      for (const [v17Path, canonicalPath] of Object.entries(
+        canonicalSubpathsMap0_17,
+      )) {
+        if (canonicalPath === subpath) {
+          return v17Path;
+        }
+      }
+    } else if (toVersion === "0.15") {
       for (const [v15Path, canonicalPath] of Object.entries(
         canonicalSubpathsMap0_15,
       )) {
@@ -834,7 +978,15 @@ export function getBestSubpathForVersion(
     return `/docs/${toVersion}/get-started`;
   }
 
-  if (toVersion === "0.15") {
+  if (toVersion === "0.17") {
+    for (const [v17Path, canonicalPath] of Object.entries(
+      canonicalSubpathsMap0_17,
+    )) {
+      if (canonicalPath === canonical) {
+        return v17Path;
+      }
+    }
+  } else if (toVersion === "0.15") {
     for (const [v15Path, canonicalPath] of Object.entries(
       canonicalSubpathsMap0_15,
     )) {
@@ -880,6 +1032,66 @@ export function getBestSubpathForVersion(
 }
 
 const subpathsLatest = getNestedSubpaths(sidebar["/docs/"]);
+
+const canonicalSubpathsMap0_17: { [key: string]: string | undefined } = {
+  "/docs/0.17/get-started": "/docs/get-started",
+  "/docs/0.17/requirements": "/docs/requirements",
+  "/docs/0.17/database": "/docs/database",
+  "/docs/0.17/migration-guide": "/docs/migration-guide",
+  "/docs/0.17/config/chains": "/docs/config/chains",
+  "/docs/0.17/config/contracts": "/docs/config/contracts",
+  "/docs/0.17/config/accounts": "/docs/config/accounts",
+  "/docs/0.17/config/block-intervals": "/docs/config/block-intervals",
+  "/docs/0.17/schema/tables": "/docs/schema/tables",
+  "/docs/0.17/schema/relations": "/docs/schema/relations",
+  "/docs/0.17/schema/views": "/docs/schema/views",
+  "/docs/0.17/indexing/overview": "/docs/indexing/overview",
+  "/docs/0.17/indexing/write": "/docs/indexing/write",
+  "/docs/0.17/indexing/read-contracts": "/docs/indexing/read-contracts",
+  "/docs/0.17/query/sql-over-http": "/docs/query/sql-over-http",
+  "/docs/0.17/query/graphql": "/docs/query/graphql",
+  "/docs/0.17/query/api-endpoints": "/docs/query/api-endpoints",
+  "/docs/0.17/query/direct-sql": "/docs/query/direct-sql",
+  "/docs/0.17/production/railway": "/docs/production/railway",
+  "/docs/0.17/production/self-hosting": "/docs/production/self-hosting",
+  "/docs/0.17/guides/factory": "/docs/guides/factory",
+  "/docs/0.17/guides/isolated-indexing": "/docs/guides/isolated-indexing",
+  "/docs/0.17/guides/call-traces": "/docs/guides/call-traces",
+  "/docs/0.17/guides/receipts": "/docs/guides/receipts",
+  "/docs/0.17/guides/time-series": "/docs/guides/time-series",
+  "/docs/0.17/guides/offchain-data": "/docs/guides/offchain-data",
+  "/docs/0.17/guides/foundry": "/docs/guides/foundry",
+  "/docs/0.17/guides/bun": "/docs/guides/bun",
+  "/docs/0.17/api-reference/create-ponder": "/docs/api-reference/create-ponder",
+  "/docs/0.17/api-reference/ponder/cli": "/docs/api-reference/ponder/cli",
+  "/docs/0.17/api-reference/ponder/config": "/docs/api-reference/ponder/config",
+  "/docs/0.17/api-reference/ponder/schema": "/docs/api-reference/ponder/schema",
+  "/docs/0.17/api-reference/ponder/indexing-functions":
+    "/docs/api-reference/ponder/indexing-functions",
+  "/docs/0.17/api-reference/ponder/api-endpoints":
+    "/docs/api-reference/ponder/api-endpoints",
+  "/docs/0.17/api-reference/ponder/database":
+    "/docs/api-reference/ponder/database",
+  "/docs/0.17/api-reference/ponder-client": "/docs/api-reference/ponder-client",
+  "/docs/0.17/api-reference/ponder-react": "/docs/api-reference/ponder-react",
+  "/docs/0.17/api-reference/ponder-utils": "/docs/api-reference/ponder-utils",
+  "/docs/0.17/advanced/observability": "/docs/advanced/observability",
+};
+
+const subpaths0_17 = getNestedSubpaths(sidebar["/docs/0.17/"]);
+
+for (const subpath of subpaths0_17) {
+  const canonicalSubpath = canonicalSubpathsMap0_17[subpath];
+  if (canonicalSubpath === undefined) {
+    throw new Error(`No canonical path registered for 0.17 path (${subpath}).`);
+  }
+
+  if (!subpathsLatest.includes(canonicalSubpath)) {
+    throw new Error(
+      `Invalid canonical path registered for 0.17 path (${subpath}). Suggested path (${canonicalSubpath}) does not exist.`,
+    );
+  }
+}
 
 const canonicalSubpathsMap0_15: { [key: string]: string | undefined } = {
   "/docs/0.15/get-started": "/docs/get-started",

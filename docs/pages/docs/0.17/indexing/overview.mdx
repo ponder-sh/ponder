@@ -1,0 +1,58 @@
+import { Callout } from "vocs/components";
+
+# Indexing [Write indexing functions that populate the database]
+
+An indexing function is a TypeScript function that's triggered by onchain activity (an event log, call trace, transaction, transfer, or block).
+
+The purpose of indexing functions is to transform onchain data and insert it into the tables you've defined in `ponder.schema.ts`.
+
+## Register an indexing function
+
+To register an indexing function, use `ponder.on(...)`. The first argument is the event name, and the second argument is the function / callback that the indexing engine runs to process the event.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry"; // [!code focus]
+
+ponder.on("Blitmap:MetadataChanged", async ({ event, context }) => { // [!code focus]
+  await context.db
+    .insert(tokens)
+    .values({
+      id: event.args.tokenId,
+      metadata: event.args.newMetadata,
+    })
+    .onConflictDoUpdate({
+      metadata: event.args.newMetadata,
+    });
+}); // [!code focus]
+```
+
+Read more about how to [write to the database](/docs/indexing/write) and [read contract data](/docs/indexing/read-contracts) within indexing functions.
+
+## Frequently asked questions
+
+### Ordering
+
+For each chain, the indexing engine calls indexing functions according to EVM execution order (block number, transaction index, log index). [Read more](/docs/api-reference/ponder/config#ordering) about the ordering guarantee across multiple chains, which is more complex. 
+
+### Reorgs
+
+The indexing engine handles reorgs automatically. You do not need to adjust your indexing function logic to handle them. Here's how it works.
+
+- The indexing engine records all changes (insert, update, delete) to each table defined in `ponder.schema.ts` using a trigger-based [transaction log](https://en.wikipedia.org/wiki/Transaction_log).
+- When the indexing engine detects a reorg, it follows these steps to reconcile the database state with the new canonical chain.
+  1. Evict all non-canonical data from the RPC cache.
+  2. Roll back the database to the common ancestor block height using the transaction log.
+  3. Fetch the new canonical data from the RPC / remote chain.
+  4. Run indexing functions to process the new canonical data.
+- The indexing engine periodically drops finalized data from the transaction log to avoid database bloat.
+
+### Crash recovery
+
+If the process crashes and starts back up again using the same exact configuration, the indexing engine attempts a crash recovery. This process is similar to reorg reconciliation, except all unfinalized changes (the entire transaction log) are rolled back. Then, indexing resumes from the finalized block.
+
+### Backfill vs. live indexing
+
+Internally, the indexing engine has two distinct modes – **backfill** and **live** indexing – which use different approaches for fetching data from the RPC.
+
+However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
+
