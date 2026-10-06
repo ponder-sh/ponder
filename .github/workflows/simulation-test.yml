@@ -41,6 +41,14 @@ jobs:
           # https://github.com/ponder-sh/ponder/blob/e8eae6394a9c73a16d14f7ecf6317cdcd69aa9fd/integration-test/src/index.ts#L1248-L1270
           - app_id: project-uniswap-v3-flash
             seed: 98c5c3716e33ba8ea2a8ba8d36f942cf1c2fb368f2d33a5f6bf434e087487bce
+          # Failed because live indexing did not find factory child addresses for an account
+          # when no log filter matched the block bloom.
+          - app_id: super-assessment
+            seed: a8adbd1bb01b06bc6917e44f21d791c149df895586235ac6f5d66b61410c5f4d
+          # Failed because the app did not shut down during the backfill. JSON-RPC requests
+          # continued after shutdown.
+          - app_id: super-assessment
+            seed: b282193354697a70d65856e52c5261a57df8faeac4054a53c37cf0fd36083697
 
     steps:
       - uses: actions/checkout@v5
