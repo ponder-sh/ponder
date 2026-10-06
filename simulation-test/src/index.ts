@@ -192,7 +192,9 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
-    return sql`EXISTS (SELECT 1 FROM (${getExpectedChildAddresses(filterAddress as Factory)}) AS children
+    // Note: Each fragment of a factory has one parent. A child of more than one parent
+    // is not supported, because the expected tables would have duplicate rows.
+    return sql`EXISTS (SELECT 1 FROM (${getExpectedChildAddresses(filterAddress as Factory, (fragmentAddress as { address: Address }).address)}) AS children
       WHERE children.address = ${addressColumn} AND children.block_number <= ${table.blockNumber})`;
   } else if (typeof fragmentAddress === "string") {
     return eq(addressColumn, fragmentAddress);

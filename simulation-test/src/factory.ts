@@ -51,11 +51,16 @@ const getFactoryParents = (factory: Factory): Address[] => {
  * Returns a query for the child addresses of `factory` from the copy of the template, with
  * the earliest block number of each child. The query matches the `factory_log` fragments of
  * each parent for any factory range, then filters by the range of `factory`.
+ *
+ * @param parent Only use the children of this parent.
  */
-export const getExpectedChildAddresses = (factory: Factory): SQL => {
-  const prefixes = getFactoryParents(factory).map((parent) =>
-    getFactoryLogPrefix(factory, parent),
-  );
+export const getExpectedChildAddresses = (
+  factory: Factory,
+  parent?: Address,
+): SQL => {
+  const prefixes = getFactoryParents(factory)
+    .filter((_parent) => parent === undefined || _parent === parent)
+    .map((_parent) => getFactoryLogPrefix(factory, _parent));
 
   return sql`SELECT address, min(block_number) AS block_number FROM sim.child_addresses
     WHERE chain_id = ${factory.chainId}
