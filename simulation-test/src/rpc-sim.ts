@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { zeroLogsBloom } from "@ponder/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { createQueue } from "@ponder/utils/queue.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import seedrandom from "seedrandom";
 import {
   type Address,
@@ -37,6 +37,9 @@ const PONDER_RPC_METHODS = [
   "debug_traceBlockByHash",
   "eth_call",
 ] as const;
+
+/** Number of blocks of the rpc cache to read in one query for `eth_getLogs`. */
+const LOGS_BATCH_SIZE = 50;
 
 const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
   concurrency: 1,
@@ -307,23 +310,37 @@ export const sim =
           const logs: RpcLog[] = [];
 
           if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
-            for (
-              let block = +body.params[0].fromBlock;
-              block <= +body.params[0].toBlock;
-              block++
-            ) {
-              const _logs = await DB.select({ body: RPC_SCHEMA.logs.body })
-                .from(RPC_SCHEMA.logs)
-                .where(
-                  and(
-                    eq(RPC_SCHEMA.logs.chainId, chain!.id),
-                    eq(RPC_SCHEMA.logs.blockNumber, block),
-                  ),
-                )
-                .then((logs) => logs[0]);
+            const fromBlock = +body.params[0].fromBlock;
+            const toBlock = +body.params[0].toBlock;
+
+            // Note: Read the rpc cache in batches of blocks, to make fewer queries.
+            let cachedLogs = new Map<number, RpcLog[]>();
+            for (let block = fromBlock; block <= toBlock; block++) {
+              if ((block - fromBlock) % LOGS_BATCH_SIZE === 0) {
+                const rows = await DB.select({
+                  blockNumber: RPC_SCHEMA.logs.blockNumber,
+                  body: RPC_SCHEMA.logs.body,
+                })
+                  .from(RPC_SCHEMA.logs)
+                  .where(
+                    and(
+                      eq(RPC_SCHEMA.logs.chainId, chain!.id),
+                      gte(RPC_SCHEMA.logs.blockNumber, block),
+                      lte(
+                        RPC_SCHEMA.logs.blockNumber,
+                        Math.min(block + LOGS_BATCH_SIZE - 1, toBlock),
+                      ),
+                    ),
+                  );
+                cachedLogs = new Map(
+                  rows.map((row) => [row.blockNumber, row.body as RpcLog[]]),
+                );
+              }
+
+              const _logs = cachedLogs.get(block);
 
               if (_logs) {
-                logs.push(...filterLogs(_logs.body as RpcLog[]));
+                logs.push(...filterLogs(_logs));
               } else {
                 const rpcLogs = await _request({
                   method: "eth_getLogs",

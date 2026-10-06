@@ -92,6 +92,8 @@ if (APP_ID === undefined) {
 export let APP: PonderApp | undefined;
 export let IS_REALTIME = false;
 export let RESTART_COUNT = 0;
+/** True while the app runs the previous config, before the tested config. */
+export let IS_PREVIOUS_RUN = false;
 
 /**
  * Block that the simulated "latest" block is derived from, for each chain. It is after the
@@ -162,6 +164,11 @@ export const SIM_PARAMS = {
     [undefined, undefined, 0.25, 0.5, 0.75],
     "historical-shutdown-progress",
   ),
+  // Note: Run a different config on the same sync store before the tested config.
+  PREVIOUS_RUN:
+    APP_ID === "super-assessment"
+      ? pick([false, false, true], "previous-run")
+      : false,
   CACHE_RPC_REQUESTS: IN_MEMORY_SYNC_APPS.includes(APP_ID)
     ? pick([true, false], "cache-rpc-requests")
     : true,
@@ -329,7 +336,7 @@ const onBuild = async (app: PonderApp) => {
     { common: app.common, isAdmin: false },
   );
 
-  if (APP_ID === "super-assessment") {
+  if (APP_ID === "super-assessment" && IS_PREVIOUS_RUN === false) {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
     for (let i = 0; i < app.indexingBuild.eventCallbacks.length; i++) {
       app.indexingBuild.eventCallbacks[i] = app.indexingBuild.eventCallbacks[
@@ -372,7 +379,11 @@ const onBuild = async (app: PonderApp) => {
   }
 
   // Note: The expected tables are built once. A restart uses the same tables.
-  if (APP_ID === "super-assessment" && RESTART_COUNT === 0) {
+  if (
+    APP_ID === "super-assessment" &&
+    RESTART_COUNT === 0 &&
+    IS_PREVIOUS_RUN === false
+  ) {
     // build super assessment expected tables
 
     await migrate(APP_DB, {
@@ -1019,7 +1030,8 @@ const onBuild = async (app: PonderApp) => {
 
   if (
     SIM_PARAMS.HISTORICAL_SHUTDOWN_PROGRESS !== undefined &&
-    RESTART_COUNT === 0
+    RESTART_COUNT === 0 &&
+    IS_PREVIOUS_RUN === false
   ) {
     let isTriggered = false;
     for (const eventCallbacks of app.indexingBuild.eventCallbacks) {
@@ -1066,7 +1078,7 @@ const onBuild = async (app: PonderApp) => {
   const traceConditions: SQL[] = [];
   const logConditions: SQL[] = [];
 
-  if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
+  if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0 && IS_PREVIOUS_RUN === false) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
       if (interval.fragmentId.startsWith("factory_")) continue;
       const intervals: [number, number][] = JSON.parse(
@@ -1449,7 +1461,7 @@ const onBuild = async (app: PonderApp) => {
 
     // Mock finalized block
 
-    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
+    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0 && IS_PREVIOUS_RUN === false) {
       if (RESTART_COUNT === 0) {
         app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
           numberToHex(end - SIM_PARAMS.UNFINALIZED_BLOCKS),
@@ -1517,7 +1529,10 @@ const onBuild = async (app: PonderApp) => {
     //     .where(eq(PONDER_SYNC.intervals.chainId, BigInt(chain.id)));
     // }
 
-    chain.cacheRpcRequests = SIM_PARAMS.CACHE_RPC_REQUESTS;
+    // Note: The previous run must write to the sync store.
+    chain.cacheRpcRequests = IS_PREVIOUS_RUN
+      ? true
+      : SIM_PARAMS.CACHE_RPC_REQUESTS;
 
     // replace rpc with simulated transport
 
@@ -1605,6 +1620,46 @@ process.on("exit", (code) => {
   }
 });
 
+/** Waits until the app is ready. */
+const waitForReady = async () => {
+  while (true) {
+    try {
+      const result = await fetch(`http://localhost:${PORT}/ready`);
+      if (result.status === 200) break;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
+
+// Run the previous config until the backfill is complete. It writes to the same sync store,
+// so the tested config starts with sync data from a config that has the same addresses
+// and blocks, but other factory, filter, receipt, and trace options.
+
+if (SIM_PARAMS.PREVIOUS_RUN) {
+  console.log("Running previous config");
+  IS_PREVIOUS_RUN = true;
+  process.env.SIM_PREVIOUS_RUN = "true";
+  process.env.DATABASE_SCHEMA = "previous";
+
+  const killPrevious = await start({
+    cliOptions: {
+      ...program.optsWithGlobals(),
+      command: "start",
+      version: packageJson.version,
+      root: APP_DIR,
+      config: "ponder.config.ts",
+    },
+    onBuild,
+  });
+  await waitForReady();
+  await killPrevious!();
+
+  IS_PREVIOUS_RUN = false;
+  delete process.env.SIM_PREVIOUS_RUN;
+  process.env.DATABASE_SCHEMA = "public";
+  console.log("Completed previous config");
+}
+
 let kill = await start({
   cliOptions: {
     ...program.optsWithGlobals(),
@@ -1638,13 +1693,7 @@ export const restart = async () => {
 };
 
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
-  while (true) {
-    try {
-      const result = await fetch(`http://localhost:${PORT}/ready`);
-      if (result.status === 200) break;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  await waitForReady();
 } else {
   await pwr.promise;
 }
