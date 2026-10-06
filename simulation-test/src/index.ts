@@ -188,11 +188,6 @@ if (templateSyncSchema.rows.length === 0) {
   await DB.execute(sql.raw(`DROP DATABASE IF EXISTS "${UUID}" WITH (FORCE)`));
   process.exit(2);
 }
-await APP_DB.execute(
-  sql.raw(
-    "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
-  ),
-);
 
 await copyTemplateFactoryData(APP_DB);
 
@@ -1766,13 +1761,6 @@ for (const key of Object.keys(schema)) {
     );
   }
 }
-
-// await compareTables(
-//   APP_DB,
-//   INTERVALS,
-//   "ponder_sync.expected_intervals",
-//   "ponder_sync.intervals",
-// );
 
 console.log("Updating metadata");
 
