@@ -44,7 +44,11 @@ import {
   syncLogToInternal,
   syncTransactionToInternal,
 } from "./events.js";
-import { getFactoryFragments, getFragments } from "./fragments.js";
+import {
+  getFactoryFragmentIds,
+  getFactoryFragments,
+  getFragments,
+} from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import {
   type CachedIntervals,
@@ -1056,8 +1060,9 @@ test("getChildAddresses() returns empty for cacheRpcRequests: false", async () =
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
   await syncStore.insertChildAddresses({
-    factory: filter.address,
-    childAddresses: new Map([[pair, 0]]),
+    childAddresses: new Map([
+      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
+    ]),
     chainId: 1,
   });
 

@@ -556,10 +556,12 @@ test("sync() with log factory shares parents between factories", async () => {
   expect(requiredIntervalsX.factoryIntervals).toHaveLength(0);
 
   const childAddressesX = await getChildAddresses({
+    chain,
     filters: [filterX],
     syncStore,
   });
   const childAddressesXY = await getChildAddresses({
+    chain,
     filters: [callbackXY.filter],
     syncStore,
   });
