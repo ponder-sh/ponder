@@ -885,9 +885,6 @@ importers:
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.19.2
       vitest:
         specifier: 5.0.2
         version: 5.0.2(@edge-runtime/vm@3.2.0)(@types/node@22.20.1)(vite@8.3.1(@types/node@22.20.1)(jiti@2.4.2)(tsx@4.19.2)(yaml@2.3.4))
@@ -994,9 +991,6 @@ importers:
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
-      tsx:
-        specifier: ^4.19.2
-        version: 4.19.2
       vitest:
         specifier: 5.0.2
         version: 5.0.2(@edge-runtime/vm@3.2.0)(@types/node@22.20.1)(vite@8.3.1(@types/node@22.20.1)(jiti@2.4.2)(tsx@4.19.2)(yaml@2.3.4))

@@ -9,7 +9,7 @@
     "directory": "packages/react"
   },
   "scripts": {
-    "build": "tsx build.ts",
+    "build": "node build.ts",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",
     "typecheck": "tsc --noEmit"
@@ -60,7 +60,6 @@
     "picocolors": "^1.0.0",
     "react": "^18.2.0",
     "rimraf": "^5.0.5",
-    "tsx": "^4.19.2",
     "vitest": "5.0.2"
   }
 }
