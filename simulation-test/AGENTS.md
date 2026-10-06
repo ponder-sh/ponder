@@ -97,7 +97,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - A simulated RPC or DB error is not automatically a test failure; Ponder is expected to recover from many injected transient failures.
 - Treat any CI job cancelled because of a timeout as a test failure.
 - On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
-- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema, or a run made more than `SIM_LIVE_RPC_REQUEST_LIMIT` (default `5000`) live RPC requests because the template or rpc cache is missing data. At the end of a run, the runner prints `Live RPC requests: N`; a healthy run is near `0`.
+- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema.
 - `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). It is only picked for apps whose blocks are all in the rpc cache (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
 

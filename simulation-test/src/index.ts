@@ -55,12 +55,7 @@ import packageJson from "../../packages/core/package.json";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
-import {
-  getLiveRpcRequestCount,
-  type RpcBlockHeader,
-  realtimeBlockEngine,
-  sim,
-} from "./rpc-sim.js";
+import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
 // Large apps that shouldn't be synced, use cached data instead
@@ -1524,7 +1519,6 @@ if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
 }
 
 console.log("Killing app");
-console.log(`Live RPC requests: ${getLiveRpcRequestCount()}`);
 
 await kill!();
 
