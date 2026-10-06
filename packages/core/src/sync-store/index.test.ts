@@ -1107,15 +1107,7 @@ test("getEventData() orders traces by execution order", async () => {
     sender: ALICE,
   });
 
-  const traceAddresses = [
-    "[]",
-    "[0]",
-    "[1]",
-    "[1,0]",
-    "[1,2]",
-    "[1,10]",
-    "[2]",
-  ];
+  const traceAddresses = [[], [0], [1], [1, 0], [1, 2], [1, 10], [2]];
 
   await syncStore.insertTraces({
     traces: [...traceAddresses].reverse().map((traceAddress) => ({

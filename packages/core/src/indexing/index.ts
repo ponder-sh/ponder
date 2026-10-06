@@ -970,7 +970,10 @@ const logText = (log?: DeepPartial<UserLog>) =>
 
 const traceText = (trace?: DeepPartial<UserTrace>) =>
   `Trace:\n${prettyPrint({
-    traceAddress: trace?.traceAddress,
+    traceAddress:
+      trace?.traceAddress === undefined
+        ? undefined
+        : JSON.stringify(trace.traceAddress),
     from: trace?.from,
     to: trace?.to,
   })}`;

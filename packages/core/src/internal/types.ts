@@ -407,7 +407,7 @@ export type SyncBlockHeader = Omit<SyncBlock, "transactions"> & {
 export type SyncTransaction = RpcTransaction<false>;
 export type SyncTransactionReceipt = RpcTransactionReceipt;
 export type SyncTrace = {
-  trace: DebugTrace["result"] & { traceAddress: string };
+  trace: DebugTrace["result"] & { traceAddress: number[] };
   transactionHash: DebugTrace["txHash"];
 };
 export type SyncLog = ViemLog<Hex, Hex, false>;

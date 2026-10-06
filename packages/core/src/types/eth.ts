@@ -195,8 +195,8 @@ export type Trace = {
   output?: Hex;
   /** Value transferred. */
   value: bigint | null;
-  /** Path through the nested call tree. */
-  traceAddress: string;
+  /** Path through the nested call tree. The top-level call is `[]`. */
+  traceAddress: number[];
 };
 
 /** A native token transfer. */

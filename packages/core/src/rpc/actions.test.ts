@@ -36,10 +36,10 @@ test("debug trace actions rebuild traceAddress from the call tree", async () => 
   await expect(
     debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
   ).resolves.toMatchObject([
-    { trace: { traceAddress: "[]" } },
-    { trace: { traceAddress: "[0]" } },
-    { trace: { traceAddress: "[1]" } },
-    { trace: { traceAddress: "[1,0]" } },
+    { trace: { traceAddress: [] } },
+    { trace: { traceAddress: [0] } },
+    { trace: { traceAddress: [1] } },
+    { trace: { traceAddress: [1, 0] } },
   ]);
 });
 
@@ -82,9 +82,9 @@ test("debug trace actions exclude reverted traces and their children", async () 
   ]);
 
   expect(traces.map((trace) => trace.trace.traceAddress)).toStrictEqual([
-    "[]",
-    "[1]",
-    "[1,1]",
+    [],
+    [1],
+    [1, 1],
   ]);
 });
 

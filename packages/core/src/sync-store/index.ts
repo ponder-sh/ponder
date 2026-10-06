@@ -1180,7 +1180,6 @@ export const createSyncStore = ({
         const internalTrace = trace as unknown as InternalTrace;
 
         internalTrace.blockNumber = Number(trace.blockNumber);
-        internalTrace.traceAddress = JSON.stringify(trace.traceAddress);
 
         internalTrace.from = toLowerCase(trace.from);
         if (trace.to !== null) {

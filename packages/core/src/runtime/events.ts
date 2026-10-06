@@ -644,7 +644,10 @@ export const decodeEvents = (
             function: eventCallback.name,
             block_number: event?.block?.number ?? "unknown",
             transaction_index: event.transaction?.transactionIndex,
-            trace_address: event.trace?.traceAddress,
+            trace_address:
+              event.trace === undefined
+                ? undefined
+                : JSON.stringify(event.trace.traceAddress),
             input: event.trace?.input,
             output: event.trace?.output,
           });

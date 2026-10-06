@@ -8,7 +8,7 @@
 
 The `event.trace` object changed:
 
-- Added `traceAddress`. It is the path of the call in the nested call tree, encoded as a JSON array string.
+- Added `traceAddress`. It is the path of the call in the nested call tree.
 - Removed `traceIndex` and `subcalls`. Use `traceAddress` instead.
 - Removed `error` and `revertReason`. Ponder does not index reverted calls, so these properties were always `undefined`.
 

@@ -381,8 +381,8 @@ export const debug_traceBlockByNumber = (
           const traceAddress = parentFrame
             ? [...parentTraceAddress, index]
             : [];
-          (frame as typeof frame & { traceAddress: string }).traceAddress =
-            JSON.stringify(traceAddress);
+          (frame as typeof frame & { traceAddress: number[] }).traceAddress =
+            traceAddress;
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
 
@@ -439,8 +439,8 @@ export const debug_traceBlockByHash = (
           const traceAddress = parentFrame
             ? [...parentTraceAddress, index]
             : [];
-          (frame as typeof frame & { traceAddress: string }).traceAddress =
-            JSON.stringify(traceAddress);
+          (frame as typeof frame & { traceAddress: number[] }).traceAddress =
+            traceAddress;
 
           result.push({ trace: frame as SyncTrace["trace"], transactionHash });
 
