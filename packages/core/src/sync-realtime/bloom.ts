@@ -1,5 +1,5 @@
 import { type Hex, hexToBytes, hexToNumber, keccak256 } from "viem";
-import type { LogFilter, SyncBlock } from "@/internal/types.js";
+import type { Factory, LogFilter, SyncBlock } from "@/internal/types.js";
 import {
   getFilterFromBlock,
   getFilterToBlock,
@@ -72,15 +72,7 @@ export function isFilterInBloom({
   if (filter.address === undefined) isAddressInBloom = true;
   else if (isAddressFactory(filter.address)) {
     // Return true if the `Factory` is matched.
-    if (
-      (filter.address.address === undefined ||
-        (Array.isArray(filter.address.address)
-          ? filter.address.address.some((address) =>
-              isInBloom(block.logsBloom, address),
-            )
-          : isInBloom(block.logsBloom, filter.address.address))) &&
-      isInBloom(block.logsBloom, filter.address.eventSelector)
-    ) {
+    if (isFactoryInBloom({ block, factory: filter.address })) {
       return true;
     }
 
@@ -99,4 +91,34 @@ export function isFilterInBloom({
   }
 
   return isAddressInBloom && isTopicsInBloom;
+}
+
+/**
+ * Return true if `factory` is in `bloom`, so the block can have a log that
+ * creates a child address.
+ *
+ * Note: False positives are possible.
+ */
+export function isFactoryInBloom({
+  block,
+  factory,
+}: {
+  block: Pick<SyncBlock, "number" | "logsBloom">;
+  factory: Factory;
+}): boolean {
+  const blockNumber = hexToNumber(block.number);
+  if (
+    (factory.fromBlock !== undefined && blockNumber < factory.fromBlock) ||
+    (factory.toBlock !== undefined && blockNumber > factory.toBlock)
+  ) {
+    return false;
+  }
+
+  const isAddressInBloom =
+    factory.address === undefined ||
+    (Array.isArray(factory.address)
+      ? factory.address.some((address) => isInBloom(block.logsBloom, address))
+      : isInBloom(block.logsBloom, factory.address));
+
+  return isAddressInBloom && isInBloom(block.logsBloom, factory.eventSelector);
 }
