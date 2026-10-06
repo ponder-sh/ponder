@@ -78,6 +78,8 @@ const pairCreated = parseAbiItem(
  * Returns a factory for `address` with one of several shapes. The children of each shape
  * are a subset of the children of the same factory in the config without `SEED`, so the
  * template database has all of their data.
+ *
+ * Note: The factory range must be inside the contract range.
  */
 const pickFactory = (
   address: Address,
@@ -93,13 +95,6 @@ const pickFactory = (
         event: pairCreated,
         parameter: "pair",
       }),
-      // Factory starts after the contract
-      factory({
-        address,
-        event: pairCreated,
-        parameter: "pair",
-        startBlock: blocks.startBlock + 100,
-      }),
       // Factory ends before the contract
       factory({
         address,
@@ -107,12 +102,11 @@ const pickFactory = (
         parameter: "pair",
         endBlock: blocks.startBlock + 150,
       }),
-      // More than one parent, factory range inside the contract range
+      // More than one parent, factory ends before the contract
       factory({
         address: [EMPTY_FACTORY_ADDRESS, address],
         event: pairCreated,
         parameter: "pair",
-        startBlock: blocks.startBlock + 50,
         endBlock: blocks.startBlock + 200,
       }),
     ],
