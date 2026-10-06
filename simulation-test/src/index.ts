@@ -130,10 +130,7 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   UNFINALIZED_BLOCKS: pick([0, 0, 50, 100, 250, 300], "unfinalized-blocks"),
-  REALTIME_SHUTDOWN_RATE:
-    APP_ID === "super-assessment"
-      ? undefined
-      : pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
+  REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING:
     APP_ID === "assessment"
       ? pick(["multichain", "omnichain", "experimental_isolated"], "ordering")
@@ -141,6 +138,10 @@ export const SIM_PARAMS = {
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",
+  ),
+  HISTORICAL_SHUTDOWN_PROGRESS: pick(
+    [undefined, undefined, 0.25, 0.5, 0.75],
+    "historical-shutdown-progress",
   ),
   CACHE_RPC_REQUESTS: IN_MEMORY_SYNC_APPS.includes(APP_ID)
     ? pick([true, false], "cache-rpc-requests")
@@ -346,7 +347,10 @@ const onBuild = async (app: PonderApp) => {
     app.indexingBuild.rpcs = rpcsWithSources;
     app.indexingBuild.finalizedBlocks = finalizedBlocksWithSources;
     app.indexingBuild.eventCallbacks = eventCallbacksWithSources;
+  }
 
+  // Note: The expected tables are built once. A restart uses the same tables.
+  if (APP_ID === "super-assessment" && RESTART_COUNT === 0) {
     // build super assessment expected tables
 
     await migrate(APP_DB, {
@@ -986,6 +990,51 @@ const onBuild = async (app: PonderApp) => {
     console.table(expectedRows.rows);
   }
 
+  // Simulate a crash during the backfill.
+  //
+  // Note: The restart is triggered by indexing progress, not by time, so that the same seed
+  // restarts at the same point.
+
+  if (
+    SIM_PARAMS.HISTORICAL_SHUTDOWN_PROGRESS !== undefined &&
+    RESTART_COUNT === 0
+  ) {
+    let isTriggered = false;
+    for (const eventCallbacks of app.indexingBuild.eventCallbacks) {
+      if (eventCallbacks.length === 0) continue;
+
+      const fromBlock = Math.min(
+        ...eventCallbacks.map(({ filter }) => filter.fromBlock ?? 0),
+      );
+      const toBlock = Math.max(
+        ...eventCallbacks.map(({ filter }) => filter.toBlock!),
+      );
+      const targetBlock =
+        fromBlock +
+        Math.floor(
+          (toBlock - fromBlock) * SIM_PARAMS.HISTORICAL_SHUTDOWN_PROGRESS,
+        );
+
+      for (const eventCallback of eventCallbacks) {
+        const fn = eventCallback.fn;
+        eventCallback.fn = async (...args: any[]) => {
+          if (
+            isTriggered === false &&
+            IS_REALTIME === false &&
+            Number(args[0].event.block.number) >= targetBlock
+          ) {
+            isTriggered = true;
+            console.log(
+              `Restarting app during the backfill at block ${args[0].event.block.number} on chain ${eventCallback.chain.id}`,
+            );
+            setTimeout(restart, 0);
+          }
+          return fn(...args);
+        };
+      }
+    }
+  }
+
   // Remove uncached data
 
   // SQL conditions for data that should not be deleted.
@@ -1388,18 +1437,23 @@ const onBuild = async (app: PonderApp) => {
         // Note: Use the latest indexed block as the finalized block. This ensures that
         // the finalized block >= crash recovery checkpoint.
 
-        const {
-          // @ts-expect-error
-          rows: [{ latest_checkpoint }],
-        } = await APP_DB.execute(
+        // Note: The app can restart before it writes a checkpoint.
+        const { rows } = await APP_DB.execute(
           `SELECT latest_checkpoint FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
-        );
+        ).catch(() => ({ rows: [] }));
+        const latestCheckpointBlock =
+          rows.length === 0
+            ? 0
+            : Number(
+                decodeCheckpoint(rows[0]!.latest_checkpoint as string)
+                  .blockNumber,
+              );
 
         app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
           numberToHex(
             Math.min(
               Math.max(
-                Number(decodeCheckpoint(latest_checkpoint).blockNumber),
+                latestCheckpointBlock,
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,
