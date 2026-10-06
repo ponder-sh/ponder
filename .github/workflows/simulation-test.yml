@@ -49,6 +49,14 @@ jobs:
           # continued after shutdown.
           - app_id: super-assessment
             seed: b282193354697a70d65856e52c5261a57df8faeac4054a53c37cf0fd36083697
+          # Failed because the app did not shut down during the backfill. The next backfill
+          # interval waited forever for an interval that failed.
+          - app_id: super-assessment
+            seed: 54a0bdaf17fbd26a521001d90ebcb0e615e296640a36dfe2e676a6dbc5d45c9f
+          # Reaches an in-memory catch-up pass with a factory that ends before the catch-up range.
+          # https://github.com/ponder-sh/ponder/commit/f2ec120c621c1baf7ec953b275fa0ea41f556d08
+          - app_id: super-assessment
+            seed: dd806f7f0928a4374f0ec253595e3ee6adabaa626f27010c192aaa474da6914d
 
     steps:
       - uses: actions/checkout@v5
