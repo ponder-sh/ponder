@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { and, eq, sql } from "drizzle-orm";
 import { index } from "drizzle-orm/pg-core";
 import pg from "pg";
@@ -54,6 +55,18 @@ const account = onchainTable("account", (p) => ({
 
 function createCheckpoint(checkpoint: Partial<Checkpoint>): string {
   return encodeCheckpoint({ ...ZERO_CHECKPOINT, ...checkpoint });
+}
+
+/** Create the legacy "ponder_sync" schema, as a `0.17` app does. */
+async function createLegacySyncSchema(database: Database) {
+  const query = fs.readFileSync(
+    new URL("../_test/ponder_sync.sql", import.meta.url),
+    "utf-8",
+  );
+  for (const statement of query.split("--> statement-breakpoint")) {
+    if (statement.trim().length === 0) continue;
+    await database.adminQB.wrap((db) => db.execute(sql.raw(statement)));
+  }
 }
 
 const _indexingErrorHandler: IndexingErrorHandler = {
@@ -420,7 +433,7 @@ test("migrate() succeeds with crash recovery after waiting for lock", async () =
   await context.common.shutdown.kill();
 });
 
-test("migrateSync() creates all sync tables", async () => {
+test("migrateSync() creates only the latest sync schema", async () => {
   const database = createDatabase({
     common: context.common,
     namespace: { schema: "public", viewsSchema: undefined },
@@ -440,20 +453,26 @@ test("migrateSync() creates all sync tables", async () => {
   await database.migrateSync();
 
   const tables = await database.adminQB.wrap((db) =>
-    db.select().from(TABLES).where(eq(TABLES.table_schema, "ponder_sync")),
+    db.select().from(TABLES).where(eq(TABLES.table_schema, "ponder_sync_1")),
   );
   expect(tables.map((table) => table.table_name).sort()).toEqual([
     "blocks",
     "factories",
     "factory_addresses",
     "intervals",
-    "kysely_migration",
     "logs",
     "rpc_request_results",
     "traces",
     "transaction_receipts",
     "transactions",
   ]);
+
+  const { rows } = await database.adminQB.wrap((db) =>
+    db.execute(
+      sql`SELECT 1 FROM information_schema.schemata WHERE schema_name = 'ponder_sync'`,
+    ),
+  );
+  expect(rows).toEqual([]);
 
   // Skip the metadata unlock because these tests only initialize the sync schema.
   context.common.options.command = "list";
@@ -520,6 +539,7 @@ test("migrateSync() accepts the latest legacy migration", async () => {
     blockNumber: 123n,
     result: "0x1234",
   };
+  await createLegacySyncSchema(database);
   await database.migrateSync();
   await database.adminQB.wrap((db) =>
     db.execute(
@@ -569,10 +589,7 @@ test("migrateSync() excludes trace and transfer intervals from ponder_sync", asy
     },
   });
 
-  await database.migrateSync();
-  await database.adminQB.wrap((db) =>
-    db.execute(sql`DROP SCHEMA ponder_sync_1 CASCADE`),
-  );
+  await createLegacySyncSchema(database);
   await database.adminQB.wrap((db) =>
     db.execute(
       sql`INSERT INTO ponder_sync.intervals (fragment_id, chain_id, blocks) VALUES
@@ -617,10 +634,7 @@ test("migrateSync() excludes factories, child addresses, and factory intervals f
     },
   });
 
-  await database.migrateSync();
-  await database.adminQB.wrap((db) =>
-    db.execute(sql`DROP SCHEMA ponder_sync_1 CASCADE`),
-  );
+  await createLegacySyncSchema(database);
   await database.adminQB.wrap((db) =>
     db.execute(
       sql`INSERT INTO ponder_sync.factories (id, factory) OVERRIDING SYSTEM VALUE VALUES
@@ -776,10 +790,7 @@ test("migrateSync() copies ponder_sync from one snapshot", async () => {
     },
   });
 
-  await database.migrateSync();
-  await database.adminQB.wrap((db) =>
-    db.execute(sql`DROP SCHEMA ponder_sync_1 CASCADE`),
-  );
+  await createLegacySyncSchema(database);
 
   // A `0.17` app commits an interval while the migration waits to copy "intervals".
   const client = new pg.Client(context.databaseConfig.poolConfig);

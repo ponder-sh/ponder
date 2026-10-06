@@ -460,19 +460,38 @@ export const createDatabase = ({
 
               const migratedSchemas: { schema: string; duration: number }[] =
                 [];
-              for (const schema of PONDER_SYNC.PONDER_SYNC_SCHEMAS) {
-                if (dbSchemas.includes(schema)) continue;
+              // Note: Run the migrations after the latest existing schema. A new
+              // database only creates the latest schema, and does not copy data.
+              let latestIndex = -1;
+              for (let i = 0; i < PONDER_SYNC.PONDER_SYNC_SCHEMAS.length; i++) {
+                if (dbSchemas.includes(PONDER_SYNC.PONDER_SYNC_SCHEMAS[i]!)) {
+                  latestIndex = i;
+                }
+              }
+              const isNewDatabase = latestIndex === -1;
+              const schemasToMigrate = isNewDatabase
+                ? [PONDER_SYNC.PONDER_SYNC_SCHEMA]
+                : PONDER_SYNC.PONDER_SYNC_SCHEMAS.slice(latestIndex + 1);
 
+              for (const schema of schemasToMigrate) {
                 const endSchemaClock = startClock();
 
-                const query = fs.readFileSync(
-                  new URL(`../sync-store/sql/${schema}.sql`, import.meta.url),
-                  "utf-8",
+                const files = isNewDatabase
+                  ? ["create.sql"]
+                  : ["create.sql", "copy.sql"];
+                const statements = files.flatMap((file) =>
+                  fs
+                    .readFileSync(
+                      new URL(
+                        `../sync-store/sql/${schema}/${file}`,
+                        import.meta.url,
+                      ),
+                      "utf-8",
+                    )
+                    .split("--> statement-breakpoint")
+                    .map((statement) => statement.trim())
+                    .filter((statement) => statement.length > 0),
                 );
-                const statements = query
-                  .split("--> statement-breakpoint")
-                  .map((statement) => statement.trim())
-                  .filter((statement) => statement.length > 0);
 
                 common.logger.info({
                   msg: `Started migrating '${schema}' schema`,

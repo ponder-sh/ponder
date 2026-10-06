@@ -1,3 +1,5 @@
+-- Test fixture: the "ponder_sync" schema that `0.17` creates. Ponder does not
+-- create this schema, and only copies data from it into "ponder_sync_1".
 CREATE SCHEMA "ponder_sync";
 --> statement-breakpoint
 CREATE TABLE "ponder_sync"."blocks" (

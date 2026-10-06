@@ -27,7 +27,11 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
  * Database schemas for the sync.
  *
  * @dev The order of the schemas represents the order of the migrations.
- * @dev The schemas must match the files in "./sql".
+ * @dev Each schema after the first must have a directory in "./sql" with
+ * "create.sql" and "copy.sql".
+ *
+ * @dev The first schema is the legacy "ponder_sync" schema. Ponder no longer
+ * creates it, and only copies data from it.
  */
 export const PONDER_SYNC_SCHEMAS = ["ponder_sync", "ponder_sync_1"] as const;
 /**
