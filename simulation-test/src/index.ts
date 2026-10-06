@@ -147,8 +147,7 @@ export const SIM_PARAMS = {
   UNFINALIZED_BLOCKS: pick([0, 0, 50, 100, 250, 300], "unfinalized-blocks"),
   REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING:
-    // Note: The super-assessment schema does not support "experimental_isolated".
-    APP_ID === "assessment"
+    APP_ID === "assessment" || APP_ID === "super-assessment"
       ? pick(["multichain", "omnichain", "experimental_isolated"], "ordering")
       : pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
