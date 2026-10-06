@@ -79,6 +79,10 @@ pnpm create:app reference-erc20
 - The available app IDs are the directories under `simulation-test/apps/`.
 - `the-compact` and `basepaint` are treated as cached apps by the harness and skip uncached block deletion.
 - `super-assessment` is special: its seeded config is generated dynamically, and its expected tables are built during the simulation run.
+- `super-assessment` builds its expected tables from the template's sync data. It gets factory child addresses from a copy of the template, made before the app runs, and matches them by parent address, event, and block range. It does not use the factory key of the app, so a bug in how Ponder keys or reuses child addresses causes a validation failure.
+- Each factory in the seeded `super-assessment` config must have a subset of the children of the same factory in the config without `SEED`. Otherwise the template does not have the data for the expected tables, and the run exits with `INFRA ERROR`. The factory range must also be inside the contract range, or Ponder fails the build.
+- `EMPTY_FACTORY_ADDRESS` (`apps/super-assessment/constants.ts`) is a parent address that emits no logs. Use it to make a factory with more than one parent without new template data.
+- The runner prints `Expected child addresses: N` for each factory and the expected row count for each event. A factory with `0` child addresses does not test factory behavior.
 - Verified local smoke command for the isolated Docker database:
 
 ```bash
@@ -97,7 +101,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - A simulated RPC or DB error is not automatically a test failure; Ponder is expected to recover from many injected transient failures.
 - Treat any CI job cancelled because of a timeout as a test failure.
 - On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
-- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema.
+- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema, or it does not have the factory child addresses for a seeded `super-assessment` factory.
 - `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). In-memory sync does not use the template's sync data, so it fetches all data through the simulated RPC on every start and crash recovery restart. It is only picked for apps with small block ranges (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
 
@@ -130,6 +134,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - `src/index.ts`: main simulation runner and validation logic.
 - `src/rpc-sim.ts`: RPC cache, RPC fault injection, realtime block, reorg, and restart simulation.
 - `src/db-sim.ts`: database fault injection.
+- `src/factory.ts`: factory child addresses for the expected tables.
 - `src/create-app.ts`: app template database creation.
 - `src/cleanup-database.ts`: successful run database cleanup.
 - `schema.ts`: shared metadata and RPC cache schema.
