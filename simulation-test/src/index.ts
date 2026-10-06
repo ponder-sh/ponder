@@ -76,6 +76,9 @@ const IN_MEMORY_SYNC_APPS = [
 
 // inputs
 
+/** Maximum time in milliseconds for the app to shut down. */
+const SHUTDOWN_TIMEOUT = 30_000;
+
 const DATABASE_URL = process.env.DATABASE_URL!;
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
@@ -1621,6 +1624,23 @@ process.on("exit", (code) => {
   }
 });
 
+/**
+ * Shuts down the app. Exits with an error if the shutdown takes too long.
+ *
+ * Note: `ponder start` exits the process 5 seconds after a shutdown starts. A shutdown that
+ * does not complete is a bug, because the app keeps writing to the database.
+ */
+const shutdown = async (kill: () => Promise<void>) => {
+  const timeout = setTimeout(() => {
+    console.error(
+      `ERROR: App did not shut down within ${SHUTDOWN_TIMEOUT / 1_000} seconds`,
+    );
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT);
+  await kill();
+  clearTimeout(timeout);
+};
+
 /** Waits until the app is ready. */
 const waitForReady = async () => {
   while (true) {
@@ -1653,7 +1673,7 @@ if (SIM_PARAMS.PREVIOUS_RUN) {
     onBuild,
   });
   await waitForReady();
-  await killPrevious!();
+  await shutdown(killPrevious!);
 
   IS_PREVIOUS_RUN = false;
   delete process.env.SIM_PREVIOUS_RUN;
@@ -1680,7 +1700,7 @@ export const restart = async () => {
   if (RESTART_COUNT === 2) return;
   RESTART_COUNT += 1;
   console.log("Restarting app");
-  await kill!();
+  await shutdown(kill!);
   kill = await start({
     cliOptions: {
       ...program.optsWithGlobals(),
@@ -1701,7 +1721,7 @@ if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
 
 console.log("Killing app");
 
-await kill!();
+await shutdown(kill!);
 
 // 4. Compare
 
