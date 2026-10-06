@@ -1246,6 +1246,9 @@ const onBuild = async (app: PonderApp) => {
       }
 
       for (const blocks of resultIntervals) {
+        // Note: Only the child addresses of a factory are removed.
+        if (interval.fragmentId.startsWith("factory_log_")) break;
+
         const fragment = decodeFragment(interval.fragmentId);
         switch (fragment.type) {
           case "block": {
