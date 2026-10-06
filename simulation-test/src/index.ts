@@ -10,9 +10,9 @@ import type {
 } from "@ponder/internal/types.js";
 import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
+import { getFilterFactories } from "@ponder/runtime/filter.js";
 import {
   decodeFragment,
-  getFactoryFragmentIds,
   getFragments,
   isFragmentAddressFactory,
 } from "@ponder/runtime/fragments.js";
@@ -28,7 +28,6 @@ import {
   getTableName,
   gt,
   gte,
-  inArray,
   is,
   isNotNull,
   lte,
@@ -55,6 +54,11 @@ import packageJson from "../../packages/core/package.json";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
+import {
+  copyTemplateFactoryData,
+  getExpectedChildAddresses,
+  getMissingExpectedParents,
+} from "./factory.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
@@ -170,6 +174,8 @@ await APP_DB.execute(
   ),
 );
 
+await copyTemplateFactoryData(APP_DB);
+
 /** Returns an SQL condition that filters by address. */
 const getAddressCondition = <
   table extends
@@ -186,27 +192,8 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
-    return inArray(
-      addressColumn,
-      APP_DB.select({ address: PONDER_SYNC.factoryAddresses.address })
-        .from(PONDER_SYNC.factoryAddresses)
-        .where(
-          and(
-            gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
-            inArray(
-              PONDER_SYNC.factoryAddresses.factoryId,
-              APP_DB.select({ id: PONDER_SYNC.factories.id })
-                .from(PONDER_SYNC.factories)
-                .where(
-                  inArray(
-                    PONDER_SYNC.factories.fragmentId,
-                    getFactoryFragmentIds(filterAddress as Factory),
-                  ),
-                ),
-            ),
-          ),
-        ),
-    );
+    return sql`EXISTS (SELECT 1 FROM (${getExpectedChildAddresses(filterAddress as Factory)}) AS children
+      WHERE children.address = ${addressColumn} AND children.block_number <= ${table.blockNumber})`;
   } else if (typeof fragmentAddress === "string") {
     return eq(addressColumn, fragmentAddress);
   } else {
@@ -363,6 +350,29 @@ const onBuild = async (app: PonderApp) => {
     await migrate(APP_DB, {
       migrationsFolder: "./apps/super-assessment/migrations",
     });
+
+    const factories = new Map<Factory["id"], Factory>();
+    for (const { filter } of app.indexingBuild.eventCallbacks.flat()) {
+      for (const factory of getFilterFactories(filter)) {
+        factories.set(factory.id, factory);
+      }
+    }
+    for (const factory of factories.values()) {
+      const missingParents = await getMissingExpectedParents(APP_DB, factory);
+      if (missingParents.length > 0) {
+        console.error(
+          `INFRA ERROR: Template database "${APP_ID}" does not have the child addresses of factory parents ${missingParents.join(", ")} on chain ${factory.chainId} for blocks [${factory.fromBlock}, ${factory.toBlock}]. Add the factory to the config without SEED and sync the template.`,
+        );
+        process.exit(2);
+      }
+
+      const children = await APP_DB.execute(
+        sql`SELECT count(*) AS count FROM (${getExpectedChildAddresses(factory)}) AS children`,
+      );
+      console.log(
+        `Expected child addresses: ${children.rows[0]!.count} (factory ${factory.id})`,
+      );
+    }
 
     // Trace index of each trace that matches at least one trace or transfer filter
 
@@ -966,6 +976,14 @@ const onBuild = async (app: PonderApp) => {
         }
       }
     }
+  }
+
+  if (APP_ID === "super-assessment") {
+    const expectedRows = await APP_DB.execute(
+      sql`SELECT name, count(*) AS count FROM expected.blocks GROUP BY name ORDER BY name`,
+    );
+    console.log("Expected rows:");
+    console.table(expectedRows.rows);
   }
 
   // Remove uncached data
