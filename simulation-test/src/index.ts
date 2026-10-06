@@ -1504,6 +1504,23 @@ const onBuild = async (app: PonderApp) => {
       const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
       APP_FINALIZED.set(chain.id, hexToNumber(finalizedBlock.number));
 
+      // Note: The template has child addresses after the mocked finalized block. An app
+      // only has child addresses up to its finalized block, and finds later ones during
+      // live indexing.
+      if (RESTART_COUNT === 0) {
+        await APP_DB.execute(
+          sql`DELETE FROM ${PONDER_SYNC.factoryAddresses} WHERE chain_id = ${chain.id} AND block_number > ${hexToNumber(finalizedBlock.number)}`,
+        );
+        await APP_DB.execute(
+          sql`UPDATE ${PONDER_SYNC.intervals}
+            SET blocks = blocks * nummultirange(numrange(0, ${hexToNumber(finalizedBlock.number) + 1}, '[]'))
+            WHERE chain_id = ${chain.id} AND starts_with(fragment_id, 'factory_log_')`,
+        );
+        await APP_DB.execute(
+          sql`DELETE FROM ${PONDER_SYNC.intervals} WHERE chain_id = ${chain.id} AND isempty(blocks)`,
+        );
+      }
+
       // Note: Advance the finalized block once during the backfill. The app refetches the
       // finalized block after the first pass and syncs the new range in a catch-up pass.
       const advancedBlockNumber = Math.min(
