@@ -1,6 +1,7 @@
 import { createConfig, factory } from "ponder";
 import seedrandom from "seedrandom";
 import { type Address, parseAbi, parseAbiItem, zeroAddress } from "viem";
+import { EMPTY_FACTORY_ADDRESS } from "./constants";
 
 // Note this is copied from index.ts to avoid circular dependency that vite
 // cannot currently handle.
@@ -69,6 +70,66 @@ const possibleContractFilters = [
   },
 ] as const;
 
+const pairCreated = parseAbiItem(
+  "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
+);
+
+/**
+ * Returns a factory for `address` with one of several shapes. The children of each shape
+ * are a subset of the children of the same factory in the config without `SEED`, so the
+ * template database has all of their data.
+ */
+const pickFactory = (
+  address: Address,
+  blocks: { startBlock: number; endBlock: number },
+  tag: string,
+) =>
+  pick(
+    [
+      factory({ address, event: pairCreated, parameter: "pair" }),
+      // More than one parent
+      factory({
+        address: [address, EMPTY_FACTORY_ADDRESS],
+        event: pairCreated,
+        parameter: "pair",
+      }),
+      // Factory starts after the contract
+      factory({
+        address,
+        event: pairCreated,
+        parameter: "pair",
+        startBlock: blocks.startBlock + 100,
+      }),
+      // Factory ends before the contract
+      factory({
+        address,
+        event: pairCreated,
+        parameter: "pair",
+        endBlock: blocks.startBlock + 150,
+      }),
+      // More than one parent, factory range inside the contract range
+      factory({
+        address: [EMPTY_FACTORY_ADDRESS, address],
+        event: pairCreated,
+        parameter: "pair",
+        startBlock: blocks.startBlock + 50,
+        endBlock: blocks.startBlock + 200,
+      }),
+    ],
+    tag,
+  );
+
+const contractBlocks = {
+  mainnet: pick(possibleMainnetBlocks, "contract_blocks_mainnet"),
+  base: pick(possibleBaseBlocks, "contract_blocks_base"),
+  optimism: pick(possibleOptimismBlocks, "contract_blocks_optimism"),
+};
+const accountBlocks = {
+  mainnet: pick(possibleMainnetBlocks, "account_blocks_mainnet"),
+  base: pick(possibleBaseBlocks, "account_blocks_base"),
+  optimism: pick(possibleOptimismBlocks, "account_blocks_optimism"),
+};
+
 export default process.env.SEED
   ? createConfig({
       // @ts-expect-error
@@ -98,13 +159,11 @@ export default process.env.SEED
                     "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
                     "0xc944E90C64B2c07662A292be6244BDf05Cda44a7",
                   ] as Address[],
-                  factory({
-                    address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-                    event: parseAbiItem(
-                      "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
-                    ),
-                    parameter: "pair",
-                  }),
+                  pickFactory(
+                    "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+                    contractBlocks.mainnet,
+                    "contract_factory_mainnet",
+                  ),
                 ],
                 "contract_address_mainnet",
               ),
@@ -117,7 +176,7 @@ export default process.env.SEED
                 "contract_includeTransactionReceipts_mainnet",
               ),
               filter: pick(possibleContractFilters, "contract_filter_mainnet"),
-              ...pick(possibleMainnetBlocks, "contract_blocks_mainnet"),
+              ...contractBlocks.mainnet,
             },
             base: {
               address: pick(
@@ -127,13 +186,11 @@ export default process.env.SEED
                     "0x64b88c73A5DfA78D1713fE1b4c69a22d7E0faAa7",
                     "0x4A3A6Dd60A34bB2Aba60D73B4C88315E9CeB6A3D",
                   ],
-                  factory({
-                    address: "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
-                    event: parseAbiItem(
-                      "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
-                    ),
-                    parameter: "pair",
-                  }),
+                  pickFactory(
+                    "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+                    contractBlocks.base,
+                    "contract_factory_base",
+                  ),
                 ],
                 "contract_address_base",
               ),
@@ -146,7 +203,7 @@ export default process.env.SEED
                 "contract_includeTransactionReceipts_base",
               ),
               filter: pick(possibleContractFilters, "contract_filter_base"),
-              ...pick(possibleBaseBlocks, "contract_blocks_base"),
+              ...contractBlocks.base,
             },
             optimism: {
               address: pick(
@@ -156,13 +213,11 @@ export default process.env.SEED
                     "0x67CCEA5bb16181E7b4109c9c2143c24a1c2205Be",
                     "0xFdb794692724153d1488CcdBE0C56c252596735F",
                   ],
-                  factory({
-                    address: "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
-                    event: parseAbiItem(
-                      "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
-                    ),
-                    parameter: "pair",
-                  }),
+                  pickFactory(
+                    "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
+                    contractBlocks.optimism,
+                    "contract_factory_optimism",
+                  ),
                 ],
                 "contract_address_optimism",
               ),
@@ -175,7 +230,7 @@ export default process.env.SEED
                 "contract_includeTransactionReceipts_optimism",
               ),
               filter: pick(possibleContractFilters, "contract_filter_optimism"),
-              ...pick(possibleOptimismBlocks, "contract_blocks_optimism"),
+              ...contractBlocks.optimism,
             },
           },
         },
@@ -192,13 +247,11 @@ export default process.env.SEED
                     "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
                     "0xc944E90C64B2c07662A292be6244BDf05Cda44a7",
                   ] as Address[],
-                  factory({
-                    address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-                    event: parseAbiItem(
-                      "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
-                    ),
-                    parameter: "pair",
-                  }),
+                  pickFactory(
+                    "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+                    accountBlocks.mainnet,
+                    "account_factory_mainnet",
+                  ),
                 ],
                 "account_address_mainnet",
               ),
@@ -206,7 +259,7 @@ export default process.env.SEED
                 [true, false],
                 "account_includeTransactionReceipts_mainnet",
               ),
-              ...pick(possibleMainnetBlocks, "account_blocks_mainnet"),
+              ...accountBlocks.mainnet,
             },
             base: {
               address: pick(
@@ -216,13 +269,11 @@ export default process.env.SEED
                     "0x64b88c73A5DfA78D1713fE1b4c69a22d7E0faAa7",
                     "0x4A3A6Dd60A34bB2Aba60D73B4C88315E9CeB6A3D",
                   ],
-                  factory({
-                    address: "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
-                    event: parseAbiItem(
-                      "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
-                    ),
-                    parameter: "pair",
-                  }),
+                  pickFactory(
+                    "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+                    accountBlocks.base,
+                    "account_factory_base",
+                  ),
                 ],
                 "account_address_base",
               ),
@@ -230,7 +281,7 @@ export default process.env.SEED
                 [true, false],
                 "account_includeTransactionReceipts_base",
               ),
-              ...pick(possibleBaseBlocks, "account_blocks_base"),
+              ...accountBlocks.base,
             },
             optimism: {
               address: pick(
@@ -240,13 +291,11 @@ export default process.env.SEED
                     "0x67CCEA5bb16181E7b4109c9c2143c24a1c2205Be",
                     "0xFdb794692724153d1488CcdBE0C56c252596735F",
                   ],
-                  factory({
-                    address: "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
-                    event: parseAbiItem(
-                      "event PairCreated(address indexed token0, address indexed token1, address pair, uint)",
-                    ),
-                    parameter: "pair",
-                  }),
+                  pickFactory(
+                    "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
+                    accountBlocks.optimism,
+                    "account_factory_optimism",
+                  ),
                 ],
                 "account_address_optimism",
               ),
@@ -254,7 +303,7 @@ export default process.env.SEED
                 [true, false],
                 "account_includeTransactionReceipts_optimism",
               ),
-              ...pick(possibleOptimismBlocks, "account_blocks_optimism"),
+              ...accountBlocks.optimism,
             },
           },
         },
