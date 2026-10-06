@@ -1,0 +1,175 @@
+# API endpoints [API reference]
+
+:::tip
+This is a low-level reference. For an overview, visit the
+[Query](/docs/query/api-endpoints) section.
+:::
+
+Ponder's HTTP server is built with [Hono](https://hono.dev/), a fast and lightweight routing framework.
+
+## Hono
+
+Hono supports all standard HTTP methods and an intuitive middleware API.
+
+| method           | description                          |
+| :--------------- | :----------------------------------- |
+| `get`            | Register a handler for GET requests  |
+| `post`           | Register a handler for POST requests |
+| `use`            | Register middleware for a path       |
+| ...and many more |                                      |
+
+## File requirements
+
+The `src/api/index.ts` file _must_ **default export** a Hono app instance. You can use other files in `src/api/` to organize your code, just be sure to export the Hono app instance correctly.
+
+```ts [src/api/index.ts]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/hello", (c) => {
+  return c.text("Hello, world!");
+});
+
+export default app;
+```
+
+## `ponder:schema`
+
+The `ponder:schema` virtual module conveniently re-exports the `ponder.schema.ts` file.
+
+```ts [src/api/index.ts]
+import { db } from "ponder:api";
+import { accounts } from "ponder:schema"; // [!code focus]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/account/top-10", async (c) => {
+  const account = await db 
+    .select()
+    .from(accounts) // [!code focus]
+    .limit(10)
+
+  return c.json(account);
+});
+
+export default app;
+```
+
+## `ponder:api`
+
+The `ponder:api` virtual module exports a ready-to-use Drizzle database client and Viem clients configured according to `ponder.config.ts`.
+
+### `db`
+
+A read-only Drizzle database client backed by a client-side connection pool.
+
+#### Usage
+
+```ts [src/api/index.ts]
+import { db } from "ponder:api"; // [!code focus]
+import { accounts } from "ponder:schema";
+import { Hono } from "hono";
+import { eq } from "ponder";
+
+const app = new Hono();
+
+app.get("/account/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const account = await db // [!code focus]
+    .select() // [!code focus]
+    .from(accounts) // [!code focus]
+    .where(eq(accounts.address, address)); // [!code focus]
+
+  return c.json(account);
+});
+
+export default app;
+```
+
+### `publicClients`
+
+A object containing a Viem [Public Client](https://viem.sh/docs/clients/public) for each chain defined in `ponder.config.ts`.
+
+#### Usage
+
+```ts [src/api/index.ts]
+import { publicClients } from "ponder:api"; // [!code focus]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/balance/:address", async (c) => {
+  const address = c.req.param("address");
+
+  const balance = await publicClients["base"].getBalance({ address }); // [!code focus]
+
+  return c.json({ address, balance });
+});
+
+export default app;
+```
+
+## Middlewares
+
+### `graphql`
+
+The `graphql` function is a Hono middleware that accepts the `ponder.schema.ts` schema object and automatically generates a fast & secure GraphQL API.
+
+| field      |    type    | description                                                              |
+| :--------- | :--------: | :----------------------------------------------------------------------- |
+| **db**     | `Database` | **Required**. Drizzle database object exported from `"ponder:api"{:ts}`. |
+| **schema** |  `Schema`  | **Required**. Drizzle schema exported from `"ponder:schema"{:ts}`.       |
+
+#### Usage
+
+```ts [src/api/index.ts]
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { graphql } from "ponder"; // [!code focus]
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.use("/", graphql({ db, schema })); // [!code focus]
+app.use("/graphql", graphql({ db, schema })); // [!code focus]
+
+export default app;
+```
+
+### `client`
+
+The `client` function is a Hono middleware that serves SQL over HTTP queries submitted by `@ponder/client`.
+
+| field      |    type    | description                                                              |
+| :--------- | :--------: | :----------------------------------------------------------------------- |
+| **db**     | `Database` | **Required**. Drizzle database object exported from `"ponder:api"{:ts}`. |
+| **schema** |  `Schema`  | **Required**. Drizzle schema exported from `"ponder:schema"{:ts}`.       |
+
+#### Usage
+
+```ts [src/api/index.ts]
+import { db } from "ponder:api";
+import schema from "ponder:schema";
+import { Hono } from "hono";
+import { client } from "ponder"; // [!code focus]
+
+const app = new Hono();
+
+app.use("/sql/*", client({ db, schema })); // [!code focus]
+
+export default app;
+```
+
+## Reserved routes
+
+Ponder reserves a few routes for standard use. If you register custom endpoints that conflict with these routes, the build will fail.
+
+| route      | description                                                                                          |
+| :--------- | :--------------------------------------------------------------------------------------------------- |
+| `/health`  | Returns status code `200` immediately after the process starts.                                      |
+| `/ready`   | Returns status code `503` during the backfill, and status code `200` after the backfill is complete. |
+| `/status`  | Returns the current indexing status. [Read more](/docs/advanced/observability#indexing-status).                             |
+| `/metrics` | Prometheus metrics endpoint. [Read more](/docs/advanced/observability#metrics).                                    |

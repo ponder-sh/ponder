@@ -1,0 +1,533 @@
+# Indexing functions [API reference]
+
+:::tip
+  This is a low-level reference. For an introduction, visit the
+  [Indexing](/docs/indexing/overview) section.
+:::
+
+Indexing functions are user-defined functions that receive blockchain data (a log, block, transaction, trace, or transfer) and insert data into the database. You can register indexing functions within any `.ts` file inside the `src/` directory.
+
+## Registration
+
+To register an indexing function, use the `.on(){:ts}` method of the `ponder` object exported from `"ponder:registry"{:ts}`.
+
+:::info
+  Values returned by indexing functions are ignored.
+:::
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("ContractName:EventName", async ({ event, context }) => { // [!code focus]
+  const { db, chain, client, contracts } = context;
+
+  // ...
+});
+```
+
+### Log event
+
+Log events are specified with `"ContractName:EventName"`.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("ContractName:EventName", async ({ event, context }) => { // [!code focus]
+  // ...
+});
+```
+
+The `event` object contains the decoded log arguments and the raw log, block, and transaction.
+
+```ts
+type LogEvent = {
+  name: string;
+  args: Args;
+  log: Log;
+  block: Block;
+  transaction: Transaction;
+  // Enabled using `includeTransactionReceipts` in contract config
+  transactionReceipt?: TransactionReceipt;
+};
+```
+
+#### Decoded arguments
+
+The `event.args` object contains log argument data (`log.topics` and `log.data`) decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html) function.
+
+```ts
+/** Sample `args` type for an ERC20 Transfer event. */
+type Args = {
+  from: `0x${string}`;
+  to: `0x${string}`;
+  value: bigint;
+};
+```
+
+### Call trace event
+
+Call trace events are specified using `"ContractName.functionName()"`.
+
+:::tip
+  The [includeCallTraces](/docs/guides/call-traces) option must
+  be enabled to register call trace indexing functions.
+:::
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("ContractName.functionName()", async ({ event, context }) => { // [!code focus]
+  // ...
+});
+```
+
+The `event` object contains the decoded trace arguments and the raw trace, block, and transaction.
+
+```ts
+type TraceEvent = {
+  name: string;
+  args: Args;
+  result: Result;
+  trace: Trace;
+  block: Block;
+  transaction: Transaction;
+  // Enabled using `includeTransactionReceipts` in contract config
+  transactionReceipt?: TransactionReceipt;
+};
+```
+
+#### Decoded arguments
+
+The `event.args` and `event.result` objects contain `trace.input` and `trace.output` decoded using Viem's [decodeFunctionData](https://viem.sh/docs/contract/decodeFunctionData.html) and [decodeFunctionResult](https://viem.sh/docs/contract/decodeFunctionResult.html) functions, respectively.
+
+### Transaction event
+
+Transaction events are specified using `"AccountName:transaction:from"` or `"AccountName:transaction:to"`.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("AccountName:transaction:from", async ({ event, context }) => { // [!code focus]
+  // ...
+});
+```
+
+The `event` object contains the raw transaction, transaction receipt, and block.
+
+```ts
+type TransactionEvent = {
+  block: Block;
+  transaction: Transaction;
+  transactionReceipt: TransactionReceipt;
+};
+```
+
+### Transfer event
+
+Native transfer events are specified using `"AccountName:transfer:from"` or `"AccountName:transfer:to"`.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("AccountName:transfer:from", async ({ event, context }) => { // [!code focus]
+  // ...
+});
+```
+
+The `event` object contains the transfer and raw block, transaction, and trace.
+
+```ts
+type TransferEvent = {
+  transfer: {
+    from: `0x${string}`;
+    to: `0x${string}`;
+    value: bigint;
+  };
+  block: Block;
+  transaction: Transaction;
+  trace: Trace;
+  // Enabled using `includeTransactionReceipts` in account config
+  transactionReceipt?: TransactionReceipt;
+};
+```
+
+### Block event
+
+Block events are created by [block intervals](/docs/config/block-intervals).
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+
+ponder.on("SourceName:block", async ({ event, context }) => { // [!code focus]
+  // ...
+});
+```
+
+The `event` object contains only the block.
+
+```ts
+type BlockEvent = {
+  block: Block;
+};
+```
+
+### `"setup"` event
+
+You can also define a setup function for each contract that runs before indexing begins.
+
+- The indexing function does not receive an `event` argument, only `context`.
+- If you read from contracts in a `"setup"` indexing function, the `blockNumber` for the request is set to the contract's `startBlock`.
+
+For example, you might have a singleton `World` record that occasionally gets updated in indexing functions.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { world } from "ponder:schema";
+
+ponder.on("FunGame:NewPlayer", async ({ context }) => {
+  await context.db
+    .insert(world)
+    .values({ id: 1, playerCount: 0 })
+    .onConflictDoUpdate((row) => ({
+      playerCount: row.playerCount + 1,
+    }));
+});
+```
+
+Without the `"setup"` event, you need to upsert the record in each indexing function that attempts to use it, which is clunky and bad for performance. Instead, use the `"setup"` event to create the singleton record once at the beginning of indexing.
+
+{/* prettier-ignore */}
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { world } from "ponder:schema";
+
+ponder.on("FunGame:setup", async ({ context }) => {
+  await context.db.insert(world).values({
+    id: 1,
+    playerCount: 0,
+  });
+});
+
+ponder.on("FunGame:NewPlayer", async ({ context }) => {
+  await context.db
+    .update(world, { id: 1 })
+    .set((row) => ({
+      playerCount: row.playerCount + 1,
+  }));
+});
+```
+
+## Context
+
+The `context` argument passed to each indexing function contains database model objects and helper objects based on your config.
+
+At runtime, the indexing engine uses a different `context` object depending on the chain the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.chain` and `context.contracts`.
+
+{/* prettier-ignore */}
+```ts
+type Context = {
+  db: Database;
+  chain: { name: string; id: number };
+  client: ReadOnlyClient;
+  contracts: Record<
+    string,
+    { abi: Abi; address?: `0x${string}`; startBlock?: number; endBlock?: number; }
+  >;
+};
+```
+
+### Database
+
+The `context.db` object is a live database connection. [Read more](/docs/indexing/write) about writing to the database.
+
+```ts [src/index.ts]
+import { ponder } from "ponder:registry";
+import { persons, dogs } from "ponder:schema";
+
+ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
+  await context.db.insert(persons).values({ name: "bob", age: 30 }); // [!code focus]
+  await context.db.insert(dogs).values({ name: "jake", ownerName: "bob" }); // [!code focus]
+  const jake = await context.db.find(dogs, { name: "jake" }); // [!code focus]
+});
+```
+
+### Chain
+
+The `context.chain` object includes information about the chain that the current event is from. The object is strictly typed according to the chains defined in `ponder.config.ts`.
+
+```ts [src/index.ts]
+ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+  context.chain;
+  //      ^? { name: "mainnet", id: 1 } | { name: "base", id: 8453 }
+
+  if (context.chain.name === "mainnet") {
+    // Do mainnet-specific stuff!
+  }
+});
+```
+
+### Client
+
+:::info
+  See the [Read contract data](/docs/indexing/read-contracts) guide for more
+  details.
+:::
+
+### Contracts
+
+:::info
+  See the [Read contract data](/docs/indexing/read-contracts) guide for more
+  details.
+:::
+
+## Types
+
+The `"ponder:registry"` module exports utility types that are useful for creating reusable helper functions in your indexing files.
+
+### EventNames
+
+A union of all event names that are available from the contracts defined in `ponder.config.ts`.
+
+```ts [src/helpers.ts]
+import { ponder, type EventNames } from "ponder:registry";
+
+function helper(eventName: EventNames) {
+  eventName;
+  // ^? "Weth:Deposit" | "Weth:Withdraw" | "Weth:Approval | "Weth:Transfer"
+}
+```
+
+### Event
+
+A generic type that optionally accepts an event name and returns the `event` object type for that event.
+
+```ts [src/helpers.ts]
+import { ponder, type Event } from "ponder:registry";
+
+function helper(event: Event<"Weth:Deposit">) {
+  event;
+  // ^? {
+  //      args: { dst: `0x${string}`; wad: bigint };
+  //      block: Block;
+  //      event: "Deposit";
+  //      transaction: Transaction;
+  //      log: Log;
+  //    }
+}
+```
+
+If no event name is provided, `Event` is the union of all event types. This can be useful if all you need is the `block`, `transaction`, and `log` types which are the same for all events.
+
+```ts [src/helpers.ts]
+import { ponder, type Event } from "ponder:registry";
+
+function helper(event: Event) {
+  event;
+  // ^? { args: { dst: `0x${string}`; wad: bigint }; block: Block; event: "Deposit"; transaction: Transaction; log: Log; }
+  //    | { args: { src: `0x${string}`; wad: bigint }; block: Block; event: "Withdraw"; transaction: Transaction; log: Log; }
+  //    ...
+}
+```
+
+### Context
+
+A generic type that optionally accepts an event name and returns the `context` object type.
+
+```ts [src/helpers.ts]
+import { ponder, type Context } from "ponder:registry";
+
+function helper(context: Context<"Weth:Deposit">) {
+  event;
+  // ^? {
+  //      chain: { name: "mainnet"; id: 1; };
+  //      client: ReadonlyClient;
+  //      db: { Account: DatabaseModel<{ id: `0x${string}`; balance: bigint; }> };
+  //      contracts: { weth9: { abi: ...; address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" } };
+  //    }
+}
+```
+
+If no event name is provided, `Context` returns the union of all context types. This can be useful if all you need is the `db` or `contracts` types which are the same for all events.
+
+### IndexingFunctionArgs
+
+A generic type that optionally accepts an event name and returns the indexing function argument type.
+
+```ts [src/helpers.ts]
+import { ponder, type IndexingFunctionArgs } from "ponder:registry";
+
+function helper(args: IndexingFunctionArgs<"Weth:Deposit">) {
+  args;
+  // ^? {
+  //      event: { ... };
+  //      context: { ... };
+  //    }
+}
+```
+
+Like `Event` and `Context`, `IndexingFunctionArgs` returns the union of all indexing function argument types if no event name is provided.
+
+### Schema
+
+Use the [Drizzle type helpers](https://orm.drizzle.team/docs/goodies#type-api) to create custom types for database records.
+
+```ts [src/helpers.ts]
+import { accounts } from "ponder:schema";
+
+function helper(account: typeof accounts.$inferSelect) {
+  account;
+  // ^? {
+  //      id: bigint;
+  //      balance: bigint;
+  //      nickname: string;
+  //      createdAt: number;
+  //    }
+}
+```
+
+### EVM objects
+
+```ts
+/** The block containing the transaction that emitted the log being processed. */
+type Block = {
+  /** Base fee per gas */
+  baseFeePerGas: bigint | null;
+  /** "Extra data" field of this block */
+  extraData: `0x${string}`;
+  /** Maximum gas allowed in this block */
+  gasLimit: bigint;
+  /** Total used gas by all transactions in this block */
+  gasUsed: bigint;
+  /** Block hash */
+  hash: `0x${string}`;
+  /** Logs bloom filter */
+  logsBloom: `0x${string}`;
+  /** Address that received this block's mining rewards */
+  miner: `0x${string}`;
+  /** Block number */
+  number: bigint;
+  /** Parent block hash */
+  parentHash: `0x${string}`;
+  /** Root of the this block's receipts trie */
+  receiptsRoot: `0x${string}`;
+  /** Size of this block in bytes */
+  size: bigint;
+  /** Root of this block's final state trie */
+  stateRoot: `0x${string}`;
+  /** Unix timestamp of when this block was collated */
+  timestamp: bigint;
+  /** Total difficulty of the chain until this block */
+  totalDifficulty: bigint | null;
+  /** Root of this block's transaction trie */
+  transactionsRoot: `0x${string}`;
+};
+
+/** The transaction that emitted the log being processed. */
+type Transaction = {
+  /** Transaction sender */
+  from: `0x${string}`;
+  /** Gas provided for transaction execution */
+  gas: bigint;
+  /** Base fee per gas. */
+  gasPrice?: bigint | undefined;
+  /** Hash of this transaction */
+  hash: `0x${string}`;
+  /** Contract code or a hashed method call */
+  input: `0x${string}`;
+  /** Total fee per gas in wei (gasPrice/baseFeePerGas + maxPriorityFeePerGas). */
+  maxFeePerGas?: bigint | undefined;
+  /** Max priority fee per gas (in wei). */
+  maxPriorityFeePerGas?: bigint | undefined;
+  /** Unique number identifying this transaction */
+  nonce: number;
+  /** Transaction recipient or `null` if deploying a contract */
+  to: `0x${string}` | null;
+  /** Index of this transaction in the block */
+  transactionIndex: number;
+  /** Value in wei sent with this transaction */
+  value: bigint;
+};
+
+/** A confirmed Ethereum transaction receipt. */
+type TransactionReceipt = {
+  /** Address of new contract or `null` if no contract was created */
+  contractAddress: Address | null;
+  /** Gas used by this and all preceding transactions in this block */
+  cumulativeGasUsed: bigint;
+  /** Pre-London, it is equal to the transaction's gasPrice. Post-London, it is equal to the actual gas price paid for inclusion. */
+  effectiveGasPrice: bigint;
+  /** Transaction sender */
+  from: Address;
+  /** Gas used by this transaction */
+  gasUsed: bigint;
+  /**
+   * NOTE: The `logs` property is NOT included for performance reasons.
+   * List of log objects generated by this transaction
+   * logs: Log[];
+   */
+  /** Logs bloom filter */
+  logsBloom: Hex;
+  /** `success` if this transaction was successful or `reverted` if it failed */
+  status: "success" | "reverted";
+  /** Transaction recipient or `null` if deploying a contract */
+  to: Address | null;
+  /** Transaction type */
+  type: TransactionType;
+};
+
+/** The log being processed. */
+type Log = {
+  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
+  id: string;
+  /** The address from which this log originated */
+  address: `0x${string}`;
+  /** Contains the non-indexed arguments of the log */
+  data: `0x${string}`;
+  /** Index of this log within its block */
+  logIndex: number;
+  /**
+   * Indicates if this log was removed in a chain reorganization.
+   *
+   * Ponder automatically handles reorgs, so this will always be `false`.
+   */
+  removed: boolean;
+  /** List of order-dependent topics */
+  topics: [`0x${string}`, ...`0x${string}`[]] | [];
+};
+
+type Trace = {
+  /** Globally unique identifier for this trace (`${transactionHash}-${tracePosition}`) */
+  id: string;
+  /** The type of the call. */
+  type:
+    | "CALL"
+    | "CALLCODE"
+    | "DELEGATECALL"
+    | "STATICCALL"
+    | "CREATE"
+    | "CREATE2"
+    | "SELFDESTRUCT";
+  /** The address of that initiated the call. */
+  from: Address;
+  /** The address of the contract that was called. */
+  to: Address | null;
+  /** How much gas was left before the call. */
+  gas: bigint;
+  /** How much gas was used by the call. */
+  gasUsed: bigint;
+  /** Calldata input. */
+  input: Hex;
+  /** Output of the call, if any. */
+  output?: Hex;
+  /** Error message, if any. */
+  error?: string;
+  /** Why this call reverted, if it reverted. */
+  revertReason?: string;
+  /** Value transferred. */
+  value: bigint | null;
+  /** Index of this trace in the transaction. */
+  traceIndex: number;
+  /** Number of subcalls. */
+  subcalls: number;
+};
+```

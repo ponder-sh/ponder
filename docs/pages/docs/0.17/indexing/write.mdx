@@ -1,0 +1,260 @@
+# Write to the database [Insert, update, and delete rows]
+
+There are two ways to write to the database in a Ponder app.
+
+1. **Store API**: The recommended way to write to the database. 100-1000x faster than raw SQL.
+2. **Raw SQL**: A useful escape hatch for logic that's too complex for the Store API.
+
+## Store API
+
+The Store API is a SQL-like query builder optimized for common indexing workloads. All operations run **in-memory** and rows are flushed to the database periodically using efficient `COPY` statements.
+
+The examples below use this `ponder.schema.ts` to demonstrate the core concepts.
+
+```ts [ponder.schema.ts]
+import { onchainTable, primaryKey } from "ponder";
+ 
+export const accounts = onchainTable("accounts", (t) => ({
+  address: t.hex().primaryKey(),
+  balance: t.bigint().notNull(),
+  nickname: t.text(),
+}));
+ 
+export const allowances = onchainTable(
+  "allowances",
+  (t) => ({
+    owner: t.hex().notNull(),
+    spender: t.hex().notNull(),
+    value: t.bigint().notNull(),
+  }),
+  (table) => ({
+    pk: primaryKey({ columns: [table.owner, table.spender] }),
+  })
+);
+```
+
+### Insert
+
+Insert one or many rows into the database. Returns the inserted rows, **including** any default values that were generated.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+// Insert a single row
+const row = await db.insert(accounts).values({
+  address: "0x7Df1", 
+  balance: 0n
+});
+
+// Insert multiple rows
+const rows = await db.insert(accounts).values([
+  { address: "0x7Df2", balance: -50n },
+  { address: "0x7Df3", balance: 100n },
+]);
+```
+
+#### Errors
+
+If you insert a row that's missing a required column value (not null constraint violation), `insert` will reject with an error.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+ 
+const row = await db.insert(accounts).values({
+  address: "0x7Df1",
+});
+
+// Error: Column "balance" is required but not present in the values object.
+```
+
+If you insert a duplicate row (unique constraint violation), `insert` will reject with an error.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+ 
+const row = await db.insert(accounts).values({
+  address: "0x7Df1",
+});
+
+// Error: Column "balance" is required but not present in the values object.
+```
+
+Use [conflict resolution](#conflict-resolution) to ignore unique constraint violations with `onConflictDoNothing` or achieve upsert behavior with `onConflictDoUpdate`.
+
+### Find
+
+Find a single row by primary key. Returns the row, or `null` if not found.
+
+The second argument is an object that specifies the primary key value to search for.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db.find(accounts, { address: "0x7Df1" });
+```
+
+If the table has a composite primary key, the object must include a value for each column in the primary key.
+
+```ts [src/index.ts]
+import { allowances } from "ponder:schema";
+
+const row = await db.find(allowances, {
+  owner: "0x7Df1",
+  spender: "0x7Df2"
+});
+```
+
+### Update
+
+Update a row by primary key. Returns the updated row.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set({ balance: 100n });
+```
+
+You can also pass a function to `set`, which receives the existing row and returns the update object.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set((row) => ({ balance: row.balance + 100n })); // [!code focus]
+```
+
+#### Errors
+
+If the target row is not found, `update` will reject with an error.
+
+```ts [src/index.ts]
+import { tokens } from "ponder:schema";
+
+const row = await db
+  .update(accounts, { address: "0xa4F0" })
+  .set({ balance: 200n });
+
+// Error: No row found for address "0xa4F0".
+```
+
+If the new row violates a not null constraint, `update` will reject with an error.
+
+```ts [src/index.ts]
+import { tokens } from "ponder:schema";
+
+const row = await db
+  .update(accounts, { address: "0x7Df1" })
+  .set({ balance: null });
+
+// Error: Column "balance" is required but not present in the object.
+```
+
+### Delete
+
+Delete a row by primary key. Returns `true` if the row was deleted, or `false` if not found.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const deleted = await db.delete(accounts, { address: "0x7Df1" });
+```
+
+### Conflict resolution
+
+The `insert` method supports conflict resolution. 
+
+#### `onConflictDoNothing`
+
+Use `onConflictDoNothing` to skip the insert if the specified row already exists. This avoids unique constraint violation errors.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoNothing(); // [!code focus]
+```
+
+#### `onConflictDoUpdate`
+
+Use `onConflictDoUpdate` to achieve "upsert" behavior.
+
+If the row does not exist, it will be inserted using the specified `values`. Otherwise, the existing row will be updated with the values passed to `onConflictDoUpdate`.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoUpdate({ value: 200n }); // [!code focus]
+```
+
+Just like with `update`, you can pass a function to `onConflictDoUpdate` that receives the existing row and returns the update object.
+
+```ts [src/index.ts]
+import { accounts } from "ponder:schema";
+
+const row = await db
+  .insert(accounts)
+  .values({ address: "0x7Df1", balance: 0n })
+  .onConflictDoUpdate((row) => ({ // [!code focus]
+    balance: row.balance + 50n // [!code focus]
+  })); // [!code focus]
+```
+
+## Raw SQL
+
+:::warning
+  Raw SQL queries are **much slower** than the store API. Only use raw SQL when you need complex queries that aren't possible with the store API.
+:::
+
+### Query builder
+
+Use `db.sql` to access the raw Drizzle PostgreSQL query builder. This is useful for complex queries that join multiple tables or use advanced SQL features.
+
+```ts [src/index.ts]
+import { accounts, tradeEvents } from "ponder:schema";
+import { eq, and, gte, inArray, sql } from "drizzle-orm";
+
+// Add 100 points to accounts with recent trades
+await db.sql
+  .update(accounts)
+  .set({ points: sql`${accounts.points} + 100` })
+  .where(
+    inArray(
+      accounts.address,
+      db.sql
+        .select({ address: tradeEvents.from })
+        .from(tradeEvents)
+        .where(
+          gte(tradeEvents.timestamp, event.block.timestamp - 24 * 60 * 60)
+        )
+    )
+  );
+```
+
+### Relational queries
+
+Use `db.sql.query` to access Drizzle's relational query builder. This provides a type-safe way to write complex `SELECT` queries that join multiple tables.
+
+```ts [src/index.ts]
+import { accounts, tradeEvents } from "ponder:schema";
+
+// Find recent large trades with account details
+const trades = await db.sql.query.tradeEvents.findMany({
+  where: (table, { gt, gte, and }) =>
+    and(
+      gt(table.amount, 1_000n),
+      gte(table.timestamp, Date.now() - 1000 * 60 * 60)
+    ),
+  limit: 10,
+  with: { account: true },
+});
+```
+
+Visit the [Drizzle documentation](https://orm.drizzle.team/docs/rqb) for more details on writing raw SQL queries.
