@@ -1,5 +1,25 @@
 # ponder
 
+## 0.18.0
+
+### Minor Changes
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Released `0.18`. Visit the [migration guide](https://ponder.sh/docs/migration-guide#018) for details.
+
+### Patch Changes
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug with `ordering: "omnichain"` that caused backfill events to be ordered incorrectly or skipped.
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Exported the `encodeCheckpoint` and `decodeCheckpoint` utilities and the `Checkpoint` type from `ponder`.
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused Ponder to load a `vite.config.ts` file from the project root.
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved startup performance by loading the `ponder` package without transforming it with Vite.
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `ponder dev` to not watch the `.ponder` and `generated` directories.
+
+- [#2383](https://github.com/ponder-sh/ponder/pull/2383) [`1f4bd97`](https://github.com/ponder-sh/ponder/commit/1f4bd97a4d9606b922020ae8e2d97cbed78a872f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that could cause an account `transaction` event to receive the transaction receipt of a different transaction in the same block.
+
 ## 0.17.12
 
 ### Patch Changes
