@@ -27,6 +27,10 @@ On the first start, Ponder migrates the RPC cache from the `ponder_sync` schema 
 
 Apps that use `0.17` can continue to use the same database, but they do not share cache data with apps that use `0.18`. If the `ponder_sync` schema was created before `0.10`, the migration fails with the error `"ponder_sync" migration failed. Please first update to v0.10 or "DROP SCHEMA ponder_sync CASCADE".`
 
+#### Native transfers exclude `DELEGATECALL` and `CALLCODE` frames
+
+Account `transfer:from` and `transfer:to` events no longer include `DELEGATECALL` or `CALLCODE` call frames, because these frames do not move value.
+
 #### Updated system requirements
 
 Ponder now requires Node.js `>=22.12`. The previous required version was `>=22`.

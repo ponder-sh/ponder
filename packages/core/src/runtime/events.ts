@@ -329,8 +329,7 @@ export const buildEvents = ({
               blockNumber,
               childAddresses: childAddresses.get(filter.toAddress.id)!,
             })
-          : true) &&
-        (filter.callType === undefined ? true : filter.callType === trace.type)
+          : true)
       ) {
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(

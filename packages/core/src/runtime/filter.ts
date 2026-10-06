@@ -457,7 +457,9 @@ export const isTraceFilterMatched = ({
     return false;
   }
 
-  // NOTE: `filter.callType` is intentionally ignored
+  if (filter.callType !== undefined && filter.callType !== trace.type) {
+    return false;
+  }
 
   return true;
 };
@@ -487,6 +489,12 @@ export const isTransferFilterMatched = ({
     trace.value === null ||
     BigInt(trace.value) === 0n
   ) {
+    return false;
+  }
+
+  // Note: `DELEGATECALL` frames report the parent call's value, and `CALLCODE`
+  // frames send value to the caller itself. Neither moves value.
+  if (trace.type === "DELEGATECALL" || trace.type === "CALLCODE") {
     return false;
   }
 

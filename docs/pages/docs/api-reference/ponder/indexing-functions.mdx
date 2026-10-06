@@ -126,6 +126,8 @@ type TransactionEvent = {
 
 Native transfer events are specified using `"AccountName:transfer:from"` or `"AccountName:transfer:to"`.
 
+A native transfer is a call frame with a `value` more than zero. `DELEGATECALL` and `CALLCODE` frames are not native transfers, because they do not move value.
+
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
 
