@@ -173,7 +173,8 @@ export const createHistoricalSync = (
 
           const range =
             hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
-            hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock);
+            hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
+            1;
 
           args.common.logger.debug({
             msg: "Updated eth_getLogs range",

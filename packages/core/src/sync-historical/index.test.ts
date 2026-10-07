@@ -198,6 +198,65 @@ test("sync() with log filter", async () => {
   expect(dbIntervals).toHaveLength(1);
 });
 
+test("sync() splits eth_getLogs requests into one block", async () => {
+  const { syncStore } = await setupDatabaseServices();
+
+  const chain = getChain();
+  const rpc = createRpc({
+    chain,
+    common: context.common,
+  });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  // Note: Only requests for one block succeed.
+  const request = rpc.request;
+  vi.spyOn(rpc, "request").mockImplementation((body, context) => {
+    if (
+      body.method === "eth_getLogs" &&
+      body.params[0].fromBlock !== body.params[0].toBlock
+    ) {
+      return Promise.reject(
+        Object.assign(new Error("backend response too large"), {
+          details: "backend response too large",
+        }),
+      );
+    }
+    return request(body, context);
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({
+    address,
+  });
+
+  const historicalSync = createHistoricalSync({
+    common: context.common,
+    chain,
+    rpc,
+    childAddresses: setupChildAddresses(eventCallbacks),
+  });
+
+  const requiredIntervals = getRequiredIntervalsWithFilters({
+    interval: [1, 2],
+    filters: eventCallbacks.map(({ filter }) => filter),
+    cachedIntervals: setupCachedIntervals(eventCallbacks),
+  });
+  const logs = await historicalSync.syncBlockRangeData({
+    interval: [1, 2],
+    requiredIntervals: requiredIntervals.intervals,
+    requiredFactoryIntervals: requiredIntervals.factoryIntervals,
+    syncStore,
+  });
+
+  expect(logs).toHaveLength(1);
+});
+
 test("sync() with log filter and transaction receipts", async () => {
   const { syncStore, database } = await setupDatabaseServices();
 

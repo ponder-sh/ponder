@@ -7,7 +7,7 @@ import {
 } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
+import { erc20ABI, factoryABI } from "@/_test/generated.js";
 import {
   context,
   setupAnvil,
@@ -35,6 +35,7 @@ import {
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import { buildLogFactory } from "@/build/factory.js";
+import { factory } from "@/config/address.js";
 import type {
   EventCallback,
   LogFactory,
@@ -43,8 +44,10 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
+import { defaultTransactionFilterInclude } from "@/runtime/filter.js";
 import { getFactoryFragmentIds } from "@/runtime/fragments.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { zeroLogsBloom } from "./bloom.js";
 import { createRealtimeSync, type RealtimeSyncEvent } from "./index.js";
 
@@ -986,6 +989,92 @@ test("handleBlock() block event with transaction", async () => {
   expect(data[0]?.transactions).toHaveLength(1);
   expect(data[0]?.transactionReceipts).toHaveLength(1);
   expect(data[0]?.block.transactions).toBe(data[0]?.transactions);
+});
+
+test("handleBlock() block event with transaction factory", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const toAddress = buildLogFactory({
+    chainId: 1,
+    sourceId: "Accounts",
+    fromBlock: undefined,
+    toBlock: undefined,
+    ...factory({
+      address,
+      event: getAbiItem({ abi: factoryABI, name: "PairCreated" }),
+      parameter: "pair",
+    }),
+  });
+
+  // Note: There are no log filters, so only the factory requires logs.
+  const eventCallbacks = [
+    {
+      filter: {
+        type: "transaction",
+        chainId: 1,
+        sourceId: "Accounts",
+        fromAddress: undefined,
+        toAddress,
+        fromBlock: undefined,
+        toBlock: undefined,
+        hasTransactionReceipt: true,
+        include: defaultTransactionFilterInclude,
+      },
+      name: "Accounts:transaction:to",
+      fn: vi.fn(),
+      chain: getChain(),
+      type: "account",
+      direction: "to",
+    },
+  ] satisfies EventCallback[];
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map([[toAddress.id, new Map()]]),
+  });
+
+  let block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const syncResult1 = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  block = await eth_getBlockByNumber(rpc, ["0x3", true]);
+  const syncResult2 = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  const data = [...syncResult1, ...syncResult2] as Extract<
+    RealtimeSyncEvent,
+    { type: "block" }
+  >[];
+
+  expect(data[0]?.childAddresses).toStrictEqual(
+    new Map([
+      [getFactoryFragmentIds(toAddress)[0]!, new Set([toLowerCase(pair)])],
+    ]),
+  );
+
+  expect(data[1]?.hasMatchedFilter).toBe(true);
+  expect(data[1]?.transactions).toHaveLength(1);
 });
 
 test("handleBlock() block event with transfer", async () => {

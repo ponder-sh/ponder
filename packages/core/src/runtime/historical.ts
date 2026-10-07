@@ -1483,6 +1483,8 @@ export async function* getLocalSyncGenerator(params: {
     let closestToTipBlock: SyncBlock | undefined;
     if (requiredIntervals.length > 0 || requiredFactoryIntervals.length > 0) {
       const pwr = promiseWithResolvers<void>();
+      // Note: The last interval has no next interval to handle the rejection.
+      pwr.promise.catch(() => {});
 
       const durationTimer = setTimeout(
         () => {
@@ -1540,6 +1542,11 @@ export async function* getLocalSyncGenerator(params: {
           return closestToTipBlock;
         })
         .catch((error) => {
+          // Note: The next interval waits for this promise in a database transaction.
+          // Reject it, so that the next interval releases its connection.
+          clearTimeout(durationTimer);
+          pwr.reject(error);
+
           if (error instanceof ShutdownError) {
             throw error;
           }

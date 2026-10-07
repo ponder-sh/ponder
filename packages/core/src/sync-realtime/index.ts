@@ -60,7 +60,12 @@ import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
-import { isFilterInBloom, isInBloom, zeroLogsBloom } from "./bloom.js";
+import {
+  isFactoryInBloom,
+  isFilterInBloom,
+  isInBloom,
+  zeroLogsBloom,
+} from "./bloom.js";
 
 export type RealtimeSync = {
   /**
@@ -214,11 +219,16 @@ export const createRealtimeSync = (
     // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
     // Async-execution chains cannot reliably use blooms to filter or validate logs.
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
+    // Note: Factories of transaction, transfer, and trace filters also require logs
+    // to find new child addresses.
     const shouldRequestLogs = isAsyncExecution
-      ? logFilters.length > 0
+      ? logFilters.length > 0 || factories.length > 0
       : maybeBlockHeader.logsBloom === zeroLogsBloom ||
         logFilters.some((filter) =>
           isFilterInBloom({ block: maybeBlockHeader, filter }),
+        ) ||
+        factories.some((factory) =>
+          isFactoryInBloom({ block: maybeBlockHeader, factory }),
         );
 
     let logs: SyncLog[] = [];

@@ -2,7 +2,7 @@ import type { Hex } from "viem";
 import { expect, test } from "vitest";
 import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import type { LogFactory, LogFilter } from "@/internal/types.js";
-import { isFilterInBloom, isInBloom } from "./bloom.js";
+import { isFactoryInBloom, isFilterInBloom, isInBloom } from "./bloom.js";
 
 test("isInBloom", () => {
   let bloom =
@@ -144,4 +144,40 @@ test("isFilterInBloom returns true for array of addresses", () => {
   };
 
   expect(isFilterInBloom({ block, filter })).toBe(true);
+});
+
+test("isFactoryInBloom", () => {
+  const block = {
+    number: "0x5",
+    logsBloom:
+      "0x00000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002020000000000000000000000000000000000000000000008000000001000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  } as const;
+
+  const factory = {
+    id: `log_${"0xef2d6d194084c2de36e0dabfce45d046b37d1106"}_${1}_topic${1}_${"0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc"}_${"undefined"}_${"undefined"}`,
+    type: "log",
+    chainId: 1,
+    sourceId: "factory",
+    address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+    eventSelector:
+      "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+    childAddressLocation: "topic1",
+    fromBlock: undefined,
+    toBlock: undefined,
+  } satisfies LogFactory;
+
+  expect(isFactoryInBloom({ block, factory })).toBe(true);
+  expect(isFactoryInBloom({ block, factory: { ...factory, toBlock: 4 } })).toBe(
+    false,
+  );
+  expect(
+    isFactoryInBloom({
+      block,
+      factory: {
+        ...factory,
+        eventSelector:
+          "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb",
+      },
+    }),
+  ).toBe(false);
 });
