@@ -2,12 +2,13 @@ import crypto from "node:crypto";
 import { zeroLogsBloom } from "@ponder/sync-realtime/bloom.js";
 import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { createQueue } from "@ponder/utils/queue.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import seedrandom from "seedrandom";
 import {
   type Address,
   custom,
   type Hash,
+  type Hex,
   hexToNumber,
   type RpcBlock,
   type RpcLog,
@@ -15,7 +16,16 @@ import {
   toHex,
 } from "viem";
 import * as RPC_SCHEMA from "../schema.js";
-import { APP, DB, IS_REALTIME, restart, SEED, SIM_PARAMS } from "./index.js";
+import {
+  APP,
+  APP_FINALIZED,
+  DB,
+  FINALIZED_TARGETS,
+  IS_REALTIME,
+  restart,
+  SEED,
+  SIM_PARAMS,
+} from "./index.js";
 
 const PONDER_RPC_METHODS = [
   "eth_getBlockByNumber",
@@ -28,6 +38,13 @@ const PONDER_RPC_METHODS = [
   "debug_traceBlockByHash",
   "eth_call",
 ] as const;
+
+/** Returns true if `value` is a hex encoded block number. */
+const isQuantity = (value: unknown): value is Hex =>
+  typeof value === "string" && /^0x[0-9a-fA-F]+$/.test(value);
+
+/** Number of blocks of the rpc cache to read in one query for `eth_getLogs`. */
+const LOGS_BATCH_SIZE = 10;
 
 const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
   concurrency: 1,
@@ -118,17 +135,52 @@ export const sim =
         const index = APP.indexingBuild.chains.findIndex(
           (_chain) => _chain.id === chain.id,
         );
-        const finalizedBlock = APP.indexingBuild.finalizedBlocks[index]!;
+        const finalizedBlock =
+          FINALIZED_TARGETS.get(chain.id) ??
+          APP.indexingBuild.finalizedBlocks[index]!;
         const chainConfig = APP.indexingBuild.chains[index]!;
         const targetTimestamp =
           hexToNumber(finalizedBlock.timestamp) + chainConfig.reorgWindow;
         let number = hexToNumber(finalizedBlock.number);
 
+        let latestBlock: RpcBlock;
         while (true) {
-          const block = await getCachedBlock(number + 1);
+          latestBlock = await getCachedBlock(number + 1);
           number += 1;
-          if (hexToNumber(block.timestamp) >= targetTimestamp) break;
+          if (hexToNumber(latestBlock.timestamp) >= targetTimestamp) break;
         }
+
+        // Note: The app finalizes the last block that is at least `reorgWindow` seconds
+        // before the latest block. Record it, so that the realtime block engine does not
+        // send blocks that the app already finalized.
+        let appFinalized =
+          chainConfig.reorgWindow === 0
+            ? number
+            : hexToNumber(finalizedBlock.number);
+        for (let n = appFinalized + 1; n < number; n++) {
+          const block = await getCachedBlock(n);
+          if (
+            hexToNumber(block.timestamp) >
+            hexToNumber(latestBlock!.timestamp) - chainConfig.reorgWindow
+          ) {
+            break;
+          }
+          appFinalized = n;
+        }
+        if (APP_FINALIZED.has(chain.id)) {
+          if (appFinalized > APP_FINALIZED.get(chain.id)!) {
+            console.log(
+              `Advanced finalized block from ${APP_FINALIZED.get(chain.id)} to ${appFinalized} on chain ${chain.id}`,
+            );
+          }
+          APP_FINALIZED.set(
+            chain.id,
+            Math.max(APP_FINALIZED.get(chain.id)!, appFinalized),
+          );
+        }
+
+        // Note: Only advance the finalized block once.
+        APP.common.options.backfillFinalizedRefetchInterval = undefined;
 
         body.params[0] = toHex(number);
       }
@@ -149,6 +201,34 @@ export const sim =
             body.params[0].toBlock === "latest"
           ) {
             throw new Error("Block tag not supported");
+          }
+          break;
+      }
+
+      // block number validation
+      //
+      // Note: A JSON-RPC provider rejects an invalid block number (for example "0xNaN") or
+      // an `eth_getLogs` range with `fromBlock` after `toBlock`.
+
+      switch (body.method) {
+        case "eth_getBlockByNumber":
+        case "debug_traceBlockByNumber":
+          if (isQuantity(body.params[0]) === false) {
+            throw new Error("invalid argument 0: hex string is invalid");
+          }
+          break;
+        case "eth_getLogs":
+          if ("fromBlock" in body.params[0] || "toBlock" in body.params[0]) {
+            const { fromBlock, toBlock } = body.params[0];
+            if (
+              isQuantity(fromBlock) === false ||
+              isQuantity(toBlock) === false
+            ) {
+              throw new Error("invalid argument 0: hex string is invalid");
+            }
+            if (hexToNumber(fromBlock) > hexToNumber(toBlock)) {
+              throw new Error("invalid block range params");
+            }
           }
           break;
       }
@@ -268,23 +348,37 @@ export const sim =
           const logs: RpcLog[] = [];
 
           if ("fromBlock" in body.params[0] && "toBlock" in body.params[0]) {
-            for (
-              let block = +body.params[0].fromBlock;
-              block <= +body.params[0].toBlock;
-              block++
-            ) {
-              const _logs = await DB.select({ body: RPC_SCHEMA.logs.body })
-                .from(RPC_SCHEMA.logs)
-                .where(
-                  and(
-                    eq(RPC_SCHEMA.logs.chainId, chain!.id),
-                    eq(RPC_SCHEMA.logs.blockNumber, block),
-                  ),
-                )
-                .then((logs) => logs[0]);
+            const fromBlock = +body.params[0].fromBlock;
+            const toBlock = +body.params[0].toBlock;
+
+            // Note: Read the rpc cache in batches of blocks, to make fewer queries.
+            let cachedLogs = new Map<number, RpcLog[]>();
+            for (let block = fromBlock; block <= toBlock; block++) {
+              if ((block - fromBlock) % LOGS_BATCH_SIZE === 0) {
+                const rows = await DB.select({
+                  blockNumber: RPC_SCHEMA.logs.blockNumber,
+                  body: RPC_SCHEMA.logs.body,
+                })
+                  .from(RPC_SCHEMA.logs)
+                  .where(
+                    and(
+                      eq(RPC_SCHEMA.logs.chainId, chain!.id),
+                      gte(RPC_SCHEMA.logs.blockNumber, block),
+                      lte(
+                        RPC_SCHEMA.logs.blockNumber,
+                        Math.min(block + LOGS_BATCH_SIZE - 1, toBlock),
+                      ),
+                    ),
+                  );
+                cachedLogs = new Map(
+                  rows.map((row) => [row.blockNumber, row.body as RpcLog[]]),
+                );
+              }
+
+              const _logs = cachedLogs.get(block);
 
               if (_logs) {
-                logs.push(...filterLogs(_logs.body as RpcLog[]));
+                logs.push(...filterLogs(_logs));
               } else {
                 const rpcLogs = await _request({
                   method: "eth_getLogs",
@@ -524,9 +618,11 @@ export const sim =
         throw new Error("Simulation invariant broken. Result is undefined.");
       }
 
+      // Note: A request for one block can not be split, so the limit is only for ranges.
       if (
         body.method === "eth_getLogs" &&
-        body.params[0].blockHash === undefined
+        body.params[0].blockHash === undefined &&
+        body.params[0].fromBlock !== body.params[0].toBlock
       ) {
         if (
           (result as unknown[]).length > SIM_PARAMS.ETH_GET_LOGS_RESPONSE_LIMIT

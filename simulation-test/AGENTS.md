@@ -79,6 +79,11 @@ pnpm create:app reference-erc20
 - The available app IDs are the directories under `simulation-test/apps/`.
 - `the-compact` and `basepaint` are treated as cached apps by the harness and skip uncached block deletion.
 - `super-assessment` is special: its seeded config is generated dynamically, and its expected tables are built during the simulation run.
+- The seeded `super-assessment` config has two contracts (`c`, `d`), an account (`a`), and two block sources (`b`, `b2`) on three chains. `d` and `b2` can have the same addresses and blocks as `c` and `b`, with other options.
+- `super-assessment` builds its expected tables in a separate copy of the template (`[uuid]_oracle`), then copies them into the run database and drops the copy. The expected tables do not depend on the sync store of the app, so the harness can change that sync store (for example, empty it) without changing the expected tables. Factory child addresses are matched by parent address, event, and block range, not by the factory key of the app, so a bug in how Ponder keys or reuses child addresses causes a validation failure.
+- Each factory in the seeded `super-assessment` config must have a subset of the children of the same factory in the config without `SEED`. Otherwise the template does not have the data for the expected tables, and the run exits with `INFRA ERROR`. The factory range must also be inside the contract range, or Ponder fails the build.
+- `EMPTY_FACTORY_ADDRESS` (`apps/super-assessment/constants.ts`) is a parent address that emits no logs. Use it to make a factory with more than one parent without new template data.
+- The runner prints `Expected child addresses: N` for each factory and the expected row count for each event. A factory with `0` child addresses does not test factory behavior.
 - Verified local smoke command for the isolated Docker database:
 
 ```bash
@@ -97,8 +102,17 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - A simulated RPC or DB error is not automatically a test failure; Ponder is expected to recover from many injected transient failures.
 - Treat any CI job cancelled because of a timeout as a test failure.
 - On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
-- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema.
+- Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema, or it does not have the factory child addresses for a seeded `super-assessment` factory.
 - `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). In-memory sync does not use the template's sync data, so it fetches all data through the simulated RPC on every start and crash recovery restart. It is only picked for apps with small block ranges (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
+- `HISTORICAL_SHUTDOWN_PROGRESS` restarts the app once during the backfill, when indexing first reaches that fraction of the block range of a chain. The trigger is indexing progress, not time, so a seed restarts at the same point. `REALTIME_SHUTDOWN_RATE` restarts the app during live indexing. An app restarts at most two times.
+- `FINALIZED_ADVANCE_BLOCKS` moves the finalized block forward once during the backfill. The harness sets the internal option `backfillFinalizedRefetchInterval` to `0`, so the app refetches the finalized block after the first pass and syncs the new blocks in a catch-up pass. The realtime block engine skips blocks that the app already finalized.
+- `SYNC_EVENTS_QUERY_SIZE`, `FACTORY_ADDRESS_COUNT_THRESHOLD`, and `INDEXING_CACHE_MAX_BYTES` set internal options (`common.options`) to reach code paths that the small block ranges do not reach with the defaults. For example, a factory with more children than `factoryAddressCountThreshold` fetches logs without an address filter.
+- `SYNC_STORE: "empty"` (apps in `IN_MEMORY_SYNC_APPS`) truncates the sync store of the run database before the app starts. The app then syncs all data through the simulated RPC and only reuses data that it synced itself. Data in the template can hide a bug that marks an interval as complete without fetching its data.
+- `MAX_UNCACHED_BLOCKS` removes random block ranges from the intervals in the sync store, with their data. For a `factory_log` interval, it also removes the child addresses that were created in the removed blocks, so the app syncs part of the factory range again.
+- Before the app starts, the harness removes template child addresses after the mocked finalized block and trims `factory_log` intervals to end at it. A real app only has child addresses up to its finalized block, and must find later ones during live indexing.
+- The harness fails with `ERROR: Run did not complete within 12 minutes` before the CI job timeout, so a hang reports a reproduction command.
+- The harness fails with `ERROR: App did not shut down within 30 seconds` when a restart or the final shutdown does not complete. `ponder start` exits the process 5 seconds after a shutdown starts, so a shutdown that does not complete is a bug.
+- `PREVIOUS_RUN` (`super-assessment` only) runs a previous config on the same sync store before the tested config, in the `previous` schema, until the backfill is complete. The previous run always starts with an empty sync store. The previous config has the same addresses and blocks, but picks the factory shape, filter, receipt, and trace options again (`SIM_PREVIOUS_RUN` in `ponder.config.ts`). This tests sync data reuse across configs.
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
 
 ## Infra / Railway / Monitoring CI
@@ -130,6 +144,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - `src/index.ts`: main simulation runner and validation logic.
 - `src/rpc-sim.ts`: RPC cache, RPC fault injection, realtime block, reorg, and restart simulation.
 - `src/db-sim.ts`: database fault injection.
+- `src/factory.ts`: factory child addresses for the expected tables.
 - `src/create-app.ts`: app template database creation.
 - `src/cleanup-database.ts`: successful run database cleanup.
 - `schema.ts`: shared metadata and RPC cache schema.

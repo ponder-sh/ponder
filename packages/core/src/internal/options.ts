@@ -36,6 +36,12 @@ export type Options = {
   rpcMaxConcurrency: number;
 
   syncEventsQuerySize: number;
+
+  /**
+   * Minimum time in milliseconds between finalized block refetches during the backfill.
+   * Defaults to the reorg window of the chain, and at least 30 seconds.
+   */
+  backfillFinalizedRefetchInterval: number | undefined;
 };
 
 export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
@@ -118,5 +124,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
           1_024,
 
     syncEventsQuerySize: 12_000,
+
+    backfillFinalizedRefetchInterval: undefined,
   } satisfies Options;
 };

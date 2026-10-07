@@ -6,13 +6,15 @@ import { getPrimaryKeyColumns } from "@ponder/drizzle/index.js";
 import type {
   EventCallback,
   Factory,
+  FactoryFragmentId,
   FragmentAddress,
+  LightBlock,
 } from "@ponder/internal/types.js";
 import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
 import { createRpc } from "@ponder/rpc/index.js";
+import { getFilterFactories } from "@ponder/runtime/filter.js";
 import {
   decodeFragment,
-  getFactoryFragmentIds,
   getFragments,
   isFragmentAddressFactory,
 } from "@ponder/runtime/fragments.js";
@@ -28,7 +30,6 @@ import {
   getTableName,
   gt,
   gte,
-  inArray,
   is,
   isNotNull,
   lte,
@@ -55,6 +56,11 @@ import packageJson from "../../packages/core/package.json";
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";
 import { dbSim } from "./db-sim.js";
+import {
+  copyTemplateFactoryData,
+  getExpectedChildAddresses,
+  getMissingExpectedParents,
+} from "./factory.js";
 import { type RpcBlockHeader, realtimeBlockEngine, sim } from "./rpc-sim.js";
 import { getJoinConditions } from "./sql.js";
 
@@ -71,11 +77,20 @@ const IN_MEMORY_SYNC_APPS = [
 
 // inputs
 
+/** Maximum time in milliseconds for the app to shut down. */
+const SHUTDOWN_TIMEOUT = 30_000;
+/**
+ * Maximum time in milliseconds for a run. It is less than the CI job timeout, so that a
+ * run that does not complete fails with a clear error and a reproduction command.
+ */
+const RUN_TIMEOUT = 12 * 60_000;
+
 const DATABASE_URL = process.env.DATABASE_URL!;
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
 export const SEED = process.env.SEED ?? crypto.randomBytes(32).toString("hex");
 export const UUID = process.env.UUID ?? crypto.randomUUID();
+const ORACLE_DATABASE = `${UUID}_oracle`;
 export const PORT = process.env.PORT ?? 42069;
 
 if (APP_ID === undefined) {
@@ -87,6 +102,16 @@ if (APP_ID === undefined) {
 export let APP: PonderApp | undefined;
 export let IS_REALTIME = false;
 export let RESTART_COUNT = 0;
+/** True while the app runs the previous config, before the tested config. */
+export let IS_PREVIOUS_RUN = false;
+
+/**
+ * Block that the simulated "latest" block is derived from, for each chain. It is after the
+ * mocked finalized block when the finalized block advances during the backfill.
+ */
+export const FINALIZED_TARGETS = new Map<number, LightBlock>();
+/** Finalized block number of the app, for each chain. */
+export const APP_FINALIZED = new Map<number, number>();
 
 // sim params
 
@@ -126,22 +151,48 @@ export const SIM_PARAMS = {
   ),
   REALTIME_DELAY_RATE: pick([0, 0.4, 0.8], "realtime-delay-rate"),
   UNFINALIZED_BLOCKS: pick([0, 0, 50, 100, 250, 300], "unfinalized-blocks"),
-  REALTIME_SHUTDOWN_RATE:
-    APP_ID === "super-assessment"
-      ? undefined
-      : pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
+  REALTIME_SHUTDOWN_RATE: pick([0, 0.001, 0.002], "realtime-shutdown-rate"),
   ORDERING:
-    APP_ID === "assessment"
+    APP_ID === "assessment" || APP_ID === "super-assessment"
       ? pick(["multichain", "omnichain", "experimental_isolated"], "ordering")
       : pick(["multichain", "omnichain"], "ordering"),
   REALTIME_BLOCK_HAS_TRANSACTIONS: pick(
     [true, false],
     "realtime-block-has-transactions",
   ),
+  SYNC_EVENTS_QUERY_SIZE: pick([50, 200, 2_000], "sync-events-query-size"),
+  FACTORY_ADDRESS_COUNT_THRESHOLD: pick(
+    [1_000, 20, 1],
+    "factory-address-count-threshold",
+  ),
+  INDEXING_CACHE_MAX_BYTES: pick(
+    [undefined, 64 * 1024],
+    "indexing-cache-max-bytes",
+  ),
+  FINALIZED_ADVANCE_BLOCKS: pick([0, 0, 10, 30], "finalized-advance-blocks"),
+  HISTORICAL_SHUTDOWN_PROGRESS: pick(
+    [undefined, undefined, 0.25, 0.5, 0.75],
+    "historical-shutdown-progress",
+  ),
+  // Note: Run a different config on the same sync store before the tested config.
+  PREVIOUS_RUN:
+    APP_ID === "super-assessment"
+      ? pick([false, false, true], "previous-run")
+      : false,
+  SYNC_STORE: undefined as "template" | "empty" | undefined,
   CACHE_RPC_REQUESTS: IN_MEMORY_SYNC_APPS.includes(APP_ID)
     ? pick([true, false], "cache-rpc-requests")
     : true,
 };
+
+// Note: The previous run must start with an empty sync store, so that the tested config
+// only reuses data that the previous run synced. An empty sync store is only picked for
+// apps with small block ranges, because the app syncs all data through the simulated rpc.
+SIM_PARAMS.SYNC_STORE = SIM_PARAMS.PREVIOUS_RUN
+  ? "empty"
+  : IN_MEMORY_SYNC_APPS.includes(APP_ID)
+    ? pick(["template", "template", "empty"], "sync-store")
+    : "template";
 
 // 1. Setup database
 
@@ -164,11 +215,19 @@ if (templateSyncSchema.rows.length === 0) {
   await DB.execute(sql.raw(`DROP DATABASE IF EXISTS "${UUID}" WITH (FORCE)`));
   process.exit(2);
 }
-await APP_DB.execute(
-  sql.raw(
-    "CREATE TABLE ponder_sync.expected_intervals AS SELECT * FROM ponder_sync.intervals",
-  ),
-);
+
+// Note: An empty sync store makes the app fetch all data through the simulated rpc, and
+// the app reuses only data that it synced itself.
+if (SIM_PARAMS.SYNC_STORE === "empty") {
+  const { rows } = await APP_DB.execute(
+    sql`SELECT tablename FROM pg_tables WHERE schemaname = ${PONDER_SYNC.PONDER_SYNC_SCHEMA}`,
+  );
+  await APP_DB.execute(
+    sql.raw(
+      `TRUNCATE ${rows.map(({ tablename }) => `"${PONDER_SYNC.PONDER_SYNC_SCHEMA}"."${tablename}"`).join(", ")} RESTART IDENTITY`,
+    ),
+  );
+}
 
 /** Returns an SQL condition that filters by address. */
 const getAddressCondition = <
@@ -186,27 +245,10 @@ const getAddressCondition = <
   if (isFragmentAddressFactory(fragmentAddress)) {
     if (filterAddress === undefined) return sql`true`;
 
-    return inArray(
-      addressColumn,
-      APP_DB.select({ address: PONDER_SYNC.factoryAddresses.address })
-        .from(PONDER_SYNC.factoryAddresses)
-        .where(
-          and(
-            gte(table.blockNumber, PONDER_SYNC.factoryAddresses.blockNumber),
-            inArray(
-              PONDER_SYNC.factoryAddresses.factoryId,
-              APP_DB.select({ id: PONDER_SYNC.factories.id })
-                .from(PONDER_SYNC.factories)
-                .where(
-                  inArray(
-                    PONDER_SYNC.factories.fragmentId,
-                    getFactoryFragmentIds(filterAddress as Factory),
-                  ),
-                ),
-            ),
-          ),
-        ),
-    );
+    // Note: Each fragment of a factory has one parent. A child of more than one parent
+    // is not supported, because the expected tables would have duplicate rows.
+    return sql`EXISTS (SELECT 1 FROM (${getExpectedChildAddresses(filterAddress as Factory, (fragmentAddress as { address: Address }).address)}) AS children
+      WHERE children.address = ${addressColumn} AND children.block_number <= ${table.blockNumber})`;
   } else if (typeof fragmentAddress === "string") {
     return eq(addressColumn, fragmentAddress);
   } else {
@@ -281,8 +323,16 @@ const pwr = promiseWithResolvers<void>();
  */
 const onBuild = async (app: PonderApp) => {
   APP = app;
+  FINALIZED_TARGETS.clear();
+  APP_FINALIZED.clear();
 
-  app.common.options.syncEventsQuerySize = 200;
+  app.common.options.syncEventsQuerySize = SIM_PARAMS.SYNC_EVENTS_QUERY_SIZE;
+  app.common.options.factoryAddressCountThreshold =
+    SIM_PARAMS.FACTORY_ADDRESS_COUNT_THRESHOLD;
+  if (SIM_PARAMS.INDEXING_CACHE_MAX_BYTES !== undefined) {
+    app.common.options.indexingCacheMaxBytes =
+      SIM_PARAMS.INDEXING_CACHE_MAX_BYTES;
+  }
   // Note: this forces the app to run in a single thread.
   app.common.options.maxThreads = 1;
 
@@ -317,7 +367,7 @@ const onBuild = async (app: PonderApp) => {
     { common: app.common, isAdmin: false },
   );
 
-  if (APP_ID === "super-assessment") {
+  if (APP_ID === "super-assessment" && IS_PREVIOUS_RUN === false) {
     const random = seedrandom(`${SEED}_super_assessment_filter`);
     for (let i = 0; i < app.indexingBuild.eventCallbacks.length; i++) {
       app.indexingBuild.eventCallbacks[i] = app.indexingBuild.eventCallbacks[
@@ -357,274 +407,81 @@ const onBuild = async (app: PonderApp) => {
     app.indexingBuild.rpcs = rpcsWithSources;
     app.indexingBuild.finalizedBlocks = finalizedBlocksWithSources;
     app.indexingBuild.eventCallbacks = eventCallbacksWithSources;
+  }
 
+  // Note: The expected tables are built once. A restart uses the same tables.
+  if (
+    APP_ID === "super-assessment" &&
+    RESTART_COUNT === 0 &&
+    IS_PREVIOUS_RUN === false
+  ) {
     // build super assessment expected tables
 
-    await migrate(APP_DB, {
-      migrationsFolder: "./apps/super-assessment/migrations",
+    // Note: The expected tables are built in a separate copy of the template, so that
+    // changes to the sync store of the app (for example an empty sync store) do not
+    // change the expected tables.
+    await DB.execute(
+      sql.raw(`CREATE DATABASE "${ORACLE_DATABASE}" TEMPLATE "${APP_ID}"`),
+    );
+    const ORACLE_DB = drizzle(`${DATABASE_URL!}/${ORACLE_DATABASE}`, {
+      casing: "snake_case",
     });
+    let infraError: string | undefined;
 
-    // Trace index of each trace that matches at least one trace or transfer filter
+    const buildExpectedTables = async () => {
+      await copyTemplateFactoryData(ORACLE_DB);
 
-    await APP_DB.execute(
-      sql`CREATE TABLE IF NOT EXISTS expected_trace_indexes (
+      await migrate(ORACLE_DB, {
+        migrationsFolder: "./apps/super-assessment/migrations",
+      });
+
+      const factories = new Map<Factory["id"], Factory>();
+      for (const { filter } of app.indexingBuild.eventCallbacks.flat()) {
+        for (const factory of getFilterFactories(filter)) {
+          factories.set(factory.id, factory);
+        }
+      }
+      for (const factory of factories.values()) {
+        const missingParents = await getMissingExpectedParents(
+          ORACLE_DB,
+          factory,
+        );
+        if (missingParents.length > 0) {
+          infraError = `INFRA ERROR: Template database "${APP_ID}" does not have the child addresses of factory parents ${missingParents.join(", ")} on chain ${factory.chainId} for blocks [${factory.fromBlock}, ${factory.toBlock}]. Add the factory to the config without SEED and sync the template.`;
+          return;
+        }
+
+        const children = await ORACLE_DB.execute(
+          sql`SELECT count(*) AS count FROM (${getExpectedChildAddresses(factory)}) AS children`,
+        );
+        console.log(
+          `Expected child addresses: ${children.rows[0]!.count} (factory ${factory.id})`,
+        );
+      }
+
+      // Trace index of each trace that matches at least one trace or transfer filter
+
+      await ORACLE_DB.execute(
+        sql`CREATE TABLE IF NOT EXISTS expected_trace_indexes (
         chain_id bigint NOT NULL,
         block_number bigint NOT NULL,
         transaction_index integer NOT NULL,
         trace_address integer[] NOT NULL,
         trace_index bigint NOT NULL
       )`,
-    );
-    await APP_DB.execute(sql`TRUNCATE expected_trace_indexes`);
-
-    const matchedTraceConditions: SQL[] = [];
-    for (const { filter } of app.indexingBuild.eventCallbacks.flat()) {
-      if (filter.type !== "trace" && filter.type !== "transfer") continue;
-
-      for (const { fragment } of getFragments(filter)) {
-        if (fragment.type !== "trace" && fragment.type !== "transfer") continue;
-
-        matchedTraceConditions.push(
-          and(
-            eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
-            getAddressCondition(
-              fragment.fromAddress,
-              PONDER_SYNC.traces,
-              "from",
-              filter.fromAddress,
-            ),
-            getAddressCondition(
-              fragment.toAddress,
-              PONDER_SYNC.traces,
-              "to",
-              filter.toAddress,
-            ),
-            filter.type === "trace" && filter.callType
-              ? eq(PONDER_SYNC.traces.type, filter.callType)
-              : undefined,
-            fragment.type === "trace" && fragment.functionSelector
-              ? eq(
-                  sql`substring(traces.input from 1 for 10)`,
-                  fragment.functionSelector,
-                )
-              : undefined,
-            filter.type === "transfer"
-              ? and(
-                  isNotNull(PONDER_SYNC.traces.value),
-                  gt(PONDER_SYNC.traces.value, 0n),
-                  notInArray(PONDER_SYNC.traces.type, [
-                    "DELEGATECALL",
-                    "CALLCODE",
-                  ]),
-                )
-              : undefined,
-            filter.fromBlock
-              ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
-              : undefined,
-            filter.toBlock
-              ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
-              : undefined,
-          )!,
-        );
-      }
-    }
-
-    if (matchedTraceConditions.length > 0) {
-      const matchedTraces = APP_DB.selectDistinct({
-        chainId: PONDER_SYNC.traces.chainId,
-        blockNumber: PONDER_SYNC.traces.blockNumber,
-        transactionIndex: PONDER_SYNC.traces.transactionIndex,
-        traceAddress: PONDER_SYNC.traces.traceAddress,
-      })
-        .from(PONDER_SYNC.traces)
-        .innerJoin(
-          PONDER_SYNC.blocks,
-          getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-        )
-        .where(or(...matchedTraceConditions));
-
-      await APP_DB.execute(
-        sql`INSERT INTO expected_trace_indexes
-          SELECT chain_id, block_number, transaction_index, trace_address,
-            row_number() OVER (
-              PARTITION BY chain_id, block_number, transaction_index
-              ORDER BY trace_address
-            ) - 1
-          FROM (${matchedTraces}) AS matched_traces`,
       );
-    }
+      await ORACLE_DB.execute(sql`TRUNCATE expected_trace_indexes`);
 
-    for (const eventCallback of app.indexingBuild.eventCallbacks.flat()) {
-      const filter = eventCallback.filter;
-      const blockConditions = [
-        filter.fromBlock
-          ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
-          : undefined,
-        filter.toBlock
-          ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
-          : undefined,
-      ];
+      const matchedTraceConditions: SQL[] = [];
+      for (const { filter } of app.indexingBuild.eventCallbacks.flat()) {
+        if (filter.type !== "trace" && filter.type !== "transfer") continue;
 
-      for (const { fragment } of getFragments(filter)) {
-        switch (fragment.type) {
-          case "block": {
-            const blockCheckpoint = sql.raw(
-              `
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(blocks.chain_id::text, 16, '0') ||
-            lpad(blocks.number::text, 16, '0') ||
-            '9999999999999999' ||
-            '5' ||
-            '0000000000000000')`,
-            );
+        for (const { fragment } of getFragments(filter)) {
+          if (fragment.type !== "trace" && fragment.type !== "transfer")
+            continue;
 
-            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: blockCheckpoint.as("id"),
-                chainId: PONDER_SYNC.blocks.chainId,
-                number: PONDER_SYNC.blocks.number,
-                hash: PONDER_SYNC.blocks.hash,
-              })
-                .from(PONDER_SYNC.blocks)
-                .where(
-                  and(
-                    eq(PONDER_SYNC.blocks.chainId, BigInt(fragment.chainId)),
-                    sql`(blocks.number - ${fragment.offset}) % ${fragment.interval} = 0`,
-                    ...blockConditions,
-                  ),
-                ),
-            );
-
-            break;
-          }
-          case "transaction": {
-            const transactionCheckpoint = sql.raw(
-              `
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(transactions.chain_id::text, 16, '0') ||
-            lpad(transactions.block_number::text, 16, '0') ||
-            lpad(transactions.transaction_index::text, 16, '0') ||
-            '2' ||
-            '0000000000000000')`,
-            );
-
-            const condition = and(
-              eq(PONDER_SYNC.transactions.chainId, BigInt(fragment.chainId)),
-              getAddressCondition(
-                fragment.fromAddress,
-                PONDER_SYNC.transactions,
-                "from",
-                filter.fromAddress,
-              ),
-              getAddressCondition(
-                fragment.toAddress,
-                PONDER_SYNC.transactions,
-                "to",
-                filter.toAddress,
-              ),
-              eq(PONDER_SYNC.transactionReceipts.status, "0x1"),
-              ...blockConditions,
-            );
-
-            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: transactionCheckpoint.as("id"),
-                chainId: PONDER_SYNC.transactions.chainId,
-                number: PONDER_SYNC.blocks.number,
-                hash: PONDER_SYNC.blocks.hash,
-              })
-                .from(PONDER_SYNC.transactions)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(
-                    PONDER_SYNC.blocks,
-                    PONDER_SYNC.transactions,
-                  ),
-                )
-                .innerJoin(
-                  PONDER_SYNC.transactionReceipts,
-                  getJoinConditions(
-                    PONDER_SYNC.transactionReceipts,
-                    PONDER_SYNC.transactions,
-                  ),
-                )
-                .where(condition),
-            );
-
-            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: transactionCheckpoint.as("id"),
-                chainId: PONDER_SYNC.transactions.chainId,
-                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                hash: PONDER_SYNC.transactions.hash,
-              })
-                .from(PONDER_SYNC.transactions)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(
-                    PONDER_SYNC.blocks,
-                    PONDER_SYNC.transactions,
-                  ),
-                )
-                .innerJoin(
-                  PONDER_SYNC.transactionReceipts,
-                  getJoinConditions(
-                    PONDER_SYNC.transactionReceipts,
-                    PONDER_SYNC.transactions,
-                  ),
-                )
-                .where(condition),
-            );
-
-            await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: transactionCheckpoint.as("id"),
-                chainId: PONDER_SYNC.transactions.chainId,
-                transactionIndex:
-                  PONDER_SYNC.transactionReceipts.transactionIndex,
-                hash: PONDER_SYNC.transactionReceipts.transactionHash,
-              })
-                .from(PONDER_SYNC.transactions)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(
-                    PONDER_SYNC.blocks,
-                    PONDER_SYNC.transactions,
-                  ),
-                )
-                .innerJoin(
-                  PONDER_SYNC.transactionReceipts,
-                  getJoinConditions(
-                    PONDER_SYNC.transactionReceipts,
-                    PONDER_SYNC.transactions,
-                  ),
-                )
-                .where(condition),
-            );
-
-            break;
-          }
-          case "trace": {
-            const traceCheckpoint = sql.raw(
-              `
-            (lpad(blocks.timestamp::text, 10, '0') ||
-            lpad(traces.chain_id::text, 16, '0') ||
-            lpad(traces.block_number::text, 16, '0') ||
-            lpad(traces.transaction_index::text, 16, '0') ||
-            '7' ||
-            lpad((SELECT expected.trace_index FROM expected_trace_indexes AS expected
-              WHERE expected.chain_id = traces.chain_id
-                AND expected.block_number = traces.block_number
-                AND expected.transaction_index = traces.transaction_index
-                AND expected.trace_address = traces.trace_address
-            )::text, 16, '0'))`,
-            );
-
-            const condition = and(
+          matchedTraceConditions.push(
+            and(
               eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
               getAddressCondition(
                 fragment.fromAddress,
@@ -638,66 +495,282 @@ const onBuild = async (app: PonderApp) => {
                 "to",
                 filter.toAddress,
               ),
-              filter.callType
+              filter.type === "trace" && filter.callType
                 ? eq(PONDER_SYNC.traces.type, filter.callType)
                 : undefined,
-              fragment.functionSelector
+              fragment.type === "trace" && fragment.functionSelector
                 ? eq(
                     sql`substring(traces.input from 1 for 10)`,
                     fragment.functionSelector,
                   )
                 : undefined,
-              ...blockConditions,
-            );
+              filter.type === "transfer"
+                ? and(
+                    isNotNull(PONDER_SYNC.traces.value),
+                    gt(PONDER_SYNC.traces.value, 0n),
+                    notInArray(PONDER_SYNC.traces.type, [
+                      "DELEGATECALL",
+                      "CALLCODE",
+                    ]),
+                  )
+                : undefined,
+              filter.fromBlock
+                ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
+                : undefined,
+              filter.toBlock
+                ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
+                : undefined,
+            )!,
+          );
+        }
+      }
 
-            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: traceCheckpoint.as("id"),
-                chainId: PONDER_SYNC.traces.chainId,
-                number: PONDER_SYNC.blocks.number,
-                hash: PONDER_SYNC.blocks.hash,
-              })
-                .from(PONDER_SYNC.traces)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-                )
-                .where(condition),
-            );
+      if (matchedTraceConditions.length > 0) {
+        const matchedTraces = ORACLE_DB.selectDistinct({
+          chainId: PONDER_SYNC.traces.chainId,
+          blockNumber: PONDER_SYNC.traces.blockNumber,
+          transactionIndex: PONDER_SYNC.traces.transactionIndex,
+          traceAddress: PONDER_SYNC.traces.traceAddress,
+        })
+          .from(PONDER_SYNC.traces)
+          .innerJoin(
+            PONDER_SYNC.blocks,
+            getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+          )
+          .where(or(...matchedTraceConditions));
 
-            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: traceCheckpoint.as("id"),
-                chainId: PONDER_SYNC.traces.chainId,
-                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                hash: PONDER_SYNC.transactions.hash,
-              })
-                .from(PONDER_SYNC.traces)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-                )
-                .innerJoin(
-                  PONDER_SYNC.transactions,
-                  getJoinConditions(
-                    PONDER_SYNC.transactions,
-                    PONDER_SYNC.traces,
-                  ),
-                )
-                .where(condition),
-            );
+        await ORACLE_DB.execute(
+          sql`INSERT INTO expected_trace_indexes
+          SELECT chain_id, block_number, transaction_index, trace_address,
+            row_number() OVER (
+              PARTITION BY chain_id, block_number, transaction_index
+              ORDER BY trace_address
+            ) - 1
+          FROM (${matchedTraces}) AS matched_traces`,
+        );
+      }
 
-            if (fragment.includeTransactionReceipts) {
-              await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-                APP_DB.select({
+      for (const eventCallback of app.indexingBuild.eventCallbacks.flat()) {
+        const filter = eventCallback.filter;
+        const blockConditions = [
+          filter.fromBlock
+            ? gte(PONDER_SYNC.blocks.number, BigInt(filter.fromBlock))
+            : undefined,
+          filter.toBlock
+            ? lte(PONDER_SYNC.blocks.number, BigInt(filter.toBlock))
+            : undefined,
+        ];
+
+        for (const { fragment } of getFragments(filter)) {
+          switch (fragment.type) {
+            case "block": {
+              const blockCheckpoint = sql.raw(
+                `
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(blocks.chain_id::text, 16, '0') ||
+            lpad(blocks.number::text, 16, '0') ||
+            '9999999999999999' ||
+            '5' ||
+            '0000000000000000')`,
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.blocks).select(
+                ORACLE_DB.select({
                   name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                  id: traceCheckpoint.as("id"),
-                  chainId: PONDER_SYNC.traces.chainId,
+                  id: blockCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.blocks.chainId,
+                  number: PONDER_SYNC.blocks.number,
+                  hash: PONDER_SYNC.blocks.hash,
+                })
+                  .from(PONDER_SYNC.blocks)
+                  .where(
+                    and(
+                      eq(PONDER_SYNC.blocks.chainId, BigInt(fragment.chainId)),
+                      sql`(blocks.number - ${fragment.offset}) % ${fragment.interval} = 0`,
+                      ...blockConditions,
+                    ),
+                  ),
+              );
+
+              break;
+            }
+            case "transaction": {
+              const transactionCheckpoint = sql.raw(
+                `
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(transactions.chain_id::text, 16, '0') ||
+            lpad(transactions.block_number::text, 16, '0') ||
+            lpad(transactions.transaction_index::text, 16, '0') ||
+            '2' ||
+            '0000000000000000')`,
+              );
+
+              const condition = and(
+                eq(PONDER_SYNC.transactions.chainId, BigInt(fragment.chainId)),
+                getAddressCondition(
+                  fragment.fromAddress,
+                  PONDER_SYNC.transactions,
+                  "from",
+                  filter.fromAddress,
+                ),
+                getAddressCondition(
+                  fragment.toAddress,
+                  PONDER_SYNC.transactions,
+                  "to",
+                  filter.toAddress,
+                ),
+                eq(PONDER_SYNC.transactionReceipts.status, "0x1"),
+                ...blockConditions,
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.blocks).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: transactionCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.transactions.chainId,
+                  number: PONDER_SYNC.blocks.number,
+                  hash: PONDER_SYNC.blocks.hash,
+                })
+                  .from(PONDER_SYNC.transactions)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(
+                      PONDER_SYNC.blocks,
+                      PONDER_SYNC.transactions,
+                    ),
+                  )
+                  .innerJoin(
+                    PONDER_SYNC.transactionReceipts,
+                    getJoinConditions(
+                      PONDER_SYNC.transactionReceipts,
+                      PONDER_SYNC.transactions,
+                    ),
+                  )
+                  .where(condition),
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.transactions).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: transactionCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.transactions.chainId,
+                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                  hash: PONDER_SYNC.transactions.hash,
+                })
+                  .from(PONDER_SYNC.transactions)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(
+                      PONDER_SYNC.blocks,
+                      PONDER_SYNC.transactions,
+                    ),
+                  )
+                  .innerJoin(
+                    PONDER_SYNC.transactionReceipts,
+                    getJoinConditions(
+                      PONDER_SYNC.transactionReceipts,
+                      PONDER_SYNC.transactions,
+                    ),
+                  )
+                  .where(condition),
+              );
+
+              await ORACLE_DB.insert(
+                SUPER_ASSESSMENT.transactionReceipts,
+              ).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: transactionCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.transactions.chainId,
                   transactionIndex:
                     PONDER_SYNC.transactionReceipts.transactionIndex,
                   hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                })
+                  .from(PONDER_SYNC.transactions)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(
+                      PONDER_SYNC.blocks,
+                      PONDER_SYNC.transactions,
+                    ),
+                  )
+                  .innerJoin(
+                    PONDER_SYNC.transactionReceipts,
+                    getJoinConditions(
+                      PONDER_SYNC.transactionReceipts,
+                      PONDER_SYNC.transactions,
+                    ),
+                  )
+                  .where(condition),
+              );
+
+              break;
+            }
+            case "trace": {
+              const traceCheckpoint = sql.raw(
+                `
+            (lpad(blocks.timestamp::text, 10, '0') ||
+            lpad(traces.chain_id::text, 16, '0') ||
+            lpad(traces.block_number::text, 16, '0') ||
+            lpad(traces.transaction_index::text, 16, '0') ||
+            '7' ||
+            lpad((SELECT expected.trace_index FROM expected_trace_indexes AS expected
+              WHERE expected.chain_id = traces.chain_id
+                AND expected.block_number = traces.block_number
+                AND expected.transaction_index = traces.transaction_index
+                AND expected.trace_address = traces.trace_address
+            )::text, 16, '0'))`,
+              );
+
+              const condition = and(
+                eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+                getAddressCondition(
+                  fragment.fromAddress,
+                  PONDER_SYNC.traces,
+                  "from",
+                  filter.fromAddress,
+                ),
+                getAddressCondition(
+                  fragment.toAddress,
+                  PONDER_SYNC.traces,
+                  "to",
+                  filter.toAddress,
+                ),
+                filter.callType
+                  ? eq(PONDER_SYNC.traces.type, filter.callType)
+                  : undefined,
+                fragment.functionSelector
+                  ? eq(
+                      sql`substring(traces.input from 1 for 10)`,
+                      fragment.functionSelector,
+                    )
+                  : undefined,
+                ...blockConditions,
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.blocks).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: traceCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  number: PONDER_SYNC.blocks.number,
+                  hash: PONDER_SYNC.blocks.hash,
+                })
+                  .from(PONDER_SYNC.traces)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+                  )
+                  .where(condition),
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.transactions).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: traceCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                  hash: PONDER_SYNC.transactions.hash,
                 })
                   .from(PONDER_SYNC.traces)
                   .innerJoin(
@@ -705,112 +778,117 @@ const onBuild = async (app: PonderApp) => {
                     getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
                   )
                   .innerJoin(
-                    PONDER_SYNC.transactionReceipts,
+                    PONDER_SYNC.transactions,
                     getJoinConditions(
-                      PONDER_SYNC.transactionReceipts,
+                      PONDER_SYNC.transactions,
                       PONDER_SYNC.traces,
                     ),
                   )
                   .where(condition),
               );
+
+              if (fragment.includeTransactionReceipts) {
+                await ORACLE_DB.insert(
+                  SUPER_ASSESSMENT.transactionReceipts,
+                ).select(
+                  ORACLE_DB.select({
+                    name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                    id: traceCheckpoint.as("id"),
+                    chainId: PONDER_SYNC.traces.chainId,
+                    transactionIndex:
+                      PONDER_SYNC.transactionReceipts.transactionIndex,
+                    hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                  })
+                    .from(PONDER_SYNC.traces)
+                    .innerJoin(
+                      PONDER_SYNC.blocks,
+                      getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+                    )
+                    .innerJoin(
+                      PONDER_SYNC.transactionReceipts,
+                      getJoinConditions(
+                        PONDER_SYNC.transactionReceipts,
+                        PONDER_SYNC.traces,
+                      ),
+                    )
+                    .where(condition),
+                );
+              }
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.traces).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: traceCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  traceAddress: PONDER_SYNC.traces.traceAddress,
+                })
+                  .from(PONDER_SYNC.traces)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+                  )
+                  .where(condition),
+              );
+
+              break;
             }
-
-            await APP_DB.insert(SUPER_ASSESSMENT.traces).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: traceCheckpoint.as("id"),
-                chainId: PONDER_SYNC.traces.chainId,
-                traceAddress: PONDER_SYNC.traces.traceAddress,
-              })
-                .from(PONDER_SYNC.traces)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-                )
-                .where(condition),
-            );
-
-            break;
-          }
-          case "log": {
-            const logCheckpoint = sql.raw(
-              `
+            case "log": {
+              const logCheckpoint = sql.raw(
+                `
             (lpad(blocks.timestamp::text, 10, '0') ||
             lpad(logs.chain_id::text, 16, '0') ||
             lpad(logs.block_number::text, 16, '0') ||
             lpad(logs.transaction_index::text, 16, '0') ||
             '5' ||
             lpad(logs.log_index::text, 16, '0'))`,
-            );
+              );
 
-            const condition = and(
-              eq(PONDER_SYNC.logs.chainId, BigInt(fragment.chainId)),
-              getAddressCondition(
-                fragment.address,
-                PONDER_SYNC.logs,
-                "address",
-                filter.address,
-              ),
-              fragment.topic0
-                ? eq(PONDER_SYNC.logs.topic0, fragment.topic0)
-                : undefined,
-              fragment.topic1
-                ? eq(PONDER_SYNC.logs.topic1, fragment.topic1)
-                : undefined,
-              fragment.topic2
-                ? eq(PONDER_SYNC.logs.topic2, fragment.topic2)
-                : undefined,
-              fragment.topic3
-                ? eq(PONDER_SYNC.logs.topic3, fragment.topic3)
-                : undefined,
-              ...blockConditions,
-            );
+              const condition = and(
+                eq(PONDER_SYNC.logs.chainId, BigInt(fragment.chainId)),
+                getAddressCondition(
+                  fragment.address,
+                  PONDER_SYNC.logs,
+                  "address",
+                  filter.address,
+                ),
+                fragment.topic0
+                  ? eq(PONDER_SYNC.logs.topic0, fragment.topic0)
+                  : undefined,
+                fragment.topic1
+                  ? eq(PONDER_SYNC.logs.topic1, fragment.topic1)
+                  : undefined,
+                fragment.topic2
+                  ? eq(PONDER_SYNC.logs.topic2, fragment.topic2)
+                  : undefined,
+                fragment.topic3
+                  ? eq(PONDER_SYNC.logs.topic3, fragment.topic3)
+                  : undefined,
+                ...blockConditions,
+              );
 
-            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: logCheckpoint.as("id"),
-                chainId: PONDER_SYNC.logs.chainId,
-                number: PONDER_SYNC.blocks.number,
-                hash: PONDER_SYNC.blocks.hash,
-              })
-                .from(PONDER_SYNC.logs)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
-                )
-                .where(condition),
-            );
-
-            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: logCheckpoint.as("id"),
-                chainId: PONDER_SYNC.logs.chainId,
-                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                hash: PONDER_SYNC.transactions.hash,
-              })
-                .from(PONDER_SYNC.logs)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
-                )
-                .innerJoin(
-                  PONDER_SYNC.transactions,
-                  getJoinConditions(PONDER_SYNC.transactions, PONDER_SYNC.logs),
-                )
-                .where(condition),
-            );
-
-            if (fragment.includeTransactionReceipts) {
-              await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-                APP_DB.select({
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.blocks).select(
+                ORACLE_DB.select({
                   name: sql.raw(`'${eventCallback.name}'`).as("name"),
                   id: logCheckpoint.as("id"),
                   chainId: PONDER_SYNC.logs.chainId,
-                  transactionIndex:
-                    PONDER_SYNC.transactionReceipts.transactionIndex,
-                  hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                  number: PONDER_SYNC.blocks.number,
+                  hash: PONDER_SYNC.blocks.hash,
+                })
+                  .from(PONDER_SYNC.logs)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
+                  )
+                  .where(condition),
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.transactions).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: logCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.logs.chainId,
+                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                  hash: PONDER_SYNC.transactions.hash,
                 })
                   .from(PONDER_SYNC.logs)
                   .innerJoin(
@@ -818,36 +896,63 @@ const onBuild = async (app: PonderApp) => {
                     getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
                   )
                   .innerJoin(
-                    PONDER_SYNC.transactionReceipts,
+                    PONDER_SYNC.transactions,
                     getJoinConditions(
-                      PONDER_SYNC.transactionReceipts,
+                      PONDER_SYNC.transactions,
                       PONDER_SYNC.logs,
                     ),
                   )
                   .where(condition),
               );
+
+              if (fragment.includeTransactionReceipts) {
+                await ORACLE_DB.insert(
+                  SUPER_ASSESSMENT.transactionReceipts,
+                ).select(
+                  ORACLE_DB.select({
+                    name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                    id: logCheckpoint.as("id"),
+                    chainId: PONDER_SYNC.logs.chainId,
+                    transactionIndex:
+                      PONDER_SYNC.transactionReceipts.transactionIndex,
+                    hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                  })
+                    .from(PONDER_SYNC.logs)
+                    .innerJoin(
+                      PONDER_SYNC.blocks,
+                      getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
+                    )
+                    .innerJoin(
+                      PONDER_SYNC.transactionReceipts,
+                      getJoinConditions(
+                        PONDER_SYNC.transactionReceipts,
+                        PONDER_SYNC.logs,
+                      ),
+                    )
+                    .where(condition),
+                );
+              }
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.logs).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: logCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.logs.chainId,
+                  logIndex: PONDER_SYNC.logs.logIndex,
+                })
+                  .from(PONDER_SYNC.logs)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
+                  )
+                  .where(condition),
+              );
+
+              break;
             }
-
-            await APP_DB.insert(SUPER_ASSESSMENT.logs).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: logCheckpoint.as("id"),
-                chainId: PONDER_SYNC.logs.chainId,
-                logIndex: PONDER_SYNC.logs.logIndex,
-              })
-                .from(PONDER_SYNC.logs)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.logs),
-                )
-                .where(condition),
-            );
-
-            break;
-          }
-          case "transfer": {
-            const transferCheckpoint = sql.raw(
-              `
+            case "transfer": {
+              const transferCheckpoint = sql.raw(
+                `
             (lpad(blocks.timestamp::text, 10, '0') ||
             lpad(traces.chain_id::text, 16, '0') ||
             lpad(traces.block_number::text, 16, '0') ||
@@ -859,76 +964,54 @@ const onBuild = async (app: PonderApp) => {
                 AND expected.transaction_index = traces.transaction_index
                 AND expected.trace_address = traces.trace_address
             )::text, 16, '0'))`,
-            );
+              );
 
-            const condition = and(
-              eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
-              getAddressCondition(
-                fragment.fromAddress,
-                PONDER_SYNC.traces,
-                "from",
-                filter.fromAddress,
-              ),
-              getAddressCondition(
-                fragment.toAddress,
-                PONDER_SYNC.traces,
-                "to",
-                filter.toAddress,
-              ),
-              isNotNull(PONDER_SYNC.traces.value),
-              gt(PONDER_SYNC.traces.value, 0n),
-              notInArray(PONDER_SYNC.traces.type, ["DELEGATECALL", "CALLCODE"]),
-              ...blockConditions,
-            );
+              const condition = and(
+                eq(PONDER_SYNC.traces.chainId, BigInt(fragment.chainId)),
+                getAddressCondition(
+                  fragment.fromAddress,
+                  PONDER_SYNC.traces,
+                  "from",
+                  filter.fromAddress,
+                ),
+                getAddressCondition(
+                  fragment.toAddress,
+                  PONDER_SYNC.traces,
+                  "to",
+                  filter.toAddress,
+                ),
+                isNotNull(PONDER_SYNC.traces.value),
+                gt(PONDER_SYNC.traces.value, 0n),
+                notInArray(PONDER_SYNC.traces.type, [
+                  "DELEGATECALL",
+                  "CALLCODE",
+                ]),
+                ...blockConditions,
+              );
 
-            await APP_DB.insert(SUPER_ASSESSMENT.blocks).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: transferCheckpoint.as("id"),
-                chainId: PONDER_SYNC.traces.chainId,
-                number: PONDER_SYNC.blocks.number,
-                hash: PONDER_SYNC.blocks.hash,
-              })
-                .from(PONDER_SYNC.traces)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-                )
-                .where(condition),
-            );
-
-            await APP_DB.insert(SUPER_ASSESSMENT.transactions).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: transferCheckpoint.as("id"),
-                chainId: PONDER_SYNC.traces.chainId,
-                transactionIndex: PONDER_SYNC.transactions.transactionIndex,
-                hash: PONDER_SYNC.transactions.hash,
-              })
-                .from(PONDER_SYNC.traces)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-                )
-                .innerJoin(
-                  PONDER_SYNC.transactions,
-                  getJoinConditions(
-                    PONDER_SYNC.transactions,
-                    PONDER_SYNC.traces,
-                  ),
-                )
-                .where(condition),
-            );
-
-            if (fragment.includeTransactionReceipts) {
-              await APP_DB.insert(SUPER_ASSESSMENT.transactionReceipts).select(
-                APP_DB.select({
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.blocks).select(
+                ORACLE_DB.select({
                   name: sql.raw(`'${eventCallback.name}'`).as("name"),
                   id: transferCheckpoint.as("id"),
                   chainId: PONDER_SYNC.traces.chainId,
-                  transactionIndex:
-                    PONDER_SYNC.transactionReceipts.transactionIndex,
-                  hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                  number: PONDER_SYNC.blocks.number,
+                  hash: PONDER_SYNC.blocks.hash,
+                })
+                  .from(PONDER_SYNC.traces)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+                  )
+                  .where(condition),
+              );
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.transactions).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: transferCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  transactionIndex: PONDER_SYNC.transactions.transactionIndex,
+                  hash: PONDER_SYNC.transactions.hash,
                 })
                   .from(PONDER_SYNC.traces)
                   .innerJoin(
@@ -936,34 +1019,146 @@ const onBuild = async (app: PonderApp) => {
                     getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
                   )
                   .innerJoin(
-                    PONDER_SYNC.transactionReceipts,
+                    PONDER_SYNC.transactions,
                     getJoinConditions(
-                      PONDER_SYNC.transactionReceipts,
+                      PONDER_SYNC.transactions,
                       PONDER_SYNC.traces,
                     ),
                   )
                   .where(condition),
               );
+
+              if (fragment.includeTransactionReceipts) {
+                await ORACLE_DB.insert(
+                  SUPER_ASSESSMENT.transactionReceipts,
+                ).select(
+                  ORACLE_DB.select({
+                    name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                    id: transferCheckpoint.as("id"),
+                    chainId: PONDER_SYNC.traces.chainId,
+                    transactionIndex:
+                      PONDER_SYNC.transactionReceipts.transactionIndex,
+                    hash: PONDER_SYNC.transactionReceipts.transactionHash,
+                  })
+                    .from(PONDER_SYNC.traces)
+                    .innerJoin(
+                      PONDER_SYNC.blocks,
+                      getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+                    )
+                    .innerJoin(
+                      PONDER_SYNC.transactionReceipts,
+                      getJoinConditions(
+                        PONDER_SYNC.transactionReceipts,
+                        PONDER_SYNC.traces,
+                      ),
+                    )
+                    .where(condition),
+                );
+              }
+
+              await ORACLE_DB.insert(SUPER_ASSESSMENT.traces).select(
+                ORACLE_DB.select({
+                  name: sql.raw(`'${eventCallback.name}'`).as("name"),
+                  id: transferCheckpoint.as("id"),
+                  chainId: PONDER_SYNC.traces.chainId,
+                  traceAddress: PONDER_SYNC.traces.traceAddress,
+                })
+                  .from(PONDER_SYNC.traces)
+                  .innerJoin(
+                    PONDER_SYNC.blocks,
+                    getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
+                  )
+                  .where(condition),
+              );
+
+              break;
             }
-
-            await APP_DB.insert(SUPER_ASSESSMENT.traces).select(
-              APP_DB.select({
-                name: sql.raw(`'${eventCallback.name}'`).as("name"),
-                id: transferCheckpoint.as("id"),
-                chainId: PONDER_SYNC.traces.chainId,
-                traceAddress: PONDER_SYNC.traces.traceAddress,
-              })
-                .from(PONDER_SYNC.traces)
-                .innerJoin(
-                  PONDER_SYNC.blocks,
-                  getJoinConditions(PONDER_SYNC.blocks, PONDER_SYNC.traces),
-                )
-                .where(condition),
-            );
-
-            break;
           }
         }
+      }
+
+      const expectedRows = await ORACLE_DB.execute(
+        sql`SELECT name, count(*) AS count FROM expected.blocks GROUP BY name ORDER BY name`,
+      );
+      console.log("Expected rows:");
+      console.table(expectedRows.rows);
+
+      // Copy the expected tables to the database of the app.
+
+      await migrate(APP_DB, {
+        migrationsFolder: "./apps/super-assessment/migrations",
+      });
+      for (const table of [
+        SUPER_ASSESSMENT.blocks,
+        SUPER_ASSESSMENT.transactions,
+        SUPER_ASSESSMENT.transactionReceipts,
+        SUPER_ASSESSMENT.traces,
+        SUPER_ASSESSMENT.logs,
+      ]) {
+        const rows = await ORACLE_DB.select().from(table);
+        for (let i = 0; i < rows.length; i += 1_000) {
+          await APP_DB.insert(table).values(rows.slice(i, i + 1_000));
+        }
+      }
+    };
+
+    try {
+      await buildExpectedTables();
+    } finally {
+      await (ORACLE_DB.$client as { end: () => Promise<void> }).end();
+      await DB.execute(
+        sql.raw(`DROP DATABASE IF EXISTS "${ORACLE_DATABASE}" WITH (FORCE)`),
+      );
+    }
+
+    if (infraError) {
+      console.error(infraError);
+      process.exit(2);
+    }
+  }
+
+  // Simulate a crash during the backfill.
+  //
+  // Note: The restart is triggered by indexing progress, not by time, so that the same seed
+  // restarts at the same point.
+
+  if (
+    SIM_PARAMS.HISTORICAL_SHUTDOWN_PROGRESS !== undefined &&
+    RESTART_COUNT === 0 &&
+    IS_PREVIOUS_RUN === false
+  ) {
+    let isTriggered = false;
+    for (const eventCallbacks of app.indexingBuild.eventCallbacks) {
+      if (eventCallbacks.length === 0) continue;
+
+      const fromBlock = Math.min(
+        ...eventCallbacks.map(({ filter }) => filter.fromBlock ?? 0),
+      );
+      const toBlock = Math.max(
+        ...eventCallbacks.map(({ filter }) => filter.toBlock!),
+      );
+      const targetBlock =
+        fromBlock +
+        Math.floor(
+          (toBlock - fromBlock) * SIM_PARAMS.HISTORICAL_SHUTDOWN_PROGRESS,
+        );
+
+      for (const eventCallback of eventCallbacks) {
+        const fn = eventCallback.fn;
+        eventCallback.fn = async (...args: any[]) => {
+          if (
+            isTriggered === false &&
+            IS_REALTIME === false &&
+            Number(args[0].event.block.number) >= targetBlock
+          ) {
+            isTriggered = true;
+            console.log(
+              `Restarting app during the backfill at block ${args[0].event.block.number} on chain ${eventCallback.chain.id}`,
+            );
+            setTimeout(restart, 0);
+          }
+          return fn(...args);
+        };
       }
     }
   }
@@ -977,9 +1172,8 @@ const onBuild = async (app: PonderApp) => {
   const traceConditions: SQL[] = [];
   const logConditions: SQL[] = [];
 
-  if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0) {
+  if (SIM_PARAMS.MAX_UNCACHED_BLOCKS > 0 && IS_PREVIOUS_RUN === false) {
     for (const interval of await APP_DB.select().from(PONDER_SYNC.intervals)) {
-      if (interval.fragmentId.startsWith("factory_")) continue;
       const intervals: [number, number][] = JSON.parse(
         `[${interval.blocks.slice(1, -1)}]`,
       );
@@ -1011,9 +1205,50 @@ const onBuild = async (app: PonderApp) => {
 
       resultIntervals = intervalUnion(resultIntervals);
 
-      // TODO(kyle) Determine which factory intervals should be removed.
+      // Note: Remove the child addresses of a factory that were created in the removed
+      // blocks. The app must sync the removed blocks of the factory again.
+      if (interval.fragmentId.startsWith("factory_log_")) {
+        const [factory] = await APP_DB.select({ id: PONDER_SYNC.factories.id })
+          .from(PONDER_SYNC.factories)
+          .where(
+            eq(
+              PONDER_SYNC.factories.fragmentId,
+              interval.fragmentId as FactoryFragmentId,
+            ),
+          );
+
+        if (factory) {
+          await APP_DB.delete(PONDER_SYNC.factoryAddresses).where(
+            and(
+              eq(PONDER_SYNC.factoryAddresses.factoryId, factory.id),
+              resultIntervals.length === 0
+                ? undefined
+                : not(
+                    or(
+                      ...resultIntervals.map(
+                        ([from, to]) =>
+                          and(
+                            gte(
+                              PONDER_SYNC.factoryAddresses.blockNumber,
+                              BigInt(from),
+                            ),
+                            lte(
+                              PONDER_SYNC.factoryAddresses.blockNumber,
+                              BigInt(to),
+                            ),
+                          )!,
+                      ),
+                    )!,
+                  ),
+            ),
+          );
+        }
+      }
 
       for (const blocks of resultIntervals) {
+        // Note: Only the child addresses of a factory are removed.
+        if (interval.fragmentId.startsWith("factory_log_")) break;
+
         const fragment = decodeFragment(interval.fragmentId);
         switch (fragment.type) {
           case "block": {
@@ -1360,7 +1595,7 @@ const onBuild = async (app: PonderApp) => {
 
     // Mock finalized block
 
-    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0) {
+    if (SIM_PARAMS.UNFINALIZED_BLOCKS !== 0 && IS_PREVIOUS_RUN === false) {
       if (RESTART_COUNT === 0) {
         app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
           numberToHex(end - SIM_PARAMS.UNFINALIZED_BLOCKS),
@@ -1370,18 +1605,23 @@ const onBuild = async (app: PonderApp) => {
         // Note: Use the latest indexed block as the finalized block. This ensures that
         // the finalized block >= crash recovery checkpoint.
 
-        const {
-          // @ts-expect-error
-          rows: [{ latest_checkpoint }],
-        } = await APP_DB.execute(
+        // Note: The app can restart before it writes a checkpoint.
+        const { rows } = await APP_DB.execute(
           `SELECT latest_checkpoint FROM _ponder_checkpoint WHERE chain_name = '${chain.name}'`,
-        );
+        ).catch(() => ({ rows: [] }));
+        const latestCheckpointBlock =
+          rows.length === 0
+            ? 0
+            : Number(
+                decodeCheckpoint(rows[0]!.latest_checkpoint as string)
+                  .blockNumber,
+              );
 
         app.indexingBuild.finalizedBlocks[i] = await eth_getBlockByNumber(rpc, [
           numberToHex(
             Math.min(
               Math.max(
-                Number(decodeCheckpoint(latest_checkpoint).blockNumber),
+                latestCheckpointBlock,
                 end - SIM_PARAMS.UNFINALIZED_BLOCKS,
               ),
               end - 10,
@@ -1389,6 +1629,46 @@ const onBuild = async (app: PonderApp) => {
           ),
           false,
         ]);
+      }
+
+      const finalizedBlock = app.indexingBuild.finalizedBlocks[i]!;
+      APP_FINALIZED.set(chain.id, hexToNumber(finalizedBlock.number));
+
+      // Note: The template has child addresses after the mocked finalized block. An app
+      // only has child addresses up to its finalized block, and finds later ones during
+      // live indexing.
+      if (RESTART_COUNT === 0) {
+        await APP_DB.execute(
+          sql`DELETE FROM ${PONDER_SYNC.factoryAddresses} WHERE chain_id = ${chain.id} AND block_number > ${hexToNumber(finalizedBlock.number)}`,
+        );
+        await APP_DB.execute(
+          sql`UPDATE ${PONDER_SYNC.intervals}
+            SET blocks = blocks * nummultirange(numrange(0, ${hexToNumber(finalizedBlock.number) + 1}, '[]'))
+            WHERE chain_id = ${chain.id} AND starts_with(fragment_id, 'factory_log_')`,
+        );
+        await APP_DB.execute(
+          sql`DELETE FROM ${PONDER_SYNC.intervals} WHERE chain_id = ${chain.id} AND isempty(blocks)`,
+        );
+      }
+
+      // Note: Advance the finalized block once during the backfill. The app refetches the
+      // finalized block after the first pass and syncs the new range in a catch-up pass.
+      const advancedBlockNumber = Math.min(
+        hexToNumber(finalizedBlock.number) +
+          SIM_PARAMS.FINALIZED_ADVANCE_BLOCKS,
+        end - 20,
+      );
+      if (advancedBlockNumber > hexToNumber(finalizedBlock.number)) {
+        FINALIZED_TARGETS.set(
+          chain.id,
+          await eth_getBlockByNumber(rpc, [
+            numberToHex(advancedBlockNumber),
+            false,
+          ]),
+        );
+        app.common.options.backfillFinalizedRefetchInterval = 0;
+      } else {
+        FINALIZED_TARGETS.set(chain.id, finalizedBlock);
       }
     }
 
@@ -1400,7 +1680,10 @@ const onBuild = async (app: PonderApp) => {
     //     .where(eq(PONDER_SYNC.intervals.chainId, BigInt(chain.id)));
     // }
 
-    chain.cacheRpcRequests = SIM_PARAMS.CACHE_RPC_REQUESTS;
+    // Note: The previous run must write to the sync store.
+    chain.cacheRpcRequests = IS_PREVIOUS_RUN
+      ? true
+      : SIM_PARAMS.CACHE_RPC_REQUESTS;
 
     // replace rpc with simulated transport
 
@@ -1449,6 +1732,14 @@ const onBuild = async (app: PonderApp) => {
         let isAccepted: boolean;
 
         for await (block of getRealtimeBlockGenerator(chain.id)) {
+          // Note: The app can finalize blocks in a catch-up pass. It must not receive a
+          // block at or before its finalized block.
+          if (
+            hexToNumber(block.number!) <=
+            (APP_FINALIZED.get(chain.id) ?? Number.NEGATIVE_INFINITY)
+          ) {
+            continue;
+          }
           isAccepted = await onBlock(block);
         }
         // Note: last block must be accepted before shutdown
@@ -1474,11 +1765,79 @@ const onBuild = async (app: PonderApp) => {
   return app;
 };
 
+setTimeout(() => {
+  console.error(
+    `ERROR: Run did not complete within ${RUN_TIMEOUT / 60_000} minutes`,
+  );
+  process.exit(1);
+}, RUN_TIMEOUT).unref();
+
 process.on("exit", (code) => {
   if (code !== 0) {
     console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
   }
 });
+
+/**
+ * Shuts down the app. Exits with an error if the shutdown takes too long.
+ *
+ * Note: `ponder start` exits the process 5 seconds after a shutdown starts. A shutdown that
+ * does not complete is a bug, because the app keeps writing to the database.
+ */
+const shutdown = async (kill: () => Promise<void>) => {
+  const app = APP;
+  const timeout = setTimeout(() => {
+    console.error(
+      `ERROR: App did not shut down within ${SHUTDOWN_TIMEOUT / 1_000} seconds`,
+    );
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT);
+  await kill();
+  // Note: `kill` does not close the HTTP server. The next app must use the same port,
+  // because the harness checks the "/ready" endpoint on that port.
+  await app?.common.apiShutdown.kill();
+  clearTimeout(timeout);
+};
+
+/** Waits until the app is ready. */
+const waitForReady = async () => {
+  while (true) {
+    try {
+      const result = await fetch(`http://localhost:${PORT}/ready`);
+      if (result.status === 200) break;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
+
+// Run the previous config until the backfill is complete. It writes to the same sync store,
+// so the tested config starts with sync data from a config that has the same addresses
+// and blocks, but other factory, filter, receipt, and trace options.
+
+if (SIM_PARAMS.PREVIOUS_RUN) {
+  console.log("Running previous config");
+  IS_PREVIOUS_RUN = true;
+  process.env.SIM_PREVIOUS_RUN = "true";
+  process.env.DATABASE_SCHEMA = "previous";
+
+  const killPrevious = await start({
+    cliOptions: {
+      ...program.optsWithGlobals(),
+      command: "start",
+      version: packageJson.version,
+      root: APP_DIR,
+      config: "ponder.config.ts",
+    },
+    onBuild,
+  });
+  await waitForReady();
+  await shutdown(killPrevious!);
+
+  IS_PREVIOUS_RUN = false;
+  delete process.env.SIM_PREVIOUS_RUN;
+  process.env.DATABASE_SCHEMA = "public";
+  console.log("Completed previous config");
+}
 
 let kill = await start({
   cliOptions: {
@@ -1499,7 +1858,7 @@ export const restart = async () => {
   if (RESTART_COUNT === 2) return;
   RESTART_COUNT += 1;
   console.log("Restarting app");
-  await kill!();
+  await shutdown(kill!);
   kill = await start({
     cliOptions: {
       ...program.optsWithGlobals(),
@@ -1513,20 +1872,14 @@ export const restart = async () => {
 };
 
 if (SIM_PARAMS.UNFINALIZED_BLOCKS === 0) {
-  while (true) {
-    try {
-      const result = await fetch(`http://localhost:${PORT}/ready`);
-      if (result.status === 200) break;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  await waitForReady();
 } else {
   await pwr.promise;
 }
 
 console.log("Killing app");
 
-await kill!();
+await shutdown(kill!);
 
 // 4. Compare
 
@@ -1636,13 +1989,6 @@ for (const key of Object.keys(schema)) {
     );
   }
 }
-
-// await compareTables(
-//   APP_DB,
-//   INTERVALS,
-//   "ponder_sync.expected_intervals",
-//   "ponder_sync.intervals",
-// );
 
 console.log("Updating metadata");
 
