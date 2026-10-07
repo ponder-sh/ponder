@@ -1785,6 +1785,7 @@ process.on("exit", (code) => {
  * does not complete is a bug, because the app keeps writing to the database.
  */
 const shutdown = async (kill: () => Promise<void>) => {
+  const app = APP;
   const timeout = setTimeout(() => {
     console.error(
       `ERROR: App did not shut down within ${SHUTDOWN_TIMEOUT / 1_000} seconds`,
@@ -1792,6 +1793,9 @@ const shutdown = async (kill: () => Promise<void>) => {
     process.exit(1);
   }, SHUTDOWN_TIMEOUT);
   await kill();
+  // Note: `kill` does not close the HTTP server. The next app must use the same port,
+  // because the harness checks the "/ready" endpoint on that port.
+  await app?.common.apiShutdown.kill();
   clearTimeout(timeout);
 };
 
