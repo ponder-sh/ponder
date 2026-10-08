@@ -11,18 +11,14 @@ export const zeroLogsBloom =
 
 const BLOOM_SIZE_BYTES = 256;
 
-/**
- * Byte offsets and bit masks of the three bloom bits for one input:
- * `[byte0, mask0, byte1, mask1, byte2, mask2]`.
- */
-export type BloomBits = readonly [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-];
+export type BloomBits = {
+  byte0: number;
+  mask0: number;
+  byte1: number;
+  mask1: number;
+  byte2: number;
+  mask2: number;
+};
 
 /**
  * A `LogFilter` with each address and topic converted to `BloomBits`.
@@ -41,23 +37,32 @@ export type LogFilterBloom = {
 
 export const getBloomBits = (input: Hex): BloomBits => {
   const hash = keccak256(input, "bytes");
-  const bits: number[] = [];
+  const bytes = [0, 0, 0];
+  const masks = [0, 0, 0];
 
-  for (const i of [0, 2, 4]) {
-    const bit = (hash[i + 1]! + (hash[i]! << 8)) & 0x7ff;
-    bits.push(BLOOM_SIZE_BYTES - 1 - Math.floor(bit / 8), 1 << (bit % 8));
+  for (let i = 0; i < 3; i++) {
+    const bit = (hash[i * 2 + 1]! + (hash[i * 2]! << 8)) & 0x7ff;
+    bytes[i] = BLOOM_SIZE_BYTES - 1 - Math.floor(bit / 8);
+    masks[i] = 1 << (bit % 8);
   }
 
-  return bits as unknown as BloomBits;
+  return {
+    byte0: bytes[0]!,
+    mask0: masks[0]!,
+    byte1: bytes[1]!,
+    mask1: masks[1]!,
+    byte2: bytes[2]!,
+    mask2: masks[2]!,
+  };
 };
 
 export const isBloomBitsInBloom = (
   bloom: Uint8Array,
   bits: BloomBits,
 ): boolean =>
-  (bloom[bits[0]]! & bits[1]) !== 0 &&
-  (bloom[bits[2]]! & bits[3]) !== 0 &&
-  (bloom[bits[4]]! & bits[5]) !== 0;
+  (bloom[bits.byte0]! & bits.mask0) !== 0 &&
+  (bloom[bits.byte1]! & bits.mask1) !== 0 &&
+  (bloom[bits.byte2]! & bits.mask2) !== 0;
 
 export const isInBloom = (bloom: Uint8Array, input: Hex): boolean =>
   isBloomBitsInBloom(bloom, getBloomBits(input));
