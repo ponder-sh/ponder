@@ -1,3 +1,4 @@
+import util from "node:util";
 import { toBytes, zeroAddress } from "viem";
 import { expect, test } from "vitest";
 import { copy, copyOnWrite } from "./copy.js";
@@ -188,4 +189,25 @@ test("copy does not alias the copyOnWrite target", () => {
   expect(result).not.toBe(obj);
   expect(obj.a).toBe(1);
   expect(copiedObj.a).toBe(1);
+});
+
+test("copyOnWrite behaves like a plain object", () => {
+  const obj = { a: 1n, b: "0x1" };
+  const copiedObj = copyOnWrite(obj);
+
+  expect(Object.getPrototypeOf(copiedObj)).toBe(Object.prototype);
+  expect(Object.keys(copiedObj)).toStrictEqual(["a", "b"]);
+  expect({ ...copiedObj }).toStrictEqual({ a: 1n, b: "0x1" });
+  expect("a" in copiedObj).toBe(true);
+  expect(util.inspect(copiedObj)).toBe(util.inspect(obj));
+
+  copiedObj.a = 2n;
+
+  expect(util.inspect(copiedObj)).toBe(util.inspect({ a: 2n, b: "0x1" }));
+  expect(obj).toStrictEqual({ a: 1n, b: "0x1" });
+});
+
+test("copyOnWrite rejects arrays at the type level", () => {
+  // @ts-expect-error arrays are not supported, see `copyOnWrite()`
+  copyOnWrite([1, 2]);
 });

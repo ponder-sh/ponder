@@ -260,14 +260,8 @@ export const isAddressMatched = ({
   childAddresses: Map<Address, number>;
 }) => {
   if (address === undefined) return false;
-  if (
-    childAddresses.has(toLowerCase(address)) &&
-    childAddresses.get(toLowerCase(address))! <= blockNumber
-  ) {
-    return true;
-  }
-
-  return false;
+  const childBlockNumber = childAddresses.get(toLowerCase(address));
+  return childBlockNumber !== undefined && childBlockNumber <= blockNumber;
 };
 
 const isValueMatched = <T extends string>(
@@ -280,18 +274,18 @@ const isValueMatched = <T extends string>(
   // missing value
   if (eventValue === undefined) return false;
 
+  // Note: `filterValue` is lowercase, so an exact match avoids allocating
+  // a lowercase copy of `eventValue`.
+  if (filterValue === eventValue) return true;
+
+  const value = toLowerCase(eventValue);
+
   // array
-  if (
-    Array.isArray(filterValue) &&
-    filterValue.some((v) => v === toLowerCase(eventValue))
-  ) {
-    return true;
-  }
+  if (Array.isArray(filterValue))
+    return (filterValue as string[]).includes(value);
 
   // single
-  if (filterValue === toLowerCase(eventValue)) return true;
-
-  return false;
+  return filterValue === value;
 };
 
 /**
