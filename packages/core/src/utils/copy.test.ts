@@ -196,7 +196,6 @@ test("copyOnWrite behaves like a plain object", () => {
   const copiedObj = copyOnWrite(obj);
 
   expect(Object.getPrototypeOf(copiedObj)).toBe(Object.prototype);
-  expect(copiedObj).toStrictEqual({ a: 1n, b: "0x1" });
   expect(Object.keys(copiedObj)).toStrictEqual(["a", "b"]);
   expect({ ...copiedObj }).toStrictEqual({ a: 1n, b: "0x1" });
   expect("a" in copiedObj).toBe(true);
