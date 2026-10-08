@@ -206,3 +206,8 @@ test("copyOnWrite behaves like a plain object", () => {
   expect(util.inspect(copiedObj)).toBe(util.inspect({ a: 2n, b: "0x1" }));
   expect(obj).toStrictEqual({ a: 1n, b: "0x1" });
 });
+
+test("copyOnWrite rejects arrays at the type level", () => {
+  // @ts-expect-error arrays are not supported, see `copyOnWrite()`
+  copyOnWrite([1, 2]);
+});

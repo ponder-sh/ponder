@@ -79,9 +79,20 @@ const copyOnWriteHandler: ProxyHandler<CopyOnWriteTarget> = {
 
 /**
  * Create a copy-on-write proxy for a plain object.
+ *
+ * @dev Arrays and other exotic objects are not supported. The proxy target
+ * is a `CopyOnWriteTarget`, not `obj`, so the proxy invariants break for
+ * non-configurable properties such as `Array.length`:
+ * `Object.keys()` and spread throw a `TypeError`, and `Array.isArray()`
+ * returns `false`.
  */
-export const copyOnWrite = <T extends object>(obj: T): T => {
-  return new Proxy(new CopyOnWriteTarget(obj), copyOnWriteHandler) as T;
+export const copyOnWrite = <T extends { [key: string]: unknown }>(
+  obj: T,
+): T => {
+  return new Proxy(
+    new CopyOnWriteTarget(obj),
+    copyOnWriteHandler,
+  ) as unknown as T;
 };
 
 /**
