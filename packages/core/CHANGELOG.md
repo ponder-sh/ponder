@@ -1,5 +1,13 @@
 # ponder
 
+## 0.18.1
+
+### Patch Changes
+
+- [#2406](https://github.com/ponder-sh/ponder/pull/2406) [`d3f03c7`](https://github.com/ponder-sh/ponder/commit/d3f03c74ac7ef4adefdb0c183af3761e253ccd69) Thanks [@kyscott18](https://github.com/kyscott18)! - Reduced memory allocation and peak memory usage during backfill indexing.
+
+- [#2407](https://github.com/ponder-sh/ponder/pull/2407) [`ab1aecd`](https://github.com/ponder-sh/ponder/commit/ab1aecda878c351a8f6bb80f729dc6f964cdc719) Thanks [@kyscott18](https://github.com/kyscott18)! - Reduced CPU usage and memory allocation of logs bloom checks during live indexing.
+
 ## 0.18.0
 
 ### Minor Changes
