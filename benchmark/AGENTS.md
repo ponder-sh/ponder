@@ -7,7 +7,7 @@
 - The suite is a performance harness, not a correctness test. It does not compare table contents, enforce a performance threshold, or store results.
 
 ## Prerequisites
-- Use the repository toolchain from the root `AGENTS.md`: pnpm `11.0.0`, Node `>=22`, and Bun for this package's scripts.
+- Use the repository toolchain from the root `AGENTS.md`: pnpm `12.10.1`, Node `>=22`, and Bun for this package's scripts.
 - Install workspace dependencies from the repository root with `pnpm install --frozen-lockfile`.
 - Build the publishable packages before benchmarking with `pnpm build`.
 - Provide a Postgres server base URL in `DATABASE_URL`. It must omit the app database name and have no trailing slash because the scripts append `/benchmark_[app id]`, for example `postgresql://postgres@localhost:55432`.
