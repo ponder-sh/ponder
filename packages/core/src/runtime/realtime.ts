@@ -77,6 +77,9 @@ export async function* getRealtimeEventsOmnichain(params: {
   database: Database;
   pendingEvents: Event[];
 }): AsyncGenerator<RealtimeEvent> {
+  /** When each chain's RPC last confirmed there is no newer block (ms). */
+  const caughtUpAt = new Map<number, number>();
+
   const eventGenerators = Array.from(params.perChainSync.entries())
     .map(([chain, { syncProgress, childAddresses }]) => {
       if (syncProgress.isEnd()) {
@@ -128,6 +131,7 @@ export async function* getRealtimeEventsOmnichain(params: {
           syncProgress,
           childAddresses,
           database: params.database,
+          caughtUpAt,
         }),
         100,
         bufferCallback,
@@ -151,6 +155,7 @@ export async function* getRealtimeEventsOmnichain(params: {
 
   for await (const { chain, event } of mergeAsyncGeneratorsWithRealtimeOrder(
     eventGenerators,
+    caughtUpAt,
   )) {
     const { syncProgress, childAddresses, unfinalizedBlocks } =
       params.perChainSync.get(chain)!;
@@ -765,6 +770,8 @@ export async function* getRealtimeEventGenerator(params: {
   syncProgress: SyncProgress;
   childAddresses: ChildAddresses;
   database: Database;
+  /** Set to the block's arrival time when the RPC returns the current tip again. */
+  caughtUpAt?: Map<number, number>;
 }) {
   const realtimeSync = createRealtimeSync(params);
 
@@ -858,6 +865,12 @@ export async function* getRealtimeEventGenerator(params: {
 
     for await (const event of syncGenerator) {
       yield { chain: params.chain, event };
+    }
+
+    // Note: Polling delivers the tip on every poll, so a repeat of the
+    // latest block confirms the chain has no newer block yet.
+    if (realtimeSync.unfinalizedBlocks.at(-1)?.hash === block.hash) {
+      params.caughtUpAt?.set(params.chain.id, arrivalMs);
     }
 
     if (block.number === params.syncProgress.end?.number) {
@@ -1107,57 +1120,125 @@ export async function handleRealtimeSyncEvent(
 }
 
 /**
+ * Clock margin (in seconds) when comparing a block's timestamp with the time
+ * a chain was confirmed caught up.
+ */
+const LATE_BLOCK_MARGIN_SECONDS = 30;
+
+/**
  * Merges multiple async generators into a single async generator while preserving
  * the order of "block" events.
+ *
+ * A block is yielded once no pending chain can produce an earlier one. A chain with
+ * `allowLateBlocks` that was confirmed caught up at time T is not waited on for
+ * blocks up to T (minus a clock margin).
  *
  * @dev "reorg" and "finalize" events are not ordered between chains.
  */
 export async function* mergeAsyncGeneratorsWithRealtimeOrder(
   generators: AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }>[],
+  caughtUpAt: Map<number, number> = new Map(),
 ): AsyncGenerator<{ chain: Chain; event: RealtimeSyncEvent }> {
-  const results = await Promise.all(generators.map((gen) => gen.next()));
+  type Value = { chain: Chain; event: RealtimeSyncEvent };
+  type Result = IteratorResult<Value> | { error: unknown };
 
-  while (results.some((res) => res.done !== true)) {
-    let index: number;
+  const results: (Result | undefined)[] = new Array(generators.length);
+  /** Each generator's chain, known once it has yielded. */
+  const chains: (Chain | undefined)[] = new Array(generators.length);
+  const pending: (Promise<void> | undefined)[] = new Array(generators.length);
 
-    if (
-      results.some(
-        (result) =>
-          result.done === false &&
-          (result.value.event.type === "reorg" ||
-            result.value.event.type === "finalize"),
-      )
-    ) {
-      index = results.findIndex(
-        (result) =>
-          result.done === false &&
-          (result.value.event.type === "reorg" ||
-            result.value.event.type === "finalize"),
-      );
-    } else {
-      const blockCheckpoints = results.map((result) =>
-        result.done
-          ? undefined
-          : encodeCheckpoint(
-              blockToCheckpoint(
-                result.value.event.block,
-                result.value.chain.id,
-                "up",
-              ),
-            ),
-      );
+  // Note: Errors are stored instead of left as rejected promises, so a generator
+  // that fails while another is awaited doesn't cause an unhandled rejection.
+  const settle = (i: number) =>
+    generators[i]!.next().then(
+      (result) => {
+        results[i] = result;
+        if (result.done === false) chains[i] = result.value.chain;
+        pending[i] = undefined;
+      },
+      (error) => {
+        results[i] = { error };
+        pending[i] = undefined;
+      },
+    );
 
-      const supremum = min(...blockCheckpoints);
+  const ready = (i: number): Value | undefined => {
+    const result = results[i];
+    return result !== undefined && "done" in result && result.done === false
+      ? result.value
+      : undefined;
+  };
 
-      index = blockCheckpoints.indexOf(supremum);
+  for (let i = 0; i < generators.length; i++) pending[i] = settle(i);
+
+  while (true) {
+    for (const result of results) {
+      if (result !== undefined && "error" in result) throw result.error;
     }
 
-    const resultPromise = generators[index]!.next();
+    const waiting = pending.filter((p) => p !== undefined);
+    if (
+      waiting.length === 0 &&
+      results.every(
+        (result) => result !== undefined && "done" in result && result.done,
+      )
+    ) {
+      return;
+    }
 
-    yield {
-      chain: results[index]!.value.chain,
-      event: results[index]!.value.event,
-    };
-    results[index] = await resultPromise;
+    let index = results.findIndex((_, i) => {
+      const type = ready(i)?.event.type;
+      return type === "reorg" || type === "finalize";
+    });
+
+    if (index === -1) {
+      const blockCheckpoints = results.map((_, i) => {
+        const value = ready(i);
+        return value?.event.type === "block"
+          ? encodeCheckpoint(
+              blockToCheckpoint(value.event.block, value.chain.id, "up"),
+            )
+          : undefined;
+      });
+
+      if (blockCheckpoints.some((checkpoint) => checkpoint !== undefined)) {
+        index = blockCheckpoints.indexOf(min(...blockCheckpoints));
+
+        if (waiting.length > 0) {
+          const event = ready(index)!.event as Extract<
+            RealtimeSyncEvent,
+            { type: "block" }
+          >;
+          const timestamp = hexToNumber(event.block.timestamp);
+          const isSafe = pending.every((p, i) => {
+            if (p === undefined) return true;
+            const chain = chains[i];
+            if (chain?.allowLateBlocks !== true) return false;
+            const at = caughtUpAt.get(chain.id);
+            return (
+              at !== undefined &&
+              timestamp <= at / 1_000 - LATE_BLOCK_MARGIN_SECONDS
+            );
+          });
+          if (isSafe === false) index = -1;
+        }
+      }
+    }
+
+    if (index === -1) {
+      // Note: Re-check periodically, because a chain's caught-up time can
+      // advance without a new event.
+      await Promise.race([
+        ...waiting,
+        new Promise((resolve) => setTimeout(resolve, 1_000)),
+      ]);
+      continue;
+    }
+
+    const value = ready(index)!;
+    results[index] = undefined;
+    pending[index] = settle(index);
+
+    yield value;
   }
 }

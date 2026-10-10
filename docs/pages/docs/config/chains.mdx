@@ -240,3 +240,30 @@ export default createConfig({
   },
 });
 ```
+
+## Late blocks
+
+With `"omnichain"` ordering, live indexing waits for every chain's next block before it indexes a block from another chain with a later timestamp. A chain with slow block times holds up every other chain until its next block arrives.
+
+Set `allowLateBlocks: true` on a slow chain to keep indexing the other chains while its RPC confirms there is no newer block. The chain's next block is then indexed when it arrives, which can be after blocks from other chains with later timestamps. Only set this on a chain whose events don't need to be ordered before events on other chains with later timestamps.
+
+The option has no effect with `"multichain"` ordering, or when the chain uses a WebSocket (`ws`) endpoint.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  ordering: "omnichain",
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1,
+    },
+    arbitrumNova: {
+      id: 42170,
+      rpc: process.env.PONDER_RPC_URL_42170,
+      allowLateBlocks: true, // [!code focus]
+    },
+  },
+});
+```
