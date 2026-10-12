@@ -201,26 +201,29 @@ test("mergeAsyncGeneratorsWithRealtimeOrder() continues past a caught-up chain w
   const t = now();
   b.block(t - 600);
   a.block(t - 300);
-  a.block(t - 100);
-  a.block(t - 5); // inside the clock margin
-  const caughtUpAt = new Map([[2, Date.now()]]);
+  a.block(t - 1);
+  a.block(t); // same second as the caught-up time
+  a.block(t + 1); // after it
+  const caughtUpAt = new Map([[2, t * 1_000]]);
 
   const iterator: Iter = mergeAsyncGeneratorsWithRealtimeOrder(
     [a.generator, b.generator],
     caughtUpAt,
   );
 
-  expect(await take(iterator, 4, 2_500)).toStrictEqual([
+  expect(await take(iterator, 5, 2_500)).toStrictEqual([
     `2@${t - 600}`,
     `1@${t - 300}`,
-    `1@${t - 100}`,
+    `1@${t - 1}`,
+    `1@${t}`,
   ]);
 
   // Chain 1 doesn't allow late blocks, so chain 2's block waits for its next block.
-  b.block(t);
-  expect(await take(iterator, 2, 2_500)).toStrictEqual([`1@${t - 5}`]);
-  a.block(t + 1);
-  expect(await take(iterator, 1, 2_500)).toStrictEqual([`2@${t}`]);
+  caughtUpAt.set(2, (t + 1) * 1_000);
+  b.block(t + 2);
+  expect(await take(iterator, 2, 2_500)).toStrictEqual([`1@${t + 1}`]);
+  a.block(t + 3);
+  expect(await take(iterator, 1, 2_500)).toStrictEqual([`2@${t + 2}`]);
 
   await close(iterator, a, b);
 });

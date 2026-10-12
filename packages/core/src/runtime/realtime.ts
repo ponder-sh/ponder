@@ -1120,18 +1120,13 @@ export async function handleRealtimeSyncEvent(
 }
 
 /**
- * Clock margin (in seconds) when comparing a block's timestamp with the time
- * a chain was confirmed caught up.
- */
-const LATE_BLOCK_MARGIN_SECONDS = 30;
-
-/**
  * Merges multiple async generators into a single async generator while preserving
  * the order of "block" events.
  *
  * A block is yielded once no pending chain can produce an earlier one. A chain with
  * `allowLateBlocks` that was confirmed caught up at time T is not waited on for
- * blocks up to T (minus a clock margin).
+ * blocks up to T. Its next block can still arrive late: one made just before T
+ * that the RPC hadn't seen yet, or any block from an RPC serving a stale tip.
  *
  * @dev "reorg" and "finalize" events are not ordered between chains.
  */
@@ -1215,10 +1210,7 @@ export async function* mergeAsyncGeneratorsWithRealtimeOrder(
             const chain = chains[i];
             if (chain?.allowLateBlocks !== true) return false;
             const at = caughtUpAt.get(chain.id);
-            return (
-              at !== undefined &&
-              timestamp <= at / 1_000 - LATE_BLOCK_MARGIN_SECONDS
-            );
+            return at !== undefined && timestamp <= at / 1_000;
           });
           if (isSafe === false) index = -1;
         }
