@@ -724,7 +724,7 @@ test("sync() with trace filter", async () => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const blockData = await transferErc20({
+  await transferErc20({
     erc20: address,
     to: BOB,
     amount: parseEther("1"),
@@ -736,31 +736,10 @@ test("sync() with trace filter", async () => {
     includeCallTraces: true,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByNumber") {
-      if (request.params[0] === "0x1") return Promise.resolve([]);
-      if (request.params[0] === "0x2") return Promise.resolve([]);
-      if (request.params[0] === "0x3") {
-        return Promise.resolve([
-          {
-            txHash: blockData.trace.transactionHash,
-            result: blockData.trace.trace,
-          },
-        ]);
-      }
-    }
-
-    return rpc.request(request);
-  };
-
   const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 
@@ -882,7 +861,7 @@ test("sync() with transfer filter", async () => {
     common: context.common,
   });
 
-  const blockData = await transferEth({
+  await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
@@ -892,29 +871,10 @@ test("sync() with transfer filter", async () => {
     address: ALICE,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByNumber") {
-      if (request.params[0] === "0x1") {
-        return Promise.resolve([
-          {
-            txHash: blockData.trace.transactionHash,
-            result: blockData.trace.trace,
-          },
-        ]);
-      }
-    }
-
-    return rpc.request(request);
-  };
-
   const historicalSync = createHistoricalSync({
     common: context.common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     childAddresses: setupChildAddresses(eventCallbacks),
   });
 

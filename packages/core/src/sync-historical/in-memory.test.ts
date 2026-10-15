@@ -443,7 +443,7 @@ test("syncBlockData() with trace factory waits for child addresses", async () =>
     factory: address,
     sender: ALICE,
   });
-  const { trace } = await swapPair({
+  await swapPair({
     pair,
     amount0Out: 1n,
     amount1Out: 1n,
@@ -456,24 +456,10 @@ test("syncBlockData() with trace factory waits for child addresses", async () =>
     includeCallTraces: true,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByNumber") {
-      if (request.params[0] === "0x3") {
-        return [{ txHash: trace.transactionHash, result: trace.trace }];
-      }
-      return [];
-    }
-    return rpc.request(request);
-  };
-
   const historicalSync = createInMemoryHistoricalSync({
     common: context.common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     childAddress: setupChildAddresses(eventCallbacks),
   });
 
@@ -691,7 +677,7 @@ test("syncBlockData() with trace filter", async () => {
     amount: parseEther("1"),
     sender: ALICE,
   });
-  const blockData = await transferErc20({
+  await transferErc20({
     erc20: address,
     to: BOB,
     amount: parseEther("1"),
@@ -703,31 +689,10 @@ test("syncBlockData() with trace filter", async () => {
     includeCallTraces: true,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByNumber") {
-      if (request.params[0] === "0x1") return Promise.resolve([]);
-      if (request.params[0] === "0x2") return Promise.resolve([]);
-      if (request.params[0] === "0x3") {
-        return Promise.resolve([
-          {
-            txHash: blockData.trace.transactionHash,
-            result: blockData.trace.trace,
-          },
-        ]);
-      }
-    }
-
-    return rpc.request(request);
-  };
-
   const historicalSync = createInMemoryHistoricalSync({
     common: context.common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     childAddress: setupChildAddresses(eventCallbacks),
   });
 
@@ -800,7 +765,7 @@ test("syncBlockData() with transfer filter", async () => {
     common: context.common,
   });
 
-  const blockData = await transferEth({
+  await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
@@ -810,29 +775,10 @@ test("syncBlockData() with transfer filter", async () => {
     address: ALICE,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByNumber") {
-      if (request.params[0] === "0x1") {
-        return Promise.resolve([
-          {
-            txHash: blockData.trace.transactionHash,
-            result: blockData.trace.trace,
-          },
-        ]);
-      }
-    }
-
-    return rpc.request(request);
-  };
-
   const historicalSync = createInMemoryHistoricalSync({
     common: context.common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     childAddress: setupChildAddresses(eventCallbacks),
   });
 
