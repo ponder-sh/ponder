@@ -348,11 +348,21 @@ test("sync() requests factory logs for trace filters with a factory address", as
     LogFactory
   >;
 
+  // Note: The Anvil version in CI doesn't support "debug_traceBlockByHash".
+  const request = async (request: any) => {
+    if (request.method === "debug_traceBlockByHash") return [];
+    return rpc.request(request);
+  };
+
   const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
   const realtimeSync = createRealtimeSync({
     common,
     chain,
-    rpc,
+    rpc: {
+      ...rpc,
+      // @ts-expect-error
+      request,
+    },
     eventCallbacks: [traceEventCallback],
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map([[filter.toAddress.id, new Map()]]),
