@@ -1,5 +1,13 @@
 # ponder
 
+## 0.18.2
+
+### Patch Changes
+
+- [#2420](https://github.com/ponder-sh/ponder/pull/2420) [`fe6be0c`](https://github.com/ponder-sh/ponder/commit/fe6be0cbe5207253fb272d95061e3e28c8b54418) Thanks [@kyscott18](https://github.com/kyscott18)! - Updated `eth_getLogs` requests in live indexing to include `address` and `topics` filters.
+
+- [#2420](https://github.com/ponder-sh/ponder/pull/2420) [`fe6be0c`](https://github.com/ponder-sh/ponder/commit/fe6be0cbe5207253fb272d95061e3e28c8b54418) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused live indexing to miss factory child addresses when the factory was only used by call trace or account sources.
+
 ## 0.18.1
 
 ### Patch Changes
