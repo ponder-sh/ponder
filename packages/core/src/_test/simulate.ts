@@ -27,15 +27,6 @@ import RevertBytecode from "./contracts/out/Revert.sol/Revert.json" with {
 import { erc20ABI, factoryABI, pairABI, revertABI } from "./generated.js";
 import { anvil, publicClient, testClient } from "./utils.js";
 
-/** Get the call trace of the only transaction in `block`. */
-const getTrace = async (block: SyncBlock): Promise<SyncTrace> => {
-  const traces = await debug_traceBlockByHash(publicClient as unknown as Rpc, [
-    block.hash,
-    { tracer: "callTracer" },
-  ]);
-  return traces[0]!;
-};
-
 /** Deploy Erc20 contract and mine block. */
 export const deployErc20 = async (params: {
   sender: Address;
@@ -263,13 +254,16 @@ export const transferErc20 = async (params: {
     params: [hash],
   });
 
-  const trace = await getTrace(block! as SyncBlock);
+  const [trace] = await debug_traceBlockByHash(publicClient as unknown as Rpc, [
+    block!.hash!,
+    { tracer: "callTracer" },
+  ]);
 
   return {
     block: block! as SyncBlock,
     transaction: block!.transactions[0]! as SyncTransaction,
     transactionReceipt: receipt! as SyncTransactionReceipt,
-    trace,
+    trace: trace!,
     log: receipt!.logs[0]!,
   };
 };
@@ -312,13 +306,16 @@ export const swapPair = async (params: {
     params: [hash],
   });
 
-  const trace = await getTrace(block! as SyncBlock);
+  const [trace] = await debug_traceBlockByHash(publicClient as unknown as Rpc, [
+    block!.hash!,
+    { tracer: "callTracer" },
+  ]);
 
   return {
     block: block! as SyncBlock,
     transaction: block!.transactions[0]! as SyncTransaction,
     transactionReceipt: receipt! as SyncTransactionReceipt,
-    trace,
+    trace: trace!,
     log: receipt!.logs[0]!,
   };
 };
@@ -356,13 +353,16 @@ export const transferEth = async (params: {
     params: [hash],
   });
 
-  const trace = await getTrace(block! as SyncBlock);
+  const [trace] = await debug_traceBlockByHash(publicClient as unknown as Rpc, [
+    block!.hash!,
+    { tracer: "callTracer" },
+  ]);
 
   return {
     block: block! as SyncBlock,
     transaction: block!.transactions[0]! as SyncTransaction,
     transactionReceipt: receipt! as SyncTransactionReceipt,
-    trace,
+    trace: trace!,
   };
 };
 
