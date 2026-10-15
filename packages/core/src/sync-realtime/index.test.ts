@@ -348,21 +348,11 @@ test("sync() requests factory logs for trace filters with a factory address", as
     LogFactory
   >;
 
-  // Note: The Anvil version in CI doesn't support "debug_traceBlockByHash".
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByHash") return [];
-    return rpc.request(request);
-  };
-
   const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
   const realtimeSync = createRealtimeSync({
     common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     eventCallbacks: [traceEventCallback],
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map([[filter.toAddress.id, new Map()]]),
@@ -1175,7 +1165,7 @@ test("handleBlock() block event with transfer", async () => {
   const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
-  const blockData = await transferEth({
+  await transferEth({
     to: BOB,
     amount: parseEther("1"),
     sender: ALICE,
@@ -1185,28 +1175,12 @@ test("handleBlock() block event with transfer", async () => {
     address: ALICE,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByHash") {
-      return Promise.resolve([
-        {
-          txHash: blockData.trace.transactionHash,
-          result: blockData.trace.trace,
-        },
-      ]);
-    }
-
-    return rpc.request(request);
-  };
-
   const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
 
   const realtimeSync = createRealtimeSync({
     common,
     chain,
-    rpc: {
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),
@@ -1265,49 +1239,12 @@ test("handleBlock() block event with trace", async () => {
     includeCallTraces: true,
   });
 
-  const request = async (request: any) => {
-    if (request.method === "debug_traceBlockByHash") {
-      if (request.params[0] === blockData2.block.hash) {
-        return Promise.resolve([
-          {
-            txHash: blockData2.transaction.hash,
-            result: {
-              type: "CREATE",
-              from: ALICE,
-              gas: "0x0",
-              gasUsed: "0x0",
-              input: "0x0",
-              value: "0x0",
-            },
-          },
-        ]);
-      }
-
-      if (request.params[0] === blockData3.block.hash) {
-        return Promise.resolve([
-          {
-            txHash: blockData3.trace.transactionHash,
-            result: blockData3.trace.trace,
-          },
-        ]);
-      }
-
-      return Promise.resolve([]);
-    }
-
-    return rpc.request(request);
-  };
-
   const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
 
   const realtimeSync = createRealtimeSync({
     common,
     chain,
-    rpc: {
-      ...rpc,
-      // @ts-expect-error
-      request,
-    },
+    rpc,
     eventCallbacks,
     syncProgress: { finalized: finalizedBlock },
     childAddresses: new Map(),

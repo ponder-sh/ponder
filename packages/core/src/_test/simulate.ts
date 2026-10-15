@@ -1,12 +1,9 @@
 import {
   type Address,
   createWalletClient,
-  encodeFunctionData,
-  encodeFunctionResult,
   type Hex,
   http,
   multicall3Abi,
-  numberToHex,
 } from "viem";
 import type {
   SyncBlock,
@@ -15,6 +12,8 @@ import type {
   SyncTransaction,
   SyncTransactionReceipt,
 } from "@/internal/types.js";
+import { debug_traceBlockByHash } from "@/rpc/actions.js";
+import type { Rpc } from "@/rpc/index.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import Erc20Bytecode from "./contracts/out/ERC20.sol/ERC20.json" with {
   type: "json",
@@ -27,6 +26,15 @@ import RevertBytecode from "./contracts/out/Revert.sol/Revert.json" with {
 };
 import { erc20ABI, factoryABI, pairABI, revertABI } from "./generated.js";
 import { anvil, publicClient, testClient } from "./utils.js";
+
+/** Get the call trace of the only transaction in `block`. */
+const getTrace = async (block: SyncBlock): Promise<SyncTrace> => {
+  const traces = await debug_traceBlockByHash(publicClient as unknown as Rpc, [
+    block.hash,
+    { tracer: "callTracer" },
+  ]);
+  return traces[0]!;
+};
 
 /** Deploy Erc20 contract and mine block. */
 export const deployErc20 = async (params: {
@@ -255,28 +263,7 @@ export const transferErc20 = async (params: {
     params: [hash],
   });
 
-  const trace = {
-    trace: {
-      type: "CALL",
-      from: params.sender,
-      to: params.erc20,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: encodeFunctionData({
-        abi: erc20ABI,
-        functionName: "transfer",
-        args: [params.to, params.amount],
-      }),
-      output: encodeFunctionResult({
-        abi: erc20ABI,
-        functionName: "transfer",
-        result: true,
-      }),
-      value: "0x0",
-      traceAddress: [],
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
+  const trace = await getTrace(block! as SyncBlock);
 
   return {
     block: block! as SyncBlock,
@@ -325,24 +312,7 @@ export const swapPair = async (params: {
     params: [hash],
   });
 
-  const trace = {
-    trace: {
-      type: "CALL",
-      from: params.sender,
-      to: params.pair,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: encodeFunctionData({
-        abi: pairABI,
-        functionName: "swap",
-        args: [params.amount0Out, params.amount1Out, params.to],
-      }),
-      output: undefined,
-      value: "0x0",
-      traceAddress: [],
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
+  const trace = await getTrace(block! as SyncBlock);
 
   return {
     block: block! as SyncBlock,
@@ -386,20 +356,7 @@ export const transferEth = async (params: {
     params: [hash],
   });
 
-  const trace = {
-    trace: {
-      type: "CALL",
-      from: params.sender,
-      to: params.to,
-      gas: "0x0",
-      gasUsed: "0x0",
-      input: "0x",
-      output: undefined,
-      value: numberToHex(params.amount),
-      traceAddress: [],
-    },
-    transactionHash: hash,
-  } satisfies SyncTrace;
+  const trace = await getTrace(block! as SyncBlock);
 
   return {
     block: block! as SyncBlock,
