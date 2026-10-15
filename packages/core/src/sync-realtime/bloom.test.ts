@@ -1,8 +1,14 @@
-import { type Hex, hexToBytes, hexToNumber } from "viem";
+import { type Hex, hexToBytes } from "viem";
 import { expect, test } from "vitest";
 import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
-import type { LogFactory, LogFilter } from "@/internal/types.js";
-import { getLogFilterBloom, isFilterInBloom, isInBloom } from "./bloom.js";
+import type { FactoryId, LogFactory, LogFilter } from "@/internal/types.js";
+import {
+  getFactoryBloom,
+  getLogFilterBloom,
+  isFactoryInBloom,
+  isFilterInBloom,
+  isInBloom,
+} from "./bloom.js";
 
 test("isInBloom", () => {
   let bloom =
@@ -27,28 +33,6 @@ test("isInBloom", () => {
   expect(isInBloom(hexToBytes(bloom), topic)).toBe(true);
 });
 
-test("isFilterInBloom returns false for out of range blocks", () => {
-  const block = {
-    number: "0x5",
-    logsBloom:
-      "0x00000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002020000000000000000000000000000000000000000000008000000001000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-  } as const;
-
-  const filter = {
-    ...EMPTY_LOG_FILTER,
-    fromBlock: 10,
-    toBlock: 20,
-  } satisfies LogFilter;
-
-  expect(
-    isFilterInBloom({
-      blockNumber: hexToNumber(block.number),
-      bloom: hexToBytes(block.logsBloom),
-      filter: getLogFilterBloom(filter),
-    }),
-  ).toBe(false);
-});
-
 test("isFilterInBloom returns false for missing topics", () => {
   const block = {
     number: "0x5",
@@ -64,7 +48,6 @@ test("isFilterInBloom returns false for missing topics", () => {
 
   expect(
     isFilterInBloom({
-      blockNumber: hexToNumber(block.number),
       bloom: hexToBytes(block.logsBloom),
       filter: getLogFilterBloom(filter),
     }),
@@ -86,14 +69,13 @@ test("isFilterInBloom returns true for undefined address", () => {
 
   expect(
     isFilterInBloom({
-      blockNumber: hexToNumber(block.number),
       bloom: hexToBytes(block.logsBloom),
       filter: getLogFilterBloom(filter),
     }),
   ).toBe(true);
 });
 
-test("isFilterInBloom returns true for factory with new child address", () => {
+test("isFilterInBloom returns false for factory with only new child address", () => {
   const block = {
     number: "0x5",
     logsBloom:
@@ -118,11 +100,10 @@ test("isFilterInBloom returns true for factory with new child address", () => {
 
   expect(
     isFilterInBloom({
-      blockNumber: hexToNumber(block.number),
       bloom: hexToBytes(block.logsBloom),
       filter: getLogFilterBloom(filter),
     }),
-  ).toBe(true);
+  ).toBe(false);
 });
 
 test("isFilterInBloom returns true for factory without new child address", () => {
@@ -152,7 +133,6 @@ test("isFilterInBloom returns true for factory without new child address", () =>
 
   expect(
     isFilterInBloom({
-      blockNumber: hexToNumber(block.number),
       bloom: hexToBytes(block.logsBloom),
       filter: getLogFilterBloom(filter),
     }),
@@ -175,9 +155,49 @@ test("isFilterInBloom returns true for array of addresses", () => {
 
   expect(
     isFilterInBloom({
-      blockNumber: hexToNumber(block.number),
       bloom: hexToBytes(block.logsBloom),
       filter: getLogFilterBloom(filter),
     }),
   ).toBe(true);
+});
+
+const FACTORY = {
+  id: "factory" as FactoryId,
+  type: "log",
+  chainId: 1,
+  sourceId: "test",
+  address: "0xef2d6d194084c2de36e0dabfce45d046b37d1106",
+  eventSelector:
+    "0x02c69be41d0b7e40352fc85be1cd65eb03d40ef8427a0ca4596b1ead9a00e9fc",
+  childAddressLocation: "topic1",
+  fromBlock: undefined,
+  toBlock: undefined,
+} satisfies LogFactory;
+
+test("isFactoryInBloom returns true for factory in bloom", () => {
+  const bloom =
+    "0x00000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002020000000000000000000000000000000000000000000008000000001000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+  expect(
+    isFactoryInBloom({
+      bloom: hexToBytes(bloom),
+      factory: getFactoryBloom(FACTORY),
+    }),
+  ).toBe(true);
+});
+
+test("isFactoryInBloom returns false for missing factory address", () => {
+  const bloom =
+    "0x00000000000000000000008000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000044000200000000000000000002000000000000000000000040000000000000000000000000000020000000000000000000800000000000800000000000800000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000808002000000000400000000000000000000000060000000000000000000000000000000000000000000000100000000000002000000";
+
+  expect(
+    isFactoryInBloom({
+      bloom: hexToBytes(bloom),
+      factory: getFactoryBloom({
+        ...FACTORY,
+        eventSelector:
+          "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb",
+      }),
+    }),
+  ).toBe(false);
 });

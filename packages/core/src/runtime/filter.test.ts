@@ -9,7 +9,7 @@ import {
   zeroHash,
 } from "viem";
 import { beforeEach, expect, test } from "vitest";
-import { ALICE, BOB } from "@/_test/constants.js";
+import { ALICE, BOB, EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import {
@@ -30,6 +30,7 @@ import {
 import type {
   BlockFilter,
   Factory,
+  FactoryId,
   LogFactory,
   LogFilter,
   SyncLog,
@@ -37,7 +38,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
+import { ADDRESS_CHUNK_SIZE, eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
 import type { IntervalWithFilter } from "@/runtime/index.js";
 import {
@@ -48,6 +49,7 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
+  mergeLogFiltersToBlockRequest,
   mergeLogFiltersToRequests,
 } from "./filter.js";
 
@@ -519,4 +521,231 @@ test("mergeLogFiltersToRequests does not merge disjoint intervals into an overly
       }),
     ]),
   );
+});
+
+const REQUEST_ADDRESS_A = "0x000000000000000000000000000000000000000a";
+const REQUEST_ADDRESS_B = "0x000000000000000000000000000000000000000b";
+const REQUEST_TOPIC_A =
+  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const REQUEST_TOPIC_B =
+  "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const REQUEST_TOPIC_C =
+  "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
+const REQUEST_FACTORY = {
+  id: "factory" as FactoryId,
+  type: "log",
+  chainId: 1,
+  sourceId: "test",
+  address: REQUEST_ADDRESS_B,
+  eventSelector: REQUEST_TOPIC_C,
+  childAddressLocation: "topic1",
+  fromBlock: undefined,
+  toBlock: undefined,
+} satisfies LogFactory;
+
+test("mergeLogFiltersToBlockRequest returns undefined for no inputs", () => {
+  expect(mergeLogFiltersToBlockRequest({ logFilters: [], factories: [] })).toBe(
+    undefined,
+  );
+});
+
+test("mergeLogFiltersToBlockRequest returns one log filter", () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_ADDRESS_A,
+    topic0: REQUEST_TOPIC_A,
+    topic2: REQUEST_TOPIC_B,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({ logFilters: [filter], factories: [] }),
+  ).toStrictEqual({
+    address: [REQUEST_ADDRESS_A],
+    topics: [[REQUEST_TOPIC_A], null, [REQUEST_TOPIC_B]],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest unions addresses and topics", () => {
+  const filterA = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_ADDRESS_A,
+    topic0: REQUEST_TOPIC_A,
+    topic1: REQUEST_TOPIC_C,
+  } satisfies LogFilter;
+  const filterB = {
+    ...EMPTY_LOG_FILTER,
+    address: [REQUEST_ADDRESS_A, REQUEST_ADDRESS_B],
+    topic0: REQUEST_TOPIC_B,
+    topic1: [REQUEST_TOPIC_C, REQUEST_TOPIC_A],
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [filterA, filterB],
+      factories: [],
+    }),
+  ).toStrictEqual({
+    address: [REQUEST_ADDRESS_A, REQUEST_ADDRESS_B],
+    topics: [
+      [REQUEST_TOPIC_A, REQUEST_TOPIC_B],
+      [REQUEST_TOPIC_C, REQUEST_TOPIC_A],
+    ],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest matches all values if one input matches all values", () => {
+  const filterA = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_ADDRESS_A,
+    topic0: REQUEST_TOPIC_A,
+    topic1: REQUEST_TOPIC_C,
+  } satisfies LogFilter;
+  const filterB = {
+    ...EMPTY_LOG_FILTER,
+    address: undefined,
+    topic0: REQUEST_TOPIC_B,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [filterA, filterB],
+      factories: [],
+    }),
+  ).toStrictEqual({
+    address: undefined,
+    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_B]],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest matches all addresses for a factory log filter", () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_FACTORY,
+    topic0: REQUEST_TOPIC_A,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [filter],
+      factories: [REQUEST_FACTORY],
+    }),
+  ).toStrictEqual({
+    address: undefined,
+    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_C]],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest includes factories without log filters", () => {
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [],
+      factories: [REQUEST_FACTORY],
+    }),
+  ).toStrictEqual({
+    address: [REQUEST_ADDRESS_B],
+    topics: [[REQUEST_TOPIC_C]],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest unions factory and log filter addresses", () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_ADDRESS_A,
+    topic0: REQUEST_TOPIC_A,
+    topic1: REQUEST_TOPIC_B,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [filter],
+      factories: [REQUEST_FACTORY],
+    }),
+  ).toStrictEqual({
+    address: [REQUEST_ADDRESS_A, REQUEST_ADDRESS_B],
+    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_C]],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest matches all addresses for a factory without an address", () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_ADDRESS_A,
+    topic0: REQUEST_TOPIC_A,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [filter],
+      factories: [{ ...REQUEST_FACTORY, address: undefined }],
+    }),
+  ).toStrictEqual({
+    address: undefined,
+    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_C]],
+  });
+});
+
+test("mergeLogFiltersToBlockRequest ignores inputs with an empty address list", () => {
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: [],
+    topic0: REQUEST_TOPIC_A,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [filter],
+      factories: [{ ...REQUEST_FACTORY, address: [] }],
+    }),
+  ).toBe(undefined);
+});
+
+test("mergeLogFiltersToBlockRequest matches all addresses above ADDRESS_CHUNK_SIZE", () => {
+  const addresses = Array.from(
+    { length: ADDRESS_CHUNK_SIZE + 1 },
+    (_, i) => `0x${i.toString(16).padStart(40, "0")}` as Address,
+  );
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: addresses,
+    topic0: REQUEST_TOPIC_A,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({ logFilters: [filter], factories: [] }),
+  ).toStrictEqual({ address: undefined, topics: [[REQUEST_TOPIC_A]] });
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: [{ ...filter, address: addresses.slice(1) }],
+      factories: [],
+    })?.address,
+  ).toHaveLength(ADDRESS_CHUNK_SIZE);
+});
+
+test("mergeLogFiltersToBlockRequest matches all topics above ADDRESS_CHUNK_SIZE", () => {
+  const topics = Array.from(
+    { length: ADDRESS_CHUNK_SIZE + 1 },
+    (_, i) => `0x${i.toString(16).padStart(64, "0")}` as Hex,
+  );
+  const filter = {
+    ...EMPTY_LOG_FILTER,
+    address: REQUEST_ADDRESS_A,
+    topic0: REQUEST_TOPIC_A,
+    topic1: topics,
+  } satisfies LogFilter;
+
+  expect(
+    mergeLogFiltersToBlockRequest({ logFilters: [filter], factories: [] }),
+  ).toStrictEqual({
+    address: [REQUEST_ADDRESS_A],
+    topics: [[REQUEST_TOPIC_A]],
+  });
+
+  expect(
+    mergeLogFiltersToBlockRequest({
+      logFilters: topics.map((topic0) => ({ ...filter, topic0, topic1: null })),
+      factories: [],
+    }),
+  ).toStrictEqual({ address: [REQUEST_ADDRESS_A], topics: undefined });
 });

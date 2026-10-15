@@ -1,10 +1,6 @@
 import { type Hex, keccak256 } from "viem";
-import type { LogFilter } from "@/internal/types.js";
-import {
-  getFilterFromBlock,
-  getFilterToBlock,
-  isAddressFactory,
-} from "@/runtime/filter.js";
+import type { Factory, LogFilter } from "@/internal/types.js";
+import { isAddressFactory } from "@/runtime/filter.js";
 
 export const zeroLogsBloom =
   "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
@@ -26,13 +22,8 @@ export type BloomBits = {
  * `undefined` matches every bloom. An array matches if any item is in the bloom.
  */
 export type LogFilterBloom = {
-  fromBlock: number;
-  toBlock: number;
   address: BloomBits[] | undefined;
   topics: (BloomBits[] | undefined)[];
-  factory:
-    | { address: BloomBits[] | undefined; eventSelector: BloomBits }
-    | undefined;
 };
 
 export const getBloomBits = (input: Hex): BloomBits => {
@@ -87,14 +78,9 @@ const toBloomBits = (
  */
 export const getLogFilterBloom = (filter: LogFilter): LogFilterBloom => {
   let address: BloomBits[] | undefined;
-  let factory: LogFilterBloom["factory"];
 
   if (isAddressFactory(filter.address)) {
     address = undefined;
-    factory = {
-      address: toBloomBits(filter.address.address),
-      eventSelector: getBloomBits(filter.address.eventSelector),
-    };
   } else if (Array.isArray(filter.address) && filter.address.length === 0) {
     address = undefined;
   } else {
@@ -102,50 +88,65 @@ export const getLogFilterBloom = (filter: LogFilter): LogFilterBloom => {
   }
 
   return {
-    fromBlock: getFilterFromBlock(filter),
-    toBlock: getFilterToBlock(filter),
     address,
     topics: [filter.topic0, filter.topic1, filter.topic2, filter.topic3].map(
       toBloomBits,
     ),
-    factory,
   };
 };
 
 /**
  * Return true if `filter` is in `bloom`.
  *
- * A filter with an address of type `LogFactory` is matched
- * if the address filter is matched (new child contract) or the log
- * filter is matched (log on child contract).
+ * A filter with an address of type `LogFactory` matches all addresses.
+ * Use `isFactoryInBloom` to check for new child contracts.
  *
  * Note: False positives are possible.
  */
 export function isFilterInBloom({
-  blockNumber,
   bloom,
   filter,
 }: {
-  blockNumber: number;
   bloom: Uint8Array;
   filter: LogFilterBloom;
 }): boolean {
-  // Return `false` for out of range blocks
-  if (blockNumber < filter.fromBlock || blockNumber > filter.toBlock) {
-    return false;
-  }
-
-  // Return true if the `Factory` is matched.
-  if (
-    filter.factory !== undefined &&
-    isAnyInBloom(bloom, filter.factory.address) &&
-    isBloomBitsInBloom(bloom, filter.factory.eventSelector)
-  ) {
-    return true;
-  }
-
   return (
     isAnyInBloom(bloom, filter.address) &&
     filter.topics.every((topic) => isAnyInBloom(bloom, topic))
+  );
+}
+
+/**
+ * A `Factory` with its address and event selector converted to `BloomBits`.
+ */
+export type FactoryBloom = {
+  address: BloomBits[] | undefined;
+  eventSelector: BloomBits;
+};
+
+/**
+ * Convert `factory` to a `FactoryBloom`. Call once for each factory,
+ * so that the inputs are not hashed again for each block.
+ */
+export const getFactoryBloom = (factory: Factory): FactoryBloom => ({
+  address: toBloomBits(factory.address),
+  eventSelector: getBloomBits(factory.eventSelector),
+});
+
+/**
+ * Return true if a log that matches `factory` can be in `bloom`.
+ *
+ * Note: False positives are possible.
+ */
+export function isFactoryInBloom({
+  bloom,
+  factory,
+}: {
+  bloom: Uint8Array;
+  factory: FactoryBloom;
+}): boolean {
+  return (
+    isAnyInBloom(bloom, factory.address) &&
+    isBloomBitsInBloom(bloom, factory.eventSelector)
   );
 }

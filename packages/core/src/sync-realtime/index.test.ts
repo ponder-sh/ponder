@@ -40,6 +40,7 @@ import type {
   LogFactory,
   LogFilter,
   SyncBlockHeader,
+  TraceFilter,
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
@@ -190,11 +191,10 @@ test("sync() catches error", async () => {
   const chain = getChain({ reorgWindow: 2 });
   const rpc = createRpc({ common, chain });
 
-  const { eventCallbacks } = getBlocksIndexingBuild({
-    interval: 1,
-  });
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
 
-  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
 
   const realtimeSync = createRealtimeSync({
     common,
@@ -282,6 +282,96 @@ test("handleBlock() block event with log", async () => {
     (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)
       ?.transactions,
   ).toHaveLength(1);
+});
+
+test("sync() requests logs with address and topics", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter;
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  await drainAsyncGenerator(realtimeSync.sync(block));
+
+  const logsRequests = requestSpy.mock.calls
+    .map(([request]) => request)
+    .filter((request) => request.method === "eth_getLogs");
+  expect(logsRequests).toHaveLength(1);
+  expect(logsRequests[0]!.params).toStrictEqual([
+    {
+      blockHash: block.hash,
+      address: [filter.address],
+      topics: [[filter.topic0]],
+    },
+  ]);
+});
+
+test("sync() requests factory logs for trace filters with a factory address", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  await createPair({ factory: address, sender: ALICE });
+
+  const {
+    eventCallbacks: [traceEventCallback],
+  } = getPairWithFactoryIndexingBuild({ address, includeCallTraces: true });
+  const filter = traceEventCallback.filter as TraceFilter<
+    undefined,
+    LogFactory
+  >;
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks: [traceEventCallback],
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map([[filter.toAddress.id, new Map()]]),
+  });
+
+  const block = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const syncResult = await drainAsyncGenerator(realtimeSync.sync(block));
+
+  expect(
+    (syncResult[0] as Extract<RealtimeSyncEvent, { type: "block" }>)
+      .childAddresses,
+  ).toStrictEqual(
+    new Map([
+      [
+        getFactoryFragmentIds(filter.toAddress)[0]!,
+        new Set(["0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"]),
+      ],
+    ]),
+  );
 });
 
 test("sync() skips log request when bloom does not match on standard chains", async () => {
@@ -1474,9 +1564,7 @@ test("handleReorg() throws error for deep reorg", async () => {
   const blockData3 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
-  // Note: Block 4 does not exist, so the RPC can't return its logs.
   const requestSpy = vi.spyOn(rpc, "request");
-  requestSpy.mockResolvedValueOnce([]);
   const warnSpy = vi.spyOn(common.logger, "warn");
 
   await drainAsyncGenerator(
@@ -1488,7 +1576,10 @@ test("handleReorg() throws error for deep reorg", async () => {
     }),
   );
 
-  expect(requestSpy.mock.calls[0]![0]).toMatchObject({ method: "eth_getLogs" });
+  // Note: Block filters do not require logs.
+  expect(
+    requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
+  ).toBe(false);
   expect(warnSpy).toHaveBeenCalledWith(
     expect.objectContaining({
       error: expect.objectContaining({
