@@ -30,7 +30,7 @@ import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { chunk } from "@/utils/chunk.js";
 import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
 
-const ADDRESS_CHUNK_SIZE = 50;
+export const ADDRESS_CHUNK_SIZE = 50;
 
 /**
  * Helper function for "eth_getBlockByNumber" request.
@@ -503,8 +503,6 @@ export const validateTransactionsAndBlock = (
  * Validate that the logs are consistent with the block.
  *
  * @dev Allows `log.transactionHash` to be `zeroHash`.
- * @dev Allows `block.logsBloom` to be `zeroLogsBloom`.
- * @dev Skips bloom validation on async-execution chains.
  */
 export const validateLogsAndBlock = (
   logs: SyncLog[],
@@ -514,25 +512,7 @@ export const validateLogsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
-  isAsyncExecutionChain: boolean,
 ) => {
-  if (
-    isAsyncExecutionChain === false &&
-    block.logsBloom !== zeroLogsBloom &&
-    logs.length === 0
-  ) {
-    const error = new RpcProviderError(
-      `Inconsistent RPC response data. The logs array has length 0, but the associated block has a non-empty 'block.logsBloom'.`,
-    );
-    error.meta = [
-      "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(logsRequest),
-    ];
-    error.stack = undefined;
-    throw error;
-  }
-
   const transactionByIndex = new Map<Hex, SyncTransaction>(
     block.transactions.map((transaction) => [
       transaction.transactionIndex,

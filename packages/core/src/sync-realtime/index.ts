@@ -47,11 +47,13 @@ import {
   isAddressFactory,
   isAddressMatched,
   isBlockFilterMatched,
+  isBlockInFilter,
   isLogFactoryMatched,
   isLogFilterMatched,
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
+  mergeLogFiltersToBlockRequest,
 } from "@/runtime/filter.js";
 import {
   getFactoryFragmentId,
@@ -63,7 +65,9 @@ import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
 import {
+  getFactoryBloom,
   getLogFilterBloom,
+  isFactoryInBloom,
   isFilterInBloom,
   isInBloom,
   zeroLogsBloom,
@@ -184,6 +188,7 @@ export const createRealtimeSync = (
   }
 
   const logFilterBlooms = logFilters.map(getLogFilterBloom);
+  const factoryBlooms = factories.map(getFactoryBloom);
 
   const getLatestUnfinalizedBlock = () => {
     if (unfinalizedBlocks.length === 0) {
@@ -220,39 +225,45 @@ export const createRealtimeSync = (
     // Logs
     ////////
 
-    // "eth_getLogs" calls can be skipped if no filters match `newHeadBlock.logsBloom`.
     // Async-execution chains cannot reliably use blooms to filter or validate logs.
+    // A zero `logsBloom` is treated as missing.
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
-    let shouldRequestLogs: boolean;
-    if (isAsyncExecution) {
-      shouldRequestLogs = logFilters.length > 0;
-    } else if (maybeBlockHeader.logsBloom === zeroLogsBloom) {
-      shouldRequestLogs = true;
-    } else {
-      const blockNumber = hexToNumber(maybeBlockHeader.number);
-      const bloom = hexToBytes(maybeBlockHeader.logsBloom);
-      shouldRequestLogs = logFilterBlooms.some((filter) =>
-        isFilterInBloom({ blockNumber, bloom, filter }),
-      );
-    }
+    const blockNumber = hexToNumber(maybeBlockHeader.number);
+    const bloom = hexToBytes(maybeBlockHeader.logsBloom);
+
+    const logsRequestFilter = mergeLogFiltersToBlockRequest({
+      logFilters: logFilters.filter(
+        (logFilter, i) =>
+          isBlockInFilter(logFilter, blockNumber) &&
+          (isAsyncExecution ||
+            maybeBlockHeader.logsBloom === zeroLogsBloom ||
+            isFilterInBloom({ bloom, filter: logFilterBlooms[i]! })),
+      ),
+      factories: factories.filter(
+        (factory, i) =>
+          isBlockInFilter(factory, blockNumber) &&
+          (isAsyncExecution ||
+            maybeBlockHeader.logsBloom === zeroLogsBloom ||
+            isFactoryInBloom({ bloom, factory: factoryBlooms[i]! })),
+      ),
+    });
+    const shouldRequestLogs = logsRequestFilter !== undefined;
 
     let logs: SyncLog[] = [];
     if (shouldRequestLogs) {
+      const logsRequestParams = {
+        blockHash: maybeBlockHeader.hash,
+        address: logsRequestFilter.address,
+        topics: logsRequestFilter.topics,
+      };
+
       if (block === undefined) {
         [block, logs] = await Promise.all([
           eth_getBlockByHash(args.rpc, [maybeBlockHeader.hash, true], context),
-          eth_getLogs(
-            args.rpc,
-            [{ blockHash: maybeBlockHeader.hash }],
-            context,
-          ),
+          eth_getLogs(args.rpc, [logsRequestParams], context),
         ]);
       } else {
-        logs = await eth_getLogs(
-          args.rpc,
-          [{ blockHash: block.hash }],
-          context,
-        );
+        logs = await eth_getLogs(args.rpc, [logsRequestParams], context);
       }
 
       validateLogsAndBlock(
@@ -260,7 +271,7 @@ export const createRealtimeSync = (
         block,
         {
           method: "eth_getLogs",
-          params: [{ blockHash: block.hash }],
+          params: [logsRequestParams],
         },
         ethGetBlockMethod === "eth_getBlockByNumber"
           ? {
@@ -271,7 +282,6 @@ export const createRealtimeSync = (
               method: "eth_getBlockByHash",
               params: [block.hash, true],
             },
-        isAsyncExecutionChain(args.chain.id),
       );
 
       for (const log of logs) {
@@ -289,7 +299,10 @@ export const createRealtimeSync = (
       }
     }
 
-    if (shouldRequestLogs === false && logFilters.length > 0) {
+    if (
+      shouldRequestLogs === false &&
+      (logFilters.length > 0 || factories.length > 0)
+    ) {
       args.common.logger.trace({
         msg: "Skipped eth_getLogs request due to bloom filter result",
         action: "fetch_block_data",

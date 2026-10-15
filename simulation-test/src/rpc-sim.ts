@@ -338,7 +338,11 @@ export const sim =
             if (_logs) {
               logs.push(...filterLogs(_logs.body as RpcLog[]));
             } else {
-              const rpcLogs = await _request(body);
+              // Note: Request all logs in the block, because the cache stores all logs.
+              const rpcLogs = await _request({
+                method: "eth_getLogs",
+                params: [{ blockHash: body.params[0].blockHash }],
+              });
               // @ts-expect-error
               logs.push(...filterLogs(rpcLogs));
               await DB.insert(RPC_SCHEMA.logs)

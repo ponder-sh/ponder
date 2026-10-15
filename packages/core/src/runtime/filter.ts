@@ -23,6 +23,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { ADDRESS_CHUNK_SIZE } from "@/rpc/actions.js";
 import { type RequestParameters, sanitizeLogTopics } from "@/rpc/index.js";
 import type { ChildAddresses, IntervalWithFilter } from "@/runtime/index.js";
 import type {
@@ -222,6 +223,101 @@ export const mergeLogFiltersToRequests = (
   return requests;
 };
 
+/** `address` and `topics` for an "eth_getLogs" request for one block. */
+export type BlockLogsRequestFilter = {
+  address: Address[] | undefined;
+  topics: (Hex[] | null)[] | undefined;
+};
+
+const toLogFilterValues = (
+  value: Hex | Hex[] | null | undefined,
+): Hex[] | undefined => {
+  if (value === null || value === undefined) return undefined;
+  return Array.isArray(value) ? value : [value];
+};
+
+/**
+ * Convert `values` to a request value. A list with more than
+ * `ADDRESS_CHUNK_SIZE` values matches all values, so that `eth_getLogs`
+ * sends exactly one request.
+ */
+const fromLogFilterValues = (values: Hex[] | undefined): Hex[] | null => {
+  if (values === undefined || values.length > ADDRESS_CHUNK_SIZE) return null;
+  return values;
+};
+
+/**
+ * Merge `LogFilter`s and `Factory`s into the `address` and `topics` of one
+ * "eth_getLogs" request for one block. The request matches a superset of the
+ * logs that `logFilters` and `factories` require. Returns `undefined` if no
+ * logs are required.
+ *
+ * @dev A log filter with a factory address matches all addresses, because child
+ * addresses created in the same block are not known before the request.
+ *
+ * @dev Each dimension is the union of all inputs, so the result can match logs
+ * that no single input matches. Logs must be filtered again after the request.
+ *
+ * @dev A dimension with more than `ADDRESS_CHUNK_SIZE` values matches all values.
+ */
+export const mergeLogFiltersToBlockRequest = ({
+  logFilters,
+  factories,
+}: {
+  logFilters: LogFilter[];
+  factories: Factory[];
+}): BlockLogsRequestFilter | undefined => {
+  let address: Hex[] | undefined = [];
+  let topics: (Hex[] | undefined)[] = [[], [], [], []];
+  let isEmpty = true;
+
+  const add = (
+    inputAddress: Hex[] | undefined,
+    inputTopics: (Hex[] | undefined)[],
+  ) => {
+    isEmpty = false;
+    address = mergeLogFilterValue(address, inputAddress);
+    topics = topics.map((values, i) =>
+      mergeLogFilterValue(values, inputTopics[i]),
+    );
+  };
+
+  for (const filter of logFilters) {
+    if (Array.isArray(filter.address) && filter.address.length === 0) continue;
+
+    add(
+      isAddressFactory(filter.address)
+        ? undefined
+        : toLogFilterValues(filter.address),
+      [filter.topic0, filter.topic1, filter.topic2, filter.topic3].map(
+        toLogFilterValues,
+      ),
+    );
+  }
+
+  for (const factory of factories) {
+    if (Array.isArray(factory.address) && factory.address.length === 0) {
+      continue;
+    }
+
+    add(toLogFilterValues(factory.address), [
+      [factory.eventSelector],
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  }
+
+  if (isEmpty) return undefined;
+
+  const requestTopics = sanitizeLogTopics(topics.map(fromLogFilterValues));
+
+  return {
+    address: fromLogFilterValues(address) ?? undefined,
+    topics: requestTopics.length === 0 ? undefined : requestTopics,
+  };
+};
+
 export const getChildAddress = ({
   log,
   factory,
@@ -337,13 +433,7 @@ export const isLogFilterMatched = ({
   filter: LogFilter;
   log: InternalLog | SyncLog;
 }): boolean => {
-  // Return `false` for out of range blocks
-  if (
-    Number(log.blockNumber) < (filter.fromBlock ?? 0) ||
-    Number(log.blockNumber) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
-  ) {
-    return false;
-  }
+  if (isBlockInFilter(filter, Number(log.blockNumber)) === false) return false;
 
   if (isValueMatched(filter.topic0, log.topics[0]) === false) return false;
   if (isValueMatched(filter.topic1, log.topics[1]) === false) return false;
@@ -373,12 +463,7 @@ export const isTransactionFilterMatched = ({
   filter: TransactionFilter;
   transaction: InternalTransaction | SyncTransaction;
 }): boolean => {
-  // Return `false` for out of range blocks
-  if (
-    Number(transaction.blockNumber) < (filter.fromBlock ?? 0) ||
-    Number(transaction.blockNumber) >
-      (filter.toBlock ?? Number.POSITIVE_INFINITY)
-  ) {
+  if (isBlockInFilter(filter, Number(transaction.blockNumber)) === false) {
     return false;
   }
 
@@ -417,13 +502,7 @@ export const isTraceFilterMatched = ({
   trace: InternalTrace | SyncTrace["trace"];
   block: Pick<InternalBlock | SyncBlock, "number">;
 }): boolean => {
-  // Return `false` for out of range blocks
-  if (
-    Number(block.number) < (filter.fromBlock ?? 0) ||
-    Number(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
-  ) {
-    return false;
-  }
+  if (isBlockInFilter(filter, Number(block.number)) === false) return false;
 
   if (
     isAddressFactory(filter.fromAddress) === false &&
@@ -470,13 +549,7 @@ export const isTransferFilterMatched = ({
   trace: InternalTrace | SyncTrace["trace"];
   block: Pick<InternalBlock | SyncBlock, "number">;
 }): boolean => {
-  // Return `false` for out of range blocks
-  if (
-    Number(block.number) < (filter.fromBlock ?? 0) ||
-    Number(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
-  ) {
-    return false;
-  }
+  if (isBlockInFilter(filter, Number(block.number)) === false) return false;
 
   if (
     trace.value === undefined ||
@@ -525,13 +598,7 @@ export const isBlockFilterMatched = ({
   filter: BlockFilter;
   block: Pick<InternalBlock | SyncBlock | SyncBlockHeader, "number">;
 }): boolean => {
-  // Return `false` for out of range blocks
-  if (
-    Number(block.number) < (filter.fromBlock ?? 0) ||
-    Number(block.number) > (filter.toBlock ?? Number.POSITIVE_INFINITY)
-  ) {
-    return false;
-  }
+  if (isBlockInFilter(filter, Number(block.number)) === false) return false;
 
   return (Number(block.number) - filter.offset) % filter.interval === 0;
 };
@@ -608,7 +675,10 @@ export const getFilterToBlock = (filter: Filter): number => {
   return Math.max(...blocks);
 };
 
-export const isBlockInFilter = (filter: Filter, blockNumber: number) => {
+export const isBlockInFilter = (
+  filter: Filter | Factory,
+  blockNumber: number,
+) => {
   // Return `false` for out of range blocks
   if (
     blockNumber < (filter.fromBlock ?? 0) ||
