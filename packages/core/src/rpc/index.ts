@@ -708,6 +708,57 @@ export const createRpc = ({
   let subscriptionId: string | undefined;
   let webSocketErrorCount = 0;
   let interval: NodeJS.Timeout | undefined;
+  let lastWebSocketBlockNumber: number | undefined;
+  let silenceTimer: NodeJS.Timeout | undefined;
+
+  // A socket that stays open but stops delivering looks exactly like a quiet
+  // chain, so ask HTTP where the head is.
+  const armSilenceCheck = () => {
+    clearTimeout(silenceTimer);
+    if (isUnsubscribed) return;
+    silenceTimer = setTimeout(async () => {
+      if (isUnsubscribed || ws === undefined) return;
+
+      let headBlockNumber: number;
+      try {
+        headBlockNumber = hexToNumber(
+          await rpc.request({ method: "eth_blockNumber" }),
+        );
+      } catch {
+        armSilenceCheck();
+        return;
+      }
+
+      // nothing delivered yet, so the head is the baseline for the next check
+      if (lastWebSocketBlockNumber === undefined) {
+        lastWebSocketBlockNumber = headBlockNumber;
+        armSilenceCheck();
+        return;
+      }
+
+      // one block of slack for a block produced right after the last delivery
+      if (headBlockNumber <= lastWebSocketBlockNumber + 1) {
+        armSilenceCheck();
+        return;
+      }
+
+      common.logger.warn({
+        msg: "WebSocket stopped delivering blocks, reconnecting",
+        chain: chain.name,
+        chain_id: chain.id,
+        websocket_block_number: lastWebSocketBlockNumber,
+        head_block_number: headBlockNumber,
+      });
+
+      // reconnect once, then hand over to polling rather than backing off
+      // through every remaining retry
+      webSocketErrorCount =
+        webSocketErrorCount === 0
+          ? 1
+          : Math.max(webSocketErrorCount, RETRY_COUNT);
+      ws?.close();
+    }, chain.pollingInterval * 20);
+  };
 
   const rpc: Rpc = {
     hostnames: backends.map((backend) => backend.hostname),
@@ -787,12 +838,14 @@ export const createRpc = ({
                   });
                   webSocketErrorCount = 0;
 
-                  onBlock(
-                    standardizeBlock(msg.params.result, {
-                      method: "eth_subscribe",
-                      params: ["newHeads"],
-                    }),
-                  );
+                  const block = standardizeBlock(msg.params.result, {
+                    method: "eth_subscribe",
+                    params: ["newHeads"],
+                  });
+                  lastWebSocketBlockNumber = hexToNumber(block.number);
+                  armSilenceCheck();
+
+                  onBlock(block);
                 } else if (msg.result) {
                   common.logger.debug({
                     msg: "Created JSON-RPC WebSocket subscription",
@@ -806,6 +859,7 @@ export const createRpc = ({
                   });
 
                   subscriptionId = msg.result;
+                  armSilenceCheck();
                 } else if (msg.error) {
                   common.logger.warn({
                     msg: "Failed JSON-RPC WebSocket subscription",
@@ -883,6 +937,7 @@ export const createRpc = ({
                 chain_id: chain.id,
               });
 
+              clearTimeout(silenceTimer);
               ws = undefined;
 
               if (isUnsubscribed || webSocketErrorCount >= RETRY_COUNT) {
@@ -908,6 +963,7 @@ export const createRpc = ({
     },
     async unsubscribe() {
       clearInterval(interval);
+      clearTimeout(silenceTimer);
       isUnsubscribed = true;
       if (ws) {
         if (subscriptionId) {
