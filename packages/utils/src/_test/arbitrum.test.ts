@@ -1,4 +1,4 @@
-import { InvalidInputRpcError, numberToHex } from "viem";
+import { InvalidInputRpcError, InvalidParamsRpcError, numberToHex } from "viem";
 import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
@@ -50,5 +50,37 @@ test("arbitrum response size", { timeout: 15_000 }, async () => {
   expect(retry.ranges![0]).toStrictEqual({
     fromBlock: numberToHex(fromBlock),
     toBlock: numberToHex(fromBlock + 10_000n),
+  });
+});
+
+test("arbitrum block range", { timeout: 15_000 }, async () => {
+  const params: Params = [
+    {
+      address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+      fromBlock: numberToHex(fromBlock),
+      toBlock: numberToHex(fromBlock + 10_000_000n),
+    },
+  ];
+
+  const error = await request({
+    method: "eth_getLogs",
+    params,
+  }).catch((error) => error);
+
+  expect(error).toBeInstanceOf(InvalidParamsRpcError);
+  expect(JSON.stringify(error)).includes(
+    "but only 10000000 are allowed for this request; narrow the block range",
+  );
+
+  const retry = getLogsRetryHelper({
+    params,
+    error,
+  });
+
+  expect(retry.shouldRetry).toBe(true);
+  expect(retry.ranges).toHaveLength(2);
+  expect(retry.ranges![0]).toStrictEqual({
+    fromBlock: numberToHex(fromBlock),
+    toBlock: numberToHex(fromBlock + 9_999_999n),
   });
 });
