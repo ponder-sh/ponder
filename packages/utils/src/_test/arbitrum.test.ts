@@ -84,3 +84,38 @@ test("arbitrum block range", { timeout: 15_000 }, async () => {
     toBlock: numberToHex(fromBlock + 9_999_999n),
   });
 });
+
+test("arbitrum block range addresses", { timeout: 15_000 }, async () => {
+  const params: Params = [
+    {
+      address: [
+        "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+        "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+      ],
+      fromBlock: numberToHex(fromBlock),
+      toBlock: numberToHex(fromBlock + 100_000n),
+    },
+  ];
+
+  const error = await request({
+    method: "eth_getLogs",
+    params,
+  }).catch((error) => error);
+
+  expect(error).toBeInstanceOf(InvalidParamsRpcError);
+  expect(JSON.stringify(error)).includes(
+    "but only 100000 are allowed for this request; narrow the block range, or send one value per position",
+  );
+
+  const retry = getLogsRetryHelper({
+    params,
+    error,
+  });
+
+  expect(retry.shouldRetry).toBe(true);
+  expect(retry.ranges).toHaveLength(2);
+  expect(retry.ranges![0]).toStrictEqual({
+    fromBlock: numberToHex(fromBlock),
+    toBlock: numberToHex(fromBlock + 99_999n),
+  });
+});
