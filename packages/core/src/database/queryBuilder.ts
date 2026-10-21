@@ -121,6 +121,9 @@ export const parseDbError = (error: any): Error => {
     error?.message?.includes("connection to client lost") ||
     error?.message?.includes("too many clients already") ||
     error?.message?.includes("Connection terminated unexpectedly") ||
+    error?.message?.includes(
+      "Connection terminated due to connection timeout",
+    ) ||
     error?.message?.includes("ECONNRESET") ||
     error?.message?.includes("ETIMEDOUT") ||
     error?.message?.includes("timeout exceeded when trying to connect")
