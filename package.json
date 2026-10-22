@@ -22,7 +22,7 @@
     "typescript": "5.4.5",
     "viem": "2.35.0"
   },
-  "packageManager": "pnpm@12.10.1",
+  "packageManager": "pnpm@12.15.0",
   "engines": {
     "node": ">=22",
     "pnpm": ">=12"
