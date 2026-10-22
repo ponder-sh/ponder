@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Repository Shape
-- This is a pnpm `12.15.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI uses the Node `24` preinstalled on the runner, Postgres 16 preinstalled on the runner, and a pinned Foundry nightly.
+- This is a pnpm `12.15.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`), uses the Postgres preinstalled on the runner (16 on Linux, 17 on Windows), and sets up exact Node, pnpm, Bun, and Foundry versions inline in each workflow job. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
 - Workspace packages are `packages/*`, `docs`, `examples/**`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
 - `packages/core` and `packages/react` build with custom `build.ts` scripts. `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.
