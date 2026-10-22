@@ -1,26 +1,20 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
   release:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main'
     name: Release
     runs-on: ubuntu-24.04
+    environment: npm
     permissions:
       contents: write
-      pull-requests: write
       id-token: write
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # This fetches the entire Git history so that Changesets can generate changelogs with the correct commits.
-          fetch-depth: 0
 
       - name: Set up node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -44,24 +38,18 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Create release pull request or publish to npm
-        id: changesets
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+      - name: Publish to npm
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          title: "chore: version packages"
-          commit: "chore: version packages"
-          version: pnpm changeset:version
-          publish: pnpm changeset:release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          script: pnpm changeset publish
 
   snapshot:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.ref != 'refs/heads/main'
     name: Release snapshot version
     runs-on: ubuntu-24.04
+    environment: npm
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
       id-token: write
     steps:
       - name: Clone repository
@@ -89,11 +77,10 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Create release pull request or publish to npm
-        continue-on-error: true
+      - name: Publish snapshot to npm
         run: |
           snapshot=$(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
-          pnpm changeset version --no-git-tag --snapshot $snapshot
-          pnpm changeset publish --no-git-tag --snapshot $snapshot --tag $snapshot
+          pnpm changeset version --snapshot $snapshot
+          pnpm changeset publish --no-git-tag --tag $snapshot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
