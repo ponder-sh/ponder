@@ -3,10 +3,13 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { beforeEach, expect, test, vi } from "vitest";
 import { context, setupCommon, setupIsolatedDatabase } from "@/_test/setup.js";
-import { NotNullConstraintError } from "@/internal/errors.js";
+import {
+  DbConnectionError,
+  NotNullConstraintError,
+} from "@/internal/errors.js";
 import { createPool } from "@/utils/pg.js";
 import { SCHEMATA } from "./index.js";
-import { createQB } from "./queryBuilder.js";
+import { createQB, parseDbError } from "./queryBuilder.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -124,6 +127,14 @@ test("QB parses error", async () => {
 
   expect(querySpy).toHaveBeenCalledTimes(1);
   expect(error).toBeInstanceOf(NotNullConstraintError);
+});
+
+test("parseDbError() classifies a connection timeout as a connection error", () => {
+  const error = parseDbError(
+    new Error("Connection terminated due to connection timeout"),
+  );
+
+  expect(error).toBeInstanceOf(DbConnectionError);
 });
 
 test("QB client", async () => {
