@@ -132,6 +132,26 @@ Here are a few common transport options.
 * [`loadBalance`](/docs/api-reference/ponder-utils#loadbalance)
 * [`rateLimit`](/docs/api-reference/ponder-utils#ratelimit)
 
+### RPC proxy
+
+The `rpc` field accepts any JSON-RPC URL, including a local RPC proxy such as [eRPC](https://github.com/erpc/erpc). eRPC sits between Ponder and your providers and adds failover across multiple providers, a response cache, and per-upstream rate limits. Ponder sees a single endpoint.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: "http://localhost:4000/main/evm/1", // [!code focus]
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+The URL format is `http://<host>:4000/<project-id>/evm/<chain-id>`. See the [eRPC docs](https://docs.erpc.cloud/config/example) for the proxy configuration.
+
 ## WebSocket
 
 Use the optional `ws` field to specify a WebSocket RPC endpoint for each chain.
