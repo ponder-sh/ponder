@@ -1,15 +1,11 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
   release:
-    # Only the merged release pull request (see version.yml) has packages to publish.
-    if: "github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore: version packages')"
+    if: github.ref == 'refs/heads/main'
     name: Release
     runs-on: ubuntu-24.04
     environment: npm
@@ -43,12 +39,12 @@ jobs:
         run: pnpm build
 
       - name: Publish to npm
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          publish-script: pnpm changeset publish
+          script: pnpm changeset publish
 
   snapshot:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.ref != 'refs/heads/main'
     name: Release snapshot version
     runs-on: ubuntu-24.04
     environment: npm
