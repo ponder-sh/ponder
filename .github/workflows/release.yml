@@ -49,8 +49,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: npm
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
       id-token: write
     steps:
       - name: Clone repository
@@ -78,8 +77,7 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Create release pull request or publish to npm
-        continue-on-error: true
+      - name: Publish snapshot to npm
         run: |
           snapshot=$(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
           pnpm changeset version --snapshot $snapshot
