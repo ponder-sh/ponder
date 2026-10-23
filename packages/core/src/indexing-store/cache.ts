@@ -389,8 +389,8 @@ export const createIndexingCache = ({
       const ck = getCacheKey(table, key, primaryKeyCache);
 
       return (
-        cache.get(table)!.cache.has(ck) ??
-        insertBuffer.get(table)!.has(ck) ??
+        cache.get(table)!.cache.has(ck) ||
+        insertBuffer.get(table)!.has(ck) ||
         updateBuffer.get(table)!.has(ck)
       );
     },
