@@ -1,3 +1,5 @@
+import { assert } from "./assert.js";
+
 /**
  * Divides an array into two arrays, where the first array
  * contains all elements that satisfy the predicate, and the
@@ -48,6 +50,18 @@ export const partition = <T>(
 
   const left = array.slice(0, low);
   const right = array.slice(low);
+
+  // Note: The binary search above silently returns a wrong split if `predicate`
+  // is not monotonic.
+  if (__DEBUG__) {
+    const leftIndex = left.findIndex((item) => predicate(item) === false);
+    const rightIndex = right.findIndex((item) => predicate(item));
+    assert(
+      leftIndex === -1 && rightIndex === -1,
+      () =>
+        `Expected predicate to go from true to false, got ${leftIndex === -1 ? `true at index ${low + rightIndex}` : `false at index ${leftIndex}`} with split at index ${low}`,
+    );
+  }
 
   return [left, right];
 };

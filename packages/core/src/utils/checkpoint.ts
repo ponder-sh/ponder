@@ -1,5 +1,6 @@
 import { hexToBigInt } from "viem";
 import type { LightBlock, SyncBlock } from "@/internal/types.js";
+import { assert } from "./assert.js";
 
 export type Checkpoint = {
   blockTimestamp: bigint;
@@ -32,6 +33,12 @@ const CHECKPOINT_LENGTH =
   EVENT_TYPE_DIGITS +
   EVENT_INDEX_DIGITS;
 
+const CHECKPOINT_REGEX = new RegExp(`^\\d{${CHECKPOINT_LENGTH}}$`);
+
+/** Returns true if `checkpoint` is a valid encoded checkpoint. */
+export const isCheckpointString = (checkpoint: string) =>
+  CHECKPOINT_REGEX.test(checkpoint);
+
 export const EVENT_TYPES = {
   transactions: 2,
   blocks: 5,
@@ -52,6 +59,19 @@ export const encodeCheckpoint = (
     eventType,
     eventIndex,
   } = checkpoint;
+
+  // Note: A negative value would encode with a "-" and break string ordering.
+  if (__DEBUG__) {
+    assert(
+      blockTimestamp >= 0 &&
+        chainId >= 0 &&
+        blockNumber >= 0 &&
+        transactionIndex >= 0 &&
+        eventIndex >= 0,
+      () =>
+        `Expected non-negative checkpoint values, got blockTimestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber} transactionIndex=${transactionIndex} eventIndex=${eventIndex}`,
+    );
+  }
 
   if (eventType < 0 || eventType > 9) {
     throw new Error(
@@ -75,6 +95,14 @@ export const encodeCheckpoint = (
 };
 
 export const decodeCheckpoint = (checkpoint: string): Checkpoint => {
+  // Note: `BigInt("")` is `0n`, so a truncated checkpoint would decode without error.
+  if (__DEBUG__) {
+    assert(
+      isCheckpointString(checkpoint),
+      () => `Expected an encoded checkpoint, got '${checkpoint}'`,
+    );
+  }
+
   let offset = 0;
 
   const blockTimestamp = BigInt(

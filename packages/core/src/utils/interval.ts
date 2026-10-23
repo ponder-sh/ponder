@@ -1,6 +1,41 @@
+import { assert } from "./assert.js";
 import { range } from "./range.js";
 
 export type Interval = [number, number];
+
+/**
+ * Returns the index of the first interval in `intervals` that is malformed (`start > end`)
+ * or out of order, or -1 if there is none.
+ *
+ * @param isMerged If false, intervals must be sorted by start. If true, intervals must also
+ * be disjoint and non-adjacent, like the result of {@link intervalUnion}.
+ */
+export function findUnsortedInterval(
+  intervals: Interval[],
+  isMerged: boolean,
+): number {
+  for (let i = 0; i < intervals.length; i++) {
+    const [start, end] = intervals[i]!;
+    if (start > end) return i;
+    if (i === 0) continue;
+    const previous = intervals[i - 1]!;
+    if (isMerged ? previous[1] + 1 >= start : previous[0] > start) return i;
+  }
+  return -1;
+}
+
+const assertSortedIntervals = (
+  intervals: Interval[],
+  isMerged: boolean,
+  label: string,
+) => {
+  const i = findUnsortedInterval(intervals, isMerged);
+  assert(
+    i === -1,
+    () =>
+      `Expected ${label} to be ${isMerged ? "merged" : "sorted"}, got ${JSON.stringify(intervals[i - 1])} followed by ${JSON.stringify(intervals[i])} at index ${i}`,
+  );
+};
 
 /**
  * Return the total sum of a list of numeric intervals.
@@ -27,6 +62,15 @@ export function intervalSum(intervals: Interval[]) {
 export function intervalUnion(intervals_: Interval[]) {
   if (intervals_.length === 0) return [];
 
+  if (__DEBUG__) {
+    for (const interval of intervals_) {
+      assert(
+        interval[0] <= interval[1],
+        () => `Expected interval start <= end, got ${JSON.stringify(interval)}`,
+      );
+    }
+  }
+
   // Create copies to avoid mutating the originals.
   const intervals = intervals_.map((interval) => [...interval] as Interval);
   // Sort intervals based on the left end.
@@ -49,6 +93,9 @@ export function intervalUnion(intervals_: Interval[]) {
   }
 
   result.push(currentInterval); // Add the last interval
+
+  if (__DEBUG__) assertSortedIntervals(result, true, "union");
+
   return result;
 }
 
@@ -63,6 +110,12 @@ export function intervalIntersection(
   list1: Interval[],
   list2: Interval[],
 ): Interval[] {
+  // Note: The two pointer walk below requires inputs sorted by start.
+  if (__DEBUG__) {
+    assertSortedIntervals(list1, false, "intersection input");
+    assertSortedIntervals(list2, false, "intersection input");
+  }
+
   const result: Interval[] = [];
   let i = 0;
   let j = 0;
@@ -120,6 +173,12 @@ export function intervalDifference(
   initial: Interval[],
   remove: Interval[],
 ): Interval[] {
+  // Note: The two pointer walk below requires inputs sorted by start.
+  if (__DEBUG__) {
+    assertSortedIntervals(initial, false, "difference input");
+    assertSortedIntervals(remove, false, "difference input");
+  }
+
   // Create copies to avoid mutating the originals.
   const initial_ = initial.map((interval) => [...interval] as Interval);
   const remove_ = remove.map((interval) => [...interval] as Interval);
@@ -163,6 +222,19 @@ export function intervalDifference(
     i++;
   }
 
+  if (__DEBUG__) {
+    assertSortedIntervals(result, false, "difference");
+    const initialUnion = intervalUnion(initial);
+    const expectedSum =
+      intervalSum(initialUnion) -
+      intervalSum(intervalIntersection(initialUnion, intervalUnion(remove)));
+    assert(
+      intervalSum(intervalUnion(result)) === expectedSum,
+      () =>
+        `Expected difference of ${JSON.stringify(initial)} and ${JSON.stringify(remove)} to contain ${expectedSum} blocks, got ${JSON.stringify(result)}`,
+    );
+  }
+
   return result;
 }
 
@@ -173,6 +245,10 @@ export function intervalDifference(
  * @returns Bounds of the intervals.
  */
 export function intervalBounds(intervals: Interval[]): Interval {
+  if (__DEBUG__) {
+    assert(intervals.length > 0, "Expected at least one interval for bounds");
+  }
+
   const start = Math.min(...intervals.map((interval) => interval[0]));
   const end = Math.max(...intervals.map((interval) => interval[1]));
 
@@ -190,6 +266,14 @@ export function getChunks({
   interval: Interval;
   maxChunkSize: number;
 }) {
+  // Note: `maxChunkSize < 1` would loop forever.
+  if (__DEBUG__) {
+    assert(
+      Number.isInteger(maxChunkSize) && maxChunkSize >= 1,
+      () => `Expected a positive integer chunk size, got ${maxChunkSize}`,
+    );
+  }
+
   const _chunks: Interval[] = [];
 
   const [startBlock, endBlock] = interval;

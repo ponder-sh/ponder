@@ -1,3 +1,19 @@
+import { assert } from "./assert.js";
+
+/** Returns the index of the first element of `array` that is less than the previous one, or -1. */
+const findUnsorted = <T>(array: T[], compare?: (a: T, b: T) => number) => {
+  for (let i = 1; i < array.length; i++) {
+    if (
+      compare
+        ? compare(array[i - 1]!, array[i]!) > 0
+        : array[i]! < array[i - 1]!
+    ) {
+      return i;
+    }
+  }
+  return -1;
+};
+
 /**
  * Merges two sorted arrays into a single sorted array.
  *
@@ -18,6 +34,17 @@ export const zipper = <T>(
   array2: T[],
   compare?: (a: T, b: T) => number,
 ): T[] => {
+  if (__DEBUG__) {
+    for (const array of [array1, array2]) {
+      const i = findUnsorted(array, compare);
+      assert(
+        i === -1,
+        () =>
+          `Expected sorted input, got ${String(array[i - 1])} followed by ${String(array[i])} at index ${i}`,
+      );
+    }
+  }
+
   const result: T[] = [];
   let i = 0;
   let j = 0;
