@@ -64,10 +64,13 @@ export default defineConfig({
     text: "Suggest changes",
   },
   head(path) {
+    // `<base href={baseUrl}>` sends client navigation requests to `baseUrl`,
+    // which fails cross-origin on any other host (e.g. Vercel previews).
     // Versioned docs pages render a canonical link to the latest version of
     // the page in `pages/docs/_mdx-wrapper.tsx`.
-    if (/^\/docs\/\d+\.\d+(\/|$)/.test(path)) return { canonical: false };
-    return undefined;
+    if (/^\/docs\/\d+\.\d+(\/|$)/.test(path))
+      return { base: false, canonical: false };
+    return { base: false };
   },
   search: {
     query: {
