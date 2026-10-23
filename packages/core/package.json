@@ -38,7 +38,7 @@
     }
   },
   "scripts": {
-    "build": "tsx build.ts",
+    "build": "bun build.ts",
     "test": "vitest",
     "test:bun": "bun test",
     "test:typecheck": "vitest --typecheck.only",
