@@ -388,8 +388,8 @@ export const encodeFragment = (fragment: Fragment): FragmentId => {
   const fragmentId = toFragmentId(fragment);
 
   // Note: Fragment IDs are persisted in the sync-store, so the encoding must be
-  // unambiguous. `decodeFragment` does not support "factory_log" fragments.
-  if (__DEBUG__ && fragment.type !== "factory_log") {
+  // unambiguous.
+  if (__DEBUG__) {
     const decodedFragmentId = toFragmentId(decodeFragment(fragmentId));
     assert(
       decodedFragmentId === fragmentId,
@@ -402,7 +402,10 @@ export const encodeFragment = (fragment: Fragment): FragmentId => {
 };
 
 export const decodeFragment = (fragmentId: FragmentId): Fragment => {
-  const [type, chainId] = fragmentId.split("_");
+  // Note: "factory_log" is the only fragment type that contains "_".
+  const [type, chainId] = fragmentId.startsWith("factory_log_")
+    ? ["factory_log", fragmentId.split("_")[2]]
+    : fragmentId.split("_");
 
   const decodeFragmentAddress = (offset: number): FragmentAddress => {
     const fragmentAddressId = fragmentId.split("_").slice(offset);
@@ -597,6 +600,7 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
     case "factory_log": {
       const [
         ,
+        ,
         chainId,
         address,
         eventSelector,
@@ -607,12 +611,12 @@ export const decodeFragment = (fragmentId: FragmentId): Fragment => {
       return {
         type: "factory_log",
         chainId: Number(chainId),
-        address: address as Address,
+        address: address === "null" ? null : (address as Address),
         eventSelector: eventSelector as Factory["eventSelector"],
         childAddressLocation:
           childAddressLocation as Factory["childAddressLocation"],
-        fromBlock: fromBlock ? Number(fromBlock) : null,
-        toBlock: toBlock ? Number(toBlock) : null,
+        fromBlock: fromBlock === "null" ? null : Number(fromBlock),
+        toBlock: toBlock === "null" ? null : Number(toBlock),
       };
     }
   }

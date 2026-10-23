@@ -491,6 +491,33 @@ test("decodeFragment() factory addresses", () => {
   }
 });
 
+test("decodeFragment() factory log", () => {
+  const fragments: Fragment[] = [
+    {
+      type: "factory_log",
+      chainId: 1,
+      address: "0xa",
+      eventSelector: "0xc",
+      childAddressLocation: "topic1",
+      fromBlock: 5,
+      toBlock: null,
+    },
+    {
+      type: "factory_log",
+      chainId: 10,
+      address: null,
+      eventSelector: "0xc",
+      childAddressLocation: "offset64",
+      fromBlock: null,
+      toBlock: 9,
+    },
+  ];
+
+  for (const fragment of fragments) {
+    expect(decodeFragment(encodeFragment(fragment))).toStrictEqual(fragment);
+  }
+});
+
 test("recoverFilter() block filter", () => {
   const filter = { ...EMPTY_BLOCK_FILTER, interval: 100, offset: 5 };
 
