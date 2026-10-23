@@ -4,7 +4,7 @@
 - This is a pnpm `12.15.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`), uses the Postgres preinstalled on the runner (16 on Linux, 17 on Windows), and sets up exact Node, pnpm, Bun, and Foundry versions inline in each workflow job. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
 - Workspace packages are `packages/*`, `docs`, `examples/**`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
-- `packages/core` and `packages/react` build with custom `build.ts` scripts. `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.
+- `packages/core` and `packages/react` build with custom `build.ts` scripts (core's runs with Bun, so `pnpm build` requires Bun). `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.
 - Core source uses `@/*` path aliases. The core build rewrites these aliases in `dist/esm` and `dist/types`, so do not replace source aliases just to satisfy package output.
 
 ## Commands
@@ -22,6 +22,11 @@
 - Core database tests default to in-memory PGlite. Set `DATABASE_URL` in `packages/core/.env.local` only when intentionally testing Postgres; tests create and drop `vitest_*` databases/roles.
 - `packages/utils/src/_test/*` contains live RPC-provider tests that require `RPC_URL_*` values from `packages/utils/.env.example`; avoid broad utils/root test runs unless those env vars and network access are intended.
 - `simulation-test` and `benchmark` use Bun scripts and external Postgres/RPC env from their `.env.example` files. Their `DATABASE_URL` should omit a database name; scripts append app-specific database names.
+
+## Debug Assertions And Core Build
+- Core has debug assertions for internal invariants: `if (__DEBUG__) assert(condition, () => message)` with `assert` from `packages/core/src/utils/assert.ts` (throws `AssertionError`). Wrap O(n) checks in an `if (__DEBUG__) { ... }` block. Only call `assert()` inside `if (__DEBUG__)` blocks, include the offending values in the message, and don't use `__DEBUG__` in any other form (e.g. `__DEBUG__ && ...`).
+- `__DEBUG__` is a global compile-time constant declared in `packages/core/src/globals.d.ts`. It is `true` in Vitest (`packages/core/vite.config.ts` `define`), `bun test` (`packages/core/bunfig.toml`), and `simulation-test` (`simulation-test/bunfig.toml`); it is `false` in `benchmark` (`benchmark/bunfig.toml`) to measure the published code path. Override for Bun with `bun --define __DEBUG__:true src/index.ts`. Any new way of running core source directly must define it, or it throws `ReferenceError: __DEBUG__ is not defined`.
+- `packages/core/build.ts` runs with Bun: `Bun.build` transpiles each source file to the same path in `dist/esm` (all imports external, `@/*` rewritten to relative paths, linked sourcemaps, no minification) with `__DEBUG__` defined as `false`, and `tsc --emitDeclarationOnly` emits `dist/types`. `utils/assert.ts` is not emitted. The build fails if any `__DEBUG__`, `assert()` call, or `@/` import remains in the output. It also restores `/* webpackIgnore: true */` comments in dynamic imports, which Bun drops and the Next.js example needs.
 
 ## Memory Profiling
 - Profile memory while running an example app, such as `feature-multichain`. Run it for several minutes so finalization occurs; temporarily comment out chains when necessary to keep the workload practical.
