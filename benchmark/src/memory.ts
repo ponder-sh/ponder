@@ -56,6 +56,8 @@ const read = (start: number): MemoryReading => {
   };
 };
 
+let highWaterMark = 0;
+
 /** Peak resident set size in MiB (high-water mark, catches spikes between samples). */
 export const peakRssMiB = () => {
   // `maxRSS` is reported in KiB.
@@ -67,7 +69,10 @@ export const peakRssMiB = () => {
     );
     if (match) vmHwm = toMiB(Number(match[1]) * 1024);
   } catch {}
-  return vmHwm === undefined ? maxRss : Math.max(maxRss, vmHwm);
+  // A high-water mark never decreases; keep the largest value seen so the
+  // two sources disagreeing by a page or two cannot make it go down.
+  highWaterMark = Math.max(highWaterMark, maxRss, vmHwm ?? 0);
+  return highWaterMark;
 };
 
 export const formatReading = (phase: string, reading: MemoryReading) =>
