@@ -15,7 +15,3 @@ enablePrePostScripts: true
 linkWorkspacePackages: deep
 strictPeerDependencies: false
 provenance: true
-overrides:
-  # @jridgewell/gen-mapping@0.3.8 maps the "browser" export condition to a UMD build,
-  # which breaks the docs site in the browser (sucrase is a client dependency of Vocs).
-  "sucrase@3.35.1>@jridgewell/gen-mapping": ^0.3.13

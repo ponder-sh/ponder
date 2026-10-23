@@ -18,8 +18,6 @@ export default defineConfig({
   iconUrl: "/icon.png",
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
   accentColor: "light-dark(#0a9fb2, #10c2d5)",
-  ogImageUrl: (_path, { baseUrl }) =>
-    `${baseUrl ?? ""}/api/og?title=%title&description=%description`,
   renderStrategy: "partial-static",
   twoslash: false,
   // The versioned docs contain many links to pages that only exist in other

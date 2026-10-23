@@ -10,7 +10,7 @@ export default function DocsWrapper({
   return (
     <Layout>
       {/* The sidebar header slot is hidden on mobile. */}
-      <VersionPicker className="md:hidden" />
+      <VersionPicker className="lg:hidden" />
       <OutdatedVersion />
       {children}
     </Layout>
