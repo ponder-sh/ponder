@@ -14,6 +14,7 @@ import type {
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
+import { assert } from "@/utils/assert.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { isAddressFactory } from "./filter.js";
@@ -32,18 +33,39 @@ type FragmentReturnType = {
 }[];
 
 export const getFragments = (filter: Filter): FragmentReturnType => {
+  let fragments: FragmentReturnType;
   switch (filter.type) {
     case "block":
-      return getBlockFilterFragment(filter as BlockFilter);
+      fragments = getBlockFilterFragment(filter as BlockFilter);
+      break;
     case "transaction":
-      return getTransactionFilterFragments(filter as TransactionFilter);
+      fragments = getTransactionFilterFragments(filter as TransactionFilter);
+      break;
     case "trace":
-      return getTraceFilterFragments(filter as TraceFilter);
+      fragments = getTraceFilterFragments(filter as TraceFilter);
+      break;
     case "log":
-      return getLogFilterFragments(filter as LogFilter);
+      fragments = getLogFilterFragments(filter as LogFilter);
+      break;
     case "transfer":
-      return getTransferFilterFragments(filter as TransferFilter);
+      fragments = getTransferFilterFragments(filter as TransferFilter);
+      break;
   }
+
+  // Note: `adjacentIds` are built separately from `encodeFragment`. A fragment that
+  // is not adjacent to itself never matches its own cached intervals.
+  if (__DEBUG__) {
+    for (const { fragment, adjacentIds } of fragments) {
+      const fragmentId = encodeFragment(fragment);
+      assert(
+        adjacentIds.includes(fragmentId),
+        () =>
+          `Expected adjacent IDs of fragment '${fragmentId}' to include itself, got ${JSON.stringify(adjacentIds)}`,
+      );
+    }
+  }
+
+  return fragments;
 };
 
 export const getFactoryFragments = (factory: Factory): Fragment[] => {
@@ -345,7 +367,7 @@ export const fragmentAddressToId = (
   return `${fragmentAddress.address}_${fragmentAddress.eventSelector}_${fragmentAddress.childAddressLocation}_${fragmentAddress.fromBlock}_${fragmentAddress.toBlock}`;
 };
 
-export const encodeFragment = (fragment: Fragment): FragmentId => {
+const toFragmentId = (fragment: Fragment): FragmentId => {
   switch (fragment.type) {
     case "block":
       return `block_${fragment.chainId}_${fragment.interval}_${fragment.offset}`;
@@ -360,6 +382,23 @@ export const encodeFragment = (fragment: Fragment): FragmentId => {
     case "factory_log":
       return `factory_log_${fragment.chainId}_${fragment.address}_${fragment.eventSelector}_${fragment.childAddressLocation}_${fragment.fromBlock}_${fragment.toBlock}`;
   }
+};
+
+export const encodeFragment = (fragment: Fragment): FragmentId => {
+  const fragmentId = toFragmentId(fragment);
+
+  // Note: Fragment IDs are persisted in the sync-store, so the encoding must be
+  // unambiguous. `decodeFragment` does not support "factory_log" fragments.
+  if (__DEBUG__ && fragment.type !== "factory_log") {
+    const decodedFragmentId = toFragmentId(decodeFragment(fragmentId));
+    assert(
+      decodedFragmentId === fragmentId,
+      () =>
+        `Expected fragment ID to roundtrip, got '${fragmentId}' and '${decodedFragmentId}'`,
+    );
+  }
+
+  return fragmentId;
 };
 
 export const decodeFragment = (fragmentId: FragmentId): Fragment => {

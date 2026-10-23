@@ -33,6 +33,7 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
+import { assert } from "@/utils/assert.js";
 import type { Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 
@@ -96,6 +97,34 @@ const hasSufficientLogIntervalOverlap = (
   );
 
   return overlapLength / smallerIntervalLength >= 0.8;
+};
+
+/** Returns `true` if `request` matches every log that `candidate` matches. */
+const isLogRequestCovering = (
+  request: EthGetLogsRequest,
+  candidate: EthGetLogsRequest,
+): boolean => {
+  if (
+    hexToNumber(request.params[0].fromBlock) >
+      hexToNumber(candidate.params[0].fromBlock) ||
+    hexToNumber(request.params[0].toBlock) <
+      hexToNumber(candidate.params[0].toBlock)
+  ) {
+    return false;
+  }
+
+  return logRequestKeys.every((key) => {
+    const requestValue = getLogRequestValue(request, key);
+    const candidateValue = getLogRequestValue(candidate, key);
+    if (requestValue === undefined) return true;
+    if (candidateValue === undefined) return false;
+    const requestValues = Array.isArray(requestValue)
+      ? requestValue
+      : [requestValue];
+    return (
+      Array.isArray(candidateValue) ? candidateValue : [candidateValue]
+    ).every((value) => requestValues.includes(value));
+  });
 };
 
 const mergeLogFilterValue = <value extends Hex>(
@@ -211,6 +240,16 @@ export const mergeLogFiltersToRequests = (
       requestParams.toBlock = numberToHex(
         Math.max(hexToNumber(requestParams.toBlock), interval[1]),
       );
+
+      // Note: A merged request that doesn't cover the filter silently drops logs.
+      if (__DEBUG__) {
+        assert(
+          isLogRequestCovering(request, candidate),
+          () =>
+            `Expected merged "eth_getLogs" request ${JSON.stringify(request.params[0])} to cover ${JSON.stringify(candidate.params[0])}`,
+        );
+      }
+
       isMerged = true;
       break;
     }

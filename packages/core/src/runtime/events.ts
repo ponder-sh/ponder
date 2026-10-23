@@ -41,6 +41,7 @@ import type {
   Transaction,
   TransactionReceipt,
 } from "@/types/eth.js";
+import { assert } from "@/utils/assert.js";
 import {
   EVENT_TYPES,
   encodeCheckpoint,
@@ -58,6 +59,27 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
 } from "./filter.js";
+
+/**
+ * Returns the index of the first row that is ordered before the previous row
+ * by `(blockNumber, transactionIndex)`, or -1.
+ */
+const findUnsortedRow = (
+  rows: { blockNumber: number; transactionIndex: number }[],
+) => {
+  for (let i = 1; i < rows.length; i++) {
+    const previous = rows[i - 1]!;
+    const current = rows[i]!;
+    if (
+      previous.blockNumber > current.blockNumber ||
+      (previous.blockNumber === current.blockNumber &&
+        previous.transactionIndex > current.transactionIndex)
+    ) {
+      return i;
+    }
+  }
+  return -1;
+};
 
 /**
  * Create `RawEvent`s from raw data types
@@ -81,6 +103,31 @@ export const buildEvents = ({
   childAddresses: Map<FactoryId, Map<Address, number>>;
   chainId: number;
 }) => {
+  // Note: The merge joins below require sorted inputs. Unsorted inputs
+  // silently match the wrong block or drop transactions and receipts.
+  if (__DEBUG__) {
+    for (let i = 1; i < blocks.length; i++) {
+      assert(
+        blocks[i - 1]!.number < blocks[i]!.number,
+        () =>
+          `Expected blocks sorted by number for chain ID ${chainId}, got ${blocks[i - 1]!.number} followed by ${blocks[i]!.number}`,
+      );
+    }
+    for (const [name, rows] of [
+      ["transactions", transactions],
+      ["transaction receipts", transactionReceipts],
+      ["traces", traces],
+      ["logs", logs],
+    ] as const) {
+      const i = findUnsortedRow(rows);
+      assert(
+        i === -1,
+        () =>
+          `Expected ${name} sorted by block number and transaction index for chain ID ${chainId}, got (${rows[i - 1]!.blockNumber}, ${rows[i - 1]!.transactionIndex}) followed by (${rows[i]!.blockNumber}, ${rows[i]!.transactionIndex})`,
+      );
+    }
+  }
+
   const events: RawEvent[] = [];
 
   const blockEventCallbackIndexes: number[] = [];
@@ -151,6 +198,14 @@ export const buildEvents = ({
     if (block === undefined) {
       throw new Error(
         `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+      );
+    }
+
+    if (__DEBUG__) {
+      assert(
+        Number(block.number) === blockNumber,
+        () =>
+          `Expected block ${blockNumber} for chain ID ${chainId}, got block ${block.number}`,
       );
     }
 
@@ -261,6 +316,14 @@ export const buildEvents = ({
     if (block === undefined) {
       throw new Error(
         `Failed to build events from block data. Missing block ${blockNumber} for chain ID ${chainId}`,
+      );
+    }
+
+    if (__DEBUG__) {
+      assert(
+        Number(block.number) === blockNumber,
+        () =>
+          `Expected block ${blockNumber} for chain ID ${chainId}, got block ${block.number}`,
       );
     }
 
@@ -436,6 +499,14 @@ export const buildEvents = ({
       );
     }
 
+    if (__DEBUG__) {
+      assert(
+        Number(block.number) === blockNumber,
+        () =>
+          `Expected block ${blockNumber} for chain ID ${chainId}, got block ${block.number}`,
+      );
+    }
+
     while (
       transactionsIndex < transactions.length &&
       (transactions[transactionsIndex]!.blockNumber < blockNumber ||
@@ -530,6 +601,16 @@ export const splitEvents = (
   let hash: Hash | undefined;
   const result: { events: Event[]; chainId: number; checkpoint: string }[] = [];
 
+  if (__DEBUG__) {
+    for (let i = 1; i < events.length; i++) {
+      assert(
+        events[i - 1]!.checkpoint <= events[i]!.checkpoint,
+        () =>
+          `Expected events sorted by checkpoint, got '${events[i - 1]!.checkpoint}' followed by '${events[i]!.checkpoint}'`,
+      );
+    }
+  }
+
   for (const event of events) {
     if (hash === undefined || hash !== event.event.block.hash) {
       result.push({
@@ -546,6 +627,28 @@ export const splitEvents = (
     }
 
     result[result.length - 1]!.events.push(event);
+  }
+
+  // Note: Each block must be one contiguous group, and each group checkpoint
+  // must be an upper bound of its events.
+  if (__DEBUG__) {
+    for (let i = 0; i < result.length; i++) {
+      const { events, chainId, checkpoint } = result[i]!;
+      if (i > 0) {
+        assert(
+          result[i - 1]!.checkpoint < checkpoint,
+          () =>
+            `Expected split checkpoints to be strictly increasing, got '${result[i - 1]!.checkpoint}' followed by '${checkpoint}'`,
+        );
+      }
+      for (const event of events) {
+        assert(
+          event.chain.id === chainId && event.checkpoint <= checkpoint,
+          () =>
+            `Expected event with checkpoint '${event.checkpoint}' on chain ID ${event.chain.id} to be in group with checkpoint '${checkpoint}' on chain ID ${chainId}`,
+        );
+      }
+    }
   }
 
   return result;
@@ -569,6 +672,14 @@ export const decodeEvents = (
 
   for (const event of rawEvents) {
     const eventCallback = eventCallbacks[event.eventCallbackIndex]!;
+
+    if (__DEBUG__) {
+      assert(
+        event.chainId === chain.id && eventCallback.chain.id === chain.id,
+        () =>
+          `Expected event and event callback '${eventCallback.name}' on chain ID ${chain.id}, got event chain ID ${event.chainId} and event callback chain ID ${eventCallback.chain.id}`,
+      );
+    }
 
     if (
       eventCallback.type === "contract" &&
