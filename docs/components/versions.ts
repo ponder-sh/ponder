@@ -1,4 +1,4 @@
-import pkg from "../../../packages/core/package.json";
+import pkg from "../../packages/core/package.json";
 
 export const versions = [
   {

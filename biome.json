@@ -29,7 +29,7 @@
   },
   "overrides": [
     {
-      "includes": ["docs/src/pages/_root.css"],
+      "includes": ["docs/pages/_root.css"],
       "css": {
         "parser": {
           "tailwindDirectives": true

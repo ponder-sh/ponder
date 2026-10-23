@@ -205,12 +205,6 @@ importers:
 
   docs:
     dependencies:
-      '@takumi-rs/image-response':
-        specifier: 0.62.8
-        version: 0.62.8
-      '@takumi-rs/wasm':
-        specifier: 0.62.8
-        version: 0.62.8
       clsx:
         specifier: 2.1.1
         version: 2.1.1

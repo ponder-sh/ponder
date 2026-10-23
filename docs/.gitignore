@@ -1,5 +1,5 @@
 dist/
 .vocs/
 .vercel/
-src/pages.gen.ts
+pages.gen.ts
 .env.local

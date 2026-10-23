@@ -9,8 +9,6 @@
     "preview": "vocs preview"
   },
   "dependencies": {
-    "@takumi-rs/image-response": "0.62.8",
-    "@takumi-rs/wasm": "0.62.8",
     "clsx": "2.1.1",
     "lucide-react": "0.510.0",
     "mermaid": "11.17.2",

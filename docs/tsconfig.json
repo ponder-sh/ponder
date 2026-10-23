@@ -17,6 +17,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "vocs.config.ts"],
-  "exclude": ["src/pages.gen.ts"]
+  "include": ["components", "pages", "*.ts"],
+  "exclude": ["pages.gen.ts"]
 }

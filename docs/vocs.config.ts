@@ -1,24 +1,26 @@
 import { defineConfig } from "vocs/config";
-import { redirects } from "./src/redirects.ts";
-import { sidebar } from "./src/sidebar.ts";
-
-const baseUrl =
-  process.env.VERCEL_ENV === "production"
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:4173";
+import { redirects } from "./redirects.ts";
+import { sidebar } from "./sidebar.ts";
 
 export default defineConfig({
   title: "Ponder",
   titleTemplate: "%s – Ponder",
   description:
     "Ponder is an open-source TypeScript framework for EVM data indexing.",
-  baseUrl,
+  baseUrl:
+    process.env.VERCEL_ENV === "production"
+      ? "https://ponder.sh"
+      : process.env.VERCEL_URL,
   iconUrl: "/icon.png",
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
   accentColor: "light-dark(#0a9fb2, #10c2d5)",
+  ogImageUrl: (path, { baseUrl }) => {
+    if (path === "/") return "/og.png";
+    return `${baseUrl}/api/og?logo=%logo&title=%title&description=%description`;
+  },
   renderStrategy: "partial-static",
+  rootDir: ".",
+  srcDir: ".",
   twoslash: false,
   // The versioned docs contain many links to pages that only exist in other
   // versions. Report them without failing the build.
@@ -58,12 +60,12 @@ export default defineConfig({
     { icon: "x", link: "https://x.com/ponder_sh" },
   ],
   editLink: {
-    link: "https://github.com/ponder-sh/ponder/edit/main/docs/src/pages/:path",
+    link: "https://github.com/ponder-sh/ponder/edit/main/docs/pages/:path",
     text: "Suggest changes",
   },
   head(path) {
     // Versioned docs pages render a canonical link to the latest version of
-    // the page in `src/pages/docs/_mdx-wrapper.tsx`.
+    // the page in `pages/docs/_mdx-wrapper.tsx`.
     if (/^\/docs\/\d+\.\d+(\/|$)/.test(path)) return { canonical: false };
     return undefined;
   },

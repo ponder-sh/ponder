@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @custom-variant dark (
-  &:where([data-vocs-theme="dark"], [data-vocs-theme="dark"] *)
+  &:where([style*="color-scheme: dark"], [style*="color-scheme: dark"] *)
 );
 
 @theme {
@@ -29,7 +29,7 @@
     radial-gradient(91.96% 91.96% at 50% 91.96%, rgba(0, 0, 0, 0) 0%, #fff 100%),
     url("/hero.png") lightgray 50% / cover no-repeat;
 }
-[data-vocs-theme="dark"] .hero-texture {
+[style*="color-scheme: dark"] .hero-texture {
   background:
     radial-gradient(
       91.96% 91.96% at 50% 91.96%,
