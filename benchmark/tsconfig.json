@@ -15,6 +15,7 @@
     "moduleResolution": "bundler",
     "module": "ESNext",
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "lib": ["ES2022"],
     "target": "ES2022",
 

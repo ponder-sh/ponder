@@ -59,7 +59,9 @@ const kill = await start({
 
 while (true) {
   try {
-    const result = await fetch("http://localhost:42069/ready");
+    const result = await fetch(
+      `http://localhost:${process.env.PORT ?? 42069}/ready`,
+    );
     if (result.status === 200) break;
   } catch {}
   await new Promise((resolve) => setTimeout(resolve, 100));

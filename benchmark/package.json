@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "benchmark": "bun run src/index.ts",
+    "benchmark": "node --expose-gc --env-file-if-exists=.env.local src/index.ts",
+    "benchmark:bun": "bun run src/index.ts",
     "create:app": "bun run src/create-app.ts"
   },
   "devDependencies": {
