@@ -32,7 +32,8 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import * as PONDER_SYNC from "@/sync-store/schema.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
+import { assert } from "@/utils/assert.js";
+import { decodeCheckpoint, isCheckpointString } from "@/utils/checkpoint.js";
 import { formatEta } from "@/utils/format.js";
 import { createPool, createReadonlyPool } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
@@ -948,6 +949,31 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
               status: "success",
               crashRecoveryCheckpoint: undefined,
             } as const;
+          }
+
+          if (__DEBUG__) {
+            for (const checkpoint of checkpoints) {
+              for (const value of [
+                checkpoint.safeCheckpoint,
+                checkpoint.latestCheckpoint,
+                checkpoint.finalizedCheckpoint,
+              ]) {
+                assert(
+                  isCheckpointString(value),
+                  () =>
+                    `Expected encoded checkpoints for chain '${checkpoint.chainName}', got '${value}'`,
+                );
+              }
+              // Note: See `getPonderCheckpointTable`.
+              const latestChainId = Number(
+                decodeCheckpoint(checkpoint.latestCheckpoint).chainId,
+              );
+              assert(
+                latestChainId === checkpoint.chainId,
+                () =>
+                  `Expected latest checkpoint of chain '${checkpoint.chainName}' to have chain ID ${checkpoint.chainId}, got ${latestChainId}`,
+              );
+            }
           }
 
           for (const { chainId, finalizedCheckpoint } of checkpoints) {

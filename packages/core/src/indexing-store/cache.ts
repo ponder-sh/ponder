@@ -24,6 +24,7 @@ import type {
   Event,
   SchemaBuild,
 } from "@/internal/types.js";
+import { assert } from "@/utils/assert.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { prettyPrint } from "@/utils/print.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
@@ -505,6 +506,17 @@ export const createIndexingCache = ({
       const row = isUpdate ? _row : normalizeRow(table, _row, false);
       const ck = getCacheKey(table, key, primaryKeyCache);
 
+      // Note: A row buffered under another row's key is flushed correctly but
+      // cached under the wrong key.
+      if (__DEBUG__) {
+        const rowCk = getCacheKey(table, row, primaryKeyCache);
+        assert(
+          rowCk === ck,
+          () =>
+            `Expected cache key of row in table '${getTableName(table)}' to be '${ck}', got '${rowCk}'`,
+        );
+      }
+
       if (isUpdate) {
         updateBuffer.get(table)!.set(ck, { row, metadata: { event } });
       } else {
@@ -713,6 +725,19 @@ export const createIndexingCache = ({
             await flushTable(table);
           }
         }
+
+        if (__DEBUG__) {
+          for (const table of cache.keys()) {
+            if (tableNames?.has(getTableName(table)) === false) continue;
+            const bufferSize =
+              insertBuffer.get(table)!.size + updateBuffer.get(table)!.size;
+            assert(
+              bufferSize === 0,
+              () =>
+                `Expected empty buffers after flushing table '${getTableName(table)}', got ${bufferSize} rows`,
+            );
+          }
+        }
       } catch (_error) {
         let error = _error as Error;
         if (error instanceof ShutdownError || qb.$dialect === "pglite") {
@@ -892,6 +917,14 @@ export const createIndexingCache = ({
           (a, b) => cache.get(a)!.diskReads - cache.get(b)!.diskReads,
         )) {
           if (cache.get(table)!.isCacheComplete === false) continue;
+
+          if (__DEBUG__) {
+            assert(
+              cache.get(table)!.spillover.size === 0,
+              () =>
+                `Expected empty spillover for complete table '${getTableName(table)}', got ${cache.get(table)!.spillover.size} keys`,
+            );
+          }
 
           totalBytes -= cache.get(table)!.bytes;
 

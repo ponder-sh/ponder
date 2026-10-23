@@ -33,7 +33,12 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
-import { decodeCheckpoint, MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { assert } from "@/utils/assert.js";
+import {
+  decodeCheckpoint,
+  isCheckpointString,
+  MAX_CHECKPOINT_STRING,
+} from "@/utils/checkpoint.js";
 import {
   getPonderCheckpointTable,
   PONDER_CHECKPOINT_TABLE_NAME,
@@ -364,6 +369,14 @@ EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notifyProcedure};`,
   );
 };
 
+/** Note: Checkpoints are interpolated into raw SQL. */
+const assertCheckpoint = (checkpoint: string) => {
+  assert(
+    isCheckpointString(checkpoint),
+    () => `Expected an encoded checkpoint, got '${checkpoint}'`,
+  );
+};
+
 export const revertOmnichain = async (
   qb: QB,
   {
@@ -375,6 +388,8 @@ export const revertOmnichain = async (
   },
   context?: { logger?: Logger },
 ): Promise<number[]> => {
+  if (__DEBUG__) assertCheckpoint(checkpoint);
+
   if (tables.length === 0) return [];
 
   return qb.transaction(
@@ -426,6 +441,8 @@ export const revertMultichain = async (
   },
   context?: { logger?: Logger },
 ): Promise<number[]> => {
+  if (__DEBUG__) assertCheckpoint(checkpoint);
+
   if (tables.length === 0) return [];
 
   return qb.transaction(
@@ -495,6 +512,8 @@ export const revertIsolated = async (
   },
   context?: { logger?: Logger },
 ) => {
+  if (__DEBUG__) assertCheckpoint(checkpoint);
+
   if (tables.length === 0) return [];
 
   return qb.transaction(
@@ -548,6 +567,8 @@ export const finalizeOmnichain = async (
   },
   context?: { logger?: Logger },
 ) => {
+  if (__DEBUG__) assertCheckpoint(checkpoint);
+
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
   // TODO(kyle) is this breaking an invariant?
@@ -598,6 +619,8 @@ export const finalizeMultichain = async (
   },
   context?: { logger?: Logger },
 ) => {
+  if (__DEBUG__) assertCheckpoint(checkpoint);
+
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const chainId = Number(decodeCheckpoint(checkpoint).chainId);
 
@@ -694,6 +717,8 @@ export const finalizeIsolated = async (
   },
   context?: { logger?: Logger },
 ) => {
+  if (__DEBUG__) assertCheckpoint(checkpoint);
+
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
   const chainId = Number(decodeCheckpoint(checkpoint).chainId);
 
@@ -740,6 +765,15 @@ export const commitBlock = async (
   }: { checkpoint: string; table: Table; preBuild: Pick<PreBuild, "ordering"> },
   context?: { logger?: Logger },
 ) => {
+  // Note: Committing `MAX_CHECKPOINT_STRING` would leave the rows pending.
+  if (__DEBUG__) {
+    assertCheckpoint(checkpoint);
+    assert(
+      checkpoint !== MAX_CHECKPOINT_STRING,
+      "Expected a block checkpoint, got 'MAX_CHECKPOINT_STRING'",
+    );
+  }
+
   const reorgTable = getReorgTable(table);
   let whereClause: SQL;
   if (preBuild.ordering === "experimental_isolated") {

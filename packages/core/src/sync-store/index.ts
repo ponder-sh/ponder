@@ -69,7 +69,8 @@ import type {
   IntervalWithFactory,
   IntervalWithFilter,
 } from "@/runtime/index.js";
-import type { Interval } from "@/utils/interval.js";
+import { assert } from "@/utils/assert.js";
+import { findUnsortedInterval, type Interval } from "@/utils/interval.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
 import { startClock } from "@/utils/timer.js";
@@ -213,6 +214,34 @@ export const createSyncStore = ({
       context,
     ) => {
       if (intervals.length === 0 && factoryIntervals.length === 0) return;
+
+      // Note: Intervals are interpolated into raw SQL and are never removed.
+      if (__DEBUG__) {
+        for (const { interval, chainId: sourceChainId } of [
+          ...intervals.map(({ filter, interval }) => ({
+            interval,
+            chainId: filter.chainId,
+          })),
+          ...factoryIntervals.map(({ factory, interval }) => ({
+            interval,
+            chainId: factory.chainId,
+          })),
+        ]) {
+          assert(
+            Number.isSafeInteger(interval[0]) &&
+              Number.isSafeInteger(interval[1]) &&
+              0 <= interval[0] &&
+              interval[0] <= interval[1],
+            () =>
+              `Expected a valid block interval, got ${JSON.stringify(interval)}`,
+          );
+          assert(
+            sourceChainId === chainId,
+            () =>
+              `Expected intervals for chain ID ${chainId}, got chain ID ${sourceChainId}`,
+          );
+        }
+      }
 
       const perFragmentIntervals = new Map<FragmentId, Interval[]>();
       const values: (typeof PONDER_SYNC.intervals.$inferInsert)[] = [];
@@ -426,6 +455,19 @@ export const createSyncStore = ({
             index += 1;
 
             result.get(factory)!.push({ fragment, intervals });
+          }
+        }
+      }
+
+      if (__DEBUG__) {
+        for (const fragments of result.values()) {
+          for (const { fragment, intervals } of fragments) {
+            const i = findUnsortedInterval(intervals, true);
+            assert(
+              i === -1,
+              () =>
+                `Expected merged intervals for fragment '${encodeFragment(fragment)}', got ${JSON.stringify(intervals)}`,
+            );
           }
         }
       }
@@ -764,6 +806,14 @@ export const createSyncStore = ({
       traces: InternalTrace[];
       cursor: number;
     }> => {
+      if (__DEBUG__) {
+        assert(
+          fromBlock <= toBlock && limit > 0,
+          () =>
+            `Expected fromBlock <= toBlock and limit > 0, got fromBlock=${fromBlock} toBlock=${toBlock} limit=${limit}`,
+        );
+      }
+
       const activeFilters = filters.filter((filter) =>
         isFilterInBlockRange({ filter, fromBlock, toBlock }),
       );
@@ -1240,6 +1290,33 @@ export const createSyncStore = ({
 
       await new Promise(setImmediate);
 
+      // Note: The caller resumes from `cursor + 1`, so a row after `cursor`
+      // would be returned twice.
+      if (__DEBUG__) {
+        assert(
+          fromBlock <= cursor && cursor <= toBlock,
+          () => `Expected cursor in [${fromBlock}, ${toBlock}], got ${cursor}`,
+        );
+        for (const [name, blockNumbers] of [
+          ["blocks", blocksRows.map((row) => Number(row.number))],
+          ["transactions", transactionsRows.map((row) => row.blockNumber)],
+          [
+            "transaction receipts",
+            transactionReceiptsRows.map((row) => row.blockNumber),
+          ],
+          ["logs", logsRows.map((row) => row.blockNumber)],
+          ["traces", tracesRows.map((row) => row.blockNumber)],
+        ] as const) {
+          for (const blockNumber of blockNumbers) {
+            assert(
+              fromBlock <= Number(blockNumber) && Number(blockNumber) <= cursor,
+              () =>
+                `Expected ${name} in [${fromBlock}, ${cursor}], got block ${blockNumber}`,
+            );
+          }
+        }
+      }
+
       return {
         blocks: blocksRows as InternalBlock[],
         logs: logsRows as InternalLog[],
@@ -1527,10 +1604,20 @@ export const getFilterBlockRange = ({
     toBlock: Math.min(toBlock, filter.toBlock ?? toBlock),
   }));
 
-  return {
+  const range = {
     fromBlock: Math.min(...ranges.map((range) => range.fromBlock)),
     toBlock: Math.max(...ranges.map((range) => range.toBlock)),
   };
+
+  if (__DEBUG__) {
+    assert(
+      range.fromBlock <= range.toBlock,
+      () =>
+        `Expected fromBlock <= toBlock, got fromBlock=${range.fromBlock} toBlock=${range.toBlock}`,
+    );
+  }
+
+  return range;
 };
 
 const isFilterInBlockRange = ({
