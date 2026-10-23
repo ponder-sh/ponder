@@ -63,14 +63,12 @@ export default defineConfig({
     link: "https://github.com/ponder-sh/ponder/edit/main/docs/pages/:path",
     text: "Suggest changes",
   },
-  head(path) {
+  head: {
     // `<base href={baseUrl}>` sends client navigation requests to `baseUrl`,
     // which fails cross-origin on any other host (e.g. Vercel previews).
-    // Versioned docs pages render a canonical link to the latest version of
-    // the page in `pages/docs/_mdx-wrapper.tsx`.
-    if (/^\/docs\/\d+\.\d+(\/|$)/.test(path))
-      return { base: false, canonical: false };
-    return { base: false };
+    base: false,
+    // Rendered by `components/canonical.client.tsx`.
+    canonical: false,
   },
   search: {
     query: {
