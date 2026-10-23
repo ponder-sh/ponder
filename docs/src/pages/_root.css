@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where([data-vocs-theme="dark"], [data-vocs-theme="dark"] *));
+@custom-variant dark (
+  &:where([data-vocs-theme="dark"], [data-vocs-theme="dark"] *)
+);
 
 @theme {
   --color-ponder-50: #39dff2;
