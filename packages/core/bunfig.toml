@@ -1,3 +1,7 @@
 [test]
 preload = ["./src/_test/globalSetup.ts"]
 timeout = 15000
+
+# Enable debug assertions, see `src/utils/assert.ts`.
+[define]
+__DEBUG__ = "true"

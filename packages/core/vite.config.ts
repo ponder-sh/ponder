@@ -6,6 +6,8 @@ import { defineConfig } from "vitest/config";
 const graphqlPath = createRequire(import.meta.url).resolve("graphql");
 
 export default defineConfig({
+  // Enable debug assertions, see `src/utils/assert.ts`.
+  define: { __DEBUG__: "true" },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

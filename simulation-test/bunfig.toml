@@ -1,0 +1,4 @@
+# Enable debug assertions in `packages/core/src`, see `packages/core/src/utils/assert.ts`.
+# Override with `bun --define __DEBUG__:false src/index.ts`.
+[define]
+__DEBUG__ = "true"

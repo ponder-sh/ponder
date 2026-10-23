@@ -1,0 +1,4 @@
+# Disable debug assertions in `packages/core/src` to measure the published code path,
+# see `packages/core/src/utils/assert.ts`. Override with `bun --define __DEBUG__:true src/index.ts`.
+[define]
+__DEBUG__ = "false"
