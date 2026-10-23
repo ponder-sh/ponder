@@ -99,12 +99,18 @@ async function build() {
   }
 }
 
-/** Source files that are emitted, as absolute paths. */
+/**
+ * Source files that are emitted, as absolute paths.
+ *
+ * Note: The assert module is not emitted. It is only used in `if (__DEBUG__)`
+ * blocks, which are removed. As an entrypoint, it would not be tree-shaken.
+ */
 function getEntrypoints() {
   return glob
     .sync(`${SRC}/**/*.ts`, { ignore: IGNORE, posix: true })
     .sort()
-    .map((file) => path.resolve(file));
+    .map((file) => path.resolve(file))
+    .filter((file) => file !== ASSERT_MODULE);
 }
 
 /** Relative import specifier from the file `importer` to `target`, with forward slashes. */
@@ -237,6 +243,9 @@ async function buildTypes() {
     });
 
   if (tscResult.exitCode !== 0) return false;
+
+  // Note: The assert module is not emitted, see `getEntrypoints`.
+  await rimraf(path.join(OUT_TYPES, "utils", "assert.d.ts*"), { glob: true });
   log.tsc(
     `Emitted declarations to '${OUT_TYPES}' in ${Date.now() - startTime}ms`,
   );
@@ -317,24 +326,30 @@ function checkOutput() {
     }
   }
 
-  const assertOutput = path.resolve(OUT_ESM, "utils", "assert.js");
+  let hasAssertModule = false;
   for (const filePath of glob.sync(`${OUT_ESM}/**/*.js`, { nodir: true })) {
     const content = fs.readFileSync(filePath, "utf8");
     if (content.includes("__DEBUG__")) {
       errors.push(`'${filePath}' contains '__DEBUG__'`);
     }
-    if (
-      path.resolve(filePath) !== assertOutput &&
-      (/utils\/assert\.(js|ts)['"]/.test(content) ||
-        content.includes("AssertionError"))
-    ) {
+    // Note: The assert module is inlined into every module that imports it
+    // if any call survives, so report the modules with a call.
+    if (/(?<!function )\bassert\(/.test(content)) {
       errors.push(
-        `'${filePath}' contains an assertion. Only call 'assert()' inside 'if (__DEBUG__)' blocks`,
+        `'${filePath}' calls 'assert()' outside of an 'if (__DEBUG__)' block`,
       );
+    } else if (
+      /utils\/assert\.(js|ts)['"]/.test(content) ||
+      content.includes("AssertionError")
+    ) {
+      hasAssertModule = true;
     }
     if (unresolvedAliasRegex.test(content)) {
       errors.push(`'${filePath}' contains an unresolved '@/' import`);
     }
+  }
+  if (hasAssertModule && errors.length === 0) {
+    errors.push(`'${OUT_ESM}' contains 'src/utils/assert.ts'`);
   }
   for (const filePath of glob.sync(`${OUT_TYPES}/**/*.d.ts`, { nodir: true })) {
     const content = fs.readFileSync(filePath, "utf8");
