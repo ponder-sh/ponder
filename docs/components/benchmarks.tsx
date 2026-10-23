@@ -54,7 +54,9 @@ function BenchmarkRows({
               <span
                 className={cn(
                   "whitespace-nowrap",
-                  isCurrent ? "font-bold text-neutral-900" : "text-neutral-600",
+                  isCurrent
+                    ? "font-bold text-neutral-900 dark:text-neutral-50"
+                    : "text-neutral-600 dark:text-neutral-400",
                 )}
               >
                 {row.name}
@@ -107,7 +109,7 @@ function BenchmarkRows({
               className={cn(
                 "w-14 shrink-0 text-right",
                 isCurrent
-                  ? "text-base font-semibold text-neutral-900"
+                  ? "text-base font-semibold text-neutral-900 dark:text-neutral-50"
                   : "text-neutral-500",
               )}
             >
