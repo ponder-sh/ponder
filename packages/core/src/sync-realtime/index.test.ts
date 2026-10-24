@@ -1538,3 +1538,89 @@ test("handleReorg() throws error for deep reorg", async () => {
   // block 4 is not added to `unfinalizedBlocks`
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);
 });
+
+test("handleReorg() emits all reorged blocks after rpc error", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10 });
+  const rpc = createRpc({
+    chain,
+    common,
+  });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({
+    interval: 1,
+  });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
+
+  const blockData2 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData2.block));
+
+  const blockData3 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
+
+  // Remote chain: 1 -> 2' -> 3' (then 3'')
+  const block2Remote = {
+    ...blockData2.block,
+    hash: `0x${"2".repeat(64)}` as Hex,
+  };
+
+  const requestSpy = vi.spyOn(rpc, "request");
+  let getBlockByHashCalls = 0;
+  requestSpy.mockImplementation(async (request) => {
+    if (request.method === "eth_getBlockByHash") {
+      getBlockByHashCalls++;
+      if (getBlockByHashCalls === 1) throw new Error("rpc error");
+      return block2Remote as any;
+    }
+    throw new Error(`unexpected request ${request.method}`);
+  });
+
+  const reorgResult1 = await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...blockData3.block,
+      hash: `0x${"3".repeat(64)}`,
+      parentHash: block2Remote.hash,
+    }),
+  );
+
+  expect(reorgResult1).toHaveLength(0);
+  // local chain is unchanged after the failed reorg reconciliation
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(3);
+
+  const reorgResult2 = await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...blockData3.block,
+      hash: `0x${"4".repeat(64)}`,
+      parentHash: block2Remote.hash,
+    }),
+  );
+
+  expect(reorgResult2).toHaveLength(1);
+  const reorgEvent = reorgResult2[0] as Extract<
+    RealtimeSyncEvent,
+    { type: "reorg" }
+  >;
+  expect(reorgEvent.type).toBe("reorg");
+  expect(reorgEvent.block.hash).toBe(blockData1.block.hash);
+  expect(reorgEvent.reorgedBlocks.map((block) => block.hash)).toStrictEqual([
+    blockData2.block.hash,
+    blockData3.block.hash,
+  ]);
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+});

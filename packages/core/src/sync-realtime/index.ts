@@ -875,13 +875,17 @@ export const createRealtimeSync = (
       hash: block.hash,
     });
 
+    // Note: The local chain must not be mutated until the common ancestor is found.
+    // If an RPC request fails mid-walk, the local chain must be unchanged so that the
+    // next attempt to reconcile the reorg includes all of the reorged blocks.
+
     // Record blocks that have been removed from the local chain.
     const reorgedBlocks = unfinalizedBlocks.filter(
       (lb) => hexToNumber(lb.number) >= hexToNumber(block.number),
     );
 
-    // Prune the local chain of blocks that have been reorged out
-    unfinalizedBlocks = unfinalizedBlocks.filter(
+    // Local chain with the reorged blocks pruned
+    const localChain = unfinalizedBlocks.filter(
       (lb) => hexToNumber(lb.number) < hexToNumber(block.number),
     );
 
@@ -889,17 +893,15 @@ export const createRealtimeSync = (
     let remoteBlock: LightBlock = block;
 
     while (true) {
-      const parentBlock = getLatestUnfinalizedBlock();
+      const parentBlock =
+        localChain.length === 0
+          ? finalizedBlock
+          : localChain[localChain.length - 1]!;
 
       if (parentBlock.hash === remoteBlock.parentHash) break;
 
-      if (unfinalizedBlocks.length === 0) {
+      if (localChain.length === 0) {
         // No compatible block was found in the local chain, must be a deep reorg.
-
-        // Note: reorgedBlocks aren't removed from `unfinalizedBlocks` because we are "bailing"
-        // from this attempt to reconcile the reorg, we need to reset the local chain state back
-        // to what it was before we started.
-        unfinalizedBlocks = reorgedBlocks;
 
         args.common.logger.warn({
           msg: "Encountered unrecoverable reorg",
@@ -919,9 +921,12 @@ export const createRealtimeSync = (
           context,
         );
         // Add tip to `reorgedBlocks`
-        reorgedBlocks.unshift(unfinalizedBlocks.pop()!);
+        reorgedBlocks.unshift(localChain.pop()!);
       }
     }
+
+    // Prune the local chain of blocks that have been reorged out
+    unfinalizedBlocks = localChain;
 
     const commonAncestor = getLatestUnfinalizedBlock();
 
