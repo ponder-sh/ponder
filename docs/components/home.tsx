@@ -25,8 +25,7 @@ export function Home() {
               </h1>
               <p>
                 Ponder is an open-source TypeScript framework for fast,
-                reliable,
-                <br className="hidden lg:inline" />
+                reliable, <br className="hidden lg:inline" />
                 and maintainable EVM data indexing
               </p>
             </div>

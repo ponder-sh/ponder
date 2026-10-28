@@ -8,6 +8,8 @@ packages:
 allowBuilds:
   "@biomejs/biome": true
   esbuild: true
+  es5-ext: false
+  vue-demi: false
 autoInstallPeers: false
 enablePrePostScripts: true
 linkWorkspacePackages: deep
