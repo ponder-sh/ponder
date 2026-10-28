@@ -7,15 +7,7 @@
     }
   ],
   "commit": false,
-  "fixed": [
-    [
-      "ponder",
-      "create-ponder",
-      "eslint-config-ponder",
-      "@ponder/client",
-      "@ponder/react"
-    ]
-  ],
+  "fixed": [["ponder", "create-ponder", "@ponder/client", "@ponder/react"]],
   "snapshot": {
     "useCalculatedVersion": true
   },
