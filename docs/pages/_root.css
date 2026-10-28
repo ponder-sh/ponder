@@ -24,9 +24,16 @@
 }
 
 /* HERO TEXTURE */
+/* Fade into the page background, which Vocs sets to `primary` on md+ and
+   `surface` below md. Both tokens switch between light and dark. */
 .hero-texture {
+  --hero-fade: var(--vocs-background-color-primary);
   background:
-    radial-gradient(91.96% 91.96% at 50% 91.96%, rgba(0, 0, 0, 0) 0%, #fff 100%),
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) 0%,
+      var(--hero-fade) 100%
+    ),
     url("/hero.png") lightgray 50% / cover no-repeat;
 }
 [style*="color-scheme: dark"] .hero-texture {
@@ -34,7 +41,32 @@
     radial-gradient(
       91.96% 91.96% at 50% 91.96%,
       rgba(0, 0, 0, 0) -20%,
-      #111 100%
+      var(--hero-fade) 100%
     ),
     url("/hero.png") lightgray 50% / cover no-repeat;
+}
+@media (width < 748px) {
+  .hero-texture {
+    --hero-fade: var(--vocs-background-color-surface);
+  }
+}
+
+/* HOMEPAGE TOP NAV */
+/* Align the top nav with the homepage's 1180px content column. The homepage is
+   the only page with `layout: minimal` and full content width. */
+@media (width >= 1080px) {
+  [data-layout="minimal"][data-v-content-width="full"] > [data-v-gutter-top] {
+    --home-gutter: max(
+      var(--vocs-spacing-content-px),
+      calc((100% - 1180px) / 2)
+    );
+    padding-left: var(--home-gutter);
+    /* Nav items carry 1rem of inline padding, so text lines up with content. */
+    padding-right: calc(var(--home-gutter) - 1rem);
+  }
+  [data-layout="minimal"][data-v-content-width="full"]
+    > [data-v-gutter-top]
+    [data-v-gutter-top-left] {
+    margin-left: 0;
+  }
 }

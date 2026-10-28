@@ -50,26 +50,6 @@ export function Footer() {
                 Releases
               </a>
             </div>
-            <div className="flex flex-col gap-3 w-36 md:w-44">
-              <h4 className="font-semibold pb-2">Connect</h4>
-              <a href="mailto:jobs@ponder.sh" target="_blank" rel="noreferrer">
-                Jobs
-              </a>
-              <a
-                href="https://x.com/ponder_sh"
-                target="_blank"
-                rel="noreferrer"
-              >
-                X (Twitter)
-              </a>
-              <a
-                href="https://warpcast.com/typedarray.eth"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Farcaster
-              </a>
-            </div>
           </div>
         </div>
 
