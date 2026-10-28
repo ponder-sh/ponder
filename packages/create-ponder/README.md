@@ -166,7 +166,6 @@ If you're interested in contributing to Ponder, please read the [contribution gu
 - [`@ponder/react`](https://www.npmjs.com/package/@ponder/react)
 - [`@ponder/utils`](https://www.npmjs.com/package/@ponder/utils)
 - [`create-ponder`](https://www.npmjs.com/package/create-ponder)
-- [`eslint-config-ponder`](https://www.npmjs.com/package/eslint-config-ponder)
 
 ## About
 
