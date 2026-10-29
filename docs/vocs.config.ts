@@ -2,20 +2,24 @@ import { defineConfig } from "vocs/config";
 import { redirects } from "./redirects.ts";
 import { sidebar } from "./sidebar.ts";
 
+const baseUrl =
+  process.env.VERCEL_ENV === "production"
+    ? "https://ponder.sh"
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : undefined;
+
 export default defineConfig({
   title: "Ponder",
   titleTemplate: "%s – Ponder",
   description:
     "Ponder is an open-source TypeScript framework for EVM data indexing.",
-  baseUrl:
-    process.env.VERCEL_ENV === "production"
-      ? "https://ponder.sh"
-      : process.env.VERCEL_URL,
+  baseUrl,
   iconUrl: "/icon.png",
   logoUrl: { light: "/ponder-light.svg", dark: "/ponder-dark.svg" },
   accentColor: "light-dark(#0a9fb2, #10c2d5)",
   ogImageUrl: (path, { baseUrl }) => {
-    if (path === "/") return "/og.png";
+    if (path === "/") return `${baseUrl ?? ""}/og.png`;
     return `${baseUrl}/api/og?logo=%logo&title=%title&description=%description`;
   },
   renderStrategy: "partial-static",
