@@ -73,6 +73,12 @@ export default defineConfig({
     base: false,
     // Rendered by `components/canonical.client.tsx`.
     canonical: false,
+    meta: {
+      // Slack prefers Twitter Card tags and crops large images to a square
+      // thumbnail, so use a small card with a square logo-only image.
+      twitterCard: "summary",
+      twitterImage: `${baseUrl ?? ""}/og-square.png`,
+    },
   },
   search: {
     query: {
