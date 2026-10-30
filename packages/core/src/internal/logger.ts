@@ -1,3 +1,11 @@
+import {
+  type Cause,
+  Effect,
+  type LogLevel as EffectLogLevel,
+  Layer,
+  Logger,
+  References,
+} from "effect";
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
 import type { Prettify } from "@/types/utils.js";
@@ -5,41 +13,30 @@ import { formatEta } from "@/utils/format.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;
-export type Logger = {
-  error<T extends Omit<Log, "level" | "time">>(
-    options: T,
-    printKeys?: (keyof T)[],
-  ): void;
-  warn<T extends Omit<Log, "level" | "time">>(
-    options: T,
-    printKeys?: (keyof T)[],
-  ): void;
-  info<T extends Omit<Log, "level" | "time">>(
-    options: T,
-    printKeys?: (keyof T)[],
-  ): void;
-  debug<T extends Omit<Log, "level" | "time">>(
-    options: T,
-    printKeys?: (keyof T)[],
-  ): void;
-  trace<T extends Omit<Log, "level" | "time">>(
-    options: T,
-    printKeys?: (keyof T)[],
-  ): void;
-  child: (bindings: Record<string, unknown>) => Logger;
-  flush(): Promise<void>;
-};
+
+/**
+ * The structured message of a log.
+ *
+ * @example
+ * ```ts
+ * yield* Effect.logInfo({ msg: "Indexed block", chain: "mainnet", number: 1 });
+ * // Only print `chain` in pretty mode
+ * yield* Effect.logInfo({ msg: "Indexed block", chain: "mainnet", number: 1 }, ["chain"]);
+ * // Add `action=migrate` to each log
+ * yield* migrate.pipe(Effect.annotateLogs({ action: "migrate" }));
+ * ```
+ */
+export type LogMessage = {
+  msg: string;
+  duration?: number;
+  error?: Error;
+} & Record<string, unknown>;
 
 type Log = {
   // Pino properties
   level: 50 | 40 | 30 | 20 | 10;
   time: number;
-
-  msg: string;
-
-  duration?: number;
-  error?: Error;
-} & Record<string, unknown>;
+} & LogMessage;
 
 const PRINT_KEYS = "PRINT_KEYS";
 const INTERNAL_KEYS = [
@@ -52,77 +49,45 @@ const INTERNAL_KEYS = [
   PRINT_KEYS,
 ];
 
+const minimumLogLevels = {
+  silent: "None",
+  fatal: "Fatal",
+  error: "Error",
+  warn: "Warn",
+  info: "Info",
+  debug: "Debug",
+  trace: "Trace",
+} as const satisfies Record<LogLevel, EffectLogLevel.LogLevel>;
+
+const pinoLevels = {
+  Fatal: "fatal",
+  Error: "error",
+  Warn: "warn",
+  Info: "info",
+  Debug: "debug",
+  Trace: "trace",
+} as const satisfies Record<EffectLogLevel.Severity, LevelWithSilent>;
+
+/**
+ * Create a logger that writes Effect logs with Ponder's format.
+ *
+ * @dev The first message of a log is a {@link LogMessage}, and the optional
+ * second message is the keys to print in pretty mode. Log annotations are
+ * written before the message keys, like pino child bindings.
+ */
 export function createLogger({
   level,
   mode = "pretty",
 }: {
   level: LogLevel;
   mode?: LogMode;
-}) {
+}): Logger.Logger<unknown, void> {
   const stream: DestinationStream = {
     write(logString: string) {
       const log = JSON.parse(logString) as Log;
       const prettyLog = format(log);
       console.log(prettyLog);
     },
-  };
-
-  const _createLogger = (logger: pino.Logger): Logger => {
-    return {
-      error<T extends Omit<Log, "level" | "time">>(
-        options: T,
-        printKeys?: (keyof T)[],
-      ) {
-        if (mode === "pretty" && printKeys) {
-          // @ts-expect-error
-          options[PRINT_KEYS] = printKeys;
-        }
-        logger.error(options);
-      },
-      warn<T extends Omit<Log, "level" | "time">>(
-        options: T,
-        printKeys?: (keyof T)[],
-      ) {
-        if (mode === "pretty" && printKeys) {
-          // @ts-expect-error
-          options[PRINT_KEYS] = printKeys;
-        }
-        logger.warn(options);
-      },
-      info<T extends Omit<Log, "level" | "time">>(
-        options: T,
-        printKeys?: (keyof T)[],
-      ) {
-        if (mode === "pretty" && printKeys) {
-          // @ts-expect-error
-          options[PRINT_KEYS] = printKeys;
-        }
-        logger.info(options);
-      },
-      debug<T extends Omit<Log, "level" | "time">>(
-        options: T,
-        printKeys?: (keyof T)[],
-      ) {
-        if (mode === "pretty" && printKeys) {
-          // @ts-expect-error
-          options[PRINT_KEYS] = printKeys;
-        }
-        logger.debug(options);
-      },
-      trace<T extends Omit<Log, "level" | "time">>(
-        options: T,
-        printKeys?: (keyof T)[],
-      ) {
-        if (mode === "pretty" && printKeys) {
-          // @ts-expect-error
-          options[PRINT_KEYS] = printKeys;
-        }
-        logger.trace(options);
-      },
-      child: (bindings) => _createLogger(logger.child(bindings)),
-      // @ts-expect-error
-      flush: () => new Promise<void>(logger.flush),
-    };
   };
 
   const errorSerializer = pino.stdSerializers.wrapErrorSerializer((error) => {
@@ -153,21 +118,74 @@ export function createLogger({
     });
   }
 
-  return _createLogger(logger);
+  return Logger.make(({ message, logLevel, cause, fiber }) => {
+    if (logLevel === "All" || logLevel === "None") return;
+
+    const [first, printKeys] = message as [unknown, string[] | undefined];
+
+    let options: Record<string, unknown> =
+      typeof first === "object" && first !== null
+        ? (first as Record<string, unknown>)
+        : { msg: String(first) };
+
+    if (options.error === undefined && cause.reasons.length > 0) {
+      options = { ...options, error: causeError(cause) };
+    }
+
+    const annotations = fiber.getRef(References.CurrentLogAnnotations);
+    for (const _ in annotations) {
+      options = { ...annotations, ...options };
+      break;
+    }
+
+    if (mode === "pretty" && printKeys) {
+      options[PRINT_KEYS] = printKeys;
+    }
+
+    logger[pinoLevels[logLevel]](options);
+  });
 }
 
-export function createNoopLogger(
-  _args: { level?: LogLevel; mode?: LogMode } = {},
-) {
-  return {
-    error(_options: Omit<Log, "level" | "time">) {},
-    warn(_options: Omit<Log, "level" | "time">) {},
-    info(_options: Omit<Log, "level" | "time">) {},
-    debug(_options: Omit<Log, "level" | "time">) {},
-    trace(_options: Omit<Log, "level" | "time">) {},
-    flush: () => new Promise<unknown>((resolve) => resolve(undefined)),
-  };
-}
+const causeError = (cause: Cause.Cause<unknown>): unknown => {
+  const reason = cause.reasons[0]!;
+  if (reason._tag === "Fail") return reason.error;
+  if (reason._tag === "Die") return reason.defect;
+  return new Error("Interrupted");
+};
+
+/**
+ * Layer that writes logs with Ponder's format at `level` and above.
+ */
+export const layerLogger = (options: {
+  level: LogLevel;
+  mode?: LogMode;
+}): Layer.Layer<never> =>
+  Layer.mergeAll(
+    Logger.layer([createLogger(options)]),
+    Layer.succeed(References.MinimumLogLevel, minimumLogLevels[options.level]),
+  );
+
+/**
+ * Write a log from a callback outside a fiber, such as an event handler.
+ */
+export type LogUnsafe = (log: Effect.Effect<void>) => void;
+
+/**
+ * Capture the loggers and log annotations of the current fiber for callbacks
+ * outside a fiber. Logs are written synchronously.
+ */
+export const makeLogUnsafe: Effect.Effect<LogUnsafe> = Effect.map(
+  Effect.context<never>(),
+  (context) => Effect.runSyncWith(context),
+);
+
+/**
+ * Layer that discards logs.
+ */
+export const layerNoopLogger: Layer.Layer<never> = Layer.mergeAll(
+  Logger.layer([]),
+  Layer.succeed(References.MinimumLogLevel, "None"),
+);
 
 const levels = {
   50: { label: "ERROR", colorLabel: pc.red("ERROR") },
