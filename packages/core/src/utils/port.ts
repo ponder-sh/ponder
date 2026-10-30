@@ -1,34 +1,50 @@
 import http from "node:http";
-import type { Common } from "@/internal/common.js";
+import { Effect } from "effect";
 
-export const getNextAvailablePort = async ({ common }: { common: Common }) => {
-  const server = http.createServer();
+/**
+ * Listen on `port` and close the server right away.
+ *
+ * @returns `false` if the port is in use.
+ */
+const isPortAvailable = (port: number, hostname: string | undefined) =>
+  Effect.callback<boolean, Error>((resume) => {
+    const server = http.createServer();
 
-  let port = common.options.port;
-
-  return new Promise<number>((resolve, reject) => {
     server.once("error", (error: Error & { code: string }) => {
+      server.close();
       if (error.code === "EADDRINUSE") {
-        common.logger.warn({
-          msg: "Port in use",
-          port,
-        });
-        port += 1;
-        setTimeout(() => {
-          server.listen(port, common.options.hostname);
-        }, 5);
+        resume(Effect.succeed(false));
       } else {
-        reject(error);
+        resume(Effect.fail(error));
       }
     });
 
     server.once("listening", () => {
-      // Port is available
-      resolve(port);
+      server.close();
+      resume(Effect.succeed(true));
     });
 
-    server.listen(port, common.options.hostname);
-  }).finally(() => {
-    server.close();
+    server.listen(port, hostname);
+
+    return Effect.sync(() => server.close());
   });
-};
+
+/**
+ * Find the first available port, starting at `port`.
+ */
+export const getNextAvailablePort = ({
+  port,
+  hostname,
+}: {
+  port: number;
+  hostname: string | undefined;
+}): Effect.Effect<number, Error> =>
+  Effect.gen(function* () {
+    while ((yield* isPortAvailable(port, hostname)) === false) {
+      yield* Effect.logWarning({ msg: "Port in use", port });
+      port += 1;
+      yield* Effect.sleep(5);
+    }
+
+    return port;
+  });

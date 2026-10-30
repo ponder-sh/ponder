@@ -1,7 +1,8 @@
+import { Effect } from "effect";
 import { type Address, parseAbiItem, zeroAddress } from "viem";
 import { mainnet } from "viem/chains";
 import { expect, test } from "vitest";
-import { createStubRpc, createTestCommon } from "@/_test/utils.js";
+import { createStubRpc } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
 import type { EventCallback, IndexingBuild } from "@/internal/types.js";
@@ -9,11 +10,9 @@ import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   buildConfig,
   buildIndexingFunctions,
-  safeBuildConfig,
   safeBuildIndexingFunctions,
 } from "./config.js";
 
-const common = createTestCommon();
 const rpc = "http://127.0.0.1:8545";
 const stubRpc = createStubRpc({ latestBlock: 100 });
 
@@ -27,9 +26,12 @@ const getFilters = (eventCallbacks: EventCallback[][]) =>
       filter,
     }));
 
-const withStubRpc = <T extends Pick<IndexingBuild, "chains" | "rpcs">>(
-  configBuild: T,
-): T => ({ ...configBuild, rpcs: configBuild.chains.map(() => stubRpc) });
+const withStubRpc = (
+  configBuild: Pick<IndexingBuild, "chains">,
+): Pick<IndexingBuild, "chains" | "rpcs"> => ({
+  ...configBuild,
+  rpcs: configBuild.chains.map(() => stubRpc),
+});
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -47,7 +49,7 @@ const bytes1 =
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 
-test("buildIndexingFunctions() builds topics for multiple events", async () => {
+test("buildIndexingFunctions() builds topics for multiple events", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -64,19 +66,19 @@ test("buildIndexingFunctions() builds topics for multiple events", async () => {
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
 
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [
-      { name: "a:Event0", fn: () => {} },
-      { name: "a:Event1", fn: () => {} },
-    ],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [
+        { name: "a:Event0", fn: () => {} },
+        { name: "a:Event1", fn: () => {} },
+      ],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -118,7 +120,7 @@ test("buildIndexingFunctions() builds topics for multiple events", async () => {
   `);
 });
 
-test("buildIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
+test("buildIndexingFunctions() handles overloaded event signatures and combines topics", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -135,18 +137,18 @@ test("buildIndexingFunctions() handles overloaded event signatures and combines 
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [
-      { name: "a:Event1()", fn: () => {} },
-      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
-    ],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [
+        { name: "a:Event1()", fn: () => {} },
+        { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+      ],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -188,7 +190,7 @@ test("buildIndexingFunctions() handles overloaded event signatures and combines 
   `);
 });
 
-test("buildIndexingFunctions() handles multiple addresses", async () => {
+test("buildIndexingFunctions() handles multiple addresses", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -208,18 +210,18 @@ test("buildIndexingFunctions() handles multiple addresses", async () => {
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [
-      { name: "a:Event1()", fn: () => {} },
-      { name: "a:Event1(bytes32 indexed)", fn: () => {} },
-    ],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [
+        { name: "a:Event1()", fn: () => {} },
+        { name: "a:Event1(bytes32 indexed)", fn: () => {} },
+      ],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -267,7 +269,7 @@ test("buildIndexingFunctions() handles multiple addresses", async () => {
   `);
 });
 
-test("buildIndexingFunctions() creates a source for each chain for multi-chain contracts", async () => {
+test("buildIndexingFunctions() creates a source for each chain for multi-chain contracts", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -282,15 +284,15 @@ test("buildIndexingFunctions() creates a source for each chain for multi-chain c
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -332,7 +334,7 @@ test("buildIndexingFunctions() creates a source for each chain for multi-chain c
   `);
 });
 
-test("buildIndexingFunctions() throw useful error for common 0.11 migration mistakes", async () => {
+test("buildIndexingFunctions() throw useful error for common 0.11 migration mistakes", () => {
   const indexingFunctions = [{ name: "a:Event0", fn: () => {} }];
 
   const config = createConfig({
@@ -350,26 +352,27 @@ test("buildIndexingFunctions() throw useful error for common 0.11 migration mist
   });
 
   const configBuild = buildConfig({
-    common,
     // @ts-expect-error
     config,
   });
 
-  const result = await safeBuildIndexingFunctions({
-    common,
-    // @ts-expect-error
-    config,
-    indexingFunctions,
-    configBuild: withStubRpc(configBuild),
-  });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        // @ts-expect-error
+        config,
+        indexingFunctions,
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Chain for 'a' is null or undefined. Expected one of ['mainnet', 'optimism']. Did you forget to change 'network' to 'chain' when migrating to 0.11?"`,
   );
 });
 
-test("buildIndexingFunctions() builds topics for event filter", async () => {
+test("buildIndexingFunctions() builds topics for event filter", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -392,15 +395,15 @@ test("buildIndexingFunctions() builds topics for event filter", async () => {
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -425,7 +428,7 @@ test("buildIndexingFunctions() builds topics for event filter", async () => {
   `);
 });
 
-test("buildIndexingFunctions() builds topics for multiple event filters", async () => {
+test("buildIndexingFunctions() builds topics for multiple event filters", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -454,18 +457,18 @@ test("buildIndexingFunctions() builds topics for multiple event filters", async 
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [
-      { name: "a:Event0", fn: () => {} },
-      { name: "a:Event1", fn: () => {} },
-    ],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [
+        { name: "a:Event0", fn: () => {} },
+        { name: "a:Event1", fn: () => {} },
+      ],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -510,7 +513,7 @@ test("buildIndexingFunctions() builds topics for multiple event filters", async 
   `);
 });
 
-test("buildIndexingFunctions() overrides default values with chain-specific values", async () => {
+test("buildIndexingFunctions() overrides default values with chain-specific values", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -531,15 +534,15 @@ test("buildIndexingFunctions() overrides default values with chain-specific valu
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -564,7 +567,7 @@ test("buildIndexingFunctions() overrides default values with chain-specific valu
   `);
 });
 
-test("buildIndexingFunctions() handles chain name shortcut", async () => {
+test("buildIndexingFunctions() handles chain name shortcut", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -581,15 +584,15 @@ test("buildIndexingFunctions() handles chain name shortcut", async () => {
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -614,7 +617,7 @@ test("buildIndexingFunctions() handles chain name shortcut", async () => {
   `);
 });
 
-test("buildIndexingFunctions() validates chain name", async () => {
+test("buildIndexingFunctions() validates chain name", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -630,18 +633,19 @@ test("buildIndexingFunctions() validates chain name", async () => {
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid chain for 'a'. Got 'mainnetz', expected one of ['mainnet']."`,
   );
 });
@@ -662,13 +666,9 @@ test("buildConfig() warns for public RPC URL", () => {
     },
   });
 
-  const result = safeBuildConfig({
-    common,
-    config,
-  });
+  const { logs } = buildConfig({ config });
 
-  expect(result.status).toBe("success");
-  const warnings = result.logs!.filter((l) => l.level === "warn");
+  const warnings = logs.filter((l) => l.level === "warn");
   expect(warnings.map(({ url }) => url)).toStrictEqual([publicRpc]);
   expect(warnings.map(({ url: _, ...log }) => log)).toMatchInlineSnapshot(`
     [
@@ -696,15 +696,10 @@ test("buildConfig() handles chains not found in viem", () => {
     },
   });
 
-  const result = safeBuildConfig({
-    common,
-    config,
-  });
-
-  expect(result.status).toBe("success");
+  expect(() => buildConfig({ config })).not.toThrow();
 });
 
-test("buildIndexingFunctions() validates event filter event name must be present in ABI", async () => {
+test("buildIndexingFunctions() validates event filter event name must be present in ABI", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -725,23 +720,24 @@ test("buildIndexingFunctions() validates event filter event name must be present
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0']."`,
   );
 });
 
-test("buildIndexingFunctions() validates address empty string", async () => {
+test("buildIndexingFunctions() validates address empty string", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -756,24 +752,25 @@ test("buildIndexingFunctions() validates address empty string", async () => {
   });
 
   const configBuild = buildConfig({
-    common,
     config,
   });
 
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid prefix for address ''. Got '', expected '0x'."`,
   );
 });
 
-test("buildIndexingFunctions() validates empty contract address array", async () => {
+test("buildIndexingFunctions() validates empty contract address array", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -787,21 +784,23 @@ test("buildIndexingFunctions() validates empty contract address array", async ()
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address."`,
   );
 });
 
-test("buildIndexingFunctions() validates empty account address array", async () => {
+test("buildIndexingFunctions() validates empty account address array", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -814,21 +813,23 @@ test("buildIndexingFunctions() validates empty account address array", async () 
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:transaction:to", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:transaction:to", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address."`,
   );
 });
 
-test("buildIndexingFunctions() validates empty factory address array", async () => {
+test("buildIndexingFunctions() validates empty factory address array", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -846,21 +847,23 @@ test("buildIndexingFunctions() validates empty factory address array", async () 
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address."`,
   );
 });
 
-test("buildIndexingFunctions() validates address prefix", async () => {
+test("buildIndexingFunctions() validates address prefix", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -875,21 +878,23 @@ test("buildIndexingFunctions() validates address prefix", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'."`,
   );
 });
 
-test("buildIndexingFunctions() validates address length", async () => {
+test("buildIndexingFunctions() validates address length", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -903,21 +908,23 @@ test("buildIndexingFunctions() validates address length", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters."`,
   );
 });
 
-test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () => {
+test("buildIndexingFunctions() coerces NaN startBlock to undefined", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -931,13 +938,14 @@ test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () =>
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -962,7 +970,7 @@ test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () =>
   `);
 });
 
-test("buildIndexingFunctions() coerces `latest` to number", async () => {
+test("buildIndexingFunctions() coerces `latest` to number", () => {
   const config = createConfig({
     chains: {
       mainnet: {
@@ -979,13 +987,14 @@ test("buildIndexingFunctions() coerces `latest` to number", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1010,7 +1019,7 @@ test("buildIndexingFunctions() coerces `latest` to number", async () => {
   `);
 });
 
-test("buildIndexingFunctions() includeTransactionReceipts", async () => {
+test("buildIndexingFunctions() includeTransactionReceipts", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1027,13 +1036,14 @@ test("buildIndexingFunctions() includeTransactionReceipts", async () => {
       },
     },
   });
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1075,7 +1085,7 @@ test("buildIndexingFunctions() includeTransactionReceipts", async () => {
   `);
 });
 
-test("buildIndexingFunctions() includeCallTraces", async () => {
+test("buildIndexingFunctions() includeCallTraces", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1094,13 +1104,14 @@ test("buildIndexingFunctions() includeCallTraces", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1124,7 +1135,7 @@ test("buildIndexingFunctions() includeCallTraces", async () => {
   `);
 });
 
-test("buildIndexingFunctions() includeCallTraces with factory", async () => {
+test("buildIndexingFunctions() includeCallTraces with factory", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1147,13 +1158,14 @@ test("buildIndexingFunctions() includeCallTraces with factory", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1187,7 +1199,7 @@ test("buildIndexingFunctions() includeCallTraces with factory", async () => {
   `);
 });
 
-test("buildIndexingFunctions() coerces NaN endBlock to undefined", async () => {
+test("buildIndexingFunctions() coerces NaN endBlock to undefined", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1201,13 +1213,14 @@ test("buildIndexingFunctions() coerces NaN endBlock to undefined", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1232,7 +1245,7 @@ test("buildIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   `);
 });
 
-test("buildIndexingFunctions() account source", async () => {
+test("buildIndexingFunctions() account source", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1247,16 +1260,17 @@ test("buildIndexingFunctions() account source", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [
-      { name: "a:transfer:from", fn: () => {} },
-      { name: "a:transaction:to", fn: () => {} },
-    ],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [
+        { name: "a:transfer:from", fn: () => {} },
+        { name: "a:transaction:to", fn: () => {} },
+      ],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1292,7 +1306,7 @@ test("buildIndexingFunctions() account source", async () => {
   `);
 });
 
-test("buildIndexingFunctions() block source", async () => {
+test("buildIndexingFunctions() block source", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1306,13 +1320,14 @@ test("buildIndexingFunctions() block source", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:block", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:block", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1334,7 +1349,7 @@ test("buildIndexingFunctions() block source", async () => {
   `);
 });
 
-test("buildIndexingFunctions() coerces undefined factory interval to source interval", async () => {
+test("buildIndexingFunctions() coerces undefined factory interval to source interval", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1354,13 +1369,14 @@ test("buildIndexingFunctions() coerces undefined factory interval to source inte
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { eventCallbacks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { eventCallbacks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
     [
@@ -1395,7 +1411,7 @@ test("buildIndexingFunctions() coerces undefined factory interval to source inte
   `);
 });
 
-test("buildIndexingFunctions() validates factory interval", async () => {
+test("buildIndexingFunctions() validates factory interval", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1416,21 +1432,23 @@ test("buildIndexingFunctions() validates factory interval", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result.status).toBe("error");
-  expect(result.error?.message).toMatchInlineSnapshot(
+  expect(error.message).toMatchInlineSnapshot(
     `"Validation failed: Start block for 'a' is before start block of factory address (16370050 > 16370000)."`,
   );
 });
 
-test("buildIndexingFunctions() validates start and end block", async () => {
+test("buildIndexingFunctions() validates start and end block", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1448,24 +1466,24 @@ test("buildIndexingFunctions() validates start and end block", async () => {
   });
 
   // @ts-expect-error
-  const configBuild = buildConfig({ common, config });
-  const result = await safeBuildIndexingFunctions({
-    common,
-    // @ts-expect-error
-    config,
-    indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const error = Effect.runSync(
+    Effect.flip(
+      safeBuildIndexingFunctions({
+        // @ts-expect-error
+        config,
+        indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
+        configBuild: withStubRpc(configBuild),
+      }),
+    ),
+  );
 
-  expect(result).toMatchInlineSnapshot(`
-    {
-      "error": [BuildError: Validation failed: Invalid start block for 'a'. Got 16370000 typeof string, expected an integer.],
-      "status": "error",
-    }
-  `);
+  expect(error).toMatchInlineSnapshot(
+    `[BuildError: Validation failed: Invalid start block for 'a'. Got 16370000 typeof string, expected an integer.]`,
+  );
 });
 
-test("buildIndexingFunctions() returns chain, rpc, and finalized block", async () => {
+test("buildIndexingFunctions() returns chain, rpc, and finalized block", () => {
   const config = createConfig({
     chains: {
       mainnet: { id: 1, rpc },
@@ -1477,13 +1495,14 @@ test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { rpcs, chains, finalizedBlocks } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "b:block", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { rpcs, chains, finalizedBlocks } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "b:block", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(rpcs).toHaveLength(1);
   expect(chains).toHaveLength(1);
@@ -1506,7 +1525,7 @@ test("buildConfig() uses the configured reorg window", () => {
     blocks: { b: { chain: "mainnet" } },
   });
 
-  const { chains } = buildConfig({ common, config });
+  const { chains } = buildConfig({ config });
 
   expect(chains[0]!.reorgWindow).toBe(120);
 });
@@ -1522,7 +1541,7 @@ test("buildConfig() defaults the reorg window to 180 seconds", () => {
     blocks: { b: { chain: "mainnet" } },
   });
 
-  const { chains } = buildConfig({ common, config });
+  const { chains } = buildConfig({ config });
 
   expect(chains[0]!.reorgWindow).toBe(180);
 });
@@ -1541,7 +1560,7 @@ test.each([0, 600])(
       blocks: { b: { chain: "mainnet" } },
     });
 
-    const { chains } = buildConfig({ common, config });
+    const { chains } = buildConfig({ config });
 
     expect(chains[0]!.reorgWindow).toBe(reorgWindow);
   },
@@ -1561,13 +1580,13 @@ test.each([-1, 1.5, 601, Number.NaN])(
       blocks: { b: { chain: "mainnet" } },
     });
 
-    expect(() => buildConfig({ common, config })).toThrow(
+    expect(() => buildConfig({ config })).toThrow(
       `Invalid 'reorgWindow' for chain 'mainnet'. Expected an integer between 0 and 600 seconds, got ${reorgWindow}.`,
     );
   },
 );
 
-test("buildIndexingFunctions() hyperliquid evm", async () => {
+test("buildIndexingFunctions() hyperliquid evm", () => {
   const config = createConfig({
     chains: {
       hyperliquid: { id: 999, rpc },
@@ -1579,13 +1598,14 @@ test("buildIndexingFunctions() hyperliquid evm", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common, config });
-  const { chains } = await buildIndexingFunctions({
-    common,
-    config,
-    indexingFunctions: [{ name: "b:block", fn: () => {} }],
-    configBuild: withStubRpc(configBuild),
-  });
+  const configBuild = buildConfig({ config });
+  const { chains } = Effect.runSync(
+    buildIndexingFunctions({
+      config,
+      indexingFunctions: [{ name: "b:block", fn: () => {} }],
+      configBuild: withStubRpc(configBuild),
+    }),
+  );
 
   expect(chains).toHaveLength(1);
 

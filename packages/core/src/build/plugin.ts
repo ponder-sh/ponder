@@ -1,5 +1,22 @@
 import type { Plugin } from "vite";
-import type { Common } from "@/internal/common.js";
+import type { Options } from "@/internal/options.js";
+import type { Schema } from "@/internal/types.js";
+import type { RequestParameters } from "@/rpc/index.js";
+import type { Drizzle } from "@/types/db.js";
+
+/**
+ * Values for the `ponder:api` virtual module, from the services of the API
+ * build.
+ *
+ * @dev The module runs in the user's project, which can't import `effect`, so
+ * RPC requests return promises.
+ */
+export type ApiModule = {
+  /** The readonly Drizzle database. */
+  db: Drizzle<Schema>;
+  /** The RPC request of each chain in `PONDER_INDEXING_BUILD`. */
+  requests: ((body: RequestParameters) => Promise<unknown>)[];
+};
 
 const virtualModule = () => `export const ponder = {
   fns: [],
@@ -18,7 +35,7 @@ export default schema;
 
 const apiModule = () => `import { createPublicClient, custom } from "viem";
 
-if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_DATABASE === undefined) {
+if (globalThis.PONDER_INDEXING_BUILD === undefined || globalThis.PONDER_API_MODULE === undefined) {
   throw new Error('Invalid dependency graph. Config, schema, and indexing function files cannot import objects from the API function file "src/api/index.ts".')
 }
 
@@ -26,22 +43,22 @@ const publicClients = {};
 
 for (let i = 0; i < globalThis.PONDER_INDEXING_BUILD.chains.length; i++) {
   const chain = globalThis.PONDER_INDEXING_BUILD.chains[i];
-  const rpc = globalThis.PONDER_INDEXING_BUILD.rpcs[i];
+  const request = globalThis.PONDER_API_MODULE.requests[i];
   publicClients[chain.name] = createPublicClient({
     chain: chain.viemChain,
     transport: custom({
       request(body) {
-        return rpc.request(body);
+        return request(body);
       }
     }),
   })
 }
 
-export const db = globalThis.PONDER_DATABASE.readonlyQB.raw;
+export const db = globalThis.PONDER_API_MODULE.db;
 export { publicClients };
 `;
 
-export const vitePluginPonder = (options: Common["options"]): Plugin => {
+export const vitePluginPonder = (options: Options["Service"]): Plugin => {
   // On Windows, options.schemaFile is a Windows-style path. We need to convert it to a
   // Unix-style path for codegen, because TS import paths are Unix-style even on Windows.
   const schemaPath = options.schemaFile.replace(/\\/g, "/");
