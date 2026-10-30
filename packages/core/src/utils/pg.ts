@@ -1,6 +1,7 @@
+import { Effect } from "effect";
 import pg, { type PoolConfig } from "pg";
 import parse from "pg-connection-string";
-import type { Logger } from "@/internal/logger.js";
+import type { LogUnsafe } from "@/internal/logger.js";
 
 // The default parser for numeric[] (1231) seems to parse values as Number
 // or perhaps through JSON.parse(). Use the int8[] (1016) parser instead,
@@ -59,7 +60,7 @@ const parseBaseConfig = (
   };
 };
 
-export function createPool(config: PoolConfig, logger: Logger) {
+export function createPool(config: PoolConfig, logUnsafe: LogUnsafe) {
   class Client extends pg.Client {
     // @ts-expect-error
     override connect(
@@ -100,19 +101,21 @@ export function createPool(config: PoolConfig, logger: Logger) {
       (client?.connectionParameters?.application_name as string | undefined) ??
       "unknown";
 
-    logger.warn({
-      msg: "Postgres pool error",
-      application_name: applicationName,
-      pid,
-      error,
-    });
+    logUnsafe(
+      Effect.logWarning({
+        msg: "Postgres pool error",
+        application_name: applicationName,
+        pid,
+        error,
+      }),
+    );
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
   }
 
   function onClientError(error: Error) {
-    logger.warn({ msg: "Postgres client error", error });
+    logUnsafe(Effect.logWarning({ msg: "Postgres client error", error }));
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
@@ -124,11 +127,13 @@ export function createPool(config: PoolConfig, logger: Logger) {
       ["42P06", "42P07"].includes(notice.code)
         ? "trace"
         : "debug";
-    logger[level]({
-      msg: "Postgres notice",
-      message: notice.message,
-      code: notice.code,
-    });
+    logUnsafe(
+      (level === "trace" ? Effect.logTrace : Effect.logDebug)({
+        msg: "Postgres notice",
+        message: notice.message,
+        code: notice.code,
+      }),
+    );
   }
 
   pool.on("error", onPoolError);
@@ -142,7 +147,7 @@ export function createPool(config: PoolConfig, logger: Logger) {
 
 export function createReadonlyPool(
   config: PoolConfig,
-  logger: Logger,
+  logUnsafe: LogUnsafe,
   namespace: string,
 ) {
   class ReadonlyClient extends pg.Client {
@@ -191,19 +196,21 @@ export function createReadonlyPool(
       (client?.connectionParameters?.application_name as string | undefined) ??
       "unknown";
 
-    logger.warn({
-      msg: "Postgres pool error",
-      application_name: applicationName,
-      pid,
-      error,
-    });
+    logUnsafe(
+      Effect.logWarning({
+        msg: "Postgres pool error",
+        application_name: applicationName,
+        pid,
+        error,
+      }),
+    );
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
   }
 
   function onClientError(error: Error) {
-    logger.warn({ msg: "Postgres client error", error });
+    logUnsafe(Effect.logWarning({ msg: "Postgres client error", error }));
 
     // NOTE: Errors thrown here cause an uncaughtException. It's better to just log and ignore -
     // if the underlying problem persists, the process will crash due to downstream effects.
@@ -215,11 +222,13 @@ export function createReadonlyPool(
       ["42P06", "42P07"].includes(notice.code)
         ? "trace"
         : "debug";
-    logger[level]({
-      msg: "Postgres notice",
-      message: notice.message,
-      code: notice.code,
-    });
+    logUnsafe(
+      (level === "trace" ? Effect.logTrace : Effect.logDebug)({
+        msg: "Postgres notice",
+        message: notice.message,
+        code: notice.code,
+      }),
+    );
   }
 
   pool.on("error", onPoolError);
