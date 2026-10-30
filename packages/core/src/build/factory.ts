@@ -6,6 +6,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 import {
   getBytesConsumedByParam,
   getNestedParamOffset,
+  hasDynamicChild,
   type TupleAbiParameter,
 } from "@/utils/offset.js";
 
@@ -75,6 +76,14 @@ export function buildLogFactory({
       if (params.length > 1 && nonIndexedParameter.type !== "tuple") {
         throw new Error(
           `Factory event parameter type is not valid. Got '${nonIndexedParameter.type}', expected 'tuple'.`,
+        );
+      }
+
+      // Note: A struct with dynamic fields is encoded at an offset that
+      // depends on the data, so its fields don't have a fixed location.
+      if (params.length > 1 && hasDynamicChild(nonIndexedParameter)) {
+        throw new Error(
+          `Factory event parameter is not valid. Got '${factoryConfig.parameter}', but struct '${params[0]}' has dynamic fields.`,
         );
       }
 

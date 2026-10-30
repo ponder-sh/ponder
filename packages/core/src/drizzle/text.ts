@@ -12,6 +12,7 @@ import {
   PgColumnBuilder,
   type PgTextConfig,
 } from "drizzle-orm/pg-core";
+import { Effect } from "effect";
 
 export type PgTextBuilderInitial<
   TName extends string,
@@ -62,12 +63,14 @@ export class PgText<
     // Note: swallow errors because drizzle will throw a more specific error if the value is invalid
     try {
       if (value.match(/\0/g)) {
-        globalThis.PONDER_COMMON?.logger.warn({
-          msg: `Detected and removed null byte characters. Postgres "text" columns do not support null byte characters. Please consider handling this case in your indexing logic.`,
-          value,
-          table: getTableName(this.table),
-          column: this.name,
-        });
+        globalThis.PONDER_LOG_UNSAFE?.(
+          Effect.logWarning({
+            msg: `Detected and removed null byte characters. Postgres "text" columns do not support null byte characters. Please consider handling this case in your indexing logic.`,
+            value,
+            table: getTableName(this.table),
+            column: this.name,
+          }),
+        );
 
         return value.replace(/\0/g, "");
       }

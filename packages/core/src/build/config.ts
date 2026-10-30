@@ -1,19 +1,18 @@
+import { Effect } from "effect";
 import {
   type Abi,
   type AbiEvent,
   type AbiFunction,
   type Address,
-  BlockNotFoundError,
   type Hex,
   hexToNumber,
-  type LogTopic,
   toEventSelector,
   toFunctionSelector,
 } from "viem";
 import type { Factory } from "@/config/address.js";
 import type { Config } from "@/config/index.js";
-import type { Common } from "@/internal/common.js";
 import { BuildError } from "@/internal/errors.js";
+import type { Options } from "@/internal/options.js";
 import type {
   BlockFilter,
   Chain,
@@ -25,7 +24,6 @@ import type {
   LightBlock,
   LogFilter,
   SetupCallback,
-  SyncBlock,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
@@ -104,17 +102,84 @@ const validateAddresses = ({
   }
 };
 
-export async function buildIndexingFunctions({
-  common,
+/**
+ * Fetch the latest and finalized block of each chain, then validate the config
+ * and indexing functions, and build the sources of each chain.
+ */
+export const buildIndexingFunctions = ({
   config,
   indexingFunctions,
   configBuild: { chains, rpcs },
 }: {
-  common: Common;
   config: Config;
   indexingFunctions: IndexingFunctions;
   configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
-}): Promise<{
+}) =>
+  Effect.gen(function* () {
+    const perChainLatestBlockNumber = new Map<string, number>();
+
+    const finalizedBlocks = yield* Effect.forEach(
+      chains,
+      (chain) =>
+        Effect.gen(function* () {
+          const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
+          const latestBlock = yield* eth_getBlockByNumber(
+            rpc,
+            ["latest", false],
+            {
+              logAnnotations: { action: "build" },
+              retryNullBlockRequest: true,
+            },
+          ).pipe(
+            Effect.mapError(
+              (e) =>
+                new Error(
+                  `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
+                ),
+            ),
+          );
+
+          perChainLatestBlockNumber.set(
+            chain.name,
+            hexToNumber(latestBlock.number),
+          );
+
+          return yield* getFinalizedBlock({ chain, rpc, latestBlock });
+        }),
+      { concurrency: "unbounded" },
+    );
+
+    return yield* Effect.try({
+      try: () =>
+        buildSources({
+          config,
+          indexingFunctions,
+          configBuild: { chains, rpcs },
+          finalizedBlocks,
+          perChainLatestBlockNumber,
+        }),
+      catch: (error) => error as Error,
+    });
+  });
+
+/**
+ * Validate the config and indexing functions, and build the sources of each
+ * chain.
+ */
+function buildSources({
+  config,
+  indexingFunctions,
+  configBuild: { chains, rpcs },
+  finalizedBlocks,
+  perChainLatestBlockNumber,
+}: {
+  config: Config;
+  indexingFunctions: IndexingFunctions;
+  configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
+  finalizedBlocks: LightBlock[];
+  /** The latest block number of each chain, for a `"latest"` block. */
+  perChainLatestBlockNumber: Map<string, number>;
+}): {
   chains: Chain[];
   rpcs: Rpc[];
   finalizedBlocks: LightBlock[];
@@ -132,17 +197,13 @@ export async function buildIndexingFunctions({
     string,
     unknown
   >)[];
-}> {
-  const context = { logger: common.logger.child({ action: "build" }) };
-
+} {
   const logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
     string,
     unknown
   >)[] = [];
 
-  const perChainLatestBlockNumber = new Map<string, Promise<number>>();
-
-  const resolveBlockNumber = async (
+  const resolveBlockNumber = (
     blockNumberOrTag: number | "latest" | undefined,
     chain: Chain,
   ) => {
@@ -154,62 +215,11 @@ export async function buildIndexingFunctions({
       return undefined;
     }
     if (blockNumberOrTag === "latest") {
-      if (perChainLatestBlockNumber.has(chain.name)) {
-        return perChainLatestBlockNumber.get(chain.name)!;
-      } else {
-        const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
-        const blockPromise = rpc
-          .request(
-            {
-              method: "eth_getBlockByNumber",
-              params: ["latest", false],
-            },
-            context,
-          )
-          .then((block) => {
-            if (!block)
-              throw new BlockNotFoundError({ blockNumber: "latest" as any });
-            return hexToNumber((block as SyncBlock).number);
-          })
-          .catch((e) => {
-            throw new Error(
-              `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
-            );
-          });
-        perChainLatestBlockNumber.set(chain.name, blockPromise);
-        return blockPromise;
-      }
+      return perChainLatestBlockNumber.get(chain.name)!;
     }
 
     return blockNumberOrTag;
   };
-
-  const finalizedBlocks = await Promise.all(
-    chains.map((chain) => {
-      const rpc = rpcs[chains.findIndex((c) => c.name === chain.name)]!;
-      const latestBlockPromise = eth_getBlockByNumber(rpc, ["latest", false], {
-        ...context,
-        retryNullBlockRequest: true,
-      }).catch((e) => {
-        throw new Error(
-          `Unable to fetch "latest" block for chain '${chain.name}':\n${e.message}`,
-        );
-      });
-      const blockNumberPromise = latestBlockPromise.then((block) =>
-        hexToNumber((block as SyncBlock).number),
-      );
-
-      perChainLatestBlockNumber.set(chain.name, blockNumberPromise);
-
-      return latestBlockPromise.then((latestBlock) =>
-        getFinalizedBlock({
-          chain,
-          rpc,
-          latestBlock,
-        }),
-      );
-    }),
-  );
 
   const sourceNames = new Set<string>();
   for (const source of [
@@ -325,8 +335,8 @@ export async function buildIndexingFunctions({
       );
     }
 
-    const startBlock = await resolveBlockNumber(source.startBlock, chain);
-    const endBlock = await resolveBlockNumber(source.endBlock, chain);
+    const startBlock = resolveBlockNumber(source.startBlock, chain);
+    const endBlock = resolveBlockNumber(source.endBlock, chain);
 
     if (
       startBlock !== undefined &&
@@ -356,11 +366,10 @@ export async function buildIndexingFunctions({
       !Array.isArray(source.address)
     ) {
       const factoryStartBlock =
-        (await resolveBlockNumber(source.address.startBlock, chain)) ??
-        startBlock;
+        resolveBlockNumber(source.address.startBlock, chain) ?? startBlock;
 
       const factoryEndBlock =
-        (await resolveBlockNumber(source.address.endBlock, chain)) ?? endBlock;
+        resolveBlockNumber(source.address.endBlock, chain) ?? endBlock;
 
       if (
         factoryStartBlock !== undefined &&
@@ -409,8 +418,8 @@ export async function buildIndexingFunctions({
   for (const source of flattenSources(config.contracts ?? {})) {
     const chain = chains.find((n) => n.name === source.chain)!;
 
-    const fromBlock = await resolveBlockNumber(source.startBlock, chain);
-    const toBlock = await resolveBlockNumber(source.endBlock, chain);
+    const fromBlock = resolveBlockNumber(source.startBlock, chain);
+    const toBlock = resolveBlockNumber(source.endBlock, chain);
 
     if (indexingFunctions.some((f) => f.name === `${source.name}:setup`)) {
       perChainSetupCallbacks.get(chain.id)!.push({
@@ -437,11 +446,10 @@ export async function buildIndexingFunctions({
         });
       }
       const factoryFromBlock =
-        (await resolveBlockNumber(factoryAddress.startBlock, chain)) ??
-        fromBlock;
+        resolveBlockNumber(factoryAddress.startBlock, chain) ?? fromBlock;
 
       const factoryToBlock =
-        (await resolveBlockNumber(factoryAddress.endBlock, chain)) ?? toBlock;
+        resolveBlockNumber(factoryAddress.endBlock, chain) ?? toBlock;
 
       // Note that this can throw.
       const logFactory = buildLogFactory({
@@ -486,7 +494,7 @@ export async function buildIndexingFunctions({
 
     const filteredEventSelectors = new Map<
       Hex,
-      ReturnType<typeof buildTopics>[number]
+      ReturnType<typeof buildTopics>
     >();
 
     if (source.filter) {
@@ -519,7 +527,9 @@ export async function buildIndexingFunctions({
             item.type === "event" && toEventSelector(item) === topic0,
         )!;
         const indexingFunction = indexingFunctions.find(
-          (f) => f.name === `${source.name}:${abiItem.name}`,
+          (f) =>
+            f.name ===
+            `${source.name}:${toSafeName({ abi: source.abi, item: abiItem })}`,
         );
 
         if (indexingFunction === undefined) {
@@ -528,7 +538,12 @@ export async function buildIndexingFunctions({
           );
         }
 
-        filteredEventSelectors.set(topic0, { topic0, topic1, topic2, topic3 });
+        if (filteredEventSelectors.has(topic0) === false) {
+          filteredEventSelectors.set(topic0, []);
+        }
+        filteredEventSelectors
+          .get(topic0)!
+          .push({ topic0, topic1, topic2, topic3 });
       }
     }
 
@@ -583,57 +598,49 @@ export async function buildIndexingFunctions({
         (f) => f.name === eventName,
       )!;
 
-      let topic1: LogTopic;
-      let topic2: LogTopic;
-      let topic3: LogTopic;
-
       const eventSelector = toEventSelector(abiEvent);
 
-      if (filteredEventSelectors.has(eventSelector)) {
-        topic1 = filteredEventSelectors.get(eventSelector)!.topic1;
-        topic2 = filteredEventSelectors.get(eventSelector)!.topic2;
-        topic3 = filteredEventSelectors.get(eventSelector)!.topic3;
-      } else {
-        topic1 = null;
-        topic2 = null;
-        topic3 = null;
+      const topics = filteredEventSelectors.get(eventSelector) ?? [
+        { topic0: eventSelector, topic1: null, topic2: null, topic3: null },
+      ];
+
+      for (const { topic1, topic2, topic3 } of topics) {
+        const filter = {
+          type: "log",
+          chainId: chain.id,
+          sourceId: source.name,
+          address,
+          topic0: eventSelector,
+          topic1,
+          topic2,
+          topic3,
+          fromBlock,
+          toBlock,
+          hasTransactionReceipt: source.includeTransactionReceipts ?? false,
+          include: defaultLogFilterInclude.concat(
+            source.includeTransactionReceipts
+              ? defaultTransactionReceiptInclude.map(
+                  (value) => `transactionReceipt.${value}` as const,
+                )
+              : [],
+          ),
+        } satisfies LogFilter;
+
+        const eventCallback = {
+          filter,
+          name: eventName,
+          fn: indexingFunction.fn,
+          chain,
+          type: "contract",
+          abiItem: abiEvent,
+          metadata: {
+            safeName: logEventName,
+            abi: source.abi,
+          },
+        } satisfies EventCallback;
+
+        perChainEventCallbacks.get(chain.id)!.push(eventCallback);
       }
-
-      const filter = {
-        type: "log",
-        chainId: chain.id,
-        sourceId: source.name,
-        address,
-        topic0: eventSelector,
-        topic1,
-        topic2,
-        topic3,
-        fromBlock,
-        toBlock,
-        hasTransactionReceipt: source.includeTransactionReceipts ?? false,
-        include: defaultLogFilterInclude.concat(
-          source.includeTransactionReceipts
-            ? defaultTransactionReceiptInclude.map(
-                (value) => `transactionReceipt.${value}` as const,
-              )
-            : [],
-        ),
-      } satisfies LogFilter;
-
-      const eventCallback = {
-        filter,
-        name: eventName,
-        fn: indexingFunction.fn,
-        chain,
-        type: "contract",
-        abiItem: abiEvent,
-        metadata: {
-          safeName: logEventName,
-          abi: source.abi,
-        },
-      } satisfies EventCallback;
-
-      perChainEventCallbacks.get(chain.id)!.push(eventCallback);
     }
 
     for (const functionEventName of registeredCallTraceEvents) {
@@ -709,8 +716,8 @@ export async function buildIndexingFunctions({
   for (const source of flattenSources(config.accounts ?? {})) {
     const chain = chains.find((n) => n.name === source.chain)!;
 
-    const fromBlock = await resolveBlockNumber(source.startBlock, chain);
-    const toBlock = await resolveBlockNumber(source.endBlock, chain);
+    const fromBlock = resolveBlockNumber(source.startBlock, chain);
+    const toBlock = resolveBlockNumber(source.endBlock, chain);
 
     const resolvedAddress = source?.address;
     if (resolvedAddress === undefined) {
@@ -732,11 +739,10 @@ export async function buildIndexingFunctions({
         });
       }
       const factoryFromBlock =
-        (await resolveBlockNumber(resolvedAddress.startBlock, chain)) ??
-        fromBlock;
+        resolveBlockNumber(resolvedAddress.startBlock, chain) ?? fromBlock;
 
       const factoryToBlock =
-        (await resolveBlockNumber(resolvedAddress.endBlock, chain)) ?? toBlock;
+        resolveBlockNumber(resolvedAddress.endBlock, chain) ?? toBlock;
 
       // Note that this can throw.
       const logFactory = buildLogFactory({
@@ -881,8 +887,8 @@ export async function buildIndexingFunctions({
       );
     }
 
-    const fromBlock = await resolveBlockNumber(source.startBlock, chain);
-    const toBlock = await resolveBlockNumber(source.endBlock, chain);
+    const fromBlock = resolveBlockNumber(source.startBlock, chain);
+    const toBlock = resolveBlockNumber(source.endBlock, chain);
 
     const eventName = `${source.name}:block`;
 
@@ -971,15 +977,13 @@ export async function buildIndexingFunctions({
   };
 }
 
-export function buildConfig({
-  common,
-  config,
-}: {
-  common: Common;
-  config: Config;
-}): {
+/**
+ * Validate the chains of the config.
+ *
+ * @dev {@link safeBuildConfig} creates the RPC clients.
+ */
+export function buildConfig({ config }: { config: Config }): {
   chains: Chain[];
-  rpcs: Rpc[];
   logs: ({ level: "warn" | "info" | "debug"; msg: string } & Record<
     string,
     unknown
@@ -1024,6 +1028,15 @@ export function buildConfig({
           );
         }
 
+        // Note: The error of `new URL()` includes the URL, which can hold an API key.
+        for (const rpc of rpcs) {
+          if (URL.canParse(rpc) === false) {
+            throw new Error(
+              `Chain "${chainName}" with id ${chain.id} has an invalid RPC URL.`,
+            );
+          }
+        }
+
         if (matchedChain) {
           for (const rpc of rpcs) {
             for (const http of matchedChain.rpcUrls.default.http) {
@@ -1052,6 +1065,12 @@ export function buildConfig({
             }
           }
         }
+      }
+
+      if (chain.ws !== undefined && URL.canParse(chain.ws) === false) {
+        throw new Error(
+          `Chain "${chainName}" with id ${chain.id} has an invalid WebSocket RPC URL.`,
+        );
       }
 
       if (chain.pollingInterval !== undefined && chain.pollingInterval! < 100) {
@@ -1095,72 +1114,46 @@ export function buildConfig({
     chainIds.add(chain.id);
   }
 
-  const rpcs = chains.map((chain) =>
-    createRpc({
-      common,
-      chain,
-      concurrency: Math.floor(common.options.rpcMaxConcurrency / chains.length),
-    }),
-  );
-
-  return { chains, rpcs, logs };
+  return { chains, logs };
 }
 
-export async function safeBuildIndexingFunctions({
-  common,
+const toBuildError = (error: Error) => {
+  const buildError = new BuildError(error.message);
+  buildError.stack = undefined;
+  return buildError;
+};
+
+export const safeBuildIndexingFunctions = (
+  params: Parameters<typeof buildIndexingFunctions>[0],
+) => buildIndexingFunctions(params).pipe(Effect.mapError(toBuildError));
+
+/**
+ * Validate the chains of the config and create an RPC client for each chain.
+ *
+ * @dev The RPC clients stop when the scope closes.
+ */
+export const safeBuildConfig = ({
   config,
-  indexingFunctions,
-  configBuild,
+  options,
 }: {
-  common: Common;
   config: Config;
-  indexingFunctions: IndexingFunctions;
-  configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
-}) {
-  try {
-    const result = await buildIndexingFunctions({
-      common,
-      config,
-      indexingFunctions,
-      configBuild,
+  options: Pick<Options["Service"], "rpcMaxConcurrency">;
+}) =>
+  Effect.gen(function* () {
+    const { chains, logs } = yield* Effect.try({
+      try: () => buildConfig({ config }),
+      catch: (error) => error as Error,
     });
 
-    return {
-      status: "success",
-      chains: result.chains,
-      rpcs: result.rpcs,
-      finalizedBlocks: result.finalizedBlocks,
-      eventCallbacks: result.eventCallbacks,
-      setupCallbacks: result.setupCallbacks,
-      contracts: result.contracts,
-      logs: result.logs,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
-}
+    const rpcs = yield* Effect.forEach(chains, (chain) =>
+      createRpc({
+        chain,
+        concurrency: Math.floor(options.rpcMaxConcurrency / chains.length),
+      }).pipe(
+        // Note: `createRpc` throws for an unsupported RPC URL.
+        Effect.catchDefect((error) => Effect.fail(error as Error)),
+      ),
+    );
 
-export function safeBuildConfig({
-  common,
-  config,
-}: {
-  common: Common;
-  config: Config;
-}) {
-  try {
-    const result = buildConfig({ common, config });
-
-    return {
-      status: "success",
-      chains: result.chains,
-      rpcs: result.rpcs,
-      logs: result.logs,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
-}
+    return { chains, rpcs, logs };
+  }).pipe(Effect.mapError(toBuildError));

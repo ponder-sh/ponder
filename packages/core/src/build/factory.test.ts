@@ -106,6 +106,22 @@ test("buildLogFactory handles Morpho CreateMarket struct parameter", () => {
   });
 });
 
+test("buildLogFactory throws for struct parameter with dynamic fields", () => {
+  expect(() =>
+    buildLogFactory({
+      address: "0xa",
+      event: parseAbiItem("event Created((string name, address child) info)"),
+      parameter: "info.child",
+      chainId: 1,
+      sourceId: "Factory",
+      fromBlock: undefined,
+      toBlock: undefined,
+    }),
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Factory event parameter is not valid. Got 'info.child', but struct 'info' has dynamic fields."`,
+  );
+});
+
 test("buildLogFactory handles location", () => {
   const criteria = buildLogFactory({
     address: "0xa",

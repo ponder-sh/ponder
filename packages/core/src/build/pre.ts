@@ -1,22 +1,23 @@
 import path from "node:path";
+import { Effect } from "effect";
 import type { Config } from "@/config/index.js";
 import { BuildError } from "@/internal/errors.js";
-import type { Logger } from "@/internal/logger.js";
 import type { Options } from "@/internal/options.js";
 import type { DatabaseConfig } from "@/internal/types.js";
 
 export function buildPre({
   config,
   options,
-  logger,
 }: {
   config: Config;
-  options: Pick<Options, "rootDir" | "ponderDir">;
-  logger: Logger;
+  options: Pick<Options["Service"], "rootDir" | "ponderDir">;
 }): {
   databaseConfig: DatabaseConfig;
   ordering: NonNullable<Config["ordering"]>;
+  logs: { level: "warn"; msg: string }[];
 } {
+  const logs: { level: "warn"; msg: string }[] = [];
+
   // Build database.
   let databaseConfig: DatabaseConfig;
 
@@ -46,7 +47,8 @@ export function buildPre({
             "Invalid database configuration: Either 'connectionString' or 'poolConfig' must be defined.",
           );
         }
-        logger.warn({
+        logs.push({
+          level: "warn",
           msg: "No database connection string set. Using 'poolConfig' for connection authentication.",
         });
       }
@@ -94,29 +96,21 @@ export function buildPre({
     );
   }
 
-  return { databaseConfig, ordering };
+  return { databaseConfig, ordering, logs };
 }
 
-export function safeBuildPre({
+export const safeBuildPre = ({
   config,
   options,
-  logger,
 }: {
   config: Config;
-  options: Pick<Options, "rootDir" | "ponderDir">;
-  logger: Logger;
-}) {
-  try {
-    const result = buildPre({ config, options, logger });
-
-    return {
-      status: "success",
-      databaseConfig: result.databaseConfig,
-      ordering: result.ordering,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
-}
+  options: Pick<Options["Service"], "rootDir" | "ponderDir">;
+}) =>
+  Effect.try({
+    try: () => buildPre({ config, options }),
+    catch: (_error) => {
+      const buildError = new BuildError((_error as Error).message);
+      buildError.stack = undefined;
+      return buildError;
+    },
+  });

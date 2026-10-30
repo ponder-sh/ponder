@@ -4,6 +4,7 @@ import path from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { Effect, Queue, Result, type Scope, Stream } from "effect";
 import { glob } from "glob";
 import { Hono } from "hono";
 import superjson from "superjson";
@@ -11,15 +12,25 @@ import { hexToNumber } from "viem";
 import { createServer, createServerModuleRunner, normalizePath } from "vite";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
-import type { Database } from "@/database/index.js";
-import { createQB } from "@/database/queryBuilder.js";
+import { Db, makeDbClient } from "@/database/db.js";
+import {
+  makeNodePostgresTransport,
+  makePgliteTransport,
+} from "@/database/transport.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
-import type { Common } from "@/internal/common.js";
+import { setApiContext } from "@/internal/api.js";
 import {
   BuildError,
   NonRetryableUserError,
   RetryableError,
 } from "@/internal/errors.js";
+import {
+  type LogMessage,
+  type LogUnsafe,
+  makeLogUnsafe,
+} from "@/internal/logger.js";
+import { Metrics } from "@/internal/metrics.js";
+import { Options } from "@/internal/options.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -33,785 +44,821 @@ import { PONDER_SYNC_SCHEMAS } from "@/sync-store/schema.js";
 import { createPool, getDatabaseName } from "@/utils/pg.js";
 import { createPglite } from "@/utils/pglite.js";
 import { getNextAvailablePort } from "@/utils/port.js";
-import type { Result } from "@/utils/result.js";
-import { startClock } from "@/utils/timer.js";
+import { startClockEffect } from "@/utils/timer.js";
 import { safeBuildConfig, safeBuildIndexingFunctions } from "./config.js";
-import { vitePluginPonder } from "./plugin.js";
+import { type ApiModule, vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";
 import { safeBuildSchema } from "./schema.js";
 import { parseViteError } from "./stacktrace.js";
 
 declare global {
-  var PONDER_COMMON: Common;
   var PONDER_PRE_BUILD: PreBuild;
   var PONDER_NAMESPACE_BUILD: NamespaceBuild;
   var PONDER_INDEXING_BUILD: Pick<IndexingBuild, "chains" | "rpcs">;
-  var PONDER_DATABASE: Database;
+  /** The values of the `ponder:api` virtual module for the current API build. */
+  var PONDER_API_MODULE: ApiModule | undefined;
+  /** Write a log outside a fiber, such as in a Drizzle column. */
+  var PONDER_LOG_UNSAFE: LogUnsafe | undefined;
 }
 
 const BUILD_ID_VERSION = "2";
 
-type ConfigResult = Result<{ config: Config; contentHash: string }>;
-type SchemaResult = Result<{ schema: Schema; contentHash: string }>;
-type IndexingResult = Result<{
+type ConfigResult = { config: Config; contentHash: string };
+type SchemaResult = { schema: Schema; contentHash: string };
+type IndexingResult = {
   indexingFunctions: IndexingFunctions;
   contentHash: string;
-}>;
-type ApiResult = Result<{ app: Hono }>;
+};
+type ApiResult = { app: Hono };
 
 export type Build = {
-  executeConfig: () => Promise<ConfigResult>;
-  executeSchema: () => Promise<SchemaResult>;
-  executeIndexingFunctions: () => Promise<IndexingResult>;
+  executeConfig: Effect.Effect<ConfigResult, Error>;
+  executeSchema: Effect.Effect<SchemaResult, Error>;
+  executeIndexingFunctions: Effect.Effect<IndexingResult, Error>;
+  /**
+   * Run the API file with the services and scope of the API build.
+   *
+   * @dev The API functions and the `ponder:api` module use the services until
+   * the scope closes.
+   */
   executeApi: (params: {
     preBuild: PreBuild;
     configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
-    database: Database;
-  }) => Promise<ApiResult>;
-  namespaceCompile: () => Result<NamespaceBuild>;
-  preCompile: (params: { config: Config }) => Result<PreBuild>;
+  }) => Effect.Effect<ApiResult, Error, Db | Scope.Scope>;
+  namespaceCompile: Effect.Effect<NamespaceBuild, BuildError>;
+  preCompile: (params: {
+    config: Config;
+  }) => Effect.Effect<PreBuild, BuildError>;
   compileSchema: (params: {
     schema: Schema;
     preBuild: PreBuild;
-  }) => Result<SchemaBuild>;
+  }) => Effect.Effect<SchemaBuild, BuildError>;
+  /**
+   * Build the chains of the config and create an RPC client for each chain.
+   *
+   * @dev The RPC clients stop when the scope closes.
+   */
   compileConfig: (params: {
-    configResult: Extract<ConfigResult, { status: "success" }>["result"];
-  }) => Result<Pick<IndexingBuild, "chains" | "rpcs">>;
+    configResult: ConfigResult;
+  }) => Effect.Effect<
+    Pick<IndexingBuild, "chains" | "rpcs">,
+    BuildError,
+    Metrics | Scope.Scope
+  >;
   compileIndexing: (params: {
-    configResult: Extract<ConfigResult, { status: "success" }>["result"];
-    schemaResult: Extract<SchemaResult, { status: "success" }>["result"];
-    indexingResult: Extract<IndexingResult, { status: "success" }>["result"];
+    configResult: ConfigResult;
+    schemaResult: SchemaResult;
+    indexingResult: IndexingResult;
     configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
-  }) => Promise<Result<IndexingBuild>>;
+  }) => Effect.Effect<IndexingBuild, BuildError>;
   compileApi: (params: {
-    apiResult: Extract<ApiResult, { status: "success" }>["result"];
-  }) => Promise<Result<ApiBuild>>;
-  startDev: (params: { onReload: (kind: "indexing" | "api") => void }) => void;
+    apiResult: ApiResult;
+  }) => Effect.Effect<ApiBuild, BuildError>;
+  /**
+   * Hot reloads in `ponder dev`. Listens for file changes while the stream
+   * runs.
+   */
+  reloads: Stream.Stream<"indexing" | "api">;
   rpcDiagnostic: (params: {
     configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
-  }) => Promise<Result<void>>;
-  databaseDiagnostic: (params: { preBuild: PreBuild }) => Promise<Result<void>>;
+  }) => Effect.Effect<void, RetryableError>;
+  databaseDiagnostic: (params: {
+    preBuild: PreBuild;
+  }) => Effect.Effect<void, RetryableError, Metrics>;
 };
 
-export const createBuild = async ({
-  common,
+/**
+ * Create the Vite dev server that runs the user's files. The server closes
+ * when the scope closes.
+ */
+export const createBuild = ({
   cliOptions,
 }: {
-  common: Common;
   cliOptions: CliOptions;
-}): Promise<Build> => {
-  const escapeRegex = /[.*+?^${}()|[\]\\]/g;
+}): Effect.Effect<Build, never, Options | Scope.Scope> =>
+  Effect.gen(function* () {
+    const options = yield* Options;
+    const logUnsafe = yield* makeLogUnsafe;
 
-  globalThis.PONDER_COMMON = common;
+    const escapeRegex = /[.*+?^${}()|[\]\\]/g;
 
-  const escapedIndexingDir = common.options.indexingDir
-    // If on Windows, use a POSIX path for this regex.
-    .replace(/\\/g, "/")
-    // Escape special characters in the path.
-    .replace(escapeRegex, "\\$&");
-  const indexingRegex = new RegExp(
-    `^${escapedIndexingDir}/(?!.*\\.(test|spec)\\.).*\\.(ts|js)$`,
-  );
+    globalThis.PONDER_LOG_UNSAFE = logUnsafe;
 
-  const indexingPattern = path
-    .join(common.options.indexingDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
+    const escapedIndexingDir = options.indexingDir
+      // If on Windows, use a POSIX path for this regex.
+      .replace(/\\/g, "/")
+      // Escape special characters in the path.
+      .replace(escapeRegex, "\\$&");
+    const indexingRegex = new RegExp(
+      `^${escapedIndexingDir}/(?!.*\\.(test|spec)\\.).*\\.(ts|js)$`,
+    );
 
-  const apiPattern = path
-    .join(common.options.apiDir, "**/*.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
+    const indexingPattern = path
+      .join(options.indexingDir, "**/*.{js,mjs,ts,mts}")
+      .replace(/\\/g, "/");
 
-  const testFilePattern = path
-    .join(common.options.indexingDir, "**/*.{test,spec}.{js,mjs,ts,mts}")
-    .replace(/\\/g, "/");
+    const apiPattern = path
+      .join(options.apiDir, "**/*.{js,mjs,ts,mts}")
+      .replace(/\\/g, "/");
 
-  const viteLogger = {
-    warnedMessages: new Set<string>(),
-    loggedErrors: new WeakSet<Error>(),
-    hasWarned: false,
-    clearScreen() {},
-    hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
-    info: (msg: string) => {
-      common.logger.trace({ msg, action: "build" });
-    },
-    warn: (msg: string) => {
-      viteLogger.hasWarned = true;
-      common.logger.trace({ msg, action: "build" });
-    },
-    warnOnce: (msg: string) => {
-      if (viteLogger.warnedMessages.has(msg)) return;
-      viteLogger.hasWarned = true;
-      common.logger.trace({ msg, action: "build" });
-      viteLogger.warnedMessages.add(msg);
-    },
-    error: (msg: string) => {
-      viteLogger.hasWarned = true;
-      common.logger.trace({ msg, action: "build" });
-    },
-  };
+    const testFilePattern = path
+      .join(options.indexingDir, "**/*.{test,spec}.{js,mjs,ts,mts}")
+      .replace(/\\/g, "/");
 
-  // Define the directories and files that `ponder dev` does not watch.
-  const ignoredDirs = [common.options.generatedDir, common.options.ponderDir];
-  const ignoredFiles = [
-    path.join(common.options.rootDir, "ponder-env.d.ts"),
-    path.join(common.options.rootDir, ".env.local"),
-  ];
-
-  const isFileIgnored = (filePath: string) => {
-    const isInIgnoredDir = ignoredDirs.some((dir) => {
-      const rel = path.relative(dir, filePath);
-      return !rel.startsWith("..") && !path.isAbsolute(rel);
-    });
-
-    const isIgnoredFile = ignoredFiles.includes(filePath);
-    return isInIgnoredDir || isIgnoredFile;
-  };
-
-  const viteDevServer = await createServer({
-    root: common.options.rootDir,
-    // Do not load a "vite.config.ts" file from the project root.
-    configFile: false,
-    cacheDir: path.join(common.options.ponderDir, "vite"),
-    publicDir: false,
-    appType: "custom",
-    customLogger: viteLogger,
-    server: {
-      // Do not create an HTTP server or register a SIGTERM listener.
-      middlewareMode: true,
-      hmr: false,
-      ws: false,
-      // Only `ponder dev` uses the file watcher. Isolated worker threads do not.
-      watch:
-        common.options.command === "dev" && isMainThread
-          ? { ignored: isFileIgnored }
-          : null,
-    },
-    resolve: { tsconfigPaths: true },
-    // Load `ponder` with Node instead of transforming it. This matters when `ponder`
-    // is a linked package, which Vite does not externalize by default.
-    ssr: { external: ["ponder"] },
-    plugins: [vitePluginPonder(common.options)],
-  });
-
-  common.buildShutdown.add(() => viteDevServer.close());
-
-  const ssrEnvironment = viteDevServer.environments.ssr;
-  const moduleRunner = createServerModuleRunner(ssrEnvironment, {
-    hmr: false,
-    sourcemapInterceptor: "prepareStackTrace",
-  });
-
-  common.buildShutdown.add(() => moduleRunner.close());
-
-  const invalidateDepTree = (files: string[]) => {
-    const invalidated = new Set<string>();
-
-    const invalidate = (id: string) => {
-      const node = moduleRunner.evaluatedModules.getModuleById(id);
-      if (node === undefined || invalidated.has(node.file)) return;
-      invalidated.add(node.file);
-      for (const importer of node.importers) invalidate(importer);
-      moduleRunner.evaluatedModules.invalidateModule(node);
+    const viteLogger = {
+      warnedMessages: new Set<string>(),
+      loggedErrors: new WeakSet<Error>(),
+      hasWarned: false,
+      clearScreen() {},
+      hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
+      info: (msg: string) => {
+        logUnsafe(Effect.logTrace({ msg, action: "build" }));
+      },
+      warn: (msg: string) => {
+        viteLogger.hasWarned = true;
+        logUnsafe(Effect.logTrace({ msg, action: "build" }));
+      },
+      warnOnce: (msg: string) => {
+        if (viteLogger.warnedMessages.has(msg)) return;
+        viteLogger.hasWarned = true;
+        logUnsafe(Effect.logTrace({ msg, action: "build" }));
+        viteLogger.warnedMessages.add(msg);
+      },
+      error: (msg: string) => {
+        viteLogger.hasWarned = true;
+        logUnsafe(Effect.logTrace({ msg, action: "build" }));
+      },
     };
 
-    for (const file of files) {
-      const nodes = moduleRunner.evaluatedModules.getModulesByFile(
-        normalizePath(file),
-      );
-      for (const node of nodes ?? []) invalidate(node.id);
-    }
+    // Define the directories and files that `ponder dev` does not watch.
+    const ignoredDirs = [options.generatedDir, options.ponderDir];
+    const ignoredFiles = [
+      path.join(options.rootDir, "ponder-env.d.ts"),
+      path.join(options.rootDir, ".env.local"),
+    ];
 
-    return invalidated;
-  };
+    const isFileIgnored = (filePath: string) => {
+      const isInIgnoredDir = ignoredDirs.some((dir) => {
+        const rel = path.relative(dir, filePath);
+        return !rel.startsWith("..") && !path.isAbsolute(rel);
+      });
 
-  const executeFile = async ({
-    file,
-  }: {
-    file: string;
-  }): Promise<
-    { status: "success"; exports: any } | { status: "error"; error: Error }
-  > => {
-    try {
-      const exports = await moduleRunner.import(file);
-      return { status: "success", exports } as const;
-    } catch (error_) {
-      const relativePath = path.relative(common.options.rootDir, file);
-      const error = parseViteError(relativePath, error_ as Error);
-      return { status: "error", error } as const;
-    }
-  };
+      const isIgnoredFile = ignoredFiles.includes(filePath);
+      return isInIgnoredDir || isIgnoredFile;
+    };
 
-  const executeFileWithTimeout = async ({
-    file,
-  }: {
-    file: string;
-  }): Promise<
-    { status: "success"; exports: any } | { status: "error"; error: Error }
-  > => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-    const timeout = new Promise<NonRetryableUserError>((resolve) => {
-      timeoutId = setTimeout(
-        () =>
-          resolve(
-            new NonRetryableUserError(
-              "File execution did not complete (waited 10s)",
+    const viteDevServer = yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        createServer({
+          root: options.rootDir,
+          // Do not load a "vite.config.ts" file from the project root.
+          configFile: false,
+          cacheDir: path.join(options.ponderDir, "vite"),
+          publicDir: false,
+          appType: "custom",
+          customLogger: viteLogger,
+          server: {
+            // Do not create an HTTP server or register a SIGTERM listener.
+            middlewareMode: true,
+            hmr: false,
+            ws: false,
+            // Only `ponder dev` uses the file watcher. Isolated worker threads do not.
+            watch:
+              options.command === "dev" && isMainThread
+                ? { ignored: isFileIgnored }
+                : null,
+          },
+          resolve: { tsconfigPaths: true },
+          // Load `ponder` with Node instead of transforming it. This matters when `ponder`
+          // is a linked package, which Vite does not externalize by default.
+          ssr: { external: ["ponder"] },
+          plugins: [vitePluginPonder(options)],
+        }),
+      ),
+      (viteDevServer) => Effect.promise(() => viteDevServer.close()),
+    );
+
+    const ssrEnvironment = viteDevServer.environments.ssr;
+    const moduleRunner = yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        createServerModuleRunner(ssrEnvironment, {
+          hmr: false,
+          sourcemapInterceptor: "prepareStackTrace",
+        }),
+      ),
+      (moduleRunner) => Effect.promise(() => moduleRunner.close()),
+    );
+
+    const invalidateDepTree = (files: string[]) => {
+      const invalidated = new Set<string>();
+
+      const invalidate = (id: string) => {
+        const node = moduleRunner.evaluatedModules.getModuleById(id);
+        if (node === undefined || invalidated.has(node.file)) return;
+        invalidated.add(node.file);
+        for (const importer of node.importers) invalidate(importer);
+        moduleRunner.evaluatedModules.invalidateModule(node);
+      };
+
+      for (const file of files) {
+        const nodes = moduleRunner.evaluatedModules.getModulesByFile(
+          normalizePath(file),
+        );
+        for (const node of nodes ?? []) invalidate(node.id);
+      }
+
+      return invalidated;
+    };
+
+    /**
+     * Run `file` and return its exports.
+     */
+    const executeFile = (file: string): Effect.Effect<any, Error> =>
+      Effect.tryPromise({
+        try: () => moduleRunner.import(file),
+        catch: (error) =>
+          parseViteError(path.relative(options.rootDir, file), error as Error),
+      });
+
+    const executeFileWithTimeout = (file: string) =>
+      executeFile(file).pipe(
+        Effect.timeoutOrElse({
+          duration: 10_000,
+          orElse: () =>
+            Effect.fail(
+              new NonRetryableUserError(
+                "File execution did not complete (waited 10s)",
+              ),
             ),
-          ),
-        10_000,
-      );
-    });
-
-    const res = await Promise.race([executeFile({ file }), timeout]);
-    if (res instanceof NonRetryableUserError) {
-      return { status: "error", error: res };
-    }
-
-    clearTimeout(timeoutId!);
-    return res;
-  };
-
-  const build = {
-    async executeConfig(): Promise<ConfigResult> {
-      const executeResult = await executeFile({
-        file: common.options.configFile,
-      });
-
-      if (executeResult.status === "error") {
-        common.logger.error({
-          msg: "Error while executing file",
-          file: "ponder.config.ts",
-          error: executeResult.error,
-        });
-
-        return executeResult;
-      }
-
-      const config = executeResult.exports.default as Config;
-
-      const contentHash = createHash("sha256")
-        .update(
-          superjson.stringify({
-            ordering: config.ordering,
-            contracts: config.contracts,
-            accounts: config.accounts,
-            blocks: config.blocks,
-          }),
-        )
-        .digest("hex");
-
-      return {
-        status: "success",
-        result: { config, contentHash },
-      } as const;
-    },
-    async executeSchema(): Promise<SchemaResult> {
-      const executeResult = await executeFile({
-        file: common.options.schemaFile,
-      });
-
-      if (executeResult.status === "error") {
-        common.logger.error({
-          msg: "Error while executing file",
-          file: "ponder.schema.ts",
-          error: executeResult.error,
-        });
-
-        return executeResult;
-      }
-
-      const schema = executeResult.exports;
-
-      const contents = fs.readFileSync(common.options.schemaFile, "utf-8");
-      return {
-        status: "success",
-        result: {
-          schema,
-          contentHash: createHash("sha256").update(contents).digest("hex"),
-        },
-      } as const;
-    },
-    async executeIndexingFunctions(): Promise<IndexingResult> {
-      const files = glob.sync(indexingPattern, {
-        ignore: [apiPattern, testFilePattern],
-      });
-
-      for (const file of files) {
-        const executeResult = await executeFileWithTimeout({ file });
-
-        if (executeResult.status === "error") {
-          common.logger.error({
-            msg: "Error while executing file",
-            file: path.relative(common.options.rootDir, file),
-            error: executeResult.error,
-          });
-          return executeResult;
-        }
-      }
-
-      // Note that we are only hashing the file contents, not the exports. This is
-      // different from the config/schema, where we include the serializable object itself.
-      const hash = createHash("sha256");
-      for (const file of files) {
-        try {
-          const contents = fs.readFileSync(file, "utf-8");
-          hash.update(contents);
-        } catch (_e) {
-          common.logger.warn({
-            msg: "Unable to read file",
-            file,
-          });
-          hash.update(file);
-        }
-      }
-      const contentHash = hash.digest("hex");
-
-      const exports = await moduleRunner.import("ponder:registry");
-
-      return {
-        status: "success",
-        result: {
-          indexingFunctions: exports.ponder.fns,
-          contentHash,
-        },
-      };
-    },
-    async executeApi({ preBuild, configBuild, database }): Promise<ApiResult> {
-      globalThis.PONDER_PRE_BUILD = preBuild;
-      globalThis.PONDER_INDEXING_BUILD = configBuild;
-      globalThis.PONDER_DATABASE = database;
-
-      if (!fs.existsSync(common.options.apiFile)) {
-        const error = new BuildError(
-          `API endpoint file not found. Create a file at ${common.options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
-        );
-        error.stack = undefined;
-
-        return { status: "error", error };
-      }
-
-      const executeResult = await executeFile({
-        file: common.options.apiFile,
-      });
-
-      if (executeResult.status === "error") {
-        common.logger.error({
-          msg: "Error while executing file",
-          file: path.relative(common.options.rootDir, common.options.apiFile),
-          error: executeResult.error,
-        });
-
-        return executeResult;
-      }
-
-      const app = executeResult.exports.default;
-
-      if (!(app instanceof Hono || app?.constructor?.name === "Hono")) {
-        const error = new BuildError(
-          "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
-        );
-        error.stack = undefined;
-
-        return { status: "error", error };
-      }
-
-      return {
-        status: "success",
-        result: { app },
-      };
-    },
-    namespaceCompile() {
-      if (
-        cliOptions.schema === undefined &&
-        process.env.DATABASE_SCHEMA === undefined
-      ) {
-        const error = new BuildError(
-          `Database schema required. Specify with "DATABASE_SCHEMA" env var or "--schema" CLI flag. Read more: https://ponder.sh/docs/database#database-schema`,
-        );
-        error.stack = undefined;
-
-        return { status: "error", error } as const;
-      }
-
-      const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA!;
-      const viewsSchema =
-        cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
-
-      if (viewsSchema === schema) {
-        const error = new BuildError(
-          "Views schema cannot be the same as the schema.",
-        );
-        error.stack = undefined;
-        return { status: "error", error } as const;
-      }
-
-      if ((PONDER_SYNC_SCHEMAS as readonly string[]).includes(schema)) {
-        const error = new BuildError(
-          `Invalid schema name. "${schema}" is a reserved schema name.`,
-        );
-        error.stack = undefined;
-        return { status: "error", error } as const;
-      }
-
-      if (
-        viewsSchema !== undefined &&
-        (PONDER_SYNC_SCHEMAS as readonly string[]).includes(viewsSchema)
-      ) {
-        const error = new BuildError(
-          `Invalid views schema name. "${viewsSchema}" is a reserved schema name.`,
-        );
-        error.stack = undefined;
-        return { status: "error", error } as const;
-      }
-
-      if (schema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
-        const error = new BuildError(
-          `Schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
-        );
-        error.stack = undefined;
-        return { status: "error", error } as const;
-      }
-
-      if (viewsSchema && viewsSchema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
-        const error = new BuildError(
-          `Views schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
-        );
-        error.stack = undefined;
-        return { status: "error", error } as const;
-      }
-
-      globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
-
-      return {
-        status: "success",
-        result: { schema, viewsSchema },
-      } as const;
-    },
-    preCompile({ config }): Result<PreBuild> {
-      const preBuild = safeBuildPre({
-        config,
-        options: common.options,
-        logger: common.logger,
-      });
-      if (preBuild.status === "error") {
-        return preBuild;
-      }
-
-      return {
-        status: "success",
-        result: {
-          databaseConfig: preBuild.databaseConfig,
-          ordering: preBuild.ordering,
-        },
-      } as const;
-    },
-    compileSchema({ schema, preBuild }) {
-      const buildSchemaResult = safeBuildSchema({ schema, preBuild });
-
-      if (buildSchemaResult.status === "error") {
-        return buildSchemaResult;
-      }
-
-      return {
-        status: "success",
-        result: {
-          schema,
-          statements: buildSchemaResult.statements,
-        },
-      } as const;
-    },
-    compileConfig({ configResult }) {
-      // Validates and builds the config
-      const buildConfigResult = safeBuildConfig({
-        common,
-        config: configResult.config,
-      });
-      if (buildConfigResult.status === "error") {
-        return buildConfigResult;
-      }
-
-      for (const log of buildConfigResult.logs) {
-        const { level, ...rest } = log;
-        common.logger[level](rest);
-      }
-
-      return {
-        status: "success",
-        result: {
-          chains: buildConfigResult.chains,
-          rpcs: buildConfigResult.rpcs,
-        },
-      } as const;
-    },
-    async compileIndexing({
-      configResult,
-      schemaResult,
-      indexingResult,
-      configBuild,
-    }) {
-      // Validates and builds the config
-      const buildIndexingFunctionsResult = await safeBuildIndexingFunctions({
-        common,
-        config: configResult.config,
-        indexingFunctions: indexingResult.indexingFunctions,
-        configBuild,
-      });
-      if (buildIndexingFunctionsResult.status === "error") {
-        return buildIndexingFunctionsResult;
-      }
-
-      for (const log of buildIndexingFunctionsResult.logs) {
-        const { level, ...rest } = log;
-        common.logger[level](rest);
-      }
-
-      const buildId = createHash("sha256")
-        .update(BUILD_ID_VERSION)
-        .update(configResult.contentHash)
-        .update(schemaResult.contentHash)
-        .update(indexingResult.contentHash)
-        .digest("hex")
-        .slice(0, 10);
-
-      return {
-        status: "success",
-        result: {
-          buildId,
-          chains: buildIndexingFunctionsResult.chains,
-          rpcs: buildIndexingFunctionsResult.rpcs,
-          finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
-          eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
-          setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
-          contracts: buildIndexingFunctionsResult.contracts,
-          indexingFunctions: indexingResult.indexingFunctions,
-        },
-      } as const;
-    },
-    async compileApi({ apiResult }) {
-      for (const route of apiResult.app.routes) {
-        if (typeof route.path === "string") {
-          if (
-            route.path === "/ready" ||
-            route.path === "/status" ||
-            route.path === "/metrics" ||
-            route.path === "/health" ||
-            route.path === "/client"
-          ) {
-            const error = new BuildError(
-              `Validation failed: API route "${route.path}" is reserved for internal use.`,
-            );
-            error.stack = undefined;
-            return { status: "error", error } as const;
-          }
-        }
-      }
-
-      const port = await getNextAvailablePort({ common });
-
-      return {
-        status: "success",
-        result: {
-          hostname: common.options.hostname,
-          port,
-          app: apiResult.app,
-        },
-      };
-    },
-    async startDev({ onReload }) {
-      const onFileChange = async (_file: string) => {
-        const file = normalizePath(_file);
-
-        // Invalidate the transform result for the updated file. Vite also does this
-        // in its own watcher listener, but that listener can run after this one.
-        ssrEnvironment.moduleGraph.onFileChange(file);
-
-        // Invalidate all modules that depend on the updated files.
-        // Note that `invalidateDepTree` returns POSIX paths, even on Windows.
-        const invalidated = invalidateDepTree([file]);
-
-        // If no files were invalidated, no need to reload.
-        if (invalidated.size === 0) return;
-
-        // Note that the paths in `invalidated` are POSIX, so we need to
-        // convert the paths in `options` to POSIX for this comparison.
-        // The `srcDir` regex is already converted to POSIX.
-        const hasConfigUpdate = invalidated.has(
-          common.options.configFile.replace(/\\/g, "/"),
-        );
-        const hasSchemaUpdate = invalidated.has(
-          common.options.schemaFile.replace(/\\/g, "/"),
-        );
-
-        const hasIndexingUpdate = Array.from(invalidated).some(
-          (file) => indexingRegex.test(file) && file !== common.options.apiFile,
-        );
-        const hasApiUpdate = Array.from(invalidated).some(
-          (file) => file === common.options.apiFile,
-        );
-
-        // This branch could trigger if you change a `note.txt` file within `src/`.
-        // Note: We could probably do a better job filtering out files in `isFileIgnored`.
-        if (
-          !hasConfigUpdate &&
-          !hasSchemaUpdate &&
-          !hasIndexingUpdate &&
-          !hasApiUpdate
-        ) {
-          return;
-        }
-
-        common.logger.info({
-          msg: `Hot reload ${Array.from(invalidated)
-            .map((f) => `"${path.relative(common.options.rootDir, f)}"`)
-            .join(", ")}`,
-        });
-
-        // Fast path for when only the api has changed.
-        if (
-          hasApiUpdate === true &&
-          hasConfigUpdate === false &&
-          hasSchemaUpdate === false &&
-          hasIndexingUpdate === false
-        ) {
-          invalidateDepTree([common.options.apiFile]);
-
-          onReload("api");
-        } else {
-          // Instead, just invalidate the files that have changed and ...
-
-          // re-execute all files
-          invalidateDepTree([common.options.configFile]);
-          invalidateDepTree([common.options.schemaFile]);
-          invalidateDepTree(
-            glob.sync(indexingPattern, {
-              ignore: [apiPattern, testFilePattern],
-            }),
-          );
-          invalidateDepTree(glob.sync(apiPattern));
-          invalidateDepTree(["ponder:registry", "ponder:api"]);
-
-          onReload("indexing");
-        }
-      };
-
-      viteDevServer.watcher.on("change", onFileChange);
-    },
-    async rpcDiagnostic({ configBuild }) {
-      const context = {
-        logger: common.logger.child({ action: "rpc_diagnostic" }),
-      };
-      const endClock = startClock();
-
-      const results = await Promise.all(
-        configBuild.rpcs.map(async (rpc, index) => {
-          const chain = configBuild.chains[index]!;
-          try {
-            const chainId = await rpc.request(
-              { method: "eth_chainId" },
-              context,
-            );
-
-            if (hexToNumber(chainId) !== chain.id) {
-              common.logger.warn({
-                msg: "Configured chain ID does not match JSON-RPC response",
-                chain: chain.name,
-                chain_id: chain.id,
-                rpc_chain_id: hexToNumber(chainId),
-              });
-            }
-          } catch (_e) {
-            const error = new RetryableError("Failed to connect to JSON-RPC");
-            error.stack = undefined;
-            return { status: "error", error } as const;
-          }
-
-          common.logger.info({
-            msg: "Connected to JSON-RPC",
-            chain: chain.name,
-            chain_id: chain.id,
-            hostnames: JSON.stringify(rpc.hostnames),
-            duration: endClock(),
-          });
-
-          return { status: "success", result: undefined } as const;
         }),
       );
 
-      for (const result of results) {
-        if (result.status === "error") {
-          return result;
-        }
-      }
-
-      return { status: "success", result: undefined };
-    },
-    async databaseDiagnostic({ preBuild }) {
-      const context = {
-        logger: common.logger.child({ action: "database_diagnostic" }),
-      };
-      const endClock = startClock();
-
-      const dialect = preBuild.databaseConfig.kind;
-      if (dialect === "pglite") {
-        const driver = createPglite(preBuild.databaseConfig.options);
-        const qb = createQB(drizzlePglite(driver), { common });
-        try {
-          await qb.wrap((db) => db.execute("SELECT version()"), context);
-        } catch (e) {
-          const error = new RetryableError(
-            `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
-          );
-          error.stack = undefined;
-          return { status: "error", error };
-        } finally {
-          await driver.close();
-        }
-
-        const pgliteDir = preBuild.databaseConfig.options.dataDir;
-
-        const pglitePath =
-          pgliteDir === "memory://"
-            ? "memory://"
-            : path.relative(common.options.rootDir, pgliteDir);
-        common.logger.info({
-          msg: "Connected to database",
-          type: dialect,
-          database: pglitePath,
-          duration: endClock(),
-        });
-      } else if (dialect === "postgres") {
-        const pool = createPool(
-          {
-            ...preBuild.databaseConfig.poolConfig,
-            application_name: "test",
-            max: 1,
-            statement_timeout: 10_000,
-          },
-          common.logger,
+    const build = {
+      executeConfig: Effect.gen(function* () {
+        const exports = yield* executeFile(options.configFile).pipe(
+          Effect.tapError((error) =>
+            Effect.logError({
+              msg: "Error while executing file",
+              file: "ponder.config.ts",
+              error,
+            }),
+          ),
         );
-        const qb = createQB(drizzleNodePostgres(pool), { common });
-        try {
-          await qb.wrap((db) => db.execute("SELECT version()"), context);
-        } catch (e) {
-          const error = new RetryableError(
-            `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
+
+        const config = exports.default as Config;
+
+        const contentHash = createHash("sha256")
+          .update(
+            superjson.stringify({
+              ordering: config.ordering,
+              contracts: config.contracts,
+              accounts: config.accounts,
+              blocks: config.blocks,
+            }),
+          )
+          .digest("hex");
+
+        return { config, contentHash };
+      }),
+      executeSchema: Effect.gen(function* () {
+        const schema = yield* executeFile(options.schemaFile).pipe(
+          Effect.tapError((error) =>
+            Effect.logError({
+              msg: "Error while executing file",
+              file: "ponder.schema.ts",
+              error,
+            }),
+          ),
+        );
+
+        const contents = fs.readFileSync(options.schemaFile, "utf-8");
+        return {
+          schema,
+          contentHash: createHash("sha256").update(contents).digest("hex"),
+        };
+      }),
+      executeIndexingFunctions: Effect.gen(function* () {
+        const files = glob.sync(indexingPattern, {
+          ignore: [apiPattern, testFilePattern],
+        });
+
+        for (const file of files) {
+          yield* executeFileWithTimeout(file).pipe(
+            Effect.tapError((error) =>
+              Effect.logError({
+                msg: "Error while executing file",
+                file: path.relative(options.rootDir, file),
+                error,
+              }),
+            ),
           );
-          error.stack = undefined;
-          return { status: "error", error };
-        } finally {
-          await pool.end();
         }
 
-        common.logger.info({
-          msg: "Connected to database",
-          type: dialect,
-          database: getDatabaseName(preBuild.databaseConfig.poolConfig),
-          duration: endClock(),
-        });
-      }
+        // Note that we are only hashing the file contents, not the exports. This is
+        // different from the config/schema, where we include the serializable object itself.
+        const hash = createHash("sha256");
+        for (const file of files) {
+          try {
+            const contents = fs.readFileSync(file, "utf-8");
+            hash.update(contents);
+          } catch (_e) {
+            yield* Effect.logWarning({
+              msg: "Unable to read file",
+              file,
+            });
+            hash.update(file);
+          }
+        }
+        const contentHash = hash.digest("hex");
 
-      return { status: "success", result: undefined };
-    },
-  } satisfies Build;
+        const exports = yield* Effect.promise(() =>
+          moduleRunner.import("ponder:registry"),
+        );
 
-  return build;
-};
+        return {
+          indexingFunctions: exports.ponder.fns,
+          contentHash,
+        };
+      }),
+      executeApi: ({ preBuild, configBuild }) =>
+        Effect.gen(function* () {
+          globalThis.PONDER_PRE_BUILD = preBuild;
+          globalThis.PONDER_INDEXING_BUILD = configBuild;
+          yield* setApiContext;
+          yield* setApiModule(configBuild);
+
+          if (!fs.existsSync(options.apiFile)) {
+            const error = new BuildError(
+              `API endpoint file not found. Create a file at ${options.apiFile}. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints`,
+            );
+            error.stack = undefined;
+
+            return yield* Effect.fail(error);
+          }
+
+          const exports = yield* executeFile(options.apiFile).pipe(
+            Effect.tapError((error) =>
+              Effect.logError({
+                msg: "Error while executing file",
+                file: path.relative(options.rootDir, options.apiFile),
+                error,
+              }),
+            ),
+          );
+
+          const app = exports.default;
+
+          if (!(app instanceof Hono || app?.constructor?.name === "Hono")) {
+            const error = new BuildError(
+              "API endpoint file does not export a Hono instance as the default export. Read more: https://ponder.sh/docs/api-reference/ponder/api-endpoints",
+            );
+            error.stack = undefined;
+
+            return yield* Effect.fail(error);
+          }
+
+          return { app };
+        }),
+      namespaceCompile: Effect.gen(function* () {
+        if (
+          cliOptions.schema === undefined &&
+          process.env.DATABASE_SCHEMA === undefined
+        ) {
+          const error = new BuildError(
+            `Database schema required. Specify with "DATABASE_SCHEMA" env var or "--schema" CLI flag. Read more: https://ponder.sh/docs/database#database-schema`,
+          );
+          error.stack = undefined;
+
+          return yield* Effect.fail(error);
+        }
+
+        const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA!;
+        const viewsSchema =
+          cliOptions.viewsSchema ?? process.env.DATABASE_VIEWS_SCHEMA;
+
+        if (viewsSchema === schema) {
+          const error = new BuildError(
+            "Views schema cannot be the same as the schema.",
+          );
+          error.stack = undefined;
+          return yield* Effect.fail(error);
+        }
+
+        if ((PONDER_SYNC_SCHEMAS as readonly string[]).includes(schema)) {
+          const error = new BuildError(
+            `Invalid schema name. "${schema}" is a reserved schema name.`,
+          );
+          error.stack = undefined;
+          return yield* Effect.fail(error);
+        }
+
+        if (
+          viewsSchema !== undefined &&
+          (PONDER_SYNC_SCHEMAS as readonly string[]).includes(viewsSchema)
+        ) {
+          const error = new BuildError(
+            `Invalid views schema name. "${viewsSchema}" is a reserved schema name.`,
+          );
+          error.stack = undefined;
+          return yield* Effect.fail(error);
+        }
+
+        if (schema.length > MAX_DATABASE_OBJECT_NAME_LENGTH) {
+          const error = new BuildError(
+            `Schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
+          );
+          error.stack = undefined;
+          return yield* Effect.fail(error);
+        }
+
+        if (
+          viewsSchema &&
+          viewsSchema.length > MAX_DATABASE_OBJECT_NAME_LENGTH
+        ) {
+          const error = new BuildError(
+            `Views schema name cannot be longer than ${MAX_DATABASE_OBJECT_NAME_LENGTH} characters.`,
+          );
+          error.stack = undefined;
+          return yield* Effect.fail(error);
+        }
+
+        globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema };
+
+        return { schema, viewsSchema };
+      }),
+      preCompile: ({ config }) =>
+        Effect.gen(function* () {
+          const { databaseConfig, ordering, logs } = yield* safeBuildPre({
+            config,
+            options,
+          });
+
+          yield* writeLogs(logs);
+
+          return { databaseConfig, ordering };
+        }),
+      compileSchema: ({ schema, preBuild }) =>
+        Effect.map(safeBuildSchema({ schema, preBuild }), ({ statements }) => ({
+          schema,
+          statements,
+        })),
+      compileConfig: ({ configResult }) =>
+        Effect.gen(function* () {
+          // Validates and builds the config
+          const { chains, rpcs, logs } = yield* safeBuildConfig({
+            config: configResult.config,
+            options,
+          });
+
+          yield* writeLogs(logs);
+
+          return { chains, rpcs };
+        }),
+      compileIndexing: ({
+        configResult,
+        schemaResult,
+        indexingResult,
+        configBuild,
+      }) =>
+        Effect.gen(function* () {
+          // Validates and builds the config
+          const buildIndexingFunctionsResult =
+            yield* safeBuildIndexingFunctions({
+              config: configResult.config,
+              indexingFunctions: indexingResult.indexingFunctions,
+              configBuild,
+            });
+
+          yield* writeLogs(buildIndexingFunctionsResult.logs);
+
+          const buildId = createHash("sha256")
+            .update(BUILD_ID_VERSION)
+            .update(configResult.contentHash)
+            .update(schemaResult.contentHash)
+            .update(indexingResult.contentHash)
+            .digest("hex")
+            .slice(0, 10);
+
+          return {
+            buildId,
+            chains: buildIndexingFunctionsResult.chains,
+            rpcs: buildIndexingFunctionsResult.rpcs,
+            finalizedBlocks: buildIndexingFunctionsResult.finalizedBlocks,
+            eventCallbacks: buildIndexingFunctionsResult.eventCallbacks,
+            setupCallbacks: buildIndexingFunctionsResult.setupCallbacks,
+            contracts: buildIndexingFunctionsResult.contracts,
+            indexingFunctions: indexingResult.indexingFunctions,
+          };
+        }),
+      compileApi: ({ apiResult }) =>
+        Effect.gen(function* () {
+          for (const route of apiResult.app.routes) {
+            if (typeof route.path === "string") {
+              if (
+                route.path === "/ready" ||
+                route.path === "/status" ||
+                route.path === "/metrics" ||
+                route.path === "/health" ||
+                route.path === "/client"
+              ) {
+                const error = new BuildError(
+                  `Validation failed: API route "${route.path}" is reserved for internal use.`,
+                );
+                error.stack = undefined;
+                return yield* Effect.fail(error);
+              }
+            }
+          }
+
+          const port = yield* getNextAvailablePort({
+            port: options.port,
+            hostname: options.hostname,
+          }).pipe(
+            // Note: An error other than a port in use is unexpected.
+            Effect.orDie,
+          );
+
+          return {
+            hostname: options.hostname,
+            port,
+            app: apiResult.app,
+          };
+        }),
+      reloads: Stream.callback<"indexing" | "api">((queue) => {
+        const onFileChange = (_file: string) => {
+          const file = normalizePath(_file);
+
+          // Invalidate the transform result for the updated file. Vite also does this
+          // in its own watcher listener, but that listener can run after this one.
+          ssrEnvironment.moduleGraph.onFileChange(file);
+
+          // Invalidate all modules that depend on the updated files.
+          // Note that `invalidateDepTree` returns POSIX paths, even on Windows.
+          const invalidated = invalidateDepTree([file]);
+
+          // Note: A file that failed to load, such as a config with a syntax
+          // error, has no module to invalidate, but a fix to it needs a reload.
+          if (invalidated.size === 0) invalidated.add(file);
+
+          // Note that the paths in `invalidated` are POSIX, so we need to
+          // convert the paths in `options` to POSIX for this comparison.
+          // The `srcDir` regex is already converted to POSIX.
+          const hasConfigUpdate = invalidated.has(
+            options.configFile.replace(/\\/g, "/"),
+          );
+          const hasSchemaUpdate = invalidated.has(
+            options.schemaFile.replace(/\\/g, "/"),
+          );
+
+          const hasIndexingUpdate = Array.from(invalidated).some(
+            (file) => indexingRegex.test(file) && file !== options.apiFile,
+          );
+          const hasApiUpdate = Array.from(invalidated).some(
+            (file) => file === options.apiFile,
+          );
+
+          // This branch could trigger if you change a `note.txt` file within `src/`.
+          // Note: We could probably do a better job filtering out files in `isFileIgnored`.
+          if (
+            !hasConfigUpdate &&
+            !hasSchemaUpdate &&
+            !hasIndexingUpdate &&
+            !hasApiUpdate
+          ) {
+            return;
+          }
+
+          logUnsafe(
+            Effect.logInfo({
+              msg: `Hot reload ${Array.from(invalidated)
+                .map((f) => `"${path.relative(options.rootDir, f)}"`)
+                .join(", ")}`,
+            }),
+          );
+
+          // Fast path for when only the api has changed.
+          if (
+            hasApiUpdate === true &&
+            hasConfigUpdate === false &&
+            hasSchemaUpdate === false &&
+            hasIndexingUpdate === false
+          ) {
+            invalidateDepTree([options.apiFile]);
+
+            Queue.offerUnsafe(queue, "api");
+          } else {
+            // Instead, just invalidate the files that have changed and ...
+
+            // re-execute all files
+            invalidateDepTree([options.configFile]);
+            invalidateDepTree([options.schemaFile]);
+            invalidateDepTree(
+              glob.sync(indexingPattern, {
+                ignore: [apiPattern, testFilePattern],
+              }),
+            );
+            invalidateDepTree(glob.sync(apiPattern));
+            invalidateDepTree(["ponder:registry", "ponder:api"]);
+
+            Queue.offerUnsafe(queue, "indexing");
+          }
+        };
+
+        return Effect.acquireRelease(
+          Effect.sync(() => viteDevServer.watcher.on("change", onFileChange)),
+          () =>
+            Effect.sync(() =>
+              viteDevServer.watcher.off("change", onFileChange),
+            ),
+        );
+      }),
+      rpcDiagnostic: ({ configBuild }) =>
+        Effect.gen(function* () {
+          const endClock = yield* startClockEffect;
+
+          // Note: Wait for every chain, then fail with the first error.
+          const results = yield* Effect.all(
+            configBuild.rpcs.map((rpc, index) =>
+              Effect.gen(function* () {
+                const chain = configBuild.chains[index]!;
+
+                const rpcChainId = yield* rpc
+                  .request(
+                    { method: "eth_chainId" },
+                    { logAnnotations: { action: "rpc_diagnostic" } },
+                  )
+                  .pipe(
+                    Effect.flatMap((chainId) =>
+                      Effect.try({
+                        try: () => hexToNumber(chainId),
+                        catch: (error) => error,
+                      }),
+                    ),
+                    Effect.mapError(() => {
+                      const error = new RetryableError(
+                        "Failed to connect to JSON-RPC",
+                      );
+                      error.stack = undefined;
+                      return error;
+                    }),
+                  );
+
+                if (rpcChainId !== chain.id) {
+                  yield* Effect.logWarning({
+                    msg: "Configured chain ID does not match JSON-RPC response",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    rpc_chain_id: rpcChainId,
+                  });
+                }
+
+                yield* Effect.logInfo({
+                  msg: "Connected to JSON-RPC",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostnames: JSON.stringify(rpc.hostnames),
+                  duration: yield* endClock,
+                });
+              }),
+            ),
+            { concurrency: "unbounded", mode: "result" },
+          );
+
+          for (const result of results) {
+            if (Result.isFailure(result)) {
+              return yield* Effect.fail(result.failure);
+            }
+          }
+        }),
+      databaseDiagnostic: ({ preBuild }) =>
+        Effect.gen(function* () {
+          const metrics = yield* Metrics;
+          const logAnnotations = { action: "database_diagnostic" };
+          const endClock = yield* startClockEffect;
+
+          const dialect = preBuild.databaseConfig.kind;
+          if (dialect === "pglite") {
+            const databaseConfig = preBuild.databaseConfig;
+            yield* Effect.acquireUseRelease(
+              Effect.sync(() => createPglite(databaseConfig.options)),
+              (driver) =>
+                makeDbClient(makePgliteTransport(drizzlePglite(driver)), {
+                  metrics,
+                }).query((db) => db.execute("SELECT version()"), {
+                  logAnnotations,
+                }),
+              (driver) => Effect.promise(() => driver.close()),
+            ).pipe(
+              Effect.mapError((e) => {
+                const error = new RetryableError(
+                  `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
+                );
+                error.stack = undefined;
+                return error;
+              }),
+            );
+
+            const pgliteDir = databaseConfig.options.dataDir;
+
+            const pglitePath =
+              pgliteDir === "memory://"
+                ? "memory://"
+                : path.relative(options.rootDir, pgliteDir);
+            yield* Effect.logInfo({
+              msg: "Connected to database",
+              type: dialect,
+              database: pglitePath,
+              duration: yield* endClock,
+            });
+          } else if (dialect === "postgres") {
+            const poolConfig = preBuild.databaseConfig.poolConfig;
+            yield* Effect.acquireUseRelease(
+              Effect.sync(() =>
+                createPool(
+                  {
+                    ...poolConfig,
+                    application_name: "ponder_diagnostic",
+                    max: 1,
+                    statement_timeout: 10_000,
+                  },
+                  logUnsafe,
+                ),
+              ),
+              (pool) =>
+                makeDbClient(
+                  makeNodePostgresTransport(drizzleNodePostgres(pool)),
+                  {
+                    metrics,
+                  },
+                ).query((db) => db.execute("SELECT version()"), {
+                  logAnnotations,
+                }),
+              (pool) => Effect.promise(() => pool.end()),
+            ).pipe(
+              Effect.mapError((e) => {
+                const error = new RetryableError(
+                  `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
+                );
+                error.stack = undefined;
+                return error;
+              }),
+            );
+
+            yield* Effect.logInfo({
+              msg: "Connected to database",
+              type: dialect,
+              database: getDatabaseName(poolConfig),
+              duration: yield* endClock,
+            });
+          }
+        }),
+    } satisfies Build;
+
+    return build;
+  });
+
+/**
+ * Write the logs that the config, indexing function, and pre builds return.
+ */
+const writeLogs = (
+  logs: ({ level: "warn" | "info" | "debug" } & LogMessage)[],
+) =>
+  Effect.forEach(
+    logs,
+    ({ level, ...log }) =>
+      level === "warn"
+        ? Effect.logWarning(log)
+        : level === "info"
+          ? Effect.logInfo(log)
+          : Effect.logDebug(log),
+    { discard: true },
+  );
+
+/**
+ * Make the readonly database and the RPC requests of `configBuild` available
+ * to the `ponder:api` virtual module until the scope closes.
+ */
+const setApiModule = (configBuild: Pick<IndexingBuild, "rpcs">) =>
+  Effect.gen(function* () {
+    const db = yield* Db;
+    const runPromise = Effect.runPromiseWith(yield* Effect.context<never>());
+
+    const apiModule: ApiModule = {
+      db: db.readonly.drizzle,
+      requests: configBuild.rpcs.map(
+        (rpc) => (body) => runPromise(rpc.request(body)),
+      ),
+    };
+
+    yield* Effect.acquireRelease(
+      Effect.sync(() => {
+        globalThis.PONDER_API_MODULE = apiModule;
+      }),
+      () =>
+        Effect.sync(() => {
+          if (globalThis.PONDER_API_MODULE === apiModule) {
+            globalThis.PONDER_API_MODULE = undefined;
+          }
+        }),
+    );
+  });

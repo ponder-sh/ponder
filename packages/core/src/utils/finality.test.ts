@@ -1,4 +1,5 @@
 import { expect, test, vi } from "bun:test";
+import { Effect } from "effect";
 import type { Chain } from "@/internal/types.js";
 import type { Rpc } from "@/rpc/index.js";
 import { getFinalizedBlock, isAsyncExecutionChain } from "./finality.js";
@@ -21,14 +22,13 @@ const getBlock = (number: number, timestamp: number) =>
   }) as any;
 
 const getRpc = (blocks: Map<number, ReturnType<typeof getBlock>>) => {
-  const request = vi.fn(async (request: any) =>
-    blocks.get(Number(request.params[0])),
+  const request = vi.fn((request: any) =>
+    Effect.succeed(blocks.get(Number(request.params[0]))),
   );
 
   return {
     request,
     subscribe: vi.fn(),
-    unsubscribe: vi.fn(),
     hostnames: [],
   } as unknown as Rpc & { request: typeof request };
 };
@@ -39,51 +39,57 @@ const getChain = (reorgWindow: number, blockTime?: number) =>
     viemChain: blockTime === undefined ? undefined : { blockTime },
   }) as Chain;
 
-test("getFinalizedBlock() skips the search when finality has not advanced", async () => {
+test("getFinalizedBlock() skips the search when finality has not advanced", () => {
   const lowerBound = getBlock(80, 80);
   const rpc = getRpc(new Map());
 
-  const result = await getFinalizedBlock({
-    chain: getChain(30),
-    rpc,
-    lowerBound,
-    latestBlock: getBlock(100, 100),
-  });
+  const result = Effect.runSync(
+    getFinalizedBlock({
+      chain: getChain(30),
+      rpc,
+      lowerBound,
+      latestBlock: getBlock(100, 100),
+    }),
+  );
 
   expect(result).toBe(lowerBound);
   expect(rpc.request).not.toHaveBeenCalled();
 });
 
-test("getFinalizedBlock() uses blockTime for its initial guess", async () => {
+test("getFinalizedBlock() uses blockTime for its initial guess", () => {
   const blocks = new Map<number, ReturnType<typeof getBlock>>();
   for (let i = 0; i <= 100; i++) blocks.set(i, getBlock(i, i));
   const rpc = getRpc(blocks);
 
-  const result = await getFinalizedBlock({
-    chain: getChain(20, 2_000),
-    rpc,
-    latestBlock: getBlock(100, 100),
-  });
+  const result = Effect.runSync(
+    getFinalizedBlock({
+      chain: getChain(20, 2_000),
+      rpc,
+      latestBlock: getBlock(100, 100),
+    }),
+  );
 
   expect(Number(result.number)).toBe(80);
   expect(Number(rpc.request.mock.calls[0]![0].params[0])).toBe(90);
 });
 
-test("getFinalizedBlock() assumes one-second blocks without blockTime", async () => {
+test("getFinalizedBlock() assumes one-second blocks without blockTime", () => {
   const blocks = new Map<number, ReturnType<typeof getBlock>>();
   for (let i = 0; i <= 100; i++) blocks.set(i, getBlock(i, i));
   const rpc = getRpc(blocks);
 
-  await getFinalizedBlock({
-    chain: getChain(20),
-    rpc,
-    latestBlock: getBlock(100, 100),
-  });
+  Effect.runSync(
+    getFinalizedBlock({
+      chain: getChain(20),
+      rpc,
+      latestBlock: getBlock(100, 100),
+    }),
+  );
 
   expect(Number(rpc.request.mock.calls[0]![0].params[0])).toBe(80);
 });
 
-test("getFinalizedBlock() returns genesis when the chain is younger than the reorg window", async () => {
+test("getFinalizedBlock() returns genesis when the chain is younger than the reorg window", () => {
   const genesis = getBlock(0, 100);
   const blocks = new Map<number, ReturnType<typeof getBlock>>([
     [0, genesis],
@@ -91,25 +97,29 @@ test("getFinalizedBlock() returns genesis when the chain is younger than the reo
   ]);
   const rpc = getRpc(blocks);
 
-  const result = await getFinalizedBlock({
-    chain: getChain(180),
-    rpc,
-    latestBlock: getBlock(1, 110),
-  });
+  const result = Effect.runSync(
+    getFinalizedBlock({
+      chain: getChain(180),
+      rpc,
+      latestBlock: getBlock(1, 110),
+    }),
+  );
 
   expect(result).toEqual(genesis);
 });
 
-test("getFinalizedBlock() returns the newest block at the exact cutoff", async () => {
+test("getFinalizedBlock() returns the newest block at the exact cutoff", () => {
   const blocks = new Map<number, ReturnType<typeof getBlock>>();
   for (let i = 0; i <= 100; i++) blocks.set(i, getBlock(i, i));
   const rpc = getRpc(blocks);
 
-  const result = await getFinalizedBlock({
-    chain: getChain(20),
-    rpc,
-    latestBlock: getBlock(100, 100),
-  });
+  const result = Effect.runSync(
+    getFinalizedBlock({
+      chain: getChain(20),
+      rpc,
+      latestBlock: getBlock(100, 100),
+    }),
+  );
 
   expect(Number(result.number)).toBe(80);
 });
