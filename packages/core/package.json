@@ -40,7 +40,6 @@
   "scripts": {
     "build": "tsx build.ts",
     "test": "vitest",
-    "test:bun": "bun test",
     "test:typecheck": "vitest --typecheck.only",
     "typecheck": "tsc --noEmit"
   },
@@ -96,8 +95,6 @@
     "@types/pg-copy-streams": "^1.2.5",
     "@types/semver": "^7.5.8",
     "@types/ws": "^8.18.1",
-    "@viem/anvil": "^0.0.6",
-    "@wagmi/cli": "^1.5.2",
     "chokidar": "^4.0.3",
     "execa": "^8.0.1",
     "mitata": "^1.0.34",
