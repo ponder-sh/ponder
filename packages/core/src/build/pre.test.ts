@@ -2,15 +2,13 @@ import { expect, test } from "bun:test";
 import path from "node:path";
 import { withStubbedEnv } from "../_test/utils.js";
 import { createConfig } from "../config/index.js";
-import { createLogger } from "../internal/logger.js";
 import type { Options } from "../internal/options.js";
 import { buildPre } from "./pre.js";
 
 const options = {
   ponderDir: ".ponder",
   rootDir: "rootDir",
-} as const satisfies Pick<Options, "rootDir" | "ponderDir">;
-const logger = createLogger({ level: "debug" });
+} as const satisfies Pick<Options["Service"], "rootDir" | "ponderDir">;
 
 test("buildPre() database uses pglite by default", () => {
   const config = createConfig({
@@ -21,11 +19,7 @@ test("buildPre() database uses pglite by default", () => {
   withStubbedEnv(
     { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
     () => {
-      const { databaseConfig } = buildPre({
-        config,
-        options,
-        logger,
-      });
+      const { databaseConfig } = buildPre({ config, options });
       expect(databaseConfig).toMatchObject({
         kind: "pglite",
         options: {
@@ -36,11 +30,7 @@ test("buildPre() database uses pglite by default", () => {
   );
 
   withStubbedEnv({ DATABASE_URL: "", PRIVATE_DATABASE_URL: "" }, () => {
-    const { databaseConfig: databaseConfig2 } = buildPre({
-      config,
-      options,
-      logger,
-    });
+    const { databaseConfig: databaseConfig2 } = buildPre({ config, options });
     expect(databaseConfig2).toMatchObject({
       kind: "pglite",
       options: {
@@ -50,14 +40,14 @@ test("buildPre() database uses pglite by default", () => {
   });
 });
 
-test("buildPre() database respects custom pglite path", async () => {
+test("buildPre() database respects custom pglite path", () => {
   const config = createConfig({
     database: { kind: "pglite", directory: "custom-pglite/directory" },
     chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  const { databaseConfig } = buildPre({ config, options, logger });
+  const { databaseConfig } = buildPre({ config, options });
 
   expect(databaseConfig).toMatchObject({
     kind: "pglite",
@@ -67,7 +57,7 @@ test("buildPre() database respects custom pglite path", async () => {
   });
 });
 
-test("buildPre() database uses pglite if specified even if DATABASE_URL env var present", async () => {
+test("buildPre() database uses pglite if specified even if DATABASE_URL env var present", () => {
   const config = createConfig({
     database: { kind: "pglite" },
     chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
@@ -77,7 +67,7 @@ test("buildPre() database uses pglite if specified even if DATABASE_URL env var 
   withStubbedEnv(
     { DATABASE_URL: "postgres://username@localhost:5432/database" },
     () => {
-      const { databaseConfig } = buildPre({ config, options, logger });
+      const { databaseConfig } = buildPre({ config, options });
       expect(databaseConfig).toMatchObject({
         kind: "pglite",
         options: {
@@ -88,7 +78,7 @@ test("buildPre() database uses pglite if specified even if DATABASE_URL env var 
   );
 });
 
-test("buildPre() database uses postgres if DATABASE_URL env var present", async () => {
+test("buildPre() database uses postgres if DATABASE_URL env var present", () => {
   const config = createConfig({
     chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
     contracts: { a: { chain: "mainnet", abi: [] } },
@@ -97,7 +87,7 @@ test("buildPre() database uses postgres if DATABASE_URL env var present", async 
   withStubbedEnv(
     { DATABASE_URL: "postgres://username@localhost:5432/database" },
     () => {
-      const { databaseConfig } = buildPre({ config, options, logger });
+      const { databaseConfig } = buildPre({ config, options });
       expect(databaseConfig).toMatchObject({
         kind: "postgres",
         poolConfig: {
@@ -108,7 +98,7 @@ test("buildPre() database uses postgres if DATABASE_URL env var present", async 
   );
 });
 
-test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present", async () => {
+test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present", () => {
   const config = createConfig({
     chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
     contracts: { a: { chain: "mainnet", abi: [] } },
@@ -121,7 +111,7 @@ test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present"
         "postgres://username@localhost:5432/better_database",
     },
     () => {
-      const { databaseConfig } = buildPre({ config, options, logger });
+      const { databaseConfig } = buildPre({ config, options });
       expect(databaseConfig).toMatchObject({
         kind: "postgres",
         poolConfig: {
@@ -133,7 +123,7 @@ test("buildPre() database uses postgres if DATABASE_PRIVATE_URL env var present"
   );
 });
 
-test("buildPre() throws for postgres database with no connection string", async () => {
+test("buildPre() throws for postgres database with no connection string", () => {
   const config = createConfig({
     database: { kind: "postgres" },
     chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
@@ -144,7 +134,7 @@ test("buildPre() throws for postgres database with no connection string", async 
     { DATABASE_URL: undefined, PRIVATE_DATABASE_URL: undefined },
     () => {
       expect(() =>
-        buildPre({ config, options, logger }),
+        buildPre({ config, options }),
       ).toThrowErrorMatchingInlineSnapshot(
         `"Invalid database configuration: Either 'connectionString' or 'poolConfig' must be defined."`,
       );
@@ -152,7 +142,7 @@ test("buildPre() throws for postgres database with no connection string", async 
   );
 });
 
-test("buildPre() database with postgres uses pool config", async () => {
+test("buildPre() database with postgres uses pool config", () => {
   const config = createConfig({
     database: {
       kind: "postgres",
@@ -172,7 +162,7 @@ test("buildPre() database with postgres uses pool config", async () => {
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  const { databaseConfig } = buildPre({ config, options, logger });
+  const { databaseConfig } = buildPre({ config, options });
 
   expect(databaseConfig).toMatchInlineSnapshot(`
     {
@@ -192,6 +182,32 @@ test("buildPre() database with postgres uses pool config", async () => {
   `);
 });
 
+test("buildPre() warns for postgres database with only pool config", () => {
+  const config = createConfig({
+    database: {
+      kind: "postgres",
+      poolConfig: { host: "localhost", user: "user" },
+    },
+    chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
+    contracts: { a: { chain: "mainnet", abi: [] } },
+  });
+
+  withStubbedEnv(
+    { DATABASE_URL: undefined, DATABASE_PRIVATE_URL: undefined },
+    () => {
+      const { logs } = buildPre({ config, options });
+      expect(logs).toMatchInlineSnapshot(`
+        [
+          {
+            "level": "warn",
+            "msg": "No database connection string set. Using 'poolConfig' for connection authentication.",
+          },
+        ]
+      `);
+    },
+  );
+});
+
 test("buildPre() throws for an invalid ordering", () => {
   const config = createConfig({
     // @ts-expect-error
@@ -201,7 +217,7 @@ test("buildPre() throws for an invalid ordering", () => {
   });
 
   expect(() =>
-    buildPre({ config, options, logger }),
+    buildPre({ config, options }),
   ).toThrowErrorMatchingInlineSnapshot(
     `"Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got ''."`,
   );

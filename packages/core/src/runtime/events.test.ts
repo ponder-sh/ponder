@@ -22,10 +22,12 @@ import type {
   BlockEvent,
   Event,
   InternalBlock,
+  InternalLog,
   InternalTrace,
   InternalTransaction,
   InternalTransactionReceipt,
   LogEvent,
+  LogFilter,
   RawEvent,
   SyncTransaction,
   TraceEvent,
@@ -491,6 +493,72 @@ test("buildEvents() transaction matches receipt by transaction index", async () 
   ).toThrowErrorMatchingInlineSnapshot(
     `"Failed to build events from block data. Missing transaction receipt for block 1 and transaction index 1 for chain ID 1"`,
   );
+});
+
+test("buildEvents() log matches multiple filters of an event", async () => {
+  const erc20 = "0x1111111111111111111111111111111111111111";
+  const alice = ALICE.toLowerCase() as Hex;
+  const bob = BOB.toLowerCase() as Hex;
+
+  const [eventCallback] = getErc20IndexingBuild({
+    address: erc20,
+  }).eventCallbacks;
+  const filter = eventCallback.filter as LogFilter;
+  const topic = padHex(alice, { size: 32 });
+
+  const eventCallbacks = [
+    { ...eventCallback, filter: { ...filter, topic1: topic } },
+    { ...eventCallback, filter: { ...filter, topic2: topic } },
+  ];
+
+  const block = {
+    number: 1n,
+    timestamp: 1n,
+    hash: toHex(1, { size: 32 }),
+  } as InternalBlock;
+  const log = (logIndex: number, from: Hex, to: Hex) =>
+    ({
+      blockNumber: 1,
+      transactionIndex: 0,
+      logIndex,
+      address: erc20,
+      topics: encodeEventTopics({
+        abi: erc20ABI,
+        eventName: "Transfer",
+        args: { from, to },
+      }),
+      data: padHex(toHex(parseEther("1")), { size: 32 }),
+    }) as unknown as InternalLog;
+
+  const events = buildEvents({
+    eventCallbacks,
+    blocks: [block],
+    logs: [log(0, alice, bob), log(1, bob, alice), log(2, alice, alice)],
+    transactions: [],
+    transactionReceipts: [],
+    traces: [],
+    childAddresses: new Map(),
+    chainId: 1,
+  });
+
+  expect(
+    events.map((event) => [event.log!.logIndex, event.eventCallbackIndex]),
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        0,
+      ],
+      [
+        1,
+        1,
+      ],
+      [
+        2,
+        0,
+      ],
+    ]
+  `);
 });
 
 test("buildEvents() trace index ignores traces that match no filter", async () => {

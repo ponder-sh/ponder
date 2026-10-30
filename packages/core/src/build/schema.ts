@@ -17,6 +17,7 @@ import {
   PgTable,
   PgView,
 } from "drizzle-orm/pg-core";
+import { Effect } from "effect";
 import {
   PONDER_CHECKPOINT_TABLE_NAME,
   PONDER_META_TABLE_NAME,
@@ -337,17 +338,12 @@ export const safeBuildSchema = ({
 }: {
   schema: Schema;
   preBuild: Pick<PreBuild, "ordering">;
-}) => {
-  try {
-    const result = buildSchema({ schema, preBuild });
-
-    return {
-      status: "success",
-      ...result,
-    } as const;
-  } catch (_error) {
-    const buildError = new BuildError((_error as Error).message);
-    buildError.stack = undefined;
-    return { status: "error", error: buildError } as const;
-  }
-};
+}) =>
+  Effect.try({
+    try: () => buildSchema({ schema, preBuild }),
+    catch: (_error) => {
+      const buildError = new BuildError((_error as Error).message);
+      buildError.stack = undefined;
+      return buildError;
+    },
+  });
