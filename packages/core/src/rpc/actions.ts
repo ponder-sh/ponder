@@ -2,8 +2,8 @@ import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
 } from "@ponder/utils";
+import { Data, Effect, Option, Result, Stream } from "effect";
 import {
-  BlockNotFoundError,
   type Hash,
   type Hex,
   hexToBigInt,
@@ -11,7 +11,6 @@ import {
   isHex,
   numberToHex,
   type RpcError,
-  TransactionReceiptNotFoundError,
   zeroAddress,
   zeroHash,
 } from "viem";
@@ -32,6 +31,36 @@ import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
 
 export const ADDRESS_CHUNK_SIZE = 50;
 
+/** The provider returned `null` for the block. */
+export class BlockNotFoundError extends Data.TaggedError("BlockNotFoundError")<{
+  blockHash?: Hash;
+  blockNumber?: bigint | string;
+}> {
+  override get message() {
+    return `Block at ${this.blockHash ? `hash "${this.blockHash}"` : `number "${this.blockNumber}"`} could not be found.`;
+  }
+}
+
+/** The provider returned `null` for the transaction receipt. */
+export class TransactionReceiptNotFoundError extends Data.TaggedError(
+  "TransactionReceiptNotFoundError",
+)<{ hash: Hash }> {
+  override get message() {
+    return `Transaction receipt with hash "${this.hash}" could not be found. The Transaction may not be processed on a block yet.`;
+  }
+}
+
+/**
+ * Annotate `log` with the log annotations of the request context.
+ */
+const annotate = (
+  log: Effect.Effect<void>,
+  context: Parameters<Rpc["request"]>[1],
+) =>
+  context?.logAnnotations
+    ? Effect.annotateLogs(log, context.logAnnotations)
+    : log;
+
 /**
  * Helper function for "eth_getBlockByNumber" request.
  */
@@ -44,27 +73,27 @@ export const eth_getBlockByNumber = <
   rpc: Rpc,
   params: params,
   context?: Parameters<Rpc["request"]>[1],
-): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
-  rpc
-    .request({ method: "eth_getBlockByNumber", params }, context)
-    .then((_block) => {
+): Effect.Effect<params[1] extends true ? SyncBlock : LightBlock, Error> =>
+  rpc.request({ method: "eth_getBlockByNumber", params }, context).pipe(
+    Effect.flatMap((_block) => {
       if (!_block) {
-        let blockNumber: bigint;
-        if (isHex(params[0])) {
-          blockNumber = hexToBigInt(params[0]);
-        } else {
-          // @ts-expect-error `BlockNotFoundError` expects a bigint, but it also just passes
-          // the `blockNumber` directly to the error message, so breaking the type constraint is fine.
-          blockNumber = params[0];
-        }
+        const blockNumber = isHex(params[0])
+          ? hexToBigInt(params[0])
+          : params[0];
 
-        throw new BlockNotFoundError({ blockNumber });
+        return Effect.fail(new BlockNotFoundError({ blockNumber }));
       }
-      return standardizeBlock(_block as SyncBlock, {
-        method: "eth_getBlockByNumber",
-        params,
+
+      return Effect.try({
+        try: () =>
+          standardizeBlock(_block as SyncBlock, {
+            method: "eth_getBlockByNumber",
+            params,
+          }),
+        catch: (error) => error as Error,
       });
-    });
+    }),
+  );
 
 /**
  * Helper function for "eth_getBlockByHash" request.
@@ -78,55 +107,71 @@ export const eth_getBlockByHash = <
   rpc: Rpc,
   params: params,
   context?: Parameters<Rpc["request"]>[1],
-): Promise<params[1] extends true ? SyncBlock : LightBlock> =>
-  rpc
-    .request({ method: "eth_getBlockByHash", params }, context)
-    .then((_block) => {
-      if (!_block) throw new BlockNotFoundError({ blockHash: params[0] });
-      return standardizeBlock(_block as SyncBlock, {
-        method: "eth_getBlockByHash",
-        params,
+): Effect.Effect<params[1] extends true ? SyncBlock : LightBlock, Error> =>
+  rpc.request({ method: "eth_getBlockByHash", params }, context).pipe(
+    Effect.flatMap((_block) => {
+      if (!_block)
+        return Effect.fail(new BlockNotFoundError({ blockHash: params[0] }));
+
+      return Effect.try({
+        try: () =>
+          standardizeBlock(_block as SyncBlock, {
+            method: "eth_getBlockByHash",
+            params,
+          }),
+        catch: (error) => error as Error,
       });
-    });
+    }),
+  );
 
 /**
  * Helper function for "eth_getLogs" rpc request.
  * Handles different error types and retries the request if applicable.
  */
-export const eth_getLogs = async (
+export const eth_getLogs = (
   rpc: Rpc,
   params: Extract<RequestParameters, { method: "eth_getLogs" }>["params"],
   context?: Parameters<Rpc["request"]>[1],
-): Promise<SyncLog[]> => {
-  const request: Extract<RequestParameters, { method: "eth_getLogs" }> = {
-    method: "eth_getLogs",
-    params,
-  };
+): Effect.Effect<SyncLog[], Error> =>
+  Effect.gen(function* () {
+    const request: Extract<RequestParameters, { method: "eth_getLogs" }> = {
+      method: "eth_getLogs",
+      params,
+    };
 
-  const requests: Extract<RequestParameters, { method: "eth_getLogs" }>[] =
-    Array.isArray(params[0].address)
-      ? chunk(params[0].address, ADDRESS_CHUNK_SIZE).map(
-          (address) =>
-            ({
-              method: "eth_getLogs",
-              params: [{ ...params[0], address }],
-            }) as Extract<RequestParameters, { method: "eth_getLogs" }>,
-        )
-      : [request];
+    const requests: Extract<RequestParameters, { method: "eth_getLogs" }>[] =
+      Array.isArray(params[0].address)
+        ? chunk(params[0].address, ADDRESS_CHUNK_SIZE).map(
+            (address) =>
+              ({
+                method: "eth_getLogs",
+                params: [{ ...params[0], address }],
+              }) as Extract<RequestParameters, { method: "eth_getLogs" }>,
+          )
+        : [request];
 
-  const responses = await Promise.all(
-    requests.map(async (request) => {
-      const logs = await rpc.request(request, context);
-      if (logs === null || logs === undefined) {
-        throw new Error("Received invalid empty eth_getLogs response.");
-      }
+    const responses = yield* Effect.forEach(
+      requests,
+      (request) =>
+        rpc.request(request, context).pipe(
+          Effect.flatMap((logs) => {
+            if (logs === null || logs === undefined) {
+              return Effect.fail(
+                new Error("Received invalid empty eth_getLogs response."),
+              );
+            }
 
-      return logs as SyncLog[];
-    }),
-  );
+            return Effect.succeed(logs as SyncLog[]);
+          }),
+        ),
+      { concurrency: "unbounded" },
+    );
 
-  return standardizeLogs(responses.flat(), request);
-};
+    return yield* Effect.try({
+      try: () => standardizeLogs(responses.flat(), request),
+      catch: (error) => error as Error,
+    });
+  });
 
 /**
  * Data about the range passed to "eth_getLogs", shared among all log
@@ -154,81 +199,100 @@ const getLogsRequestMetadata = (rpc: Rpc): LogsRequestMetadata => {
  * Helper function for "eth_getLogs" rpc request with built in pagination.
  * Handles different error types and retries the request if applicable, learning RPC limits.
  */
-export async function* eth_getLogsWithPagination(
+export const eth_getLogsWithPagination = (
   rpc: Rpc,
   params: GetLogsRetryHelperParameters["params"],
   context?: Parameters<Rpc["request"]>[1] & {
     ethGetLogsBlockRange?: number;
   },
-): AsyncGenerator<{ logs: SyncLog[]; fromBlock: number; toBlock: number }> {
+): Stream.Stream<
+  { logs: SyncLog[]; fromBlock: number; toBlock: number },
+  Error
+> => {
   const { address, topics } = params[0];
-  let cursor = hexToNumber(params[0].fromBlock);
   const endBlock = hexToNumber(params[0].toBlock);
 
-  while (cursor <= endBlock) {
-    const logsRequestMetadata = getLogsRequestMetadata(rpc);
-    const range =
-      context?.ethGetLogsBlockRange ??
-      logsRequestMetadata.confirmedRange ??
-      logsRequestMetadata.estimatedRange;
-    const toBlock = Math.min(cursor + range - 1, endBlock);
-    const params: GetLogsRetryHelperParameters["params"] = [
-      {
-        address,
-        topics,
-        fromBlock: numberToHex(cursor),
-        toBlock: numberToHex(toBlock),
-      },
-    ];
+  // Note: Each page emits no values when the range is updated, and the same cursor is retried.
+  return Stream.paginate<
+    number,
+    { logs: SyncLog[]; fromBlock: number; toBlock: number },
+    Error
+  >(hexToNumber(params[0].fromBlock), (cursor) =>
+    Effect.gen(function* () {
+      if (cursor > endBlock) return [[], Option.none()] as const;
 
-    let logs: SyncLog[];
-    try {
-      logs = await eth_getLogs(rpc, params, context);
-    } catch (error) {
-      if (context?.ethGetLogsBlockRange !== undefined) {
-        throw error;
+      const logsRequestMetadata = getLogsRequestMetadata(rpc);
+      const range =
+        context?.ethGetLogsBlockRange ??
+        logsRequestMetadata.confirmedRange ??
+        logsRequestMetadata.estimatedRange;
+      const toBlock = Math.min(cursor + range - 1, endBlock);
+      const params: GetLogsRetryHelperParameters["params"] = [
+        {
+          address,
+          topics,
+          fromBlock: numberToHex(cursor),
+          toBlock: numberToHex(toBlock),
+        },
+      ];
+
+      const result = yield* Effect.result(eth_getLogs(rpc, params, context));
+
+      if (Result.isFailure(result)) {
+        const error = result.failure;
+
+        if (context?.ethGetLogsBlockRange !== undefined) {
+          return yield* Effect.fail(error);
+        }
+
+        const getLogsErrorResponse = getLogsRetryHelper({
+          params,
+          error: error as RpcError,
+        });
+
+        if (getLogsErrorResponse.shouldRetry === false) {
+          return yield* Effect.fail(error);
+        }
+
+        const range =
+          hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
+          hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
+          1;
+
+        yield* annotate(
+          Effect.logDebug({
+            msg: "Updated eth_getLogs range",
+            range,
+          }),
+          context,
+        );
+
+        logsRequestMetadataByRpc.set(rpc, {
+          estimatedRange: range,
+          confirmedRange: getLogsErrorResponse.isSuggestedRange
+            ? range
+            : undefined,
+        });
+
+        return [[], Option.some(cursor)] as const;
       }
 
-      const getLogsErrorResponse = getLogsRetryHelper({
-        params,
-        error: error as RpcError,
-      });
+      if (
+        context?.ethGetLogsBlockRange === undefined &&
+        logsRequestMetadata.confirmedRange === undefined
+      ) {
+        logsRequestMetadata.estimatedRange = Math.round(
+          logsRequestMetadata.estimatedRange * 1.05,
+        );
+      }
 
-      if (getLogsErrorResponse.shouldRetry === false) throw error;
-
-      const range =
-        hexToNumber(getLogsErrorResponse.ranges[0]!.toBlock) -
-        hexToNumber(getLogsErrorResponse.ranges[0]!.fromBlock) +
-        1;
-
-      context?.logger?.debug({
-        msg: "Updated eth_getLogs range",
-        range,
-      });
-
-      logsRequestMetadataByRpc.set(rpc, {
-        estimatedRange: range,
-        confirmedRange: getLogsErrorResponse.isSuggestedRange
-          ? range
-          : undefined,
-      });
-
-      continue;
-    }
-
-    if (
-      context?.ethGetLogsBlockRange === undefined &&
-      logsRequestMetadata.confirmedRange === undefined
-    ) {
-      logsRequestMetadata.estimatedRange = Math.round(
-        logsRequestMetadata.estimatedRange * 1.05,
-      );
-    }
-
-    yield { logs, fromBlock: cursor, toBlock };
-    cursor = toBlock + 1;
-  }
-}
+      return [
+        [{ logs: result.success, fromBlock: cursor, toBlock }],
+        Option.some(toBlock + 1),
+      ] as const;
+    }),
+  );
+};
 
 /**
  * Helper function for "eth_getTransactionReceipt" request.
@@ -240,21 +304,27 @@ export const eth_getTransactionReceipt = (
     { method: "eth_getTransactionReceipt" }
   >["params"],
   context?: Parameters<Rpc["request"]>[1],
-): Promise<SyncTransactionReceipt> =>
-  rpc
-    .request({ method: "eth_getTransactionReceipt", params }, context)
-    .then((receipt) => {
+): Effect.Effect<SyncTransactionReceipt, Error> =>
+  rpc.request({ method: "eth_getTransactionReceipt", params }, context).pipe(
+    Effect.flatMap((receipt) => {
       if (!receipt) {
-        throw new TransactionReceiptNotFoundError({
-          hash: params[0],
-        });
+        return Effect.fail(
+          new TransactionReceiptNotFoundError({
+            hash: params[0],
+          }),
+        );
       }
 
-      return standardizeTransactionReceipts([receipt], {
-        method: "eth_getTransactionReceipt",
-        params,
-      })[0]!;
-    });
+      return Effect.try({
+        try: () =>
+          standardizeTransactionReceipts([receipt], {
+            method: "eth_getTransactionReceipt",
+            params,
+          })[0]!,
+        catch: (error) => error as Error,
+      });
+    }),
+  );
 
 /**
  * Helper function for "eth_getBlockReceipts" request.
@@ -266,21 +336,25 @@ export const eth_getBlockReceipts = (
     { method: "eth_getBlockReceipts" }
   >["params"],
   context?: Parameters<Rpc["request"]>[1],
-): Promise<SyncTransactionReceipt[]> =>
-  rpc
-    .request({ method: "eth_getBlockReceipts", params }, context)
-    .then((receipts) => {
+): Effect.Effect<SyncTransactionReceipt[], Error> =>
+  rpc.request({ method: "eth_getBlockReceipts", params }, context).pipe(
+    Effect.flatMap((receipts) => {
       if (receipts === null || receipts === undefined) {
-        throw new Error(
-          "Received invalid empty eth_getBlockReceipts response.",
+        return Effect.fail(
+          new Error("Received invalid empty eth_getBlockReceipts response."),
         );
       }
 
-      return standardizeTransactionReceipts(receipts, {
-        method: "eth_getBlockReceipts",
-        params,
+      return Effect.try({
+        try: () =>
+          standardizeTransactionReceipts(receipts, {
+            method: "eth_getBlockReceipts",
+            params,
+          }),
+        catch: (error) => error as Error,
       });
-    });
+    }),
+  );
 
 /** Rpcs that failed "eth_getBlockReceipts", shared across sync modes. */
 const rpcsWithoutBlockReceipts = new WeakSet<Rpc>();
@@ -293,58 +367,77 @@ const rpcsWithoutBlockReceipts = new WeakSet<Rpc>();
  * Note: Receipts are sorted by transaction index. The order of `transactionHashes`
  * is not used.
  */
-export const eth_getTransactionReceipts = async (
+export const eth_getTransactionReceipts = (
   rpc: Rpc,
   params: {
     blockHash: Hash;
     transactionHashes: Set<Hash>;
   },
   context?: Parameters<Rpc["request"]>[1],
-): Promise<
+): Effect.Effect<
   {
     receipts: SyncTransactionReceipt[];
     request: Extract<
       RequestParameters,
       { method: "eth_getBlockReceipts" | "eth_getTransactionReceipt" }
     >;
-  }[]
-> => {
-  const { blockHash, transactionHashes } = params;
-  if (transactionHashes.size === 0) return [];
+  }[],
+  Error
+> =>
+  Effect.gen(function* () {
+    const { blockHash, transactionHashes } = params;
+    if (transactionHashes.size === 0) return [];
 
-  if (rpcsWithoutBlockReceipts.has(rpc)) {
-    const responses = await Promise.all(
-      Array.from(transactionHashes).map(async (hash) => ({
-        receipts: [await eth_getTransactionReceipt(rpc, [hash], context)],
-        request: {
-          method: "eth_getTransactionReceipt" as const,
-          params: [hash] as [Hash],
+    if (rpcsWithoutBlockReceipts.has(rpc)) {
+      const responses = yield* Effect.forEach(
+        Array.from(transactionHashes),
+        (hash) =>
+          eth_getTransactionReceipt(rpc, [hash], context).pipe(
+            Effect.map((receipt) => ({
+              receipts: [receipt],
+              request: {
+                method: "eth_getTransactionReceipt" as const,
+                params: [hash] as [Hash],
+              },
+            })),
+          ),
+        { concurrency: "unbounded" },
+      );
+      return responses.sort(
+        (a, b) =>
+          hexToNumber(a.receipts[0]!.transactionIndex) -
+          hexToNumber(b.receipts[0]!.transactionIndex),
+      );
+    }
+
+    return yield* eth_getBlockReceipts(rpc, [blockHash], context).pipe(
+      Effect.map((receipts) => [
+        {
+          receipts,
+          request: {
+            method: "eth_getBlockReceipts" as const,
+            params: [blockHash] as [Hash],
+          },
         },
-      })),
+      ]),
+      Effect.catch((error) =>
+        annotate(
+          Effect.logWarning({
+            msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
+            error,
+          }),
+          context,
+        ).pipe(
+          Effect.andThen(
+            Effect.suspend(() => {
+              rpcsWithoutBlockReceipts.add(rpc);
+              return eth_getTransactionReceipts(rpc, params, context);
+            }),
+          ),
+        ),
+      ),
     );
-    return responses.sort(
-      (a, b) =>
-        hexToNumber(a.receipts[0]!.transactionIndex) -
-        hexToNumber(b.receipts[0]!.transactionIndex),
-    );
-  }
-
-  try {
-    return [
-      {
-        receipts: await eth_getBlockReceipts(rpc, [blockHash], context),
-        request: { method: "eth_getBlockReceipts", params: [blockHash] },
-      },
-    ];
-  } catch (error) {
-    context?.logger?.warn({
-      msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
-      error: error as Error,
-    });
-    rpcsWithoutBlockReceipts.add(rpc);
-    return eth_getTransactionReceipts(rpc, params, context);
-  }
-};
+  });
 
 /**
  * Helper function for "debug_traceBlockByNumber" request.
@@ -356,53 +449,64 @@ export const debug_traceBlockByNumber = (
     { method: "debug_traceBlockByNumber" }
   >["params"],
   context?: Parameters<Rpc["request"]>[1],
-): Promise<SyncTrace[]> =>
-  rpc
-    .request({ method: "debug_traceBlockByNumber", params }, context)
-    .then((traces) => {
+): Effect.Effect<SyncTrace[], Error> =>
+  rpc.request({ method: "debug_traceBlockByNumber", params }, context).pipe(
+    Effect.flatMap((traces) => {
       if (traces === null || traces === undefined) {
-        throw new Error(
-          "Received invalid empty debug_traceBlockByNumber response.",
+        return Effect.fail(
+          new Error(
+            "Received invalid empty debug_traceBlockByNumber response.",
+          ),
         );
       }
 
-      const result: SyncTrace[] = [];
+      return Effect.try({
+        try: () => {
+          const result: SyncTrace[] = [];
 
-      const dfs = (
-        frames: (typeof traces)[number]["result"][],
-        transactionHash: Hex,
-        parentFrame: (typeof traces)[number]["result"] | undefined,
-        parentTraceAddress: number[],
-      ) => {
-        for (const [index, frame] of frames.entries()) {
-          // Note: Reverted traces and all of their children are excluded.
-          if (frame.error !== undefined) continue;
+          const dfs = (
+            frames: (typeof traces)[number]["result"][],
+            transactionHash: Hex,
+            parentFrame: (typeof traces)[number]["result"] | undefined,
+            parentTraceAddress: number[],
+          ) => {
+            for (const [index, frame] of frames.entries()) {
+              // Note: Reverted traces and all of their children are excluded.
+              if (frame.error !== undefined) continue;
 
-          const traceAddress = parentFrame
-            ? [...parentTraceAddress, index]
-            : [];
-          (frame as typeof frame & { traceAddress: number[] }).traceAddress =
-            traceAddress;
+              const traceAddress = parentFrame
+                ? [...parentTraceAddress, index]
+                : [];
+              (
+                frame as typeof frame & { traceAddress: number[] }
+              ).traceAddress = traceAddress;
 
-          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+              result.push({
+                trace: frame as SyncTrace["trace"],
+                transactionHash,
+              });
 
-          if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame, traceAddress);
+              if (frame.calls) {
+                dfs(frame.calls, transactionHash, frame, traceAddress);
+              }
+            }
+          };
+
+          for (const trace of traces) {
+            dfs([trace.result], trace.txHash, undefined, []);
           }
-        }
-      };
 
-      for (const trace of traces) {
-        dfs([trace.result], trace.txHash, undefined, []);
-      }
-
-      return result.map((trace) =>
-        standardizeTrace(trace, {
-          method: "debug_traceBlockByNumber",
-          params,
-        }),
-      );
-    });
+          return result.map((trace) =>
+            standardizeTrace(trace, {
+              method: "debug_traceBlockByNumber",
+              params,
+            }),
+          );
+        },
+        catch: (error) => error as Error,
+      });
+    }),
+  );
 
 /**
  * Helper function for "debug_traceBlockByHash" request.
@@ -414,53 +518,62 @@ export const debug_traceBlockByHash = (
     { method: "debug_traceBlockByHash" }
   >["params"],
   context?: Parameters<Rpc["request"]>[1],
-): Promise<SyncTrace[]> =>
-  rpc
-    .request({ method: "debug_traceBlockByHash", params }, context)
-    .then((traces) => {
+): Effect.Effect<SyncTrace[], Error> =>
+  rpc.request({ method: "debug_traceBlockByHash", params }, context).pipe(
+    Effect.flatMap((traces) => {
       if (traces === null || traces === undefined) {
-        throw new Error(
-          "Received invalid empty debug_traceBlockByHash response.",
+        return Effect.fail(
+          new Error("Received invalid empty debug_traceBlockByHash response."),
         );
       }
 
-      const result: SyncTrace[] = [];
+      return Effect.try({
+        try: () => {
+          const result: SyncTrace[] = [];
 
-      const dfs = (
-        frames: (typeof traces)[number]["result"][],
-        transactionHash: Hex,
-        parentFrame: (typeof traces)[number]["result"] | undefined,
-        parentTraceAddress: number[],
-      ) => {
-        for (const [index, frame] of frames.entries()) {
-          // Note: Reverted traces and all of their children are excluded.
-          if (frame.error !== undefined) continue;
+          const dfs = (
+            frames: (typeof traces)[number]["result"][],
+            transactionHash: Hex,
+            parentFrame: (typeof traces)[number]["result"] | undefined,
+            parentTraceAddress: number[],
+          ) => {
+            for (const [index, frame] of frames.entries()) {
+              // Note: Reverted traces and all of their children are excluded.
+              if (frame.error !== undefined) continue;
 
-          const traceAddress = parentFrame
-            ? [...parentTraceAddress, index]
-            : [];
-          (frame as typeof frame & { traceAddress: number[] }).traceAddress =
-            traceAddress;
+              const traceAddress = parentFrame
+                ? [...parentTraceAddress, index]
+                : [];
+              (
+                frame as typeof frame & { traceAddress: number[] }
+              ).traceAddress = traceAddress;
 
-          result.push({ trace: frame as SyncTrace["trace"], transactionHash });
+              result.push({
+                trace: frame as SyncTrace["trace"],
+                transactionHash,
+              });
 
-          if (frame.calls) {
-            dfs(frame.calls, transactionHash, frame, traceAddress);
+              if (frame.calls) {
+                dfs(frame.calls, transactionHash, frame, traceAddress);
+              }
+            }
+          };
+
+          for (const trace of traces) {
+            dfs([trace.result], trace.txHash, undefined, []);
           }
-        }
-      };
 
-      for (const trace of traces) {
-        dfs([trace.result], trace.txHash, undefined, []);
-      }
-
-      return result.map((trace) =>
-        standardizeTrace(trace, {
-          method: "debug_traceBlockByHash",
-          params,
-        }),
-      );
-    });
+          return result.map((trace) =>
+            standardizeTrace(trace, {
+              method: "debug_traceBlockByHash",
+              params,
+            }),
+          );
+        },
+        catch: (error) => error as Error,
+      });
+    }),
+  );
 
 /**
  * Validate that the transactions are consistent with the block.
@@ -471,33 +584,35 @@ export const validateTransactionsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
-) => {
-  for (const [index, transaction] of block.transactions.entries()) {
-    if (block.hash !== transaction.blockHash) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockHash' of ${transaction.blockHash}, but the block itself has a 'block.hash' of ${block.hash}.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(request),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
+): Effect.Effect<void, RpcProviderError> =>
+  Effect.suspend(() => {
+    for (const [index, transaction] of block.transactions.entries()) {
+      if (block.hash !== transaction.blockHash) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockHash' of ${transaction.blockHash}, but the block itself has a 'block.hash' of ${block.hash}.`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(request),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      }
 
-    if (block.number !== transaction.blockNumber) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockNumber' of ${transaction.blockNumber} (${hexToNumber(transaction.blockNumber)}), but the block itself has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(request),
-      ];
-      error.stack = undefined;
-      throw error;
+      if (block.number !== transaction.blockNumber) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The transaction at index ${index} of the 'block.transactions' array has a 'transaction.blockNumber' of ${transaction.blockNumber} (${hexToNumber(transaction.blockNumber)}), but the block itself has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(request),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      }
     }
-  }
-};
+    return Effect.void;
+  });
 
 /**
  * Validate that the logs are consistent with the block.
@@ -512,46 +627,19 @@ export const validateLogsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
-) => {
-  const transactionByIndex = new Map<Hex, SyncTransaction>(
-    block.transactions.map((transaction) => [
-      transaction.transactionIndex,
-      transaction,
-    ]),
-  );
+): Effect.Effect<void, RpcProviderError> =>
+  Effect.suspend(() => {
+    const transactionByIndex = new Map<Hex, SyncTransaction>(
+      block.transactions.map((transaction) => [
+        transaction.transactionIndex,
+        transaction,
+      ]),
+    );
 
-  for (const log of logs) {
-    if (block.hash !== log.blockHash) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockHash' of ${log.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(logsRequest),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
-
-    if (block.number !== log.blockNumber) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockNumber' of ${log.blockNumber} (${hexToNumber(log.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(logsRequest),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
-
-    if (log.transactionHash !== zeroHash) {
-      const transaction = transactionByIndex.get(log.transactionIndex);
-      if (transaction === undefined) {
+    for (const log of logs) {
+      if (block.hash !== log.blockHash) {
         const error = new RpcProviderError(
-          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.transactionIndex' of ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
+          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockHash' of ${log.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
         );
         error.meta = [
           "Please report this error to the RPC operator.",
@@ -559,10 +647,12 @@ export const validateLogsAndBlock = (
           requestText(logsRequest),
         ];
         error.stack = undefined;
-        throw error;
-      } else if (transaction.hash !== log.transactionHash) {
+        return Effect.fail(error);
+      }
+
+      if (block.number !== log.blockNumber) {
         const error = new RpcProviderError(
-          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the log has a 'log.transactionHash' of ${log.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
+          `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.blockNumber' of ${log.blockNumber} (${hexToNumber(log.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
         );
         error.meta = [
           "Please report this error to the RPC operator.",
@@ -570,11 +660,38 @@ export const validateLogsAndBlock = (
           requestText(logsRequest),
         ];
         error.stack = undefined;
-        throw error;
+        return Effect.fail(error);
+      }
+
+      if (log.transactionHash !== zeroHash) {
+        const transaction = transactionByIndex.get(log.transactionIndex);
+        if (transaction === undefined) {
+          const error = new RpcProviderError(
+            `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) has a 'log.transactionIndex' of ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
+          );
+          error.meta = [
+            "Please report this error to the RPC operator.",
+            requestText(blockRequest),
+            requestText(logsRequest),
+          ];
+          error.stack = undefined;
+          return Effect.fail(error);
+        } else if (transaction.hash !== log.transactionHash) {
+          const error = new RpcProviderError(
+            `Inconsistent RPC response data. The log with 'logIndex' ${log.logIndex} (${hexToNumber(log.logIndex)}) matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${log.transactionIndex} (${hexToNumber(log.transactionIndex)}), but the log has a 'log.transactionHash' of ${log.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
+          );
+          error.meta = [
+            "Please report this error to the RPC operator.",
+            requestText(blockRequest),
+            requestText(logsRequest),
+          ];
+          error.stack = undefined;
+          return Effect.fail(error);
+        }
       }
     }
-  }
-};
+    return Effect.void;
+  });
 
 /**
  * Validate that the traces are consistent with the block.
@@ -590,23 +707,25 @@ export const validateTracesAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
-) => {
-  const transactionHashes = new Set(block.transactions.map((t) => t.hash));
-  for (const [index, trace] of traces.entries()) {
-    if (transactionHashes.has(trace.transactionHash) === false) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The top-level trace at array index ${index} has a 'transactionHash' of ${trace.transactionHash}, but the associated 'block.transactions' array does not contain a transaction matching that hash.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(tracesRequest),
-      ];
-      error.stack = undefined;
-      throw error;
+): Effect.Effect<void, RpcProviderError> =>
+  Effect.suspend(() => {
+    const transactionHashes = new Set(block.transactions.map((t) => t.hash));
+    for (const [index, trace] of traces.entries()) {
+      if (transactionHashes.has(trace.transactionHash) === false) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The top-level trace at array index ${index} has a 'transactionHash' of ${trace.transactionHash}, but the associated 'block.transactions' array does not contain a transaction matching that hash.`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(blockRequest),
+          requestText(tracesRequest),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      }
     }
-  }
-};
+    return Effect.void;
+  });
 
 /**
  * Validate that the receipts are consistent with the block.
@@ -622,83 +741,85 @@ export const validateReceiptsAndBlock = (
     RequestParameters,
     { method: "eth_getBlockByNumber" | "eth_getBlockByHash" }
   >,
-) => {
-  const transactionByIndex = new Map<Hex, SyncTransaction>(
-    block.transactions.map((transaction) => [
-      transaction.transactionIndex,
-      transaction,
-    ]),
-  );
-
-  for (const [index, receipt] of receipts.entries()) {
-    if (block.hash !== receipt.blockHash) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockHash' of ${receipt.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
-
-    if (block.number !== receipt.blockNumber) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockNumber' of ${receipt.blockNumber} (${hexToNumber(receipt.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
-
-    const transaction = transactionByIndex.get(receipt.transactionIndex);
-    if (transaction === undefined) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.transactionIndex' of ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
-      ];
-      error.stack = undefined;
-      throw error;
-    } else if (transaction.hash !== receipt.transactionHash) {
-      const error = new RpcProviderError(
-        `Inconsistent RPC response data. The receipt at array index ${index} matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the receipt has a 'receipt.transactionHash' of ${receipt.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(blockRequest),
-        requestText(receiptsRequest),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
-  }
-
-  if (
-    receiptsRequest.method === "eth_getBlockReceipts" &&
-    block.transactions.length !== receipts.length
-  ) {
-    const error = new RpcProviderError(
-      `Inconsistent RPC response data. The receipts array has length ${receipts.length}, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
+): Effect.Effect<void, RpcProviderError> =>
+  Effect.suspend(() => {
+    const transactionByIndex = new Map<Hex, SyncTransaction>(
+      block.transactions.map((transaction) => [
+        transaction.transactionIndex,
+        transaction,
+      ]),
     );
-    error.meta = [
-      "Please report this error to the RPC operator.",
-      requestText(blockRequest),
-      requestText(receiptsRequest),
-    ];
-    error.stack = undefined;
-    throw error;
-  }
-};
+
+    for (const [index, receipt] of receipts.entries()) {
+      if (block.hash !== receipt.blockHash) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockHash' of ${receipt.blockHash}, but the associated block has a 'block.hash' of ${block.hash}.`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(blockRequest),
+          requestText(receiptsRequest),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      }
+
+      if (block.number !== receipt.blockNumber) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.blockNumber' of ${receipt.blockNumber} (${hexToNumber(receipt.blockNumber)}), but the associated block has a 'block.number' of ${block.number} (${hexToNumber(block.number)}).`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(blockRequest),
+          requestText(receiptsRequest),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      }
+
+      const transaction = transactionByIndex.get(receipt.transactionIndex);
+      if (transaction === undefined) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The receipt at array index ${index} has a 'receipt.transactionIndex' of ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the associated 'block.transactions' array does not contain a transaction matching that 'transactionIndex'.`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(blockRequest),
+          requestText(receiptsRequest),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      } else if (transaction.hash !== receipt.transactionHash) {
+        const error = new RpcProviderError(
+          `Inconsistent RPC response data. The receipt at array index ${index} matches a transaction in the associated 'block.transactions' array by 'transactionIndex' ${receipt.transactionIndex} (${hexToNumber(receipt.transactionIndex)}), but the receipt has a 'receipt.transactionHash' of ${receipt.transactionHash} while the transaction has a 'transaction.hash' of ${transaction.hash}.`,
+        );
+        error.meta = [
+          "Please report this error to the RPC operator.",
+          requestText(blockRequest),
+          requestText(receiptsRequest),
+        ];
+        error.stack = undefined;
+        return Effect.fail(error);
+      }
+    }
+
+    if (
+      receiptsRequest.method === "eth_getBlockReceipts" &&
+      block.transactions.length !== receipts.length
+    ) {
+      const error = new RpcProviderError(
+        `Inconsistent RPC response data. The receipts array has length ${receipts.length}, but the associated 'block.transactions' array has length ${block.transactions.length}.`,
+      );
+      error.meta = [
+        "Please report this error to the RPC operator.",
+        requestText(blockRequest),
+        requestText(receiptsRequest),
+      ];
+      error.stack = undefined;
+      return Effect.fail(error);
+    }
+    return Effect.void;
+  });
 
 /**
  * Validate required block properties and set non-required properties.

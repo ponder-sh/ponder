@@ -1,5 +1,5 @@
 import { vi } from "bun:test";
-import { Layer } from "effect";
+import { Effect, Layer, Stream } from "effect";
 import {
   type Address,
   getAbiItem,
@@ -59,23 +59,22 @@ export function createStubRpc({ latestBlock }: { latestBlock: number }): Rpc {
   const toHash = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
   return {
     hostnames: [],
-    request: async ({ method, params }: { method: string; params?: any }) => {
+    request: ({ method, params }: { method: string; params?: any }) => {
       if (method !== "eth_getBlockByNumber") {
-        throw new Error(`Unexpected RPC method ${method}`);
+        return Effect.fail(new Error(`Unexpected RPC method ${method}`));
       }
       const number =
         params[0] === "latest" ? latestBlock : Number.parseInt(params[0], 16);
-      return {
+      return Effect.succeed({
         hash: toHash(number),
         parentHash: toHash(Math.max(number - 1, 0)),
         number: `0x${number.toString(16)}`,
         timestamp: `0x${number.toString(16)}`,
         logsBloom: `0x${"0".repeat(512)}`,
         transactions: [],
-      };
+      });
     },
-    subscribe: () => {},
-    unsubscribe: async () => {},
+    subscribe: Stream.empty,
   } as unknown as Rpc;
 }
 

@@ -1,93 +1,74 @@
 import { URL } from "node:url";
-import { HttpRequestError, RpcRequestError, TimeoutError } from "viem";
-import {
-  type HttpRequestParameters,
-  type HttpRequestReturnType,
-  type HttpRpcClientOptions,
-  stringify,
-} from "viem/utils";
-import type { Common } from "@/internal/common.js";
+import { Effect } from "effect";
 import type { Chain } from "@/internal/types.js";
+import { redactError } from "@/utils/redact.js";
+import {
+  RpcHttpError,
+  RpcNetworkError,
+  RpcResponseError,
+  RpcTimeoutError,
+  type RpcTransport,
+  type RpcTransportError,
+} from "./transport.js";
 
-export type RpcRequest = {
-  jsonrpc?: "2.0" | undefined;
-  method: string;
-  params?: any | undefined;
-  id?: number | undefined;
-};
-
-export type HttpRpcClient = {
-  request<body extends RpcRequest>(
-    params: HttpRequestParameters<body>,
-  ): Promise<HttpRequestReturnType<body>>;
-};
-
-export function getHttpRpcClient(
+/**
+ * Transport for a JSON-RPC provider over HTTP.
+ *
+ * @dev Interrupting a request aborts the fetch.
+ */
+export function makeHttpTransport(
   url: string,
-  options: HttpRpcClientOptions & { common: Common; chain: Chain },
-): HttpRpcClient {
-  const { common, chain } = options;
-  const timeoutMs = options?.timeout ?? 10_000;
+  { chain, timeout = 10_000 }: { chain: Chain; timeout?: number },
+): RpcTransport {
+  const hostname = new URL(url).hostname;
   let id = 1;
+
   return {
-    async request(params) {
-      // biome-ignore lint/suspicious/noAsyncPromiseExecutor: The Promise executor intentionally wraps async request handling.
-      return new Promise(async (resolve, reject) => {
-        let isTimeoutRejected = false;
-        const { body } = params;
+    hostname,
+    request(body, requestId) {
+      const { method } = body;
 
-        const fetchOptions = {
-          ...(params.fetchOptions ?? {}),
-        };
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+      let isTimeoutReadingBody = false;
 
-        const { headers, method } = fetchOptions;
+      return Effect.tryPromise({
+        try: async (signal) => {
+          // Note: `signal` is aborted when the request is interrupted, which includes timing out.
+          signal.addEventListener("abort", () => {
+            if (reader) {
+              isTimeoutReadingBody = true;
+              reader.cancel("Timeout").catch(() => {});
+            }
+          });
 
-        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(async () => {
-          isTimeoutRejected = true;
-          controller.abort();
-
-          reject(new TimeoutError({ body, url }));
-
-          if (reader) {
-            common.logger.warn({
-              msg: "JSON-RPC request timed out reading response body",
-              chain: chain.name,
-              chain_id: chain.id,
-              hostname: new URL(url).hostname,
-              // @ts-expect-error
-              request_id: headers ? headers["X-Request-ID"] : undefined,
-              method: body.method,
-              request: JSON.stringify(body),
-              duration: timeoutMs,
+          let response: Response;
+          try {
+            response = await fetch(
+              new Request(url, {
+                body: JSON.stringify({ jsonrpc: "2.0", id: id++, ...body }),
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Request-ID": requestId,
+                },
+                method: "POST",
+                signal,
+              }),
+            );
+          } catch (cause) {
+            throw new RpcNetworkError({
+              method,
+              hostname,
+              cause: redactError(cause),
             });
-            try {
-              await reader.cancel("Timeout");
-            } catch {}
           }
-        }, timeoutMs);
-
-        try {
-          const init: RequestInit = {
-            body: stringify({
-              jsonrpc: "2.0",
-              id: body.id ?? id++,
-              ...body,
-            }),
-            headers: {
-              "Content-Type": "application/json",
-              ...headers,
-            },
-            method: method || "POST",
-            signal: controller.signal,
-          };
-          const request = new Request(url, init);
-          const response = await fetch(request);
 
           const responseBody = response.body;
           if (responseBody === null) {
-            throw new Error("Response body is missing.");
+            throw new RpcNetworkError({
+              method,
+              hostname,
+              cause: new Error("Response body is missing."),
+            });
           }
           reader = responseBody.getReader();
           const chunks: Uint8Array[] = [];
@@ -100,12 +81,16 @@ export function getHttpRpcClient(
               chunks.push(value);
               totalLength += value.length;
             }
+          } catch (cause) {
+            throw new RpcNetworkError({
+              method,
+              hostname,
+              cause: redactError(cause),
+            });
           } finally {
             reader.releaseLock();
             reader = undefined;
           }
-
-          if (isTimeoutRejected) return;
 
           let offset = 0;
           const fullData = new Uint8Array(totalLength);
@@ -116,53 +101,76 @@ export function getHttpRpcClient(
 
           const text = new TextDecoder().decode(fullData);
 
-          let data: any = text;
+          let data: any;
           try {
-            data = JSON.parse(data || "{}");
-          } catch (err) {
-            if (response.ok) throw err;
-            data = { error: data };
+            data = JSON.parse(text || "{}");
+          } catch {
+            throw new RpcHttpError({
+              method,
+              hostname,
+              status: response.status,
+              body: text,
+            });
           }
 
-          clearTimeout(timeoutId);
-
           if (!response.ok) {
-            reject(
-              new HttpRequestError({
-                body,
-                details: stringify(data.error) || response.statusText,
-                headers: response.headers,
-                status: response.status,
-                url,
-              }),
-            );
-            return;
+            throw new RpcHttpError({
+              method,
+              hostname,
+              status: response.status,
+              body:
+                data.error === undefined
+                  ? response.statusText
+                  : JSON.stringify(data.error),
+            });
           }
 
           if (data.error) {
-            reject(
-              new RpcRequestError({
-                body,
-                error: data.error,
-                url: url,
+            throw new RpcResponseError({
+              method,
+              hostname,
+              code: data.error.code,
+              details: String(data.error.message),
+              data: data.error.data,
+            });
+          }
+
+          return data.result as unknown;
+        },
+        catch: (error) =>
+          error instanceof RpcNetworkError ||
+          error instanceof RpcHttpError ||
+          error instanceof RpcResponseError
+            ? error
+            : new RpcNetworkError({
+                method,
+                hostname,
+                cause: redactError(error),
               }),
-            );
-          } else {
-            resolve(data.result);
-          }
-        } catch (_error) {
-          const error = _error as Error;
-          clearTimeout(timeoutId);
+      }).pipe(
+        Effect.timeoutOrElse({
+          duration: timeout,
+          orElse: () =>
+            Effect.gen(function* () {
+              if (isTimeoutReadingBody) {
+                yield* Effect.logWarning({
+                  msg: "JSON-RPC request timed out reading response body",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname,
+                  request_id: requestId,
+                  method,
+                  request: JSON.stringify(body),
+                  duration: timeout,
+                });
+              }
 
-          if (isTimeoutRejected) return;
-
-          if (error.name === "AbortError") {
-            reject(new TimeoutError({ body, url }));
-          }
-          if (error instanceof HttpRequestError) reject(error);
-          reject(new HttpRequestError({ body, cause: error, url }));
-        }
-      });
+              return yield* Effect.fail<RpcTransportError>(
+                new RpcTimeoutError({ method, hostname, timeout }),
+              );
+            }),
+        }),
+      );
     },
   };
 }

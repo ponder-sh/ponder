@@ -1,39 +1,50 @@
-import crypto, { type UUID } from "node:crypto";
 import url from "node:url";
 import {
   type GetLogsRetryHelperParameters,
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
-  BlockNotFoundError,
-  custom,
+  Clock,
+  Effect,
+  Exit,
+  Fiber,
+  FiberSet,
+  Option,
+  Queue,
+  Random,
+  Result,
+  type Scope,
+  Semaphore,
+  Stream,
+} from "effect";
+import {
   type EIP1193Parameters,
-  type EIP1193RequestFn,
   type Hash,
-  HttpRequestError,
   hexToNumber,
   isHex,
-  JsonRpcVersionUnsupportedError,
   type LogTopic,
-  MethodNotFoundRpcError,
-  MethodNotSupportedRpcError,
-  ParseRpcError,
   type PublicRpcSchema,
   type RpcError,
   type RpcTransactionReceipt,
-  TimeoutError,
-  webSocket,
 } from "viem";
-import { WebSocket } from "ws";
-import type { Common } from "@/internal/common.js";
-import type { Logger } from "@/internal/logger.js";
+import { Metrics } from "@/internal/metrics.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
-import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
-import { createQueue } from "@/utils/queue.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+import {
+  BlockNotFoundError,
+  eth_getBlockByNumber,
+  standardizeBlock,
+} from "@/rpc/actions.js";
+import { randomUUID } from "@/utils/random.js";
+import { startClockEffect } from "@/utils/timer.js";
 import type { DebugRpcSchema } from "../utils/debug.js";
-import { getHttpRpcClient } from "./http.js";
+import { makeHttpTransport } from "./http.js";
+import {
+  makeCustomTransport,
+  RpcNetworkError,
+  RpcTimeoutError,
+  type RpcTransport,
+} from "./transport.js";
+import { makeWebSocketTransport, WebSocketClosedError } from "./webSocket.js";
 
 export type RpcSchema = [
   ...PublicRpcSchema,
@@ -69,17 +80,28 @@ export const sanitizeLogTopics = <
   return sanitizedTopics as topics;
 };
 
+export type RequestContext = {
+  /** Annotations for the logs of the request, such as `{ action: "fetch_block_data" }`. */
+  logAnnotations?: Record<string, unknown>;
+  /** Retry when the block in a block request is `null`. */
+  retryNullBlockRequest?: boolean;
+};
+
 export type Rpc = {
   hostnames: string[];
   request: <TParameters extends RequestParameters>(
     parameters: TParameters,
-    context?: { logger?: Logger; retryNullBlockRequest?: boolean },
-  ) => Promise<RequestReturnType<TParameters["method"]>>;
-  subscribe: (params: {
-    onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
-    onError: (error: Error) => void;
-  }) => void;
-  unsubscribe: () => Promise<void>;
+    context?: RequestContext,
+  ) => Effect.Effect<RequestReturnType<TParameters["method"]>, Error>;
+  /**
+   * Stream of new blocks, from a WebSocket `newHeads` subscription, or from
+   * polling the latest block. A failed poll is emitted as a failure, and
+   * polling continues.
+   *
+   * @dev Each run of the stream has its own subscription, which ends when the
+   * stream ends.
+   */
+  subscribe: Stream.Stream<Result.Result<SyncBlock | SyncBlockHeader, Error>>;
 };
 
 const RETRY_COUNT = 9;
@@ -126,7 +148,7 @@ type Bucket = {
   /** Maximum requests per second (dynamic). */
   rpsLimit: number;
 
-  request: EIP1193RequestFn<RpcSchema>;
+  request: RpcTransport["request"];
 };
 
 const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
@@ -151,19 +173,21 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
 
 /**
  * Return `true` if the bucket is available to send a request.
+ *
+ * @param now The current time in milliseconds.
  */
-const isAvailable = (bucket: Bucket) => {
+const isAvailable = (bucket: Bucket, now: number) => {
   if (bucket.isActive === false) return false;
 
-  const now = Math.floor(Date.now() / 1000);
-  const currentRPS = bucket.rps.find((r) => r.timestamp === now);
+  const timestamp = Math.floor(now / 1000);
+  const currentRPS = bucket.rps.find((r) => r.timestamp === timestamp);
 
   if (currentRPS && currentRPS.count + 1 > bucket.rpsLimit) {
     return false;
   }
 
-  if (bucket.rps.length > 0 && bucket.rps[0]!.timestamp < now) {
-    const elapsed = now - bucket.rps[0]!.timestamp;
+  if (bucket.rps.length > 0 && bucket.rps[0]!.timestamp < timestamp) {
+    const elapsed = timestamp - bucket.rps[0]!.timestamp;
     const totalCount = bucket.rps.reduce((acc, rps) => acc + rps.count, 0);
 
     if (totalCount > bucket.rpsLimit * (1 + elapsed)) {
@@ -178,798 +202,759 @@ const isAvailable = (bucket: Bucket) => {
   return true;
 };
 
+/**
+ * Run `onSlow` if `effect` takes longer than `duration` milliseconds.
+ */
+const warnIfSlow =
+  (duration: number, onSlow: Effect.Effect<void>) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    Effect.gen(function* () {
+      const fiber = yield* Effect.forkChild(
+        Effect.sleep(duration).pipe(Effect.andThen(onSlow)),
+      );
+      return yield* effect.pipe(Effect.ensuring(Fiber.interrupt(fiber)));
+    });
+
+/**
+ * Create a load-balanced JSON-RPC client for `chain`.
+ *
+ * @dev Reactivation timers and subscriptions stop when the scope closes.
+ */
 export const createRpc = ({
-  common,
   chain,
   concurrency = 25,
 }: {
-  common: Common;
   chain: Chain;
   concurrency?: number;
-}): Rpc => {
-  let backends: { request: EIP1193RequestFn<RpcSchema>; hostname: string }[];
+}): Effect.Effect<Rpc, never, Metrics | Scope.Scope> =>
+  Effect.gen(function* () {
+    const metrics = yield* Metrics;
+    /** Background fibers that stop when the scope closes. */
+    const fibers = yield* FiberSet.make();
 
-  let requestId: UUID | undefined;
+    const transports: RpcTransport[] = [];
 
-  if (typeof chain.rpc === "string") {
-    const protocol = new url.URL(chain.rpc).protocol;
-    const hostname = new url.URL(chain.rpc).hostname;
-    if (protocol === "https:" || protocol === "http:") {
-      const httpRpcClient = getHttpRpcClient(chain.rpc, {
-        common,
-        chain,
-        timeout: 10_000,
-      });
-      backends = [
-        {
-          request: custom({
-            request(body) {
-              if (requestId) {
-                return httpRpcClient.request({
-                  body,
-                  fetchOptions: { headers: { "X-Request-ID": requestId } },
-                });
-              }
-              return httpRpcClient.request({ body });
-            },
-          })({
-            chain: chain.viemChain,
-            retryCount: 0,
-          }).request,
-          hostname,
-        },
-      ];
-    } else if (protocol === "wss:" || protocol === "ws:") {
-      backends = [
-        {
-          request: webSocket(chain.rpc)({
-            chain: chain.viemChain,
-            retryCount: 0,
-            timeout: 10_000,
-          }).request,
-          hostname,
-        },
-      ];
-    } else {
-      throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
-    }
-  } else if (Array.isArray(chain.rpc)) {
-    backends = chain.rpc.map((rpc) => {
-      const protocol = new url.URL(rpc).protocol;
-      const hostname = new url.URL(rpc).hostname;
+    if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
+      const rpcs = typeof chain.rpc === "string" ? [chain.rpc] : chain.rpc;
+      for (const rpc of rpcs) {
+        const protocol = new url.URL(rpc).protocol;
 
-      if (protocol === "https:" || protocol === "http:") {
-        const httpRpcClient = getHttpRpcClient(rpc, {
-          common,
-          chain,
-          timeout: 10_000,
-        });
-        return {
-          request: custom({
-            request(body) {
-              if (requestId) {
-                return httpRpcClient.request({
-                  body,
-                  fetchOptions: { headers: { "X-Request-ID": requestId } },
-                });
-              }
-              return httpRpcClient.request({ body });
-            },
-          })({
-            chain: chain.viemChain,
-            retryCount: 0,
-          }).request,
-          hostname,
-        };
-      } else if (protocol === "wss:" || protocol === "ws:") {
-        return {
-          request: webSocket(rpc)({
-            chain: chain.viemChain,
-            retryCount: 0,
-            timeout: 10_000,
-          }).request,
-          hostname,
-        };
-      } else {
-        throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
+        if (protocol === "https:" || protocol === "http:") {
+          transports.push(makeHttpTransport(rpc, { chain, timeout: 10_000 }));
+        } else if (protocol === "wss:" || protocol === "ws:") {
+          transports.push(
+            yield* makeWebSocketTransport(rpc, { chain, timeout: 10_000 }),
+          );
+        } else {
+          throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
+        }
       }
-    });
-  } else {
-    backends = [
-      {
-        request: chain.rpc({
-          chain: chain.viemChain,
-          retryCount: 0,
-          timeout: 10_000,
-        }).request,
-        hostname: "custom_transport",
-      },
-    ];
-  }
-
-  if (typeof chain.ws === "string") {
-    const protocol = new url.URL(chain.ws).protocol;
-
-    if (protocol !== "wss:" && protocol !== "ws:") {
-      throw new Error(
-        `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
+    } else {
+      transports.push(
+        makeCustomTransport(
+          chain.rpc({
+            chain: chain.viemChain,
+            retryCount: 0,
+            timeout: 10_000,
+          }).request,
+        ),
       );
     }
-  }
 
-  const buckets: Bucket[] = backends.map(
-    ({ request, hostname }, index) =>
-      ({
-        index,
-        hostname,
-        reactivationDelay: INITIAL_REACTIVATION_DELAY,
+    if (typeof chain.ws === "string") {
+      const protocol = new url.URL(chain.ws).protocol;
 
-        activeConnections: 0,
-        isActive: true,
-        isWarmingUp: false,
+      if (protocol !== "wss:" && protocol !== "ws:") {
+        throw new Error(
+          `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
+        );
+      }
+    }
 
-        latencyMetadata: {
-          latencies: [],
-          successfulLatencies: 0,
-          latencySum: 0,
-        },
-        expectedLatency: 200,
+    const buckets: Bucket[] = transports.map(
+      ({ request, hostname }, index) =>
+        ({
+          index,
+          hostname,
+          reactivationDelay: INITIAL_REACTIVATION_DELAY,
 
-        rps: [],
-        consecutiveSuccessfulRequests: 0,
-        rpsLimit: INITIAL_MAX_RPS,
+          activeConnections: 0,
+          isActive: true,
+          isWarmingUp: false,
 
-        request,
-      }) satisfies Bucket,
-  );
+          latencyMetadata: {
+            latencies: [],
+            successfulLatencies: 0,
+            latencySum: 0,
+          },
+          expectedLatency: 200,
 
-  let noAvailableBucketsTimer: NodeJS.Timeout | undefined;
+          rps: [],
+          consecutiveSuccessfulRequests: 0,
+          rpsLimit: INITIAL_MAX_RPS,
 
-  /** Tracks all active bucket reactivation timeouts to cleanup during shutdown */
-  const timeouts = new Set<NodeJS.Timeout>();
+          request,
+        }) satisfies Bucket,
+    );
 
-  const scheduleBucketActivation = (bucket: Bucket) => {
-    const delay = bucket.reactivationDelay;
-    const timeoutId = setTimeout(() => {
-      bucket.isActive = true;
-      bucket.isWarmingUp = true;
-      timeouts.delete(timeoutId);
-      common.logger.debug({
-        msg: "JSON-RPC provider reactivated after rate limiting",
-        chain: chain.name,
-        chain_id: chain.id,
-        hostname: bucket.hostname,
-        retry_delay: Math.round(delay),
+    let noAvailableBucketsFiber: Fiber.Fiber<void> | undefined;
+
+    const scheduleBucketActivation = (bucket: Bucket) =>
+      Effect.gen(function* () {
+        const delay = bucket.reactivationDelay;
+        yield* FiberSet.run(
+          fibers,
+          Effect.sleep(delay).pipe(
+            Effect.andThen(
+              Effect.gen(function* () {
+                bucket.isActive = true;
+                bucket.isWarmingUp = true;
+                yield* Effect.logDebug({
+                  msg: "JSON-RPC provider reactivated after rate limiting",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname: bucket.hostname,
+                  retry_delay: Math.round(delay),
+                });
+              }),
+            ),
+          ),
+        );
+
+        yield* Effect.logDebug({
+          msg: "JSON-RPC provider deactivated due to rate limiting",
+          chain: chain.name,
+          chain_id: chain.id,
+          hostname: bucket.hostname,
+          retry_delay: Math.round(delay),
+        });
       });
-    }, delay);
 
-    common.logger.debug({
-      msg: "JSON-RPC provider deactivated due to rate limiting",
-      chain: chain.name,
-      chain_id: chain.id,
-      hostname: bucket.hostname,
-      retry_delay: Math.round(delay),
+    /**
+     * Wait for an available bucket. `previous` is the bucket of the failed
+     * attempt that is retried.
+     */
+    const getBucket = Effect.fnUntraced(function* (previous?: Bucket) {
+      let availableBuckets: Bucket[];
+
+      // Note: wait for the next event loop to ensure that the bucket rps are updated
+      yield* Effect.yieldNow;
+
+      while (true) {
+        // Remove old request per second data
+        const now = yield* Clock.currentTimeMillis;
+        const timestamp = Math.floor(now / 1000);
+        for (const bucket of buckets) {
+          bucket.rps = bucket.rps.filter((r) => r.timestamp > timestamp - 10);
+        }
+
+        availableBuckets = buckets.filter((bucket) => isAvailable(bucket, now));
+
+        if (availableBuckets.length > 0) {
+          break;
+        }
+
+        if (noAvailableBucketsFiber === undefined) {
+          noAvailableBucketsFiber = yield* FiberSet.run(
+            fibers,
+            Effect.sleep(5_000).pipe(
+              Effect.andThen(
+                Effect.gen(function* () {
+                  yield* Effect.logWarning({
+                    msg: "All JSON-RPC providers are inactive due to rate limiting",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    rate_limits: JSON.stringify(buckets.map((b) => b.rpsLimit)),
+                  });
+                }),
+              ),
+            ),
+          );
+        }
+
+        yield* Effect.sleep(20);
+      }
+
+      if (noAvailableBucketsFiber !== undefined) {
+        const fiber = noAvailableBucketsFiber;
+        noAvailableBucketsFiber = undefined;
+        yield* Fiber.interrupt(fiber);
+      }
+
+      // Note: A retry goes to another bucket if one is available. The failed
+      // bucket is often still the fastest, and active again after the backoff.
+      if (previous !== undefined && availableBuckets.length > 1) {
+        availableBuckets = availableBuckets.filter((b) => b !== previous);
+      }
+
+      if ((yield* Random.next) < EPSILON) {
+        const randomBucket =
+          availableBuckets[
+            Math.floor((yield* Random.next) * availableBuckets.length)
+          ]!;
+        randomBucket.activeConnections++;
+        return randomBucket;
+      }
+
+      const fastestBucket = availableBuckets.reduce((fastest, current) => {
+        const currentLatency = current.expectedLatency;
+        const fastestLatency = fastest.expectedLatency;
+
+        if (currentLatency < fastestLatency * (1 - LATENCY_HURDLE_RATE)) {
+          return current;
+        }
+
+        if (
+          currentLatency <= fastestLatency &&
+          current.activeConnections < fastest.activeConnections
+        ) {
+          return current;
+        }
+
+        return fastest;
+      }, availableBuckets[0]!);
+
+      fastestBucket.activeConnections++;
+      return fastestBucket;
     });
 
-    timeouts.add(timeoutId);
-  };
+    const increaseMaxRPS = (bucket: Bucket) =>
+      Effect.gen(function* () {
+        if (bucket.rps.length < 10) return;
 
-  const getBucket = async (): Promise<Bucket> => {
-    let availableBuckets: Bucket[];
+        if (
+          bucket.consecutiveSuccessfulRequests <
+          bucket.rpsLimit * SUCCESS_MULTIPLIER
+        ) {
+          return;
+        }
 
-    // Note: wait for the next event loop to ensure that the bucket rps are updated
-    await new Promise((resolve) => setImmediate(resolve));
-
-    while (true) {
-      // Remove old request per second data
-      const timestamp = Math.floor(Date.now() / 1000);
-      for (const bucket of buckets) {
-        bucket.rps = bucket.rps.filter((r) => r.timestamp > timestamp - 10);
-      }
-
-      availableBuckets = buckets.filter(isAvailable);
-
-      if (availableBuckets.length > 0) {
-        break;
-      }
-
-      if (noAvailableBucketsTimer === undefined) {
-        noAvailableBucketsTimer = setTimeout(() => {
-          common.logger.warn({
-            msg: "All JSON-RPC providers are inactive due to rate limiting",
-            chain: chain.name,
-            chain_id: chain.id,
-            rate_limits: JSON.stringify(buckets.map((b) => b.rpsLimit)),
-          });
-        }, 5_000);
-      }
-
-      await wait(20);
-    }
-
-    clearTimeout(noAvailableBucketsTimer);
-    noAvailableBucketsTimer = undefined;
-
-    if (Math.random() < EPSILON) {
-      const randomBucket =
-        availableBuckets[Math.floor(Math.random() * availableBuckets.length)]!;
-      randomBucket.activeConnections++;
-      return randomBucket;
-    }
-
-    const fastestBucket = availableBuckets.reduce((fastest, current) => {
-      const currentLatency = current.expectedLatency;
-      const fastestLatency = fastest.expectedLatency;
-
-      if (currentLatency < fastestLatency * (1 - LATENCY_HURDLE_RATE)) {
-        return current;
-      }
-
-      if (
-        currentLatency <= fastestLatency &&
-        current.activeConnections < fastest.activeConnections
-      ) {
-        return current;
-      }
-
-      return fastest;
-    }, availableBuckets[0]!);
-
-    fastestBucket.activeConnections++;
-    return fastestBucket;
-  };
-
-  const increaseMaxRPS = (bucket: Bucket) => {
-    if (bucket.rps.length < 10) return;
-
-    if (
-      bucket.consecutiveSuccessfulRequests <
-      bucket.rpsLimit * SUCCESS_MULTIPLIER
-    ) {
-      return;
-    }
-
-    for (const { count } of bucket.rps) {
-      if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
-        return;
-      }
-    }
-
-    bucket.rpsLimit = Math.min(bucket.rpsLimit * RPS_INCREASE_FACTOR, MAX_RPS);
-    bucket.consecutiveSuccessfulRequests = 0;
-
-    common.logger.debug({
-      msg: "Increased JSON-RPC provider RPS limit",
-      chain: chain.name,
-      chain_id: chain.id,
-      hostname: bucket.hostname,
-      rps_limit: Math.floor(bucket.rpsLimit),
-    });
-  };
-
-  const queue = createQueue<
-    Awaited<ReturnType<Rpc["request"]>>,
-    {
-      body: Parameters<Rpc["request"]>[0];
-      context?: Parameters<Rpc["request"]>[1];
-    }
-  >({
-    initialStart: true,
-    concurrency,
-    worker: async ({ body, context }) => {
-      const logger = context?.logger ?? common.logger;
-
-      for (let i = 0; i <= RETRY_COUNT; i++) {
-        let endClock = startClock();
-        const t = setTimeout(() => {
-          logger.warn({
-            msg: "Unable to find available JSON-RPC provider within expected time",
-            chain: chain.name,
-            chain_id: chain.id,
-            rate_limit: JSON.stringify(buckets.map((b) => b.rpsLimit)),
-            is_active: JSON.stringify(buckets.map((b) => b.isActive)),
-            is_warming_up: JSON.stringify(buckets.map((b) => b.isWarmingUp)),
-            duration: 15_000,
-          });
-        }, 15_000);
-        const bucket = await getBucket();
-        clearTimeout(t);
-        const getBucketDuration = endClock();
-        endClock = startClock();
-        const id = crypto.randomUUID();
-
-        const surpassTimeout = setTimeout(() => {
-          logger.warn({
-            msg: "JSON-RPC request unexpectedly surpassed timeout",
-            chain: chain.name,
-            chain_id: chain.id,
-            hostname: bucket.hostname,
-            request_id: id,
-            method: body.method,
-            duration: 15_000,
-          });
-        }, 15_000);
-
-        try {
-          logger.trace({
-            msg: "Sent JSON-RPC request",
-            chain: chain.name,
-            chain_id: chain.id,
-            hostname: bucket.hostname,
-            request_id: id,
-            method: body.method,
-            duration: getBucketDuration,
-          });
-
-          // Add request per second data
-          const timestamp = Math.floor(Date.now() / 1000);
-          if (
-            bucket.rps.length === 0 ||
-            bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
-          ) {
-            bucket.rps.push({ count: 1, timestamp });
-          } else {
-            bucket.rps[bucket.rps.length - 1]!.count++;
+        for (const { count } of bucket.rps) {
+          if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
+            return;
           }
+        }
 
-          requestId = id;
-          const response = await bucket.request(body);
+        bucket.rpsLimit = Math.min(
+          bucket.rpsLimit * RPS_INCREASE_FACTOR,
+          MAX_RPS,
+        );
+        bucket.consecutiveSuccessfulRequests = 0;
 
-          if (response === undefined) {
-            throw new Error("Response is undefined");
-          }
+        yield* Effect.logDebug({
+          msg: "Increased JSON-RPC provider RPS limit",
+          chain: chain.name,
+          chain_id: chain.id,
+          hostname: bucket.hostname,
+          rps_limit: Math.floor(bucket.rpsLimit),
+        });
+      });
 
-          if (
-            response === null &&
-            (body.method === "eth_getBlockByNumber" ||
-              body.method === "eth_getBlockByHash") &&
-            context?.retryNullBlockRequest === true
-          ) {
-            // Note: Throwing this error will cause the request to be retried.
-            throw new BlockNotFoundError({
+    const semaphore = yield* Semaphore.make(concurrency);
+
+    const request = (
+      body: RequestParameters,
+      context: Parameters<Rpc["request"]>[1],
+    ): Effect.Effect<unknown, Error> =>
+      Effect.gen(function* () {
+        const log = (log: Effect.Effect<void>) =>
+          context?.logAnnotations
+            ? Effect.annotateLogs(log, context.logAnnotations)
+            : log;
+
+        let previous: Bucket | undefined;
+
+        for (let i = 0; i <= RETRY_COUNT; i++) {
+          let endClock = yield* startClockEffect;
+          const bucket = yield* getBucket(previous).pipe(
+            warnIfSlow(
+              15_000,
+              log(
+                Effect.logWarning({
+                  msg: "Unable to find available JSON-RPC provider within expected time",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  rate_limit: JSON.stringify(buckets.map((b) => b.rpsLimit)),
+                  is_active: JSON.stringify(buckets.map((b) => b.isActive)),
+                  is_warming_up: JSON.stringify(
+                    buckets.map((b) => b.isWarmingUp),
+                  ),
+                  duration: 15_000,
+                }),
+              ),
+            ),
+          );
+          const getBucketDuration = yield* endClock;
+          endClock = yield* startClockEffect;
+          const id = yield* randomUUID;
+
+          // Note: Resolves to `None` to retry the request.
+          const response = yield* Effect.gen(function* () {
+            yield* log(
+              Effect.logTrace({
+                msg: "Sent JSON-RPC request",
+                chain: chain.name,
+                chain_id: chain.id,
+                hostname: bucket.hostname,
+                request_id: id,
+                method: body.method,
+                duration: getBucketDuration,
+              }),
+            );
+
+            // Add request per second data
+            const timestamp = Math.floor(
+              (yield* Clock.currentTimeMillis) / 1000,
+            );
+            if (
+              bucket.rps.length === 0 ||
+              bucket.rps[bucket.rps.length - 1]!.timestamp < timestamp
+            ) {
+              bucket.rps.push({ count: 1, timestamp });
+            } else {
+              bucket.rps[bucket.rps.length - 1]!.count++;
+            }
+
+            const result = yield* bucket.request(body, id).pipe(
+              Effect.flatMap((response) => {
+                if (response === undefined) {
+                  return Effect.fail(new Error("Response is undefined"));
+                }
+
+                if (
+                  response === null &&
+                  (body.method === "eth_getBlockByNumber" ||
+                    body.method === "eth_getBlockByHash") &&
+                  context?.retryNullBlockRequest === true
+                ) {
+                  // Note: Failing with this error will cause the request to be retried.
+                  return Effect.fail(
+                    new BlockNotFoundError({
+                      blockNumber: body.params[0],
+                    }),
+                  );
+                }
+
+                return Effect.succeed(response);
+              }),
+              Effect.result,
+            );
+
+            if (Result.isSuccess(result)) {
+              const duration = yield* endClock;
+
+              yield* log(
+                Effect.logTrace({
+                  msg: "Received JSON-RPC response",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname: bucket.hostname,
+                  request_id: id,
+                  method: body.method,
+                  duration,
+                }),
+              );
+
+              metrics.ponder_rpc_request_duration.observe(
+                { method: body.method, chain: chain.name },
+                duration,
+              );
+
+              addLatency(bucket, duration, true);
+
+              bucket.consecutiveSuccessfulRequests++;
+              yield* increaseMaxRPS(bucket);
+
+              bucket.isWarmingUp = false;
+              bucket.reactivationDelay = INITIAL_REACTIVATION_DELAY;
+
+              return Option.some(result.success);
+            }
+
+            const error = result.failure;
+
+            metrics.ponder_rpc_request_error_total.inc(
+              { method: body.method, chain: chain.name },
+              1,
+            );
+
+            if (
+              body.method === "eth_getLogs" &&
+              isHex(body.params[0].fromBlock) &&
+              isHex(body.params[0].toBlock) &&
+              chain.ethGetLogsBlockRange === undefined
+            ) {
+              const getLogsErrorResponse = getLogsRetryHelper({
+                params: body.params as GetLogsRetryHelperParameters["params"],
+                error: error as RpcError,
+              });
+
+              if (getLogsErrorResponse.shouldRetry) {
+                yield* Effect.logTrace({
+                  msg: "Caught eth_getLogs range error",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname: bucket.hostname,
+                  request_id: id,
+                  method: body.method,
+                  request: JSON.stringify(body),
+                  retry_ranges: JSON.stringify(getLogsErrorResponse.ranges),
+                  error: error as Error,
+                });
+
+                return yield* Effect.fail(error);
+              } else {
+                // @ts-expect-error
+                error.meta = [
+                  "Tip: Use the ethGetLogsBlockRange option to override the default behavior for this chain",
+                ];
+              }
+            }
+
+            addLatency(bucket, yield* endClock, false);
+
+            if (
               // @ts-expect-error
-              blockNumber: body.params[0],
-            });
-          }
+              error.code === 429 ||
+              // @ts-expect-error
+              error.status === 429 ||
+              isTimeoutError(error)
+            ) {
+              if (bucket.isActive) {
+                bucket.isActive = false;
+                bucket.isWarmingUp = false;
 
-          const duration = endClock();
+                bucket.rpsLimit = Math.max(
+                  bucket.rpsLimit * RPS_DECREASE_FACTOR,
+                  MIN_RPS,
+                );
+                bucket.consecutiveSuccessfulRequests = 0;
 
-          logger.trace({
-            msg: "Received JSON-RPC response",
-            chain: chain.name,
-            chain_id: chain.id,
-            hostname: bucket.hostname,
-            request_id: id,
-            method: body.method,
-            duration,
-          });
+                yield* Effect.logDebug({
+                  msg: "JSON-RPC provider rate limited",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname: bucket.hostname,
+                  rps_limit: Math.floor(bucket.rpsLimit),
+                });
 
-          common.metrics.ponder_rpc_request_duration.observe(
-            { method: body.method, chain: chain.name },
-            duration,
-          );
+                yield* scheduleBucketActivation(bucket);
 
-          addLatency(bucket, duration, true);
+                if (buckets.every((b) => b.isActive === false)) {
+                  yield* log(
+                    Effect.logWarning({
+                      msg: "All JSON-RPC providers are inactive",
+                      chain: chain.name,
+                      chain_id: chain.id,
+                    }),
+                  );
+                }
 
-          bucket.consecutiveSuccessfulRequests++;
-          increaseMaxRPS(bucket);
+                bucket.reactivationDelay = isTimeoutError(error)
+                  ? INITIAL_REACTIVATION_DELAY
+                  : Math.min(
+                      bucket.reactivationDelay * BACKOFF_FACTOR,
+                      MAX_REACTIVATION_DELAY,
+                    );
+              }
+            }
 
-          bucket.isWarmingUp = false;
-          bucket.reactivationDelay = INITIAL_REACTIVATION_DELAY;
+            if (shouldRetry(error) === false) {
+              yield* log(
+                Effect.logWarning({
+                  msg: "Received JSON-RPC error",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname: bucket.hostname,
+                  request_id: id,
+                  method: body.method,
+                  request: JSON.stringify(body),
+                  duration: yield* endClock,
+                  error,
+                }),
+              );
+              return yield* Effect.fail(error);
+            }
 
-          return response as RequestReturnType<typeof body.method>;
-        } catch (e) {
-          const error = e as Error;
+            if (i === RETRY_COUNT) {
+              yield* log(
+                Effect.logWarning({
+                  msg: "Received JSON-RPC error",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  hostname: bucket.hostname,
+                  request_id: id,
+                  method: body.method,
+                  request: JSON.stringify(body),
+                  duration: yield* endClock,
+                  retry_count: i + 1,
+                  error,
+                }),
+              );
+              return yield* Effect.fail(error);
+            }
 
-          common.metrics.ponder_rpc_request_error_total.inc(
-            { method: body.method, chain: chain.name },
-            1,
-          );
-
-          if (
-            body.method === "eth_getLogs" &&
-            isHex(body.params[0].fromBlock) &&
-            isHex(body.params[0].toBlock) &&
-            chain.ethGetLogsBlockRange === undefined
-          ) {
-            const getLogsErrorResponse = getLogsRetryHelper({
-              params: body.params as GetLogsRetryHelperParameters["params"],
-              error: error as RpcError,
-            });
-
-            if (getLogsErrorResponse.shouldRetry) {
-              common.logger.trace({
-                msg: "Caught eth_getLogs range error",
+            const duration = BASE_DURATION * 2 ** i;
+            yield* log(
+              Effect.logWarning({
+                msg: "Received JSON-RPC error",
                 chain: chain.name,
                 chain_id: chain.id,
                 hostname: bucket.hostname,
                 request_id: id,
                 method: body.method,
                 request: JSON.stringify(body),
-                retry_ranges: JSON.stringify(getLogsErrorResponse.ranges),
-                error: error as Error,
-              });
+                duration: yield* endClock,
+                retry_count: i + 1,
+                retry_delay: duration,
+                error,
+              }),
+            );
+            yield* Effect.sleep(duration);
 
-              throw error;
-            } else {
-              // @ts-expect-error
-              error.meta = [
-                "Tip: Use the ethGetLogsBlockRange option to override the default behavior for this chain",
-              ];
-            }
-          }
-
-          addLatency(bucket, endClock(), false);
-
-          if (
-            // @ts-expect-error
-            error.code === 429 ||
-            // @ts-expect-error
-            error.status === 429 ||
-            error instanceof TimeoutError
-          ) {
-            if (bucket.isActive) {
-              bucket.isActive = false;
-              bucket.isWarmingUp = false;
-
-              bucket.rpsLimit = Math.max(
-                bucket.rpsLimit * RPS_DECREASE_FACTOR,
-                MIN_RPS,
-              );
-              bucket.consecutiveSuccessfulRequests = 0;
-
-              common.logger.debug({
-                msg: "JSON-RPC provider rate limited",
-                chain: chain.name,
-                chain_id: chain.id,
-                hostname: bucket.hostname,
-                rps_limit: Math.floor(bucket.rpsLimit),
-              });
-
-              scheduleBucketActivation(bucket);
-
-              if (buckets.every((b) => b.isActive === false)) {
-                logger.warn({
-                  msg: "All JSON-RPC providers are inactive",
+            return Option.none();
+          }).pipe(
+            warnIfSlow(
+              15_000,
+              log(
+                Effect.logWarning({
+                  msg: "JSON-RPC request unexpectedly surpassed timeout",
                   chain: chain.name,
                   chain_id: chain.id,
-                });
-              }
-
-              bucket.reactivationDelay =
-                error instanceof TimeoutError
-                  ? INITIAL_REACTIVATION_DELAY
-                  : Math.min(
-                      bucket.reactivationDelay * BACKOFF_FACTOR,
-                      MAX_REACTIVATION_DELAY,
-                    );
-            }
-          }
-
-          if (shouldRetry(error) === false) {
-            logger.warn({
-              msg: "Received JSON-RPC error",
-              chain: chain.name,
-              chain_id: chain.id,
-              hostname: bucket.hostname,
-              request_id: id,
-              method: body.method,
-              request: JSON.stringify(body),
-              duration: endClock(),
-              error,
-            });
-            throw error;
-          }
-
-          if (i === RETRY_COUNT) {
-            logger.warn({
-              msg: "Received JSON-RPC error",
-              chain: chain.name,
-              chain_id: chain.id,
-              hostname: bucket.hostname,
-              request_id: id,
-              method: body.method,
-              request: JSON.stringify(body),
-              duration: endClock(),
-              retry_count: i + 1,
-              error,
-            });
-            throw error;
-          }
-
-          const duration = BASE_DURATION * 2 ** i;
-          logger.warn({
-            msg: "Received JSON-RPC error",
-            chain: chain.name,
-            chain_id: chain.id,
-            hostname: bucket.hostname,
-            request_id: id,
-            method: body.method,
-            request: JSON.stringify(body),
-            duration: endClock(),
-            retry_count: i + 1,
-            retry_delay: duration,
-            error,
-          });
-          await wait(duration);
-        } finally {
-          bucket.activeConnections--;
-
-          clearTimeout(surpassTimeout);
-        }
-      }
-
-      throw "unreachable";
-    },
-  });
-
-  let ws: WebSocket | undefined;
-  let isUnsubscribed = false;
-  let subscriptionId: string | undefined;
-  let webSocketErrorCount = 0;
-  let interval: NodeJS.Timeout | undefined;
-
-  const rpc: Rpc = {
-    hostnames: backends.map((backend) => backend.hostname),
-    // @ts-expect-error
-    request: (parameters, context) => queue.add({ body: parameters, context }),
-    subscribe({ onBlock, onError }) {
-      (async () => {
-        while (true) {
-          if (isUnsubscribed) return;
-
-          if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
-            common.logger.debug({
-              msg: "Created JSON-RPC polling subscription",
-              chain: chain.name,
-              chain_id: chain.id,
-              polling_interval: chain.pollingInterval,
-            });
-
-            interval = setInterval(async () => {
-              try {
-                const block = await eth_getBlockByNumber(rpc, ["latest", true]);
-                common.logger.trace({
-                  msg: "Received successful JSON-RPC polling response",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                  block_number: hexToNumber(block.number),
-                  block_hash: block.hash,
-                });
-                // Note: `onBlock` should never throw.
-                await onBlock(block);
-              } catch (error) {
-                onError(error as Error);
-              }
-            }, chain.pollingInterval);
-            common.shutdown.add(() => {
-              clearInterval(interval);
-            });
-
-            return;
-          }
-
-          await new Promise<void>((resolve) => {
-            ws = new WebSocket(chain.ws!);
-
-            ws.on("open", () => {
-              common.logger.debug({
-                msg: "Created JSON-RPC WebSocket connection",
-                chain: chain.name,
-                chain_id: chain.id,
-              });
-
-              const subscriptionRequest = {
-                jsonrpc: "2.0",
-                id: 1,
-                method: "eth_subscribe",
-                params: ["newHeads"],
-              };
-
-              ws?.send(JSON.stringify(subscriptionRequest));
-            });
-
-            ws.on("message", (data: Buffer) => {
-              try {
-                const msg = JSON.parse(data.toString());
-                if (
-                  msg.method === "eth_subscription" &&
-                  msg.params.subscription === subscriptionId
-                ) {
-                  common.logger.trace({
-                    msg: "Received successful JSON-RPC WebSocket subscription data",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    block_number: msg.params.result.number
-                      ? hexToNumber(msg.params.result.number)
-                      : undefined,
-                    block_hash: msg.params.result.hash,
-                  });
-                  webSocketErrorCount = 0;
-
-                  onBlock(
-                    standardizeBlock(msg.params.result, {
-                      method: "eth_subscribe",
-                      params: ["newHeads"],
-                    }),
-                  );
-                } else if (msg.result) {
-                  common.logger.debug({
-                    msg: "Created JSON-RPC WebSocket subscription",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    request: JSON.stringify({
-                      method: "eth_subscribe",
-                      params: ["newHeads"],
-                    }),
-                    subscription: msg.result,
-                  });
-
-                  subscriptionId = msg.result;
-                } else if (msg.error) {
-                  common.logger.warn({
-                    msg: "Failed JSON-RPC WebSocket subscription",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    request: JSON.stringify({
-                      method: "eth_subscribe",
-                      params: ["newHeads"],
-                    }),
-                    retry_count: webSocketErrorCount + 1,
-                    error: msg.error as Error,
-                  });
-
-                  if (webSocketErrorCount < RETRY_COUNT) {
-                    webSocketErrorCount += 1;
-                  }
-
-                  ws?.close();
-                } else {
-                  common.logger.warn({
-                    msg: "Received unrecognized JSON-RPC WebSocket message",
-                    chain: chain.name,
-                    websocket_message: msg,
-                  });
-                }
-              } catch (error) {
-                common.logger.warn({
-                  msg: "Failed JSON-RPC WebSocket subscription",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                  request: JSON.stringify({
-                    method: "eth_subscribe",
-                    params: ["newHeads"],
-                  }),
-                  retry_count: webSocketErrorCount + 1,
-                  error: error as Error,
-                });
-
-                if (webSocketErrorCount < RETRY_COUNT) {
-                  webSocketErrorCount += 1;
-                }
-
-                ws?.close();
-              }
-            });
-
-            ws.on("error", async (error) => {
-              common.logger.warn({
-                msg: "Failed JSON-RPC WebSocket subscription",
-                chain: chain.name,
-                chain_id: chain.id,
-                request: JSON.stringify({
-                  method: "eth_subscribe",
-                  params: ["newHeads"],
+                  hostname: bucket.hostname,
+                  request_id: id,
+                  method: body.method,
+                  duration: 15_000,
                 }),
-                retry_count: webSocketErrorCount + 1,
-                error: error as Error,
-              });
+              ),
+            ),
+            Effect.ensuring(
+              Effect.sync(() => {
+                bucket.activeConnections--;
+              }),
+            ),
+          );
 
-              if (webSocketErrorCount < RETRY_COUNT) {
-                webSocketErrorCount += 1;
-              }
+          if (Option.isSome(response)) return response.value;
+          previous = bucket;
+        }
 
-              if (ws && ws.readyState === ws.OPEN) {
-                ws.close();
-              } else {
-                resolve();
-              }
-            });
+        return yield* Effect.die("unreachable");
+      }).pipe(semaphore.withPermits(1));
 
-            ws.on("close", async () => {
-              common.logger.debug({
-                msg: "Closed JSON-RPC WebSocket connection",
+    const rpc: Rpc = {
+      hostnames: transports.map((transport) => transport.hostname),
+      // @ts-expect-error
+      request,
+      subscribe: Stream.callback<
+        Result.Result<SyncBlock | SyncBlockHeader, Error>
+      >((queue) =>
+        Effect.gen(function* () {
+          /** Polls run in the background, so a slow poll doesn't delay the next one. */
+          const polls = yield* FiberSet.make();
+          let webSocketErrorCount = 0;
+
+          while (true) {
+            if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
+              yield* Effect.logDebug({
+                msg: "Created JSON-RPC polling subscription",
                 chain: chain.name,
                 chain_id: chain.id,
+                polling_interval: chain.pollingInterval,
               });
 
-              ws = undefined;
+              const poll = eth_getBlockByNumber(rpc, ["latest", true]).pipe(
+                Effect.tap((block) =>
+                  Effect.logTrace({
+                    msg: "Received successful JSON-RPC polling response",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    block_number: hexToNumber(block.number),
+                    block_hash: block.hash,
+                  }),
+                ),
+                Effect.result,
+                Effect.flatMap((result) => Queue.offer(queue, result)),
+              );
 
-              if (isUnsubscribed || webSocketErrorCount >= RETRY_COUNT) {
-                resolve();
-              } else {
-                const duration = BASE_DURATION * 2 ** webSocketErrorCount;
+              return yield* Effect.sleep(chain.pollingInterval).pipe(
+                Effect.andThen(FiberSet.run(polls, poll)),
+                Effect.forever,
+              );
+            }
 
-                common.logger.debug({
-                  msg: "Retrying JSON-RPC WebSocket connection",
-                  chain: chain.name,
-                  retry_count: webSocketErrorCount + 1,
-                  retry_delay: duration,
-                });
-
-                await wait(duration);
-
-                resolve();
-              }
+            const request = JSON.stringify({
+              method: "eth_subscribe",
+              params: ["newHeads"],
             });
-          });
-        }
-      })();
-    },
-    async unsubscribe() {
-      clearInterval(interval);
-      isUnsubscribed = true;
-      if (ws) {
-        if (subscriptionId) {
-          const unsubscribeRequest = {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "eth_unsubscribe",
-            params: [subscriptionId],
-          };
+            let isConnected = false;
 
-          common.logger.debug({
-            msg: "Ended JSON-RPC WebSocket subscription",
-            chain: chain.name,
-            chain_id: chain.id,
-            request: JSON.stringify({
-              method: "eth_unsubscribe",
-              params: [subscriptionId],
-            }),
-          });
+            // Note: The subscription only ends by failing, or when the stream ends.
+            const result = yield* Effect.scoped(
+              Effect.gen(function* () {
+                const transport = yield* makeWebSocketTransport(chain.ws!, {
+                  chain,
+                  timeout: 10_000,
+                });
+                const subscription = yield* transport
+                  .subscribe(["newHeads"])
+                  .pipe(
+                    Effect.tapError((error) =>
+                      Effect.sync(() => {
+                        isConnected = error._tag !== "RpcNetworkError";
+                      }),
+                    ),
+                  );
+                isConnected = true;
 
-          ws.send(JSON.stringify(unsubscribeRequest));
-        }
-        ws.close();
-      }
-    },
-  };
+                yield* Effect.logDebug({
+                  msg: "Created JSON-RPC WebSocket subscription",
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  request,
+                  subscription: subscription.id,
+                });
+                yield* Effect.addFinalizer((exit) =>
+                  Exit.hasInterrupts(exit)
+                    ? Effect.logDebug({
+                        msg: "Ended JSON-RPC WebSocket subscription",
+                        chain: chain.name,
+                        chain_id: chain.id,
+                        request: JSON.stringify({
+                          method: "eth_unsubscribe",
+                          params: [subscription.id],
+                        }),
+                      })
+                    : Effect.void,
+                );
 
-  common.shutdown.add(() => {
-    for (const timeoutId of timeouts) {
-      clearTimeout(timeoutId);
-    }
-    timeouts.clear();
+                yield* subscription.notifications.pipe(
+                  Stream.runForEach((header: any) =>
+                    Effect.gen(function* () {
+                      webSocketErrorCount = 0;
+
+                      const block = yield* Effect.try({
+                        try: () =>
+                          standardizeBlock(header, {
+                            method: "eth_subscribe",
+                            params: ["newHeads"],
+                          }),
+                        catch: (error) => error as Error,
+                      });
+                      yield* Effect.logTrace({
+                        msg: "Received successful JSON-RPC WebSocket subscription data",
+                        chain: chain.name,
+                        chain_id: chain.id,
+                        block_number: hexToNumber(block.number),
+                        block_hash: block.hash,
+                      });
+                      yield* Queue.offer(queue, Result.succeed(block));
+                    }),
+                  ),
+                );
+              }).pipe(
+                Effect.tapError((error) =>
+                  isClosed(error)
+                    ? Effect.void
+                    : Effect.logWarning({
+                        msg: "Failed JSON-RPC WebSocket subscription",
+                        chain: chain.name,
+                        chain_id: chain.id,
+                        request,
+                        retry_count: webSocketErrorCount + 1,
+                        error,
+                      }),
+                ),
+              ),
+            ).pipe(Effect.result);
+
+            if (Result.isSuccess(result)) continue;
+
+            // Note: A connection that closes without an error is reconnected,
+            // but doesn't count as a failed subscription.
+            if (
+              isClosed(result.failure) === false &&
+              webSocketErrorCount < RETRY_COUNT
+            ) {
+              webSocketErrorCount += 1;
+            }
+
+            if (webSocketErrorCount < RETRY_COUNT) {
+              const duration = BASE_DURATION * 2 ** webSocketErrorCount;
+
+              yield* Effect.logDebug({
+                msg: "Retrying JSON-RPC WebSocket connection",
+                chain: chain.name,
+                retry_count: webSocketErrorCount + 1,
+                retry_delay: duration,
+              });
+
+              // Note: A connection that fails to open is retried immediately.
+              if (isConnected) yield* Effect.sleep(duration);
+            }
+          }
+        }),
+      ),
+    };
+
+    return rpc;
   });
-
-  return rpc;
-};
 
 /**
+ * Return `true` if `error` is a WebSocket connection that closed without an error.
+ */
+const isClosed = (error: Error) =>
+  error instanceof RpcNetworkError &&
+  error.cause instanceof WebSocketClosedError;
+
+/**
+ * Return `true` if `error` is a timeout.
+ *
+ * @dev Custom transports throw viem's `TimeoutError`.
+ */
+const isTimeoutError = (error: Error) =>
+  error instanceof RpcTimeoutError || error.name === "TimeoutError";
+
+/** JSON-RPC error codes that fail the same way when retried. */
+const NON_RETRYABLE_CODES = new Set([
+  // Invalid JSON
+  -32700,
+  // Method does not exist
+  -32601,
+  // Method is not implemented
+  -32004,
+  // Version of JSON-RPC protocol is not supported
+  -32006,
+]);
+
+/** HTTP statuses that fail the same way when retried. */
+const NON_RETRYABLE_STATUSES = new Set([
+  // Not Found
+  404,
+  // Method Not Allowed
+  405,
+  // Not Implemented
+  501,
+  // HTTP Version Not Supported
+  505,
+]);
+
+/**
+ * Return `true` if retrying the request can succeed.
+ *
+ * @dev Reads `code` and `status`, so it also applies to the viem errors that
+ * custom transports throw.
+ *
  * @link https://github.com/wevm/viem/blob/main/src/utils/buildtask.ts#L192
  */
 function shouldRetry(error: Error) {
   if ("code" in error && typeof error.code === "number") {
-    // Invalid JSON
-    if (error.code === ParseRpcError.code) return false;
-    // Method does not exist
-    if (error.code === MethodNotFoundRpcError.code) return false;
-    // Method is not implemented
-    if (error.code === MethodNotSupportedRpcError.code) return false;
-    // Version of JSON-RPC protocol is not supported
-    if (error.code === JsonRpcVersionUnsupportedError.code) return false;
+    if (NON_RETRYABLE_CODES.has(error.code)) return false;
     // eth_call reverted
     if (error.message.includes("revert")) return false;
   }
-  if (error instanceof HttpRequestError && error.status) {
-    // Method Not Allowed
-    if (error.status === 405) return false;
-    // Not Found
-    if (error.status === 404) return false;
-    // Not Implemented
-    if (error.status === 501) return false;
-    // HTTP Version Not Supported
-    if (error.status === 505) return false;
+  if ("status" in error && typeof error.status === "number") {
+    if (NON_RETRYABLE_STATUSES.has(error.status)) return false;
   }
   return true;
 }
