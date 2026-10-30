@@ -16,7 +16,7 @@ describe("static", () => {
   test("blank", () => {
     const result = decodeAbiParameters([], "0x");
     expectTypeOf<readonly []>(result);
-    expect(result).toEqual([]);
+    expect(result).toMatchInlineSnapshot(`[]`);
   });
 
   test("uint", () => {
@@ -25,7 +25,11 @@ describe("static", () => {
       "0x0000000000000000000000000000000000000000000000000000000000010f2c",
     );
     expectTypeOf<readonly [bigint]>(result);
-    expect(result).toEqual([69420n]);
+    expect(result).toMatchInlineSnapshot(`
+      [
+        69420n,
+      ]
+    `);
   });
 
   test("uint8", () => {
@@ -34,7 +38,11 @@ describe("static", () => {
       "0x0000000000000000000000000000000000000000000000000000000000000020",
     );
     expectTypeOf<readonly [number]>(result);
-    expect(result).toEqual([32]);
+    expect(result).toMatchInlineSnapshot(`
+      [
+        32,
+      ]
+    `);
   });
 
   test("uint32", () => {
@@ -43,7 +51,11 @@ describe("static", () => {
       "0x0000000000000000000000000000000000000000000000000000000000010f2c",
     );
     expectTypeOf<readonly [number]>(result);
-    expect(result).toEqual([69420]);
+    expect(result).toMatchInlineSnapshot(`
+      [
+        69420,
+      ]
+    `);
   });
 
   describe("int", () => {
@@ -53,7 +65,11 @@ describe("static", () => {
         "0x0000000000000000000000000000000000000000000000000000000000010f2c",
       );
       expectTypeOf<readonly [bigint]>(result);
-      expect(result).toEqual([69420n]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          69420n,
+        ]
+      `);
     });
 
     test("negative (twos compliment)", () => {
@@ -62,7 +78,11 @@ describe("static", () => {
         "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffef0d4",
       );
       expectTypeOf<readonly [bigint]>(result);
-      expect(result).toEqual([-69420n]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          -69420n,
+        ]
+      `);
     });
   });
 
@@ -73,7 +93,11 @@ describe("static", () => {
         "0x000000000000000000000000000000000000000000000000000000000000007f",
       );
       expectTypeOf<readonly [number]>(result);
-      expect(result).toEqual([127]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          127,
+        ]
+      `);
     });
 
     test("negative (twos compliment)", () => {
@@ -82,7 +106,11 @@ describe("static", () => {
         "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80",
       );
       expectTypeOf<readonly [number]>(result);
-      expect(result).toEqual([-128]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          -128,
+        ]
+      `);
     });
   });
 
@@ -93,7 +121,11 @@ describe("static", () => {
         "0x000000000000000000000000000000000000000000000000000000007fffffff",
       );
       expectTypeOf<readonly [number]>(result);
-      expect(result).toEqual([2147483647]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          2147483647,
+        ]
+      `);
     });
 
     test("negative (twos compliment)", () => {
@@ -102,7 +134,11 @@ describe("static", () => {
         "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff80000000",
       );
       expectTypeOf<readonly [number]>(result);
-      expect(result).toEqual([-2147483648]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          -2147483648,
+        ]
+      `);
     });
   });
 
@@ -135,7 +171,11 @@ describe("static", () => {
         "0x0123456789abcdef000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [Hex]>(result);
-      expect(result).toEqual(["0x0123456789abcdef"]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          "0x0123456789abcdef",
+        ]
+      `);
     });
   });
 
@@ -146,7 +186,11 @@ describe("static", () => {
         "0x0123456789abcdef0123456789abcdef00000000000000000000000000000000",
       );
       expectTypeOf<readonly [Hex]>(result);
-      expect(result).toEqual(["0x0123456789abcdef0123456789abcdef"]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          "0x0123456789abcdef0123456789abcdef",
+        ]
+      `);
     });
   });
 
@@ -157,7 +201,15 @@ describe("static", () => {
         "0x0000000000000000000000000000000000000000000000000000000000010f2c000000000000000000000000000000000000000000000000000000000000a45500000000000000000000000000000000000000000000000000000000190f1b44",
       );
       expectTypeOf<readonly [readonly [bigint, bigint, bigint]]>(result);
-      expect(result).toEqual([[69420n, 42069n, 420420420n]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            69420n,
+            42069n,
+            420420420n,
+          ],
+        ]
+      `);
     });
   });
 
@@ -168,7 +220,15 @@ describe("static", () => {
         "0x0000000000000000000000000000000000000000000000000000000000010f2cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff5bab00000000000000000000000000000000000000000000000000000000190f1b44",
       );
       expectTypeOf<readonly [readonly [bigint, bigint, bigint]]>(result);
-      expect(result).toEqual([[69420n, -42069n, 420420420n]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            69420n,
+            -42069n,
+            420420420n,
+          ],
+        ]
+      `);
     });
   });
 
@@ -198,7 +258,14 @@ describe("static", () => {
         "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [readonly [boolean, boolean]]>(result);
-      expect(result).toEqual([[true, false]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            true,
+            false,
+          ],
+        ]
+      `);
     });
   });
 
@@ -216,12 +283,22 @@ describe("static", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
-          [69420n, 42069n, 420420420n],
-          [420n, 44n, 422n],
-        ],
-      ]);
+          [
+            [
+              69420n,
+              42069n,
+              420420420n,
+            ],
+            [
+              420n,
+              44n,
+              422n,
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -253,26 +330,60 @@ describe("static", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n, 3n],
-            [4n, 5n, 6n],
+            [
+              [
+                1n,
+                2n,
+                3n,
+              ],
+              [
+                4n,
+                5n,
+                6n,
+              ],
+            ],
+            [
+              [
+                7n,
+                8n,
+                9n,
+              ],
+              [
+                10n,
+                11n,
+                12n,
+              ],
+            ],
+            [
+              [
+                13n,
+                14n,
+                15n,
+              ],
+              [
+                16n,
+                17n,
+                18n,
+              ],
+            ],
+            [
+              [
+                19n,
+                20n,
+                21n,
+              ],
+              [
+                22n,
+                23n,
+                24n,
+              ],
+            ],
           ],
-          [
-            [7n, 8n, 9n],
-            [10n, 11n, 12n],
-          ],
-          [
-            [13n, 14n, 15n],
-            [16n, 17n, 18n],
-          ],
-          [
-            [19n, 20n, 21n],
-            [22n, 23n, 24n],
-          ],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -351,7 +462,11 @@ describe("static", () => {
         "0x00000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac",
       );
       expectTypeOf<readonly [readonly []]>(result);
-      expect(result).toEqual([[]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [],
+        ]
+      `);
     });
   });
 
@@ -417,7 +532,20 @@ describe("static", () => {
           readonly [string, string, string],
         ]
       >(result);
-      expect(result).toEqual([[420n, 69n], true, ["wagmi", "viem", "lol"]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            420n,
+            69n,
+          ],
+          true,
+          [
+            "wagmi",
+            "viem",
+            "lol",
+          ],
+        ]
+      `);
     });
   });
 
@@ -434,7 +562,20 @@ describe("static", () => {
           readonly [string, string, string],
         ]
       >(result);
-      expect(result).toEqual([[420n, 69n], true, ["wagmi", "viem", "lol"]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            420n,
+            69n,
+          ],
+          true,
+          [
+            "wagmi",
+            "viem",
+            "lol",
+          ],
+        ]
+      `);
     });
   });
 
@@ -465,7 +606,11 @@ describe("dynamic", () => {
         "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000057761676d69000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [string]>(result);
-      expect(result).toEqual(["wagmi"]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          "wagmi",
+        ]
+      `);
     });
 
     test("empty", () => {
@@ -474,7 +619,11 @@ describe("dynamic", () => {
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [string]>(result);
-      expect(result).toEqual([""]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          "",
+        ]
+      `);
     });
 
     test("default", () => {
@@ -515,7 +664,13 @@ describe("dynamic", () => {
         "0x000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000057761676d69000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [string, bigint, boolean]>(result);
-      expect(result).toEqual(["wagmi", 420n, true]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          "wagmi",
+          420n,
+          true,
+        ]
+      `);
     });
   });
 
@@ -528,7 +683,16 @@ describe("dynamic", () => {
       expectTypeOf<readonly [readonly [bigint, bigint], boolean, string]>(
         result,
       );
-      expect(result).toEqual([[420n, 69n], true, "wagmi"]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            420n,
+            69n,
+          ],
+          true,
+          "wagmi",
+        ]
+      `);
     });
   });
 
@@ -539,7 +703,11 @@ describe("dynamic", () => {
         "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000030420690000000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [Hex]>(result);
-      expect(result).toEqual(["0x042069"]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          "0x042069",
+        ]
+      `);
     });
   });
 
@@ -552,12 +720,23 @@ describe("dynamic", () => {
       expectTypeOf<readonly [readonly [readonly bigint[], readonly bigint[]]]>(
         result,
       );
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
-          [1n, 2n, 3n, 4n],
-          [3n, 2n, 1n],
-        ],
-      ]);
+          [
+            [
+              1n,
+              2n,
+              3n,
+              4n,
+            ],
+            [
+              3n,
+              2n,
+              1n,
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -575,18 +754,32 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n],
-            [4n, 5n],
+            [
+              [
+                1n,
+                2n,
+              ],
+              [
+                4n,
+                5n,
+              ],
+            ],
+            [
+              [
+                8n,
+                9n,
+              ],
+              [
+                10n,
+                11n,
+              ],
+            ],
           ],
-          [
-            [8n, 9n],
-            [10n, 11n],
-          ],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -604,15 +797,34 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n, 3n],
-            [4n, 5n, 6n, 7n],
+            [
+              [
+                1n,
+                2n,
+                3n,
+              ],
+              [
+                4n,
+                5n,
+                6n,
+                7n,
+              ],
+            ],
+            [
+              [
+                8n,
+              ],
+              [
+                9n,
+                10n,
+              ],
+            ],
           ],
-          [[8n], [9n, 10n]],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -623,7 +835,19 @@ describe("dynamic", () => {
         "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003",
       );
       expectTypeOf<readonly [readonly [readonly [readonly bigint[]]]]>(result);
-      expect(result).toEqual([[[[1n, 2n, 3n]]]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            [
+              [
+                1n,
+                2n,
+                3n,
+              ],
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -641,15 +865,34 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n, 3n],
-            [4n, 5n, 6n, 7n],
+            [
+              [
+                1n,
+                2n,
+                3n,
+              ],
+              [
+                4n,
+                5n,
+                6n,
+                7n,
+              ],
+            ],
+            [
+              [
+                8n,
+              ],
+              [
+                9n,
+                10n,
+              ],
+            ],
           ],
-          [[8n], [9n, 10n]],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -667,16 +910,45 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n, 3n],
-            [4n, 5n, 6n, 7n],
-            [8n, 9n, 10n],
+            [
+              [
+                1n,
+                2n,
+                3n,
+              ],
+              [
+                4n,
+                5n,
+                6n,
+                7n,
+              ],
+              [
+                8n,
+                9n,
+                10n,
+              ],
+            ],
+            [
+              [
+                11n,
+              ],
+              [
+                12n,
+                13n,
+              ],
+              [
+                14n,
+                15n,
+                16n,
+                17n,
+              ],
+            ],
           ],
-          [[11n], [12n, 13n], [14n, 15n, 16n, 17n]],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -695,22 +967,47 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n],
-            [3n, 4n, 5n],
+            [
+              [
+                1n,
+                2n,
+              ],
+              [
+                3n,
+                4n,
+                5n,
+              ],
+            ],
+            [
+              [
+                6n,
+                7n,
+                8n,
+              ],
+              [
+                9n,
+                10n,
+              ],
+            ],
+            [
+              [
+                11n,
+                12n,
+                13n,
+              ],
+              [
+                14n,
+                15n,
+                16n,
+                17n,
+              ],
+            ],
           ],
-          [
-            [6n, 7n, 8n],
-            [9n, 10n],
-          ],
-          [
-            [11n, 12n, 13n],
-            [14n, 15n, 16n, 17n],
-          ],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -910,19 +1207,36 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
           [
-            [1n, 2n],
-            [4n, 5n],
+            [
+              [
+                1n,
+                2n,
+              ],
+              [
+                4n,
+                5n,
+              ],
+            ],
+            [
+              [
+                8n,
+                9n,
+              ],
+              [
+                10n,
+                11n,
+              ],
+              [
+                9n,
+                10n,
+              ],
+            ],
           ],
-          [
-            [8n, 9n],
-            [10n, 11n],
-            [9n, 10n],
-          ],
-        ],
-      ]);
+        ]
+      `);
     });
   });
 
@@ -933,7 +1247,16 @@ describe("dynamic", () => {
         "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000037",
       );
       expectTypeOf<readonly [readonly bigint[]]>(result);
-      expect(result).toEqual([[420n, 69n, 22n, 55n]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            420n,
+            69n,
+            22n,
+            55n,
+          ],
+        ]
+      `);
     });
 
     test("empty", () => {
@@ -942,7 +1265,11 @@ describe("dynamic", () => {
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [readonly bigint[]]>(result);
-      expect(result).toEqual([[]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [],
+        ]
+      `);
     });
   });
 
@@ -953,7 +1280,16 @@ describe("dynamic", () => {
         "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000000045",
       );
       expectTypeOf<readonly [readonly (readonly bigint[])[]]>(result);
-      expect(result).toEqual([[[420n, 69n]]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            [
+              420n,
+              69n,
+            ],
+          ],
+        ]
+      `);
     });
 
     test("empty", () => {
@@ -962,7 +1298,13 @@ describe("dynamic", () => {
         "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [readonly (readonly bigint[])[]]>(result);
-      expect(result).toEqual([[[]]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            [],
+          ],
+        ]
+      `);
     });
 
     // cast abi-encode "a(uint[][])" "[[420,69],[22,55,22],[51,52,66,11]]"
@@ -972,13 +1314,27 @@ describe("dynamic", () => {
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000001a4000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000003700000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000003300000000000000000000000000000000000000000000000000000000000000340000000000000000000000000000000000000000000000000000000000000042000000000000000000000000000000000000000000000000000000000000000b",
       );
       expectTypeOf<readonly [readonly (readonly bigint[])[]]>(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
-          [420n, 69n],
-          [22n, 55n, 22n],
-          [51n, 52n, 66n, 11n],
-        ],
-      ]);
+          [
+            [
+              420n,
+              69n,
+            ],
+            [
+              22n,
+              55n,
+              22n,
+            ],
+            [
+              51n,
+              52n,
+              66n,
+              11n,
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -989,7 +1345,14 @@ describe("dynamic", () => {
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000057761676d6900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000047669656d00000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [readonly [string, string]]>(result);
-      expect(result).toEqual([["wagmi", "viem"]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            "wagmi",
+            "viem",
+          ],
+        ]
+      `);
     });
   });
 
@@ -1000,13 +1363,24 @@ describe("dynamic", () => {
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001e00000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000057761676d6900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000047669656d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000046a616b65000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003746f6d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000036c6f6c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000046861686100000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [readonly (readonly [string, string])[]]>(result);
-      expect(result).toEqual([
+      expect(result).toMatchInlineSnapshot(`
         [
-          ["wagmi", "viem"],
-          ["jake", "tom"],
-          ["lol", "haha"],
-        ],
-      ]);
+          [
+            [
+              "wagmi",
+              "viem",
+            ],
+            [
+              "jake",
+              "tom",
+            ],
+            [
+              "lol",
+              "haha",
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -1017,7 +1391,14 @@ describe("dynamic", () => {
         "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000002123400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044141414100000000000000000000000000000000000000000000000000000000",
       );
       expectTypeOf<readonly [readonly [Hex, Hex]]>(result);
-      expect(result).toEqual([["0x1234", "0x41414141"]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            "0x1234",
+            "0x41414141",
+          ],
+        ]
+      `);
     });
   });
 
@@ -1027,7 +1408,14 @@ describe("dynamic", () => {
         parseAbiParameters("(uint256, string)"),
         "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000170000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000",
       );
-      expect(result).toEqual([[23n, "hello"]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            23n,
+            "hello",
+          ],
+        ]
+      `);
     });
   });
 
@@ -1037,7 +1425,16 @@ describe("dynamic", () => {
         parseAbiParameters("((uint256, string))"),
         "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000170000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000",
       );
-      expect(result).toEqual([[[23n, "hello"]]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            [
+              23n,
+              "hello",
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -1047,7 +1444,19 @@ describe("dynamic", () => {
         parseAbiParameters("((uint256[], string))"),
         "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000017000000000000000000000000000000000000000000000000000000000000002e000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000",
       );
-      expect(result).toEqual([[[[23n, 46n], "hello"]]]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            [
+              [
+                23n,
+                46n,
+              ],
+              "hello",
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -1067,13 +1476,23 @@ describe("dynamic", () => {
           },
         ]
       >(result);
-      expect(result).toEqual([
-        {
-          x: [1n, 2n, 3n, 4n],
-          y: true,
-          z: ["hello", "world"],
-        },
-      ]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          {
+            "x": [
+              1n,
+              2n,
+              3n,
+              4n,
+            ],
+            "y": true,
+            "z": [
+              "hello",
+              "world",
+            ],
+          },
+        ]
+      `);
     });
   });
 
@@ -1098,17 +1517,30 @@ describe("dynamic", () => {
           },
         ]
       >(result);
-      expect(result).toEqual([
-        {
-          foo: {
-            x: [1n, 2n, 3n, 4n],
-            y: true,
-            z: ["hello", "world"],
+      expect(result).toMatchInlineSnapshot(`
+        [
+          {
+            "a": 420n,
+            "b": [
+              "wagmi",
+              "viem",
+            ],
+            "foo": {
+              "x": [
+                1n,
+                2n,
+                3n,
+                4n,
+              ],
+              "y": true,
+              "z": [
+                "hello",
+                "world",
+              ],
+            },
           },
-          a: 420n,
-          b: ["wagmi", "viem"],
-        },
-      ]);
+        ]
+      `);
     });
   });
 
@@ -1127,9 +1559,30 @@ describe("dynamic", () => {
           ],
         ]
       >(result);
-      expect(result).toEqual([
-        [[[1n, 2n, 3n, 4n], true, ["hello", "world"]], 420n, ["wagmi", "viem"]],
-      ]);
+      expect(result).toMatchInlineSnapshot(`
+        [
+          [
+            [
+              [
+                1n,
+                2n,
+                3n,
+                4n,
+              ],
+              true,
+              [
+                "hello",
+                "world",
+              ],
+            ],
+            420n,
+            [
+              "wagmi",
+              "viem",
+            ],
+          ],
+        ]
+      `);
     });
   });
 
@@ -1172,35 +1625,68 @@ describe("dynamic", () => {
           },
         ]
       >(result);
-      expect(result).toEqual([
-        {
-          x: [1n, 2n, 3n, 4n],
-          y: true,
-          z: ["hello", "world"],
-        },
-        {
-          foo: {
-            a: 420n,
-            b: ["wagmi", "allday"],
-            foo: {
-              x: [420n, 69n],
-              y: true,
-              z: ["nice", "haha"],
+      expect(result).toMatchInlineSnapshot(`
+        [
+          {
+            "x": [
+              1n,
+              2n,
+              3n,
+              4n,
+            ],
+            "y": true,
+            "z": [
+              "hello",
+              "world",
+            ],
+          },
+          {
+            "bar": {
+              "a": 69420n,
+              "b": [
+                "hello",
+                "there",
+              ],
+              "foo": {
+                "x": [
+                  420n,
+                  420n,
+                ],
+                "y": true,
+                "z": [
+                  "this",
+                  "is",
+                  "a",
+                  "param",
+                ],
+              },
+            },
+            "c": 4204202n,
+            "d": [
+              "lol",
+              "haha",
+            ],
+            "foo": {
+              "a": 420n,
+              "b": [
+                "wagmi",
+                "allday",
+              ],
+              "foo": {
+                "x": [
+                  420n,
+                  69n,
+                ],
+                "y": true,
+                "z": [
+                  "nice",
+                  "haha",
+                ],
+              },
             },
           },
-          bar: {
-            a: 69420n,
-            b: ["hello", "there"],
-            foo: {
-              x: [420n, 420n],
-              y: true,
-              z: ["this", "is", "a", "param"],
-            },
-          },
-          c: 4204202n,
-          d: ["lol", "haha"],
-        },
-      ]);
+        ]
+      `);
     });
   });
 });
@@ -1706,34 +2192,45 @@ test("data suffix", () => {
       ],
       "0x0000000000000000000000000000000000000000000000000000000000010f2cdeadbeef",
     ),
-  ).toEqual([69420n]);
+  ).toMatchInlineSnapshot(`
+    [
+      69420n,
+    ]
+  `);
 });
 
-test.skip("data size too small", () => {
-  expect(() =>
+test("data size too small", () => {
+  let error: any;
+  try {
     decodeAbiParameters(
       [{ type: "uint256" }],
       "0x0000000000000000000000000000000000000000000000000000000000010f",
-    ),
-  ).toThrowError(
-    "Data size of 31 bytes is too small for given parameters.\n\nParams: (uint256)\nData:   0x0000000000000000000000000000000000000000000000000000000000010f (31 bytes)",
-  );
-
-  expect(() =>
-    decodeAbiParameters(
-      [{ type: "uint256" }],
-      "0x0000000000000000000000000000000000000000000000000000000000010f",
-    ),
-  ).toThrowError(
-    "Data size of 31 bytes is too small for given parameters.\n\nParams: (uint256)\nData:   0x0000000000000000000000000000000000000000000000000000000000010f (31 bytes)",
-  );
+    );
+  } catch (e) {
+    error = e;
+  }
+  // Note: Omits viem's version footer from `error.message`.
+  expect({
+    name: error.name,
+    shortMessage: error.shortMessage,
+    metaMessages: error.metaMessages,
+  }).toMatchInlineSnapshot(`
+    {
+      "metaMessages": [
+        "Params: (uint256)",
+        "Data:   0x0000000000000000000000000000000000000000000000000000000000010f (31 bytes)",
+      ],
+      "name": "AbiDecodingDataSizeTooSmallError",
+      "shortMessage": "Data size of 31 bytes is too small for given parameters.",
+    }
+  `);
 
   expect(() =>
     decodeAbiParameters(
       [{ type: "uint256" }, { type: "uint256" }],
       "0x0000000000000000000000000000000000000000000000000000000000010f2c",
     ),
-  ).toThrowError("Position `32` is out of bounds (`0 < position < 32`).");
+  ).toThrowErrorMatchingInlineSnapshot(`[Error: Invalid data length.]`);
 });
 
 test("invalid type", () => {
@@ -1831,55 +2328,18 @@ test("zst", () => {
   ).toThrowError("Invalid data length.");
 });
 
-test.skip("recursive", () => {
-  const arr2 = parseAbiParameters("uint256[][]");
-  const arr4 = parseAbiParameters("uint256[][][][]");
-  const arr10 = parseAbiParameters("uint256[][][][][][][][][][]");
-  const a = [[[], [], [], [], [], [], [], [], [], []]] as const;
-  const p = encodeAbiParameters(arr2, a);
-  expect(p).toEqual(
-    "0x0000000000000000000000000000000000000000000000000000000000000020" + // ptr
-      "000000000000000000000000000000000000000000000000000000000000000a" + // len=10
-      "0000000000000000000000000000000000000000000000000000000000000140" +
-      "0000000000000000000000000000000000000000000000000000000000000160" +
-      "0000000000000000000000000000000000000000000000000000000000000180" +
-      "00000000000000000000000000000000000000000000000000000000000001a0" +
-      "00000000000000000000000000000000000000000000000000000000000001c0" +
-      "00000000000000000000000000000000000000000000000000000000000001e0" +
-      "0000000000000000000000000000000000000000000000000000000000000200" +
-      "0000000000000000000000000000000000000000000000000000000000000220" +
-      "0000000000000000000000000000000000000000000000000000000000000240" +
-      "0000000000000000000000000000000000000000000000000000000000000260" + // ptrs end (10)
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000" +
-      "0000000000000000000000000000000000000000000000000000000000000000", // 10 values
-  );
+// BUG: A decode that throws inside an array leaves `param.type` rewritten.
+test.fails("error leaves params unchanged", () => {
+  // Note: Not from `parseAbiParameters()`, which caches and shares params.
+  const params = [{ type: "uint256[][]" }] as const;
 
-  const payload =
-    `0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a${"0000000000000000000000000000000000000000000000000000000000000020".repeat(
-      64,
-    )}` as const;
-  expect(() => decodeAbiParameters(arr10, payload)).toThrowError(
-    "Recursive read limit exceeded.",
-  );
-
-  const ptrArr = parseAbiParameters("uint256[]");
-  // Try to break check
-  const p2 = encodeAbiParameters(ptrArr, [
-    Array.from({ length: 10 * 1024 }, (_, j) => BigInt(j + 1) * 32n),
-  ]);
-  expect(() => decodeAbiParameters(arr10, p2)).toThrowError(
-    "Position `327744` is out of bounds (`0 < position < 327744`).",
-  );
-  expect(() => decodeAbiParameters(arr4, p2)).toThrowError();
-  expect(() => decodeAbiParameters(arr2, p2)).toThrowError();
+  expect(() =>
+    decodeAbiParameters(
+      params,
+      `0x${"20".padStart(64, "0")}${"02".padStart(64, "0")}`,
+    ),
+  ).toThrowError("Invalid data length.");
+  expect(params[0].type).toBe("uint256[][]");
 });
 
 test("recursive 2", () => {

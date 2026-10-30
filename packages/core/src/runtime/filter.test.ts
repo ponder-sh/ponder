@@ -1,29 +1,23 @@
 import {
   type Address,
+  encodeEventTopics,
+  encodeFunctionData,
   getAbiItem,
   type Hex,
   numberToHex,
+  padHex,
   parseEther,
   toEventSelector,
+  toHex,
   zeroAddress,
   zeroHash,
 } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { expect, test } from "vitest";
+import { erc20ABI, factoryABI } from "@/_test/abis.js";
 import { ALICE, BOB, EMPTY_LOG_FILTER } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
-import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
-import {
-  createPair,
-  deployErc20,
-  deployFactory,
-  mintErc20,
-  transferErc20,
-  transferEth,
-} from "@/_test/simulate.js";
 import {
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
-  getChain,
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
@@ -33,14 +27,17 @@ import type {
   FactoryId,
   LogFactory,
   LogFilter,
+  SyncBlock,
   SyncLog,
+  SyncTrace,
+  SyncTransaction,
   TraceFilter,
   TransactionFilter,
   TransferFilter,
 } from "@/internal/types.js";
-import { ADDRESS_CHUNK_SIZE, eth_getBlockByNumber } from "@/rpc/actions.js";
-import { createRpc } from "@/rpc/index.js";
+import { ADDRESS_CHUNK_SIZE } from "@/rpc/actions.js";
 import type { IntervalWithFilter } from "@/runtime/index.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import {
   getChildAddress,
   isBlockFilterMatched,
@@ -53,8 +50,9 @@ import {
   mergeLogFiltersToRequests,
 } from "./filter.js";
 
-beforeEach(setupCommon);
-beforeEach(setupAnvil);
+const ERC20_ADDRESS: Address = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
+const FACTORY_ADDRESS: Address = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
+const PAIR_ADDRESS: Address = "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be";
 
 test("getChildAddress() topics", () => {
   const factory = {
@@ -87,117 +85,95 @@ test("getChildAddress() offset", () => {
   );
 });
 
-test("isLogFactoryMatched()", async () => {
-  const { address } = await deployFactory({ sender: ALICE });
-  const blockData = await createPair({
-    factory: address,
-    sender: ALICE,
-  });
+test("isLogFactoryMatched()", () => {
+  const log = {
+    address: FACTORY_ADDRESS,
+    topics: encodeEventTopics({
+      abi: factoryABI,
+      eventName: "PairCreated",
+      args: { pair: PAIR_ADDRESS },
+    }),
+    data: padHex(toHex(1n), { size: 32 }),
+    blockNumber: "0x2",
+  } as unknown as SyncLog;
 
   const { eventCallbacks } = getPairWithFactoryIndexingBuild({
-    address,
+    address: FACTORY_ADDRESS,
   });
 
   const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
 
-  let isMatched = isLogFactoryMatched({
-    factory: filter.address,
-    log: blockData.log,
-  });
+  let isMatched = isLogFactoryMatched({ factory: filter.address, log });
   expect(isMatched).toBe(true);
 
   filter.address.address = [filter.address.address as Address];
 
-  isMatched = isLogFactoryMatched({
-    factory: filter.address,
-    log: blockData.log,
-  });
+  isMatched = isLogFactoryMatched({ factory: filter.address, log });
   expect(isMatched).toBe(true);
 
   filter.address.address = undefined;
 
-  isMatched = isLogFactoryMatched({
-    factory: filter.address,
-    log: blockData.log,
-  });
+  isMatched = isLogFactoryMatched({ factory: filter.address, log });
   expect(isMatched).toBe(true);
 
-  blockData.log.topics[0] = zeroHash;
+  log.topics[0] = zeroHash;
 
-  isMatched = isLogFactoryMatched({
-    factory: filter.address,
-    log: blockData.log,
-  });
+  isMatched = isLogFactoryMatched({ factory: filter.address, log });
   expect(isMatched).toBe(false);
 });
 
-test("isLogFilterMatched()", async () => {
-  const { address } = await deployErc20({ sender: ALICE });
-  const blockData = await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
+test("isLogFilterMatched()", () => {
+  const log = {
+    address: ERC20_ADDRESS,
+    topics: encodeEventTopics({
+      abi: erc20ABI,
+      eventName: "Transfer",
+      args: { from: zeroAddress, to: ALICE },
+    }),
+    data: padHex(toHex(parseEther("1")), { size: 32 }),
+    blockNumber: "0x2",
+  } as unknown as SyncLog;
 
   const { eventCallbacks } = getErc20IndexingBuild({
-    address,
+    address: ERC20_ADDRESS,
   });
 
   const filter = eventCallbacks[0]!.filter as LogFilter;
 
-  let isMatched = isLogFilterMatched({ filter, log: blockData.log });
+  let isMatched = isLogFilterMatched({ filter, log });
   expect(isMatched).toBe(true);
 
-  blockData.log.address = zeroAddress;
+  log.address = zeroAddress;
 
-  isMatched = isLogFilterMatched({ filter, log: blockData.log });
+  isMatched = isLogFilterMatched({ filter, log });
   expect(isMatched).toBe(false);
 });
 
-test("isBlockFilterMatched", async () => {
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
+test("isBlockFilterMatched", () => {
   const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
 
   const filter = eventCallbacks[0]!.filter as BlockFilter;
 
-  const rpcBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+  const block = { number: "0x0" } as unknown as SyncBlock;
 
-  let isMatched = isBlockFilterMatched({
-    filter,
-    block: rpcBlock,
-  });
+  let isMatched = isBlockFilterMatched({ filter, block });
   expect(isMatched).toBe(true);
 
   filter.interval = 2;
   filter.offset = 1;
 
-  isMatched = isBlockFilterMatched({
-    filter,
-    block: rpcBlock,
-  });
+  isMatched = isBlockFilterMatched({ filter, block });
   expect(isMatched).toBe(false);
 });
 
-test("isTransactionFilterMatched()", async () => {
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
-  await transferEth({
-    to: BOB,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
+test("isTransactionFilterMatched()", () => {
+  const transaction = {
+    from: toLowerCase(ALICE),
+    to: toLowerCase(BOB),
+    blockNumber: "0x1",
+  } as unknown as SyncTransaction;
 
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
@@ -209,35 +185,21 @@ test("isTransactionFilterMatched()", async () => {
     undefined
   >;
 
-  const rpcBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
-
-  let isMatched = isTransactionFilterMatched({
-    filter,
-    transaction: rpcBlock.transactions[0]!,
-  });
+  let isMatched = isTransactionFilterMatched({ filter, transaction });
   expect(isMatched).toBe(true);
 
-  rpcBlock.transactions[0]!.from = zeroAddress;
+  transaction.from = zeroAddress;
 
-  isMatched = isTransactionFilterMatched({
-    filter,
-    transaction: rpcBlock.transactions[0]!,
-  });
+  isMatched = isTransactionFilterMatched({ filter, transaction });
   expect(isMatched).toBe(false);
 });
 
-test("isTransactionFilterMatched() with null transaction.to", async () => {
-  const chain = getChain();
-  const rpc = createRpc({
-    chain,
-    common: context.common,
-  });
-
-  await transferEth({
-    to: BOB,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
+test("isTransactionFilterMatched() with null transaction.to", () => {
+  const transaction = {
+    from: toLowerCase(ALICE),
+    to: toLowerCase(BOB),
+    blockNumber: "0x1",
+  } as unknown as SyncTransaction;
 
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
@@ -248,31 +210,28 @@ test("isTransactionFilterMatched() with null transaction.to", async () => {
     undefined,
     undefined
   >;
-  filter.toAddress = BOB.toLowerCase() as Address;
+  filter.toAddress = toLowerCase(BOB);
 
-  const rpcBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
-
-  let isMatched = isTransactionFilterMatched({
-    filter,
-    transaction: rpcBlock.transactions[0]!,
-  });
+  let isMatched = isTransactionFilterMatched({ filter, transaction });
   expect(isMatched).toBe(true);
 
-  rpcBlock.transactions[0]!.to = null;
+  transaction.to = null;
 
-  isMatched = isTransactionFilterMatched({
-    filter,
-    transaction: rpcBlock.transactions[0]!,
-  });
+  isMatched = isTransactionFilterMatched({ filter, transaction });
   expect(isMatched).toBe(false);
 });
 
-test("isTransferFilterMatched()", async () => {
-  const blockData = await transferEth({
-    to: BOB,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
+test("isTransferFilterMatched()", () => {
+  const block = { number: "0x1" } as unknown as SyncBlock;
+  const trace = {
+    type: "CALL",
+    from: toLowerCase(ALICE),
+    to: toLowerCase(BOB),
+    gas: "0x0",
+    gasUsed: "0x0",
+    input: "0x",
+    value: toHex(parseEther("1")),
+  } as unknown as SyncTrace["trace"];
 
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
@@ -281,11 +240,7 @@ test("isTransferFilterMatched()", async () => {
   // transfer:from
   const filter = eventCallbacks[3]!.filter as TransferFilter;
 
-  let isMatched = isTransferFilterMatched({
-    filter,
-    block: blockData.block,
-    trace: blockData.trace.trace,
-  });
+  let isMatched = isTransferFilterMatched({ filter, block, trace });
   expect(isMatched).toBe(true);
 
   // `DELEGATECALL` and `CALLCODE` frames do not move value
@@ -293,72 +248,61 @@ test("isTransferFilterMatched()", async () => {
   for (const type of ["DELEGATECALL", "CALLCODE"] as const) {
     isMatched = isTransferFilterMatched({
       filter,
-      block: blockData.block,
-      trace: { ...blockData.trace.trace, type },
+      block,
+      trace: { ...trace, type },
     });
     expect(isMatched).toBe(false);
   }
 
   isMatched = isTransferFilterMatched({
     filter,
-    block: blockData.block,
-    trace: { ...blockData.trace.trace, type: "CREATE" },
+    block,
+    trace: { ...trace, type: "CREATE" },
   });
   expect(isMatched).toBe(true);
 
-  blockData.trace.trace.value = "0x0";
+  trace.value = "0x0";
 
-  isMatched = isTransferFilterMatched({
-    filter,
-    block: blockData.block,
-    trace: blockData.trace.trace,
-  });
+  isMatched = isTransferFilterMatched({ filter, block, trace });
   expect(isMatched).toBe(false);
 });
 
-test("isTraceFilterMatched()", async () => {
-  const { address } = await deployErc20({ sender: ALICE });
-  await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-  const blockData = await transferErc20({
-    erc20: address,
-    to: BOB,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
+test("isTraceFilterMatched()", () => {
+  const block = { number: "0x3" } as unknown as SyncBlock;
+  const trace = {
+    type: "CALL",
+    from: toLowerCase(ALICE),
+    to: ERC20_ADDRESS,
+    gas: "0x0",
+    gasUsed: "0x0",
+    input: encodeFunctionData({
+      abi: erc20ABI,
+      functionName: "transfer",
+      args: [BOB, parseEther("1")],
+    }),
+    value: "0x0",
+  } as unknown as SyncTrace["trace"];
 
   const { eventCallbacks } = getErc20IndexingBuild({
-    address,
+    address: ERC20_ADDRESS,
     includeCallTraces: true,
   });
 
   const filter = eventCallbacks[0]!.filter as TraceFilter;
 
-  let isMatched = isTraceFilterMatched({
-    filter,
-    block: blockData.block,
-    trace: blockData.trace.trace,
-  });
+  let isMatched = isTraceFilterMatched({ filter, block, trace });
   expect(isMatched).toBe(true);
 
   isMatched = isTraceFilterMatched({
     filter,
-    block: blockData.block,
-    trace: { ...blockData.trace.trace, type: "STATICCALL" },
+    block,
+    trace: { ...trace, type: "STATICCALL" },
   });
   expect(isMatched).toBe(false);
 
-  blockData.trace.trace.to = zeroAddress;
+  trace.to = zeroAddress;
 
-  isMatched = isTraceFilterMatched({
-    filter,
-    block: blockData.block,
-    trace: blockData.trace.trace,
-  });
+  isMatched = isTraceFilterMatched({ filter, block, trace });
   expect(isMatched).toBe(false);
 });
 

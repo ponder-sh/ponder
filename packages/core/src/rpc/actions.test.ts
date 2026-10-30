@@ -80,11 +80,20 @@ test("debug trace actions exclude reverted traces and their children", async () 
     { tracer: "callTracer" },
   ]);
 
-  expect(traces.map((trace) => trace.trace.traceAddress)).toStrictEqual([
-    [],
-    [1],
-    [1, 1],
-  ]);
+  expect(
+    traces.map((trace) => trace.trace.traceAddress),
+  ).toMatchInlineSnapshot(`
+    [
+      [],
+      [
+        1,
+      ],
+      [
+        1,
+        1,
+      ],
+    ]
+  `);
 });
 
 const hash =
@@ -153,11 +162,22 @@ test("eth_getLogs sorts logs by block number and log index", async () => {
   const result = await eth_getLogs(rpc, [{ fromBlock: "0x1", toBlock: "0x2" }]);
   expect(
     result.map(({ blockNumber, logIndex }) => [blockNumber, logIndex]),
-  ).toStrictEqual([
-    ["0x1", "0x0"],
-    ["0x1", "0x1"],
-    ["0x2", "0x0"],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        "0x1",
+        "0x0",
+      ],
+      [
+        "0x1",
+        "0x1",
+      ],
+      [
+        "0x2",
+        "0x0",
+      ],
+    ]
+  `);
 });
 
 test("standardizeTransactions() sorts transactions by transaction index", () => {
@@ -179,7 +199,13 @@ test("standardizeTransactions() sorts transactions by transaction index", () => 
   );
   expect(
     transactions.map(({ transactionIndex }) => transactionIndex),
-  ).toStrictEqual(["0x0", "0x1", "0x2"]);
+  ).toMatchInlineSnapshot(`
+    [
+      "0x0",
+      "0x1",
+      "0x2",
+    ]
+  `);
 });
 
 test("eth_getLogs skips empty address arrays", async () => {
@@ -190,7 +216,7 @@ test("eth_getLogs skips empty address arrays", async () => {
     { method: "eth_getLogs" }
   >["params"] = [{ address: [] }];
 
-  await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([]);
+  await expect(eth_getLogs(rpc, params)).resolves.toMatchInlineSnapshot(`[]`);
   expect(rpcRequest).not.toHaveBeenCalled();
 });
 
@@ -222,15 +248,30 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([[0, 499]]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        499,
+      ],
+    ]
+  `);
 
   const pages = await drainAsyncGenerator(generator);
   expect(
     pages.map(({ fromBlock, toBlock }) => [fromBlock, toBlock]),
-  ).toStrictEqual([
-    [500, 1024],
-    [1025, 1100],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        500,
+        1024,
+      ],
+      [
+        1025,
+        1100,
+      ],
+    ]
+  `);
   expect(pages.map((page) => page.logs[0]!.blockNumber)).toStrictEqual([
     numberToHex(500),
     numberToHex(1025),
@@ -240,11 +281,22 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([
-    [0, 499],
-    [500, 1024],
-    [1025, 1100],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        499,
+      ],
+      [
+        500,
+        1024,
+      ],
+      [
+        1025,
+        1100,
+      ],
+    ]
+  `);
   for (const [rpcRequest, requestContext] of request.mock.calls) {
     expect(rpcRequest.params[0]).toMatchObject({ address, topics: [hash] });
     expect(requestContext).toBe(context);
@@ -283,12 +335,26 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([
-    [0, 44],
-    [0, 19],
-    [20, 39],
-    [40, 44],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        44,
+      ],
+      [
+        0,
+        19,
+      ],
+      [
+        20,
+        39,
+      ],
+      [
+        40,
+        44,
+      ],
+    ]
+  `);
 
   const otherRequest = vi.fn(
     async (
@@ -306,7 +372,14 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([[45, 89]]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        45,
+        89,
+      ],
+    ]
+  `);
 
   request.mockClear();
   await drainAsyncGenerator(
@@ -319,11 +392,22 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([
-    [45, 64],
-    [65, 84],
-    [85, 89],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        45,
+        64,
+      ],
+      [
+        65,
+        84,
+      ],
+      [
+        85,
+        89,
+      ],
+    ]
+  `);
 });
 
 const receipt = {
@@ -357,11 +441,15 @@ test("eth_getTransactionReceipts falls back to eth_getTransactionReceipt per RPC
     { request: { method: "eth_getTransactionReceipt", params: [hash] } },
   ]);
   await eth_getTransactionReceipts(rpc, params);
-  expect(request.mock.calls.map(([request]) => request.method)).toStrictEqual([
-    "eth_getBlockReceipts",
-    "eth_getTransactionReceipt",
-    "eth_getTransactionReceipt",
-  ]);
+  expect(
+    request.mock.calls.map(([request]) => request.method),
+  ).toMatchInlineSnapshot(`
+    [
+      "eth_getBlockReceipts",
+      "eth_getTransactionReceipt",
+      "eth_getTransactionReceipt",
+    ]
+  `);
 
   const otherRequest = vi.fn(async () => [receipt]);
   const otherRpc = { request: otherRequest } as unknown as Rpc;
@@ -392,7 +480,12 @@ test("eth_getTransactionReceipts sorts receipts by transaction index", async () 
   const [response] = await eth_getTransactionReceipts(rpc, params);
   expect(
     response!.receipts.map(({ transactionIndex }) => transactionIndex),
-  ).toStrictEqual(["0x0", "0x1"]);
+  ).toMatchInlineSnapshot(`
+    [
+      "0x0",
+      "0x1",
+    ]
+  `);
 
   const fallbackRequest = vi.fn(async (request: RequestParameters) => {
     if (request.method === "eth_getBlockReceipts") {
@@ -415,7 +508,12 @@ test("eth_getTransactionReceipts sorts receipts by transaction index", async () 
     responses.flatMap(({ receipts }) =>
       receipts.map(({ transactionIndex }) => transactionIndex),
     ),
-  ).toStrictEqual(["0x0", "0x1"]);
+  ).toMatchInlineSnapshot(`
+    [
+      "0x0",
+      "0x1",
+    ]
+  `);
 });
 
 test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ranges", async () => {
@@ -434,7 +532,7 @@ test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ran
       { fromBlock: "0x0", toBlock: numberToHex(1200) },
     ]),
   );
-  expect(pages[0]!.logs).toStrictEqual([]);
+  expect(pages[0]!.logs).toMatchInlineSnapshot(`[]`);
   expect(pages.slice(1).map((page) => page.logs[0]!.blockNumber)).toStrictEqual(
     [numberToHex(500), numberToHex(763), numberToHex(1039)],
   );
@@ -443,13 +541,30 @@ test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ran
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([
-    [0, 499],
-    [500, 1024],
-    [500, 762],
-    [763, 1038],
-    [1039, 1200],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        499,
+      ],
+      [
+        500,
+        1024,
+      ],
+      [
+        500,
+        762,
+      ],
+      [
+        763,
+        1038,
+      ],
+      [
+        1039,
+        1200,
+      ],
+    ]
+  `);
 });
 
 test("eth_getLogsWithPagination propagates errors when retries are exhausted", async () => {
@@ -473,10 +588,18 @@ test("eth_getLogsWithPagination propagates errors when retries are exhausted", a
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([
-    [0, 1],
-    [0, 0],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        1,
+      ],
+      [
+        0,
+        0,
+      ],
+    ]
+  `);
 });
 
 test("eth_getLogsWithPagination uses fixed ranges and disables range retries", async () => {
@@ -500,11 +623,22 @@ test("eth_getLogsWithPagination uses fixed ranges and disables range retries", a
       hexToNumber(request.params[0].fromBlock as Hex),
       hexToNumber(request.params[0].toBlock as Hex),
     ]),
-  ).toStrictEqual([
-    [0, 1],
-    [2, 3],
-    [4, 4],
-  ]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        0,
+        1,
+      ],
+      [
+        2,
+        3,
+      ],
+      [
+        4,
+        4,
+      ],
+    ]
+  `);
 
   request.mockClear();
   const error = { message: "Max range: 1" };

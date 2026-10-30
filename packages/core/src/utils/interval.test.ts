@@ -33,7 +33,7 @@ test("intervalSum calculates the sum of single-point intervals", () => {
 
 test("intervalUnion handles empty input", () => {
   const result = intervalUnion([]);
-  expect(result).toEqual([]);
+  expect(result).toMatchInlineSnapshot(`[]`);
 });
 
 test("intervalUnion merges overlapping intervals", () => {
@@ -42,10 +42,18 @@ test("intervalUnion merges overlapping intervals", () => {
     [2, 4],
     [6, 7],
   ]);
-  expect(result).toEqual([
-    [1, 4],
-    [6, 7],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        4,
+      ],
+      [
+        6,
+        7,
+      ],
+    ]
+  `);
 });
 
 test("intervalUnion merges adjacent intervals", () => {
@@ -54,7 +62,14 @@ test("intervalUnion merges adjacent intervals", () => {
     [4, 5],
     [6, 6],
   ]);
-  expect(result).toEqual([[1, 6]]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        6,
+      ],
+    ]
+  `);
 });
 
 test("intervalUnion handles non-overlapping intervals", () => {
@@ -63,11 +78,22 @@ test("intervalUnion handles non-overlapping intervals", () => {
     [5, 7],
     [9, 12],
   ]);
-  expect(result).toEqual([
-    [1, 3],
-    [5, 7],
-    [9, 12],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        3,
+      ],
+      [
+        5,
+        7,
+      ],
+      [
+        9,
+        12,
+      ],
+    ]
+  `);
 });
 
 test("intervalUnion removes duplicate intervals", () => {
@@ -77,7 +103,14 @@ test("intervalUnion removes duplicate intervals", () => {
     [2, 6],
     [1, 3],
   ]);
-  expect(result).toEqual([[1, 6]]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        6,
+      ],
+    ]
+  `);
 });
 
 test("intervalUnion does not mutate inputs", () => {
@@ -96,7 +129,7 @@ test("intervalUnion does not mutate inputs", () => {
 
 test("intervalIntersection handles empty input", () => {
   const result = intervalIntersection([], []);
-  expect(result).toEqual([]);
+  expect(result).toMatchInlineSnapshot(`[]`);
 });
 
 test("intervalIntersection correctly finds intersections", () => {
@@ -112,10 +145,18 @@ test("intervalIntersection correctly finds intersections", () => {
       [10, 11],
     ],
   );
-  expect(result).toEqual([
-    [2, 6],
-    [10, 11],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        2,
+        6,
+      ],
+      [
+        10,
+        11,
+      ],
+    ]
+  `);
 });
 
 test("intervalIntersection handles no intersections", () => {
@@ -130,12 +171,12 @@ test("intervalIntersection handles no intersections", () => {
       [8, 8],
     ],
   );
-  expect(result).toEqual([]);
+  expect(result).toMatchInlineSnapshot(`[]`);
 });
 
 test("intervalDifference handles empty inputs", () => {
   const result = intervalDifference([], []);
-  expect(result).toEqual([]);
+  expect(result).toMatchInlineSnapshot(`[]`);
 });
 
 test("intervalDifference correctly finds differences", () => {
@@ -150,11 +191,22 @@ test("intervalDifference correctly finds differences", () => {
     ],
   );
 
-  expect(result).toEqual([
-    [1, 1],
-    [5, 5],
-    [7, 7],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        1,
+      ],
+      [
+        5,
+        5,
+      ],
+      [
+        7,
+        7,
+      ],
+    ]
+  `);
 });
 
 test("intervalDifference handles no difference", () => {
@@ -168,10 +220,18 @@ test("intervalDifference handles no difference", () => {
       [4, 4],
     ],
   );
-  expect(result).toEqual([
-    [1, 3],
-    [5, 7],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        3,
+      ],
+      [
+        5,
+        7,
+      ],
+    ]
+  `);
 });
 
 test("intervalDifference handles full difference", () => {
@@ -182,7 +242,7 @@ test("intervalDifference handles full difference", () => {
     ],
     [[0, 8]],
   );
-  expect(result).toEqual([]);
+  expect(result).toMatchInlineSnapshot(`[]`);
 });
 
 test("intervalDifference does not mutate inputs", () => {
@@ -194,7 +254,12 @@ test("intervalDifference does not mutate inputs", () => {
 
   intervalDifference([initial], remove);
 
-  expect(initial).toStrictEqual([6, 17]);
+  expect(initial).toMatchInlineSnapshot(`
+    [
+      6,
+      17,
+    ]
+  `);
 });
 
 test("sortIntervals", () => {
@@ -202,29 +267,62 @@ test("sortIntervals", () => {
     [1, 5],
     [4, 7],
   ]);
-  expect(result).toStrictEqual([
-    [1, 5],
-    [4, 7],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        5,
+      ],
+      [
+        4,
+        7,
+      ],
+    ]
+  `);
 
   result = sortIntervals([
     [4, 7],
     [1, 5],
   ]);
-  expect(result).toStrictEqual([
-    [1, 5],
-    [4, 7],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        5,
+      ],
+      [
+        4,
+        7,
+      ],
+    ]
+  `);
 });
 
 test("getChunks", () => {
   const result = getChunks({ interval: [1, 9], maxChunkSize: 2 });
 
-  expect(result).toStrictEqual([
-    [1, 2],
-    [3, 4],
-    [5, 6],
-    [7, 8],
-    [9, 9],
-  ]);
+  expect(result).toMatchInlineSnapshot(`
+    [
+      [
+        1,
+        2,
+      ],
+      [
+        3,
+        4,
+      ],
+      [
+        5,
+        6,
+      ],
+      [
+        7,
+        8,
+      ],
+      [
+        9,
+        9,
+      ],
+    ]
+  `);
 });

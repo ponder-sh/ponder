@@ -7,11 +7,11 @@ import {
   zeroAddress,
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
-import { beforeEach, expect, test } from "vitest";
+import { expect, test } from "vitest";
+import { erc20ABI } from "@/_test/abis.js";
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
-import { context, setupCommon } from "@/_test/setup.js";
 import {
+  createTestCommon,
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
   getChain,
@@ -34,8 +34,6 @@ import {
   ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
 import { buildEvents, decodeEvents, splitEvents } from "./events.js";
-
-beforeEach(setupCommon);
 
 test("splitEvents()", async () => {
   const events = [
@@ -110,7 +108,7 @@ test("splitEvents()", async () => {
 });
 
 test("decodeEvents() log", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
@@ -149,7 +147,7 @@ test("decodeEvents() log", async () => {
 });
 
 test("decodeEvents() log error", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
@@ -185,7 +183,7 @@ test("decodeEvents() log error", async () => {
 });
 
 test("decodeEvents() block", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
@@ -213,7 +211,7 @@ test("decodeEvents() block", async () => {
 });
 
 test("decodeEvents() transfer", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
@@ -254,7 +252,7 @@ test("decodeEvents() transfer", async () => {
 });
 
 test("decodeEvents() transaction", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
@@ -278,7 +276,7 @@ test("decodeEvents() transaction", async () => {
 });
 
 test("decodeEvents() trace", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
@@ -325,7 +323,7 @@ test("decodeEvents() trace", async () => {
 });
 
 test("decodeEvents() trace w/o output", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
@@ -373,7 +371,7 @@ test("decodeEvents() trace w/o output", async () => {
 });
 
 test("decodeEvents() trace error", async () => {
-  const { common } = context;
+  const common = createTestCommon();
 
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
@@ -587,15 +585,27 @@ test("buildEvents() trace index ignores traces that match no filter", async () =
     chainId: 1,
   });
 
-  expect(exact.map((event) => event.trace!.traceAddress)).toStrictEqual([
-    [],
-    [3],
-    [],
-  ]);
+  expect(
+    exact.map((event) => event.trace!.traceAddress),
+  ).toMatchInlineSnapshot(`
+    [
+      [],
+      [
+        3,
+      ],
+      [],
+    ]
+  `);
   expect(superset.map((event) => event.checkpoint)).toStrictEqual(
     exact.map((event) => event.checkpoint),
   );
   expect(
     exact.map((event) => decodeCheckpoint(event.checkpoint).eventIndex),
-  ).toStrictEqual([0n, 1n, 0n]);
+  ).toMatchInlineSnapshot(`
+    [
+      0n,
+      1n,
+      0n,
+    ]
+  `);
 });

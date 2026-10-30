@@ -172,18 +172,20 @@ test("buildPre() database with postgres uses pool config", async () => {
 
   const { databaseConfig } = buildPre({ config, options, logger });
 
-  expect(databaseConfig).toStrictEqual({
-    kind: "postgres",
-    poolConfig: {
-      connectionString: "postgres://username@localhost:5432/database",
-      max: 100,
-      ssl: {
-        ca: "ca",
-        cert: "cert",
-        key: "key",
+  expect(databaseConfig).toMatchInlineSnapshot(`
+    {
+      "kind": "postgres",
+      "poolConfig": {
+        "connectionString": "postgres://username@localhost:5432/database",
+        "idle_in_transaction_session_timeout": 10,
+        "keepAlive": true,
+        "max": 100,
+        "ssl": {
+          "ca": "ca",
+          "cert": "cert",
+          "key": "key",
+        },
       },
-      idle_in_transaction_session_timeout: 10,
-      keepAlive: true,
-    },
-  });
+    }
+  `);
 });

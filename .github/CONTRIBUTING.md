@@ -10,7 +10,6 @@ This guide is intended to help you get started with contributing. By following t
 
 - [Fork the repository](#fork-the-repository)
 - [Install Node.js and pnpm](#install-nodejs-and-pnpm)
-- [Install Foundry](#install-foundry)
 - [Install dependencies](#install-dependencies)
 - [Build packages](#build-packages)
 - [Run the test suite](#run-the-test-suite)
@@ -59,20 +58,6 @@ If the versions are not correct or you don't have Node.js or pnpm installed, dow
   <a href="#get-started">&uarr; back to top</a></b>
 </div>
 
-## Install Foundry
-
-Ponder uses [Foundry](https://getfoundry.sh/) for testing. The test suite uses local [Anvil](https://github.com/foundry-rs/foundry/tree/master/anvil) instances via [Anvil.js](https://github.com/wevm/anvil.js) to run isolated, concurrent tests against forks of Ethereum mainnet.
-
-Install Foundry (and Anvil) using the following command:
-
-```bash
-curl -L https://foundry.paradigm.xyz | bash
-```
-
-<div align="right">
-  <a href="#get-started">&uarr; back to top</a></b>
-</div>
-
 ## Install dependencies
 
 In the root directory, run the following command to install the project's dependencies:
@@ -101,33 +86,34 @@ After the build completes, pnpm links packages across the project for developmen
 
 ## Run the test suite
 
-### Running tests
+Ponder has two kinds of tests:
 
-The test suite uses [vitest](https://vitest.dev/guide) in concurrent mode as a test runner.
+- **Unit tests** cover discrete, usually pure and synchronous logic, such as checkpoint encoding, interval math, and filter matching. They use [vitest](https://vitest.dev/guide) and need no database, RPC, or network access.
+- **Simulation tests** cover behavior across modules, such as sync, indexing, reorgs, and crash recovery, with a deterministic simulation. See [`simulation-test`](../simulation-test/README.md).
 
-Herea are some commands to get you started.
+### Running unit tests
 
 ```bash
-# Run all tests in watch mode
-pnpm test
+# Run the `ponder` unit tests in watch mode
+pnpm --filter ponder test
+
+# Run once, as CI does
+CI=1 pnpm --filter ponder test
 
 # Run a single test file
-pnpm test /path/to/file.test.ts
+CI=1 pnpm --filter ponder test src/utils/interval.test.ts
+
+# Run the type-level tests
+pnpm --filter ponder test:typecheck
 ```
 
-When adding new features or fixing bugs, it's important to add test cases to cover any new or updated behavior.
+### Writing unit tests
 
-### Run tests against Postgres
+When adding new features or fixing bugs, add test cases that cover the new or updated behavior.
 
-By default, the test suite runs against in-memory PGlite databases which mimic Ponder development environments. Unless you are specifically testing Postgres behavior, you don't need to run tests against Postgres locally and can instead rely on CI to catch any regressions.
-
-To run the test suite against Postgres, set the `DATABASE_URL` env var in `packages/core/.env.local`.
-
-```bash
-DATABASE_URL=postgres://{username}@localhost:5432/{username}
-```
-
-Any test-friendly Postgres server will do. MacOS users can download [Postgres.app](https://postgresapp.com/documentation/), a simple way to get a Postgres server running on your local machine.
+- Prefer [inline snapshots](https://vitest.dev/guide/snapshot#inline-snapshots) (`toMatchInlineSnapshot()`) over hand-written expected values. Run the test with `-u` to fill them in, then review the result.
+- Don't add unit tests that need Anvil, Postgres, PGlite, the network, or a running Ponder app. Extend the simulation instead.
+- Shared fixtures live in `packages/core/src/_test/`.
 
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>
