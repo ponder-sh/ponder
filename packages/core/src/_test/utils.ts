@@ -1,4 +1,5 @@
 import { vi } from "bun:test";
+import { Layer } from "effect";
 import {
   type Address,
   getAbiItem,
@@ -8,11 +9,9 @@ import {
 import { mainnet } from "viem/chains";
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
-import type { Common } from "@/internal/common.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
+import { layerNoopLogger } from "@/internal/logger.js";
+import { Metrics, MetricsService } from "@/internal/metrics.js";
+import { buildOptions, Options } from "@/internal/options.js";
 import type {
   Chain,
   Contract,
@@ -35,7 +34,8 @@ import {
 import { toLowerCase } from "@/utils/lowercase.js";
 import { erc20ABI, factoryABI, pairABI } from "./abis.js";
 
-export function createTestCommon(): Common {
+/** Services for `ponder start` with no logs and fresh metrics. */
+export function createTestServices(): Layer.Layer<Options | Metrics> {
   const cliOptions = {
     command: "start",
     config: "",
@@ -44,15 +44,11 @@ export function createTestCommon(): Common {
     logFormat: "pretty",
     version: "0.0.0",
   } as const;
-  const shutdown = createShutdown();
-  return {
-    options: buildOptions({ cliOptions }),
-    logger: createLogger({ level: cliOptions.logLevel }),
-    metrics: new MetricsService(),
-    shutdown,
-    apiShutdown: shutdown,
-    buildShutdown: shutdown,
-  };
+  return Layer.mergeAll(
+    Layer.succeed(Options, buildOptions({ cliOptions })),
+    Layer.succeed(Metrics, new MetricsService()),
+    layerNoopLogger,
+  );
 }
 
 /**

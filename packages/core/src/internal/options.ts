@@ -1,10 +1,11 @@
 import path from "node:path";
 import v8 from "node:v8";
+import { Context } from "effect";
 import type { LevelWithSilent } from "pino";
 import { parse, type SemVer } from "semver";
 import type { CliOptions } from "@/bin/ponder.js";
 
-export type Options = {
+type OptionsShape = {
   command: "dev" | "start" | "serve" | "codegen" | "list" | "prune";
   version: SemVer | null;
   configFile: string;
@@ -38,7 +39,16 @@ export type Options = {
   syncEventsQuerySize: number;
 };
 
-export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
+/** Options for the current command, built from the CLI options and environment. */
+export class Options extends Context.Service<Options, OptionsShape>()(
+  "ponder/Options",
+) {}
+
+export const buildOptions = ({
+  cliOptions,
+}: {
+  cliOptions: CliOptions;
+}): Options["Service"] => {
   let rootDir: string;
   if (cliOptions.root !== undefined) {
     rootDir = path.resolve(cliOptions.root);
@@ -90,7 +100,7 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
     hostname,
 
     logLevel,
-    logFormat: cliOptions.logFormat! as Options["logFormat"],
+    logFormat: cliOptions.logFormat! as OptionsShape["logFormat"],
 
     databaseHeartbeatInterval: 10 * 1000,
     databaseHeartbeatTimeout: 25 * 1000,
@@ -118,5 +128,5 @@ export const buildOptions = ({ cliOptions }: { cliOptions: CliOptions }) => {
           1_024,
 
     syncEventsQuerySize: 12_000,
-  } satisfies Options;
+  };
 };

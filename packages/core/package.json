@@ -67,6 +67,7 @@
     "dataloader": "2.2.3",
     "dotenv": "16.4.5",
     "drizzle-orm": "0.41.0",
+    "effect": "4.0.5",
     "glob": "10.5.0",
     "graphql": "16.8.2",
     "graphql-yoga": "5.17.1",

@@ -1,5 +1,6 @@
 import { parentPort, type Worker } from "node:worker_threads";
 import { getTableName, isTable } from "drizzle-orm";
+import { Context } from "effect";
 import prometheus from "prom-client";
 import {
   type PromiseWithResolvers,
@@ -622,6 +623,16 @@ type MetricsAggregationResponse = {
   error?: string;
   metrics: prometheus.MetricObjectWithValues<prometheus.MetricValue<string>>[];
 };
+
+/**
+ * Prometheus metrics.
+ *
+ * @dev The metrics use prom-client, which serves the `/metrics` output,
+ * aggregates metrics across worker threads, and collects the default Node.js metrics.
+ */
+export class Metrics extends Context.Service<Metrics, MetricsService>()(
+  "ponder/Metrics",
+) {}
 
 export class AggregateMetricsService extends MetricsService {
   workers: Worker[];
