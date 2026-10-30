@@ -7,7 +7,10 @@ import type { Options } from "@/internal/options.js";
 // routes only because the api route dir is a subdir of the indexing function
 // dir.
 
-export const addStackTrace = (error: Error, options: Options) => {
+export const addStackTrace = (
+  error: Error,
+  options: Pick<Options["Service"], "indexingDir">,
+) => {
   if (!error.stack) return;
 
   const stackTrace = parseStackTrace(error.stack);
