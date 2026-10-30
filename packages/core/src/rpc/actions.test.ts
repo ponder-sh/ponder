@@ -1,9 +1,9 @@
+import { Effect, Stream } from "effect";
 import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
 import { expect, test, vi } from "vitest";
-import type { SyncBlock, SyncTransaction } from "@/internal/types.js";
+import type { SyncBlock, SyncLog, SyncTransaction } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
 import {
   debug_traceBlockByNumber,
   eth_getLogs,
@@ -12,6 +12,19 @@ import {
   standardizeTransactions,
   validateLogsAndBlock,
 } from "./actions.js";
+
+/** An `Rpc` whose `request` calls `request`. */
+const mockRpc = (request: (...args: any[]) => unknown) =>
+  ({
+    request: (...args: any[]) =>
+      Effect.tryPromise({
+        try: async () => request(...args),
+        catch: (error) => error,
+      }),
+  }) as unknown as Rpc;
+
+const collect = <A, E>(stream: Stream.Stream<A, E>) =>
+  Effect.runPromise(Stream.runCollect(stream));
 
 test("debug trace actions rebuild traceAddress from the call tree", async () => {
   const frame = (overrides: Record<string, unknown> = {}) => ({
@@ -23,17 +36,19 @@ test("debug trace actions rebuild traceAddress from the call tree", async () => 
     input: "0x",
     ...overrides,
   });
-  const rpc = {
-    request: vi.fn(async () => [
+  const rpc = mockRpc(
+    vi.fn(async () => [
       {
         txHash: hash,
         result: frame({ calls: [frame(), frame({ calls: [frame()] })] }),
       },
     ]),
-  } as unknown as Rpc;
+  );
 
   await expect(
-    debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+    Effect.runPromise(
+      debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+    ),
   ).resolves.toMatchObject([
     { trace: { traceAddress: [] } },
     { trace: { traceAddress: [0] } },
@@ -52,8 +67,8 @@ test("debug trace actions exclude reverted traces and their children", async () 
     input: "0x",
     ...overrides,
   });
-  const rpc = {
-    request: vi.fn(async () => [
+  const rpc = mockRpc(
+    vi.fn(async () => [
       {
         txHash: hash,
         result: frame({
@@ -73,12 +88,11 @@ test("debug trace actions exclude reverted traces and their children", async () 
         result: frame({ error: "execution reverted", calls: [frame()] }),
       },
     ]),
-  } as unknown as Rpc;
+  );
 
-  const traces = await debug_traceBlockByNumber(rpc, [
-    "0x1",
-    { tracer: "callTracer" },
-  ]);
+  const traces = await Effect.runPromise(
+    debug_traceBlockByNumber(rpc, ["0x1", { tracer: "callTracer" }]),
+  );
 
   expect(
     traces.map((trace) => trace.trace.traceAddress),
@@ -132,17 +146,16 @@ test("eth_getLogs chunks address arrays and merges responses in order", async ()
       return [firstLog];
     },
   );
-  const rpc = { request: rpcRequest } as unknown as Rpc;
+  const rpc = mockRpc(rpcRequest);
   const params: Extract<
     RequestParameters,
     { method: "eth_getLogs" }
   >["params"] = [{ address: addresses }];
 
   // Note: The second chunk has the earlier log.
-  await expect(eth_getLogs(rpc, params)).resolves.toStrictEqual([
-    secondLog,
-    firstLog,
-  ]);
+  await expect(
+    Effect.runPromise(eth_getLogs(rpc, params)),
+  ).resolves.toStrictEqual([secondLog, firstLog]);
   expect(requests).toHaveLength(2);
   expect(requests.map((request) => request.params[0].address)).toStrictEqual([
     addresses.slice(0, 50),
@@ -157,9 +170,11 @@ test("eth_getLogs sorts logs by block number and log index", async () => {
     { ...log, blockNumber: "0x1", logIndex: "0x1" },
     { ...log, blockNumber: "0x1", logIndex: "0x0" },
   ];
-  const rpc = { request: vi.fn(async () => logs) } as unknown as Rpc;
+  const rpc = mockRpc(vi.fn(async () => logs));
 
-  const result = await eth_getLogs(rpc, [{ fromBlock: "0x1", toBlock: "0x2" }]);
+  const result = await Effect.runPromise(
+    eth_getLogs(rpc, [{ fromBlock: "0x1", toBlock: "0x2" }]),
+  );
   expect(
     result.map(({ blockNumber, logIndex }) => [blockNumber, logIndex]),
   ).toMatchInlineSnapshot(`
@@ -210,13 +225,15 @@ test("standardizeTransactions() sorts transactions by transaction index", () => 
 
 test("eth_getLogs skips empty address arrays", async () => {
   const rpcRequest = vi.fn();
-  const rpc = { request: rpcRequest } as unknown as Rpc;
+  const rpc = mockRpc(rpcRequest);
   const params: Extract<
     RequestParameters,
     { method: "eth_getLogs" }
   >["params"] = [{ address: [] }];
 
-  await expect(eth_getLogs(rpc, params)).resolves.toMatchInlineSnapshot(`[]`);
+  await expect(
+    Effect.runPromise(eth_getLogs(rpc, params)),
+  ).resolves.toMatchInlineSnapshot(`[]`);
   expect(rpcRequest).not.toHaveBeenCalled();
 });
 
@@ -227,12 +244,14 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
       _context?: Parameters<Rpc["request"]>[1],
     ) => [{ ...log, blockNumber: request.params[0].fromBlock as Hex }],
   );
-  const rpc = { request } as unknown as Rpc;
+  const rpc = mockRpc(request);
   const params = [
     { address, topics: [hash], fromBlock: "0x0", toBlock: numberToHex(1100) },
   ] satisfies Parameters<typeof eth_getLogsWithPagination>[1];
   const context = { retryNullBlockRequest: false };
-  const generator = eth_getLogsWithPagination(rpc, params, context);
+  const generator = Stream.toAsyncIterable(
+    eth_getLogsWithPagination(rpc, params, context),
+  )[Symbol.asyncIterator]();
 
   expect(request).not.toHaveBeenCalled();
   expect(await generator.next()).toMatchObject({
@@ -257,7 +276,11 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
     ]
   `);
 
-  const pages = await drainAsyncGenerator(generator);
+  const pages: { logs: SyncLog[]; fromBlock: number; toBlock: number }[] = [];
+  for (let page = await generator.next(); !page.done; ) {
+    pages.push(page.value);
+    page = await generator.next();
+  }
   expect(
     pages.map(({ fromBlock, toBlock }) => [fromBlock, toBlock]),
   ).toMatchInlineSnapshot(`
@@ -306,10 +329,10 @@ test("eth_getLogsWithPagination yields pages lazily and grows the range", async 
 
 test("eth_getLogsWithPagination stops fetching when the consumer stops", async () => {
   const request = vi.fn().mockResolvedValue([]);
-  const rpc = { request } as unknown as Rpc;
-  for await (const _logs of eth_getLogsWithPagination(rpc, [
-    { fromBlock: "0x0", toBlock: "0xffff" },
-  ])) {
+  const rpc = mockRpc(request);
+  for await (const _logs of Stream.toAsyncIterable(
+    eth_getLogsWithPagination(rpc, [{ fromBlock: "0x0", toBlock: "0xffff" }]),
+  )) {
     break;
   }
   expect(request).toHaveBeenCalledTimes(1);
@@ -322,10 +345,10 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
       _context?: Parameters<Rpc["request"]>[1],
     ) => [{ ...log, blockNumber: request.params[0].fromBlock as Hex }],
   );
-  const rpc = { request } as unknown as Rpc;
+  const rpc = mockRpc(request);
   request.mockRejectedValueOnce({ message: "Max range: 20" });
 
-  await drainAsyncGenerator(
+  await collect(
     eth_getLogsWithPagination(rpc, [
       { fromBlock: "0x0", toBlock: numberToHex(44) },
     ]),
@@ -361,8 +384,8 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
       _request: Extract<RequestParameters, { method: "eth_getLogs" }>,
     ) => [],
   );
-  const otherRpc = { request: otherRequest } as unknown as Rpc;
-  await drainAsyncGenerator(
+  const otherRpc = mockRpc(otherRequest);
+  await collect(
     eth_getLogsWithPagination(otherRpc, [
       { fromBlock: numberToHex(45), toBlock: numberToHex(89) },
     ]),
@@ -382,7 +405,7 @@ test("eth_getLogsWithPagination retries suggested ranges and keeps the limit per
   `);
 
   request.mockClear();
-  await drainAsyncGenerator(
+  await collect(
     eth_getLogsWithPagination(rpc, [
       { fromBlock: numberToHex(45), toBlock: numberToHex(89) },
     ]),
@@ -434,13 +457,15 @@ test("eth_getTransactionReceipts falls back to eth_getTransactionReceipt per RPC
     }
     return receipt;
   });
-  const rpc = { request } as unknown as Rpc;
+  const rpc = mockRpc(request);
   const params = { blockHash: hash, transactionHashes: new Set([hash]) };
 
-  await expect(eth_getTransactionReceipts(rpc, params)).resolves.toMatchObject([
+  await expect(
+    Effect.runPromise(eth_getTransactionReceipts(rpc, params)),
+  ).resolves.toMatchObject([
     { request: { method: "eth_getTransactionReceipt", params: [hash] } },
   ]);
-  await eth_getTransactionReceipts(rpc, params);
+  await Effect.runPromise(eth_getTransactionReceipts(rpc, params));
   expect(
     request.mock.calls.map(([request]) => request.method),
   ).toMatchInlineSnapshot(`
@@ -452,9 +477,9 @@ test("eth_getTransactionReceipts falls back to eth_getTransactionReceipt per RPC
   `);
 
   const otherRequest = vi.fn(async () => [receipt]);
-  const otherRpc = { request: otherRequest } as unknown as Rpc;
+  const otherRpc = mockRpc(otherRequest);
   await expect(
-    eth_getTransactionReceipts(otherRpc, params),
+    Effect.runPromise(eth_getTransactionReceipts(otherRpc, params)),
   ).resolves.toMatchObject([
     { request: { method: "eth_getBlockReceipts", params: [hash] } },
   ]);
@@ -476,8 +501,10 @@ test("eth_getTransactionReceipts sorts receipts by transaction index", async () 
   const request = vi.fn(async () =>
     receipts.map((receipt) => ({ ...receipt })),
   );
-  const rpc = { request } as unknown as Rpc;
-  const [response] = await eth_getTransactionReceipts(rpc, params);
+  const rpc = mockRpc(request);
+  const [response] = await Effect.runPromise(
+    eth_getTransactionReceipts(rpc, params),
+  );
   expect(
     response!.receipts.map(({ transactionIndex }) => transactionIndex),
   ).toMatchInlineSnapshot(`
@@ -502,8 +529,10 @@ test("eth_getTransactionReceipts sorts receipts by transaction index", async () 
         ).params[0],
     );
   });
-  const fallbackRpc = { request: fallbackRequest } as unknown as Rpc;
-  const responses = await eth_getTransactionReceipts(fallbackRpc, params);
+  const fallbackRpc = mockRpc(fallbackRequest);
+  const responses = await Effect.runPromise(
+    eth_getTransactionReceipts(fallbackRpc, params),
+  );
   expect(
     responses.flatMap(({ receipts }) =>
       receipts.map(({ transactionIndex }) => transactionIndex),
@@ -523,11 +552,11 @@ test("eth_getLogsWithPagination retries unfinished blocks and grows inferred ran
       _context?: Parameters<Rpc["request"]>[1],
     ) => [{ ...log, blockNumber: request.params[0].fromBlock as Hex }],
   );
-  const rpc = { request } as unknown as Rpc;
+  const rpc = mockRpc(request);
   request.mockResolvedValueOnce([]);
   request.mockRejectedValueOnce({ message: "query exceeds max results" });
 
-  const pages = await drainAsyncGenerator(
+  const pages = await collect(
     eth_getLogsWithPagination(rpc, [
       { fromBlock: "0x0", toBlock: numberToHex(1200) },
     ]),
@@ -574,12 +603,12 @@ test("eth_getLogsWithPagination propagates errors when retries are exhausted", a
       _context?: Parameters<Rpc["request"]>[1],
     ) => [{ ...log, blockNumber: request.params[0].fromBlock as Hex }],
   );
-  const rpc = { request } as unknown as Rpc;
+  const rpc = mockRpc(request);
   const error = { message: "query exceeds max results" };
   request.mockRejectedValue(error);
 
   await expect(
-    drainAsyncGenerator(
+    collect(
       eth_getLogsWithPagination(rpc, [{ fromBlock: "0x0", toBlock: "0x1" }]),
     ),
   ).rejects.toBe(error);
@@ -609,9 +638,9 @@ test("eth_getLogsWithPagination uses fixed ranges and disables range retries", a
       _context?: Parameters<Rpc["request"]>[1],
     ) => [{ ...log, blockNumber: request.params[0].fromBlock as Hex }],
   );
-  const rpc = { request } as unknown as Rpc;
+  const rpc = mockRpc(request);
   const context = { ethGetLogsBlockRange: 2 };
-  await drainAsyncGenerator(
+  await collect(
     eth_getLogsWithPagination(
       rpc,
       [{ fromBlock: "0x0", toBlock: "0x4" }],
@@ -644,7 +673,7 @@ test("eth_getLogsWithPagination uses fixed ranges and disables range retries", a
   const error = { message: "Max range: 1" };
   request.mockRejectedValueOnce(error);
   await expect(
-    drainAsyncGenerator(
+    collect(
       eth_getLogsWithPagination(
         rpc,
         [{ fromBlock: "0x0", toBlock: "0x4" }],
@@ -678,34 +707,38 @@ const createBlock = (block: { logsBloom: Hex }) =>
 
 test("validateLogsAndBlock allows non-empty logsBloom with no logs", () => {
   expect(() =>
-    validateLogsAndBlock(
-      [],
-      createBlock({ logsBloom: nonEmptyLogsBloom }),
-      logsRequest,
-      blockRequest,
+    Effect.runSync(
+      validateLogsAndBlock(
+        [],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+      ),
     ),
   ).not.toThrow();
 });
 
 test("validateLogsAndBlock rejects mismatched block hashes", () => {
   expect(() =>
-    validateLogsAndBlock(
-      [
-        {
-          address: `0x${"1".repeat(40)}`,
-          blockHash: `0x${"2".repeat(64)}`,
-          blockNumber: "0x1",
-          logIndex: "0x0",
-          data: "0x",
-          topics: [],
-          transactionHash: hash,
-          transactionIndex: "0x0",
-          removed: false,
-        },
-      ],
-      createBlock({ logsBloom: nonEmptyLogsBloom }),
-      logsRequest,
-      blockRequest,
+    Effect.runSync(
+      validateLogsAndBlock(
+        [
+          {
+            address: `0x${"1".repeat(40)}`,
+            blockHash: `0x${"2".repeat(64)}`,
+            blockNumber: "0x1",
+            logIndex: "0x0",
+            data: "0x",
+            topics: [],
+            transactionHash: hash,
+            transactionIndex: "0x0",
+            removed: false,
+          },
+        ],
+        createBlock({ logsBloom: nonEmptyLogsBloom }),
+        logsRequest,
+        blockRequest,
+      ),
     ),
   ).toThrow("has a 'log.blockHash'");
 });
