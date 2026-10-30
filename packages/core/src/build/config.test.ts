@@ -1,16 +1,10 @@
-import {
-  type Address,
-  parseAbiItem,
-  toEventSelector,
-  toFunctionSelector,
-  zeroAddress,
-} from "viem";
-import { beforeEach, expect, test } from "vitest";
-import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
-import { TEST_POOL_ID } from "@/_test/utils.js";
+import { type Address, parseAbiItem, zeroAddress } from "viem";
+import { mainnet } from "viem/chains";
+import { expect, test } from "vitest";
+import { createStubRpc, createTestCommon } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";
-import type { LogFactory, LogFilter, TraceFilter } from "@/internal/types.js";
+import type { EventCallback, IndexingBuild } from "@/internal/types.js";
 import { hyperliquidEvm } from "@/utils/chains.js";
 import {
   buildConfig,
@@ -19,8 +13,23 @@ import {
   safeBuildIndexingFunctions,
 } from "./config.js";
 
-beforeEach(setupCommon);
-beforeEach(setupAnvil);
+const common = createTestCommon();
+const rpc = "http://127.0.0.1:8545";
+const stubRpc = createStubRpc({ latestBlock: 100 });
+
+/** Built event callbacks without the default `include` lists, for snapshots. */
+const getFilters = (eventCallbacks: EventCallback[][]) =>
+  eventCallbacks
+    .flat()
+    .map(({ name, chain, filter: { include: _, ...filter } }) => ({
+      name,
+      chain: chain.name,
+      filter,
+    }));
+
+const withStubRpc = <T extends Pick<IndexingBuild, "chains" | "rpcs">>(
+  configBuild: T,
+): T => ({ ...configBuild, rpcs: configBuild.chains.map(() => stubRpc) });
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
@@ -38,12 +47,10 @@ const bytes1 =
 const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 
-beforeEach(setupAnvil);
-
 test("buildIndexingFunctions() builds topics for multiple events", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -57,32 +64,64 @@ test("buildIndexingFunctions() builds topics for multiple events", async () => {
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
 
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [
       { name: "a:Event0", fn: () => {} },
       { name: "a:Event1", fn: () => {} },
     ],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event0),
-  );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event1),
-  );
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xeb0647d2fd18e9d48417458d5ceb82e5e455b589086e6a791507d38a59f9f5cb",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event1",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() handles overloaded event signatures and combines topics", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -96,31 +135,63 @@ test("buildIndexingFunctions() handles overloaded event signatures and combines 
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [
       { name: "a:Event1()", fn: () => {} },
       { name: "a:Event1(bytes32 indexed)", fn: () => {} },
     ],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event1),
-  );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event1Overloaded),
-  );
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xeb0647d2fd18e9d48417458d5ceb82e5e455b589086e6a791507d38a59f9f5cb",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event1()",
+      },
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0x8c5ef8f5670e096749c7d0bd79364744b28e871bc6c65c5541b0b30f727ad8be",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event1(bytes32 indexed)",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() handles multiple addresses", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -137,32 +208,70 @@ test("buildIndexingFunctions() handles multiple addresses", async () => {
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [
       { name: "a:Event1()", fn: () => {} },
       { name: "a:Event1(bytes32 indexed)", fn: () => {} },
     ],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event1),
-  );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event1Overloaded),
-  );
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": [
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000003",
+          ],
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xeb0647d2fd18e9d48417458d5ceb82e5e455b589086e6a791507d38a59f9f5cb",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event1()",
+      },
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": [
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000003",
+          ],
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0x8c5ef8f5670e096749c7d0bd79364744b28e871bc6c65c5541b0b30f727ad8be",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event1(bytes32 indexed)",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() creates a source for each chain for multi-chain contracts", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
+      optimism: { id: 10, rpc },
     },
     contracts: {
       a: {
@@ -173,17 +282,54 @@ test("buildIndexingFunctions() creates a source for each chain for multi-chain c
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks.length).toBe(2);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": undefined,
+          "chainId": 1,
+          "fromBlock": undefined,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+      {
+        "chain": "optimism",
+        "filter": {
+          "address": undefined,
+          "chainId": 10,
+          "fromBlock": undefined,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() throw useful error for common 0.11 migration mistakes", async () => {
@@ -191,8 +337,8 @@ test("buildIndexingFunctions() throw useful error for common 0.11 migration mist
 
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
+      optimism: { id: 10, rpc },
     },
     contracts: {
       a: {
@@ -204,29 +350,29 @@ test("buildIndexingFunctions() throw useful error for common 0.11 migration mist
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     // @ts-expect-error
     config,
   });
 
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     // @ts-expect-error
     config,
     indexingFunctions,
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Chain for 'a' is null or undefined. Expected one of ['mainnet', 'optimism']. Did you forget to change 'network' to 'chain' when migrating to 0.11?",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Chain for 'a' is null or undefined. Expected one of ['mainnet', 'optimism']. Did you forget to change 'network' to 'chain' when migrating to 0.11?"`,
   );
 });
 
 test("buildIndexingFunctions() builds topics for event filter", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -246,27 +392,43 @@ test("buildIndexingFunctions() builds topics for event filter", async () => {
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks).toHaveLength(1);
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event0),
-  );
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() builds topics for multiple event filters", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -292,37 +454,66 @@ test("buildIndexingFunctions() builds topics for multiple event filters", async 
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [
       { name: "a:Event0", fn: () => {} },
       { name: "a:Event1", fn: () => {} },
     ],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]).toHaveLength(2);
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event1Overloaded),
-  );
-  expect((eventCallbacks[0]![1]!.filter as LogFilter).topic1).toEqual([
-    bytes1,
-    bytes2,
-  ]);
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic0).toEqual(
-    toEventSelector(event0),
-  );
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0x8c5ef8f5670e096749c7d0bd79364744b28e871bc6c65c5541b0b30f727ad8be",
+          "topic1": [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000000000000000000000000000002",
+          ],
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event1",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() overrides default values with chain-specific values", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -340,23 +531,43 @@ test("buildIndexingFunctions() overrides default values with chain-specific valu
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect((eventCallbacks[0]![0]!.filter as LogFilter).address).toBe(address2);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() handles chain name shortcut", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -370,23 +581,43 @@ test("buildIndexingFunctions() handles chain name shortcut", async () => {
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]![0]!.chain.name).toBe("mainnet");
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": "0x0000000000000000000000000000000000000001",
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() validates chain name", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -399,27 +630,28 @@ test("buildIndexingFunctions() validates chain name", async () => {
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid chain for 'a'. Got 'mainnetz', expected one of ['mainnet'].",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid chain for 'a'. Got 'mainnetz', expected one of ['mainnet']."`,
   );
 });
 
-// Note: Not possible to find an rpc url that returns a finalized block and is public.
-test.skip("buildConfig() warns for public RPC URL", () => {
+test("buildConfig() warns for public RPC URL", () => {
+  // Note: The warning matches the chain's default RPC URL in `viem/chains`.
+  const publicRpc = mainnet.rpcUrls.default.http[0];
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: "https://cloudflare-eth.com" },
+      mainnet: { id: 1, rpc: publicRpc },
     },
     contracts: {
       a: {
@@ -431,23 +663,29 @@ test.skip("buildConfig() warns for public RPC URL", () => {
   });
 
   const result = safeBuildConfig({
-    common: context.common,
+    common,
     config,
   });
 
   expect(result.status).toBe("success");
-  expect(result.logs!.filter((l) => l.level === "warn")).toEqual([
-    {
-      level: "warn",
-      msg: "Chain 'mainnet' is using a public RPC URL (https://cloudflare-eth.com). Most apps require an RPC URL with a higher rate limit.",
-    },
-  ]);
+  const warnings = result.logs!.filter((l) => l.level === "warn");
+  expect(warnings.map(({ url }) => url)).toStrictEqual([publicRpc]);
+  expect(warnings.map(({ url: _, ...log }) => log)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "chain_id": 1,
+        "level": "warn",
+        "msg": "Detected public RPC URL. Most apps require an RPC URL with a higher rate limit.",
+      },
+    ]
+  `);
 });
 
 test("buildConfig() handles chains not found in viem", () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1909023431, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1909023431, rpc },
     },
     contracts: {
       a: {
@@ -459,7 +697,7 @@ test("buildConfig() handles chains not found in viem", () => {
   });
 
   const result = safeBuildConfig({
-    common: context.common,
+    common,
     config,
   });
 
@@ -469,7 +707,7 @@ test("buildConfig() handles chains not found in viem", () => {
 test("buildIndexingFunctions() validates event filter event name must be present in ABI", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -487,26 +725,26 @@ test("buildIndexingFunctions() validates event filter event name must be present
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0'].",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid filter for contract 'a'. Got event name 'Event2', expected one of ['Event0']."`,
   );
 });
 
 test("buildIndexingFunctions() validates address empty string", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -518,27 +756,27 @@ test("buildIndexingFunctions() validates address empty string", async () => {
   });
 
   const configBuild = buildConfig({
-    common: context.common,
+    common,
     config,
   });
 
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid prefix for address ''. Got '', expected '0x'.",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid prefix for address ''. Got '', expected '0x'."`,
   );
 });
 
 test("buildIndexingFunctions() validates empty contract address array", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -549,24 +787,24 @@ test("buildIndexingFunctions() validates empty contract address array", async ()
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address.",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address."`,
   );
 });
 
 test("buildIndexingFunctions() validates empty account address array", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     accounts: {
       a: {
@@ -576,24 +814,24 @@ test("buildIndexingFunctions() validates empty account address array", async () 
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:transaction:to", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address.",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address."`,
   );
 });
 
 test("buildIndexingFunctions() validates empty factory address array", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -608,24 +846,24 @@ test("buildIndexingFunctions() validates empty factory address array", async () 
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address.",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid address for 'a'. Got an empty array, expected at least one address."`,
   );
 });
 
 test("buildIndexingFunctions() validates address prefix", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -637,24 +875,24 @@ test("buildIndexingFunctions() validates address prefix", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'.",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid prefix for address '0b0000000000000000000000000000000000000001'. Got '0b', expected '0x'."`,
   );
 });
 
 test("buildIndexingFunctions() validates address length", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -665,24 +903,24 @@ test("buildIndexingFunctions() validates address length", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters.",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Invalid length for address '0x000000000001'. Got 14, expected 42 characters."`,
   );
 });
 
 test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -693,15 +931,35 @@ test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () =>
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]![0]?.filter.fromBlock).toBe(undefined);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": undefined,
+          "chainId": 1,
+          "fromBlock": undefined,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() coerces `latest` to number", async () => {
@@ -709,7 +967,7 @@ test("buildIndexingFunctions() coerces `latest` to number", async () => {
     chains: {
       mainnet: {
         id: 1,
-        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        rpc: rpc,
       },
     },
     contracts: {
@@ -721,22 +979,42 @@ test("buildIndexingFunctions() coerces `latest` to number", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]![0]?.filter.fromBlock).toBeTypeOf("number");
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": undefined,
+          "chainId": 1,
+          "fromBlock": 100,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() includeTransactionReceipts", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
+      optimism: { id: 10, rpc },
     },
     contracts: {
       a: {
@@ -749,23 +1027,59 @@ test("buildIndexingFunctions() includeTransactionReceipts", async () => {
       },
     },
   });
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(true);
-  expect(eventCallbacks[1]![0]!.filter.hasTransactionReceipt).toBe(false);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": undefined,
+          "chainId": 1,
+          "fromBlock": undefined,
+          "hasTransactionReceipt": true,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+      {
+        "chain": "optimism",
+        "filter": {
+          "address": undefined,
+          "chainId": 10,
+          "fromBlock": undefined,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() includeCallTraces", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
+      optimism: { id: 10, rpc },
     },
     contracts: {
       a: {
@@ -780,33 +1094,41 @@ test("buildIndexingFunctions() includeCallTraces", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks).toHaveLength(1);
-
-  expect(
-    (eventCallbacks[0]![0]!.filter as TraceFilter).fromAddress,
-  ).toBeUndefined();
-  expect((eventCallbacks[0]![0]!.filter as TraceFilter).toAddress).toEqual(
-    zeroAddress,
-  );
-  expect(
-    (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toEqual(toFunctionSelector(func0));
-  expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "callType": "CALL",
+          "chainId": 1,
+          "fromAddress": undefined,
+          "fromBlock": undefined,
+          "functionSelector": "0xf8be7e52",
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toAddress": "0x0000000000000000000000000000000000000000",
+          "toBlock": undefined,
+          "type": "trace",
+        },
+        "name": "a.func0()",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() includeCallTraces with factory", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
-      optimism: { id: 10, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
+      optimism: { id: 10, rpc },
     },
     contracts: {
       a: {
@@ -825,33 +1147,50 @@ test("buildIndexingFunctions() includeCallTraces with factory", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a.func0()", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks).toHaveLength(1);
-
-  expect(
-    (eventCallbacks[0]![0]!.filter as TraceFilter).fromAddress,
-  ).toBeUndefined();
-  expect(
-    ((eventCallbacks[0]![0]!.filter as TraceFilter).toAddress as LogFactory)
-      .address,
-  ).toEqual(address2);
-  expect(
-    (eventCallbacks[0]![0]!.filter as TraceFilter).functionSelector,
-  ).toEqual(toFunctionSelector(func0));
-  expect(eventCallbacks[0]![0]!.filter.hasTransactionReceipt).toBe(false);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "callType": "CALL",
+          "chainId": 1,
+          "fromAddress": undefined,
+          "fromBlock": undefined,
+          "functionSelector": "0xf8be7e52",
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toAddress": {
+            "address": "0x0000000000000000000000000000000000000001",
+            "chainId": 1,
+            "childAddressLocation": "topic1",
+            "eventSelector": "0x3032dacf24474e98fa8d177486690dcac56523635af423cfb1dcc34f0646322e",
+            "fromBlock": undefined,
+            "id": "log_0x0000000000000000000000000000000000000001_1_topic1_0x3032dacf24474e98fa8d177486690dcac56523635af423cfb1dcc34f0646322e_undefined_undefined",
+            "sourceId": "a",
+            "toBlock": undefined,
+            "type": "log",
+          },
+          "toBlock": undefined,
+          "type": "trace",
+        },
+        "name": "a.func0()",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() coerces NaN endBlock to undefined", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -862,21 +1201,41 @@ test("buildIndexingFunctions() coerces NaN endBlock to undefined", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]![0]!.filter.toBlock).toBe(undefined);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": undefined,
+          "chainId": 1,
+          "fromBlock": undefined,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": undefined,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() account source", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     accounts: {
       a: {
@@ -888,39 +1247,55 @@ test("buildIndexingFunctions() account source", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [
       { name: "a:transfer:from", fn: () => {} },
       { name: "a:transaction:to", fn: () => {} },
     ],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks[0]).toHaveLength(2);
-
-  expect(eventCallbacks[0]![0]?.chain.name).toBe("mainnet");
-  expect(eventCallbacks[0]![1]?.chain.name).toBe("mainnet");
-
-  expect(eventCallbacks[0]![0]?.name).toBe("a:transaction:to");
-  expect(eventCallbacks[0]![1]?.name).toBe("a:transfer:from");
-
-  expect(eventCallbacks[0]![0]?.filter.type).toBe("transaction");
-  expect(eventCallbacks[0]![1]?.filter.type).toBe("transfer");
-
-  expect(eventCallbacks[0]![0]?.filter.fromBlock).toBe(16370000);
-  expect(eventCallbacks[0]![1]?.filter.fromBlock).toBe(16370000);
-
-  expect(eventCallbacks[0]![0]?.filter.toBlock).toBe(16370020);
-  expect(eventCallbacks[0]![1]?.filter.toBlock).toBe(16370020);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "chainId": 1,
+          "fromAddress": undefined,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": true,
+          "sourceId": "a",
+          "toAddress": "0x0000000000000000000000000000000000000001",
+          "toBlock": 16370020,
+          "type": "transaction",
+        },
+        "name": "a:transaction:to",
+      },
+      {
+        "chain": "mainnet",
+        "filter": {
+          "chainId": 1,
+          "fromAddress": "0x0000000000000000000000000000000000000001",
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toAddress": undefined,
+          "toBlock": 16370020,
+          "type": "transfer",
+        },
+        "name": "a:transfer:from",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() block source", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     blocks: {
       a: {
@@ -931,29 +1306,38 @@ test("buildIndexingFunctions() block source", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:block", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(eventCallbacks).toHaveLength(1);
-
-  expect(eventCallbacks[0]![0]?.chain.name).toBe("mainnet");
-  expect(eventCallbacks[0]![0]?.name).toBe("a:block");
-  expect(eventCallbacks[0]![0]?.filter.type).toBe("block");
-  // @ts-expect-error
-  expect(eventCallbacks[0]![0]?.filter.interval).toBe(1);
-  expect(eventCallbacks[0]![0]?.filter.fromBlock).toBe(16370000);
-  expect(eventCallbacks[0]![0]?.filter.toBlock).toBe(16370020);
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "interval": 1,
+          "offset": 0,
+          "sourceId": "a",
+          "toBlock": 16370020,
+          "type": "block",
+        },
+        "name": "a:block",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() coerces undefined factory interval to source interval", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -970,28 +1354,51 @@ test("buildIndexingFunctions() coerces undefined factory interval to source inte
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { eventCallbacks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
-  expect(
-    ((eventCallbacks[0]![0]!.filter as LogFilter).address as LogFactory)
-      .fromBlock === 16370000,
-  );
-  expect(
-    ((eventCallbacks[0]![0]!.filter as LogFilter).address as LogFactory)
-      .toBlock === 16370100,
-  );
+  expect(getFilters(eventCallbacks)).toMatchInlineSnapshot(`
+    [
+      {
+        "chain": "mainnet",
+        "filter": {
+          "address": {
+            "address": "0x0000000000000000000000000000000000000001",
+            "chainId": 1,
+            "childAddressLocation": "topic1",
+            "eventSelector": "0x3032dacf24474e98fa8d177486690dcac56523635af423cfb1dcc34f0646322e",
+            "fromBlock": 16370000,
+            "id": "log_0x0000000000000000000000000000000000000001_1_topic1_0x3032dacf24474e98fa8d177486690dcac56523635af423cfb1dcc34f0646322e_16370000_16370100",
+            "sourceId": "a",
+            "toBlock": 16370100,
+            "type": "log",
+          },
+          "chainId": 1,
+          "fromBlock": 16370000,
+          "hasTransactionReceipt": false,
+          "sourceId": "a",
+          "toBlock": 16370100,
+          "topic0": "0xca7435a70af93ecf41ca56ac8ba6e393f00b2d8663288ceebbd272f23ed2a5d9",
+          "topic1": null,
+          "topic2": null,
+          "topic3": null,
+          "type": "log",
+        },
+        "name": "a:Event0",
+      },
+    ]
+  `);
 });
 
 test("buildIndexingFunctions() validates factory interval", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -1009,24 +1416,24 @@ test("buildIndexingFunctions() validates factory interval", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result.status).toBe("error");
-  expect(result.error?.message).toBe(
-    "Validation failed: Start block for 'a' is before start block of factory address (16370050 > 16370000).",
+  expect(result.error?.message).toMatchInlineSnapshot(
+    `"Validation failed: Start block for 'a' is before start block of factory address (16370050 > 16370000)."`,
   );
 });
 
 test("buildIndexingFunctions() validates start and end block", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     contracts: {
       a: {
@@ -1041,13 +1448,13 @@ test("buildIndexingFunctions() validates start and end block", async () => {
   });
 
   // @ts-expect-error
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const result = await safeBuildIndexingFunctions({
-    common: context.common,
+    common,
     // @ts-expect-error
     config,
     indexingFunctions: [{ name: "a:Event0", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(result).toMatchInlineSnapshot(`
@@ -1061,7 +1468,7 @@ test("buildIndexingFunctions() validates start and end block", async () => {
 test("buildIndexingFunctions() returns chain, rpc, and finalized block", async () => {
   const config = createConfig({
     chains: {
-      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      mainnet: { id: 1, rpc },
     },
     blocks: {
       b: {
@@ -1070,12 +1477,12 @@ test("buildIndexingFunctions() returns chain, rpc, and finalized block", async (
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { rpcs, chains, finalizedBlocks } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "b:block", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(rpcs).toHaveLength(1);
@@ -1092,14 +1499,14 @@ test("buildConfig() uses the configured reorg window", () => {
     chains: {
       mainnet: {
         id: 1,
-        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        rpc: rpc,
         reorgWindow: 120,
       },
     },
     blocks: { b: { chain: "mainnet" } },
   });
 
-  const { chains } = buildConfig({ common: context.common, config });
+  const { chains } = buildConfig({ common, config });
 
   expect(chains[0]!.reorgWindow).toBe(120);
 });
@@ -1109,13 +1516,13 @@ test("buildConfig() defaults the reorg window to 180 seconds", () => {
     chains: {
       mainnet: {
         id: 1,
-        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        rpc: rpc,
       },
     },
     blocks: { b: { chain: "mainnet" } },
   });
 
-  const { chains } = buildConfig({ common: context.common, config });
+  const { chains } = buildConfig({ common, config });
 
   expect(chains[0]!.reorgWindow).toBe(180);
 });
@@ -1127,14 +1534,14 @@ test.each([0, 600])(
       chains: {
         mainnet: {
           id: 1,
-          rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+          rpc: rpc,
           reorgWindow,
         },
       },
       blocks: { b: { chain: "mainnet" } },
     });
 
-    const { chains } = buildConfig({ common: context.common, config });
+    const { chains } = buildConfig({ common, config });
 
     expect(chains[0]!.reorgWindow).toBe(reorgWindow);
   },
@@ -1147,14 +1554,14 @@ test.each([-1, 1.5, 601, Number.NaN])(
       chains: {
         mainnet: {
           id: 1,
-          rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+          rpc: rpc,
           reorgWindow,
         },
       },
       blocks: { b: { chain: "mainnet" } },
     });
 
-    expect(() => buildConfig({ common: context.common, config })).toThrow(
+    expect(() => buildConfig({ common, config })).toThrow(
       `Invalid 'reorgWindow' for chain 'mainnet'. Expected an integer between 0 and 600 seconds, got ${reorgWindow}.`,
     );
   },
@@ -1163,7 +1570,7 @@ test.each([-1, 1.5, 601, Number.NaN])(
 test("buildIndexingFunctions() hyperliquid evm", async () => {
   const config = createConfig({
     chains: {
-      hyperliquid: { id: 999, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+      hyperliquid: { id: 999, rpc },
     },
     blocks: {
       b: {
@@ -1172,12 +1579,12 @@ test("buildIndexingFunctions() hyperliquid evm", async () => {
     },
   });
 
-  const configBuild = buildConfig({ common: context.common, config });
+  const configBuild = buildConfig({ common, config });
   const { chains } = await buildIndexingFunctions({
-    common: context.common,
+    common,
     config,
     indexingFunctions: [{ name: "b:block", fn: () => {} }],
-    configBuild,
+    configBuild: withStubRpc(configBuild),
   });
 
   expect(chains).toHaveLength(1);

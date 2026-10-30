@@ -1,9 +1,6 @@
-import { beforeEach, expect, test } from "vitest";
-import { setupCommon } from "@/_test/setup.js";
+import { expect, test } from "vitest";
 import { withStubbedEnv } from "@/_test/utils.js";
 import { getDatabaseName } from "./pg.js";
-
-beforeEach(setupCommon);
 
 test("getDatabaseName() prioritizes connectionString values", () => {
   const name = getDatabaseName({

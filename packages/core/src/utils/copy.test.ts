@@ -54,8 +54,12 @@ test("copyOnWrite nested array", () => {
 
   copiedObj.a.push(1);
 
-  expect(obj.a).toEqual([]);
-  expect(copiedObj.a).toEqual([1]);
+  expect(obj.a).toMatchInlineSnapshot(`[]`);
+  expect(copiedObj.a).toMatchInlineSnapshot(`
+    [
+      1,
+    ]
+  `);
 });
 
 test("copy", () => {
@@ -170,13 +174,40 @@ test("copy keeps writes made through copyOnWrite", () => {
   const fast = copy(copiedObj, true);
   const slow = copy(copiedObj, false);
 
-  expect(fast).toStrictEqual({ a: 3, b: 2 });
-  expect(slow).toStrictEqual({ a: 3, b: 2 });
-  expect(copy([copiedObj], false)).toStrictEqual([{ a: 3, b: 2 }]);
-  expect(copy({ nested: copiedObj }, false)).toStrictEqual({
-    nested: { a: 3, b: 2 },
-  });
-  expect(obj).toStrictEqual({ a: 1, b: 2 });
+  expect(fast).toMatchInlineSnapshot(`
+    {
+      "a": 3,
+      "b": 2,
+    }
+  `);
+  expect(slow).toMatchInlineSnapshot(`
+    {
+      "a": 3,
+      "b": 2,
+    }
+  `);
+  expect(copy([copiedObj], false)).toMatchInlineSnapshot(`
+    [
+      {
+        "a": 3,
+        "b": 2,
+      },
+    ]
+  `);
+  expect(copy({ nested: copiedObj }, false)).toMatchInlineSnapshot(`
+    {
+      "nested": {
+        "a": 3,
+        "b": 2,
+      },
+    }
+  `);
+  expect(obj).toMatchInlineSnapshot(`
+    {
+      "a": 1,
+      "b": 2,
+    }
+  `);
 });
 
 test("copy does not alias the copyOnWrite target", () => {
@@ -196,15 +227,30 @@ test("copyOnWrite behaves like a plain object", () => {
   const copiedObj = copyOnWrite(obj);
 
   expect(Object.getPrototypeOf(copiedObj)).toBe(Object.prototype);
-  expect(Object.keys(copiedObj)).toStrictEqual(["a", "b"]);
-  expect({ ...copiedObj }).toStrictEqual({ a: 1n, b: "0x1" });
+  expect(Object.keys(copiedObj)).toMatchInlineSnapshot(`
+    [
+      "a",
+      "b",
+    ]
+  `);
+  expect({ ...copiedObj }).toMatchInlineSnapshot(`
+    {
+      "a": 1n,
+      "b": "0x1",
+    }
+  `);
   expect("a" in copiedObj).toBe(true);
   expect(util.inspect(copiedObj)).toBe(util.inspect(obj));
 
   copiedObj.a = 2n;
 
   expect(util.inspect(copiedObj)).toBe(util.inspect({ a: 2n, b: "0x1" }));
-  expect(obj).toStrictEqual({ a: 1n, b: "0x1" });
+  expect(obj).toMatchInlineSnapshot(`
+    {
+      "a": 1n,
+      "b": "0x1",
+    }
+  `);
 });
 
 test("copyOnWrite rejects arrays at the type level", () => {

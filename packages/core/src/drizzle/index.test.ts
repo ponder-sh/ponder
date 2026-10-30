@@ -10,7 +10,14 @@ test("getPrimaryKeyColumns()", () => {
 
   const primaryKeys = getPrimaryKeyColumns(table);
 
-  expect(primaryKeys).toStrictEqual([{ js: "account", sql: "account" }]);
+  expect(primaryKeys).toMatchInlineSnapshot(`
+    [
+      {
+        "js": "account",
+        "sql": "account",
+      },
+    ]
+  `);
 });
 
 test("getPrimaryKeyColumns() sql", () => {
@@ -20,7 +27,14 @@ test("getPrimaryKeyColumns() sql", () => {
 
   const primaryKeys = getPrimaryKeyColumns(table);
 
-  expect(primaryKeys).toStrictEqual([{ js: "name", sql: "unique_name" }]);
+  expect(primaryKeys).toMatchInlineSnapshot(`
+    [
+      {
+        "js": "name",
+        "sql": "unique_name",
+      },
+    ]
+  `);
 });
 
 test("getPrimaryKeyColumns() snake case", () => {
@@ -30,7 +44,14 @@ test("getPrimaryKeyColumns() snake case", () => {
 
   const primaryKeys = getPrimaryKeyColumns(table);
 
-  expect(primaryKeys).toStrictEqual([{ js: "chainId", sql: "chain_id" }]);
+  expect(primaryKeys).toMatchInlineSnapshot(`
+    [
+      {
+        "js": "chainId",
+        "sql": "chain_id",
+      },
+    ]
+  `);
 });
 
 test("getPrimaryKeyColumns() composite", () => {
@@ -48,8 +69,16 @@ test("getPrimaryKeyColumns() composite", () => {
 
   const primaryKeys = getPrimaryKeyColumns(table);
 
-  expect(primaryKeys).toStrictEqual([
-    { js: "name", sql: "name" },
-    { js: "address", sql: "address" },
-  ]);
+  expect(primaryKeys).toMatchInlineSnapshot(`
+    [
+      {
+        "js": "name",
+        "sql": "name",
+      },
+      {
+        "js": "address",
+        "sql": "address",
+      },
+    ]
+  `);
 });

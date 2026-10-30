@@ -11,25 +11,9 @@ jobs:
     name: Test [core]
     runs-on: windows-2025
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        database: [Postgres, PGlite]
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Note: The runner image has Postgres preinstalled.
-      - name: Setup Postgres
-        if: ${{ matrix.database == 'Postgres' }}
-        shell: pwsh
-        run: |
-          Set-Service -Name postgresql-x64-17 -StartupType Manual
-          Start-Service -Name postgresql-x64-17
-          & "$env:PGBIN\psql" -c "SELECT version()"
-        env:
-          PGUSER: postgres
-          PGPASSWORD: root
 
       - name: Set up node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -41,18 +25,11 @@ jobs:
         with:
           cache: true
 
-      - name: Set up foundry
-        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
-        with:
-          version: "v1.8.6"
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Test
-        run: pnpm --filter "ponder" test
-        env:
-          DATABASE_URL: ${{ matrix.database == 'Postgres' && 'postgresql://postgres:root@localhost:5432/postgres' || '' }}
+        run: pnpm --filter "ponder" test --run
 
   test-create-ponder:
     name: Test [create-ponder]
