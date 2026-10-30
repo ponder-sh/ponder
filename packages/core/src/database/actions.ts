@@ -4,6 +4,7 @@ import {
   getTableColumns,
   getTableName,
   getViewName,
+  inArray,
   lte,
   type SQL,
   sql,
@@ -11,6 +12,7 @@ import {
   type View,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import { Effect } from "effect";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
 import {
@@ -27,58 +29,64 @@ import {
   getReorgTriggerName,
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
-import type { Logger } from "@/internal/logger.js";
 import type {
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
 import { decodeCheckpoint, MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import type { DbClient, QueryOptions } from "./db.js";
 import {
   getPonderCheckpointTable,
   PONDER_CHECKPOINT_TABLE_NAME,
   PONDER_META_TABLE_NAME,
 } from "./index.js";
-import type { QB } from "./queryBuilder.js";
 
-export const createIndexes = async (
-  qb: QB,
+export const createIndexes = (
+  client: DbClient,
   { statements }: { statements: SchemaBuild["statements"] },
-  context?: { logger?: Logger },
-) => {
-  for (const statement of statements.indexes.sql) {
-    await qb.transaction(
-      { label: "create_indexes" },
-      async (tx) => {
-        // 60 minutes
-        await tx.wrap((tx) => tx.execute("SET statement_timeout = 3600000;"));
-        await tx.wrap((tx) => tx.execute(statement));
-      },
-      undefined,
-      context,
-    );
-  }
-};
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    for (const statement of statements.indexes.sql) {
+      yield* client.transaction(
+        (tx) =>
+          Effect.gen(function* () {
+            // 60 minutes
+            yield* tx.query((tx) =>
+              tx.execute("SET statement_timeout = 3600000;"),
+            );
+            yield* tx.query((tx) => tx.execute(statement));
+          }),
+        { label: "create_indexes", ...context },
+      );
+    }
+  });
 
-export const createTriggers = async (
-  qb: QB,
+export const createTriggers = (
+  client: DbClient,
   { tables, chainId }: { tables: Table[]; chainId?: number },
-  context?: { logger?: Logger },
-) => {
-  await qb.transaction(
-    async (tx) => {
-      await Promise.all(
-        tables.map(async (table) => {
-          const schema = getTableConfig(table).schema ?? "public";
-          const columns = getTableColumns(table);
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          yield* Effect.forEach(
+            tables,
+            (table) =>
+              Effect.gen(function* () {
+                const schema = getTableConfig(table).schema ?? "public";
+                const columns = getTableColumns(table);
 
-          const columnNames = Object.values(columns).map(
-            (column) => `"${getColumnCasing(column, "snake_case")}"`,
-          );
+                const columnNames = Object.values(columns).map(
+                  (column) => `"${getColumnCasing(column, "snake_case")}"`,
+                );
 
-          await tx.wrap({ label: "create_trigger" }, (tx) =>
-            tx.execute(
-              `
+                yield* tx.query(
+                  (tx) =>
+                    tx.execute(
+                      `
   CREATE OR REPLACE FUNCTION "${schema}".${getReorgProcedureName(table)}
   RETURNS TRIGGER AS $$
   BEGIN
@@ -95,144 +103,157 @@ export const createTriggers = async (
   RETURN NULL;
   END;
   $$ LANGUAGE plpgsql`,
-            ),
-          );
+                    ),
+                  { label: "create_trigger" },
+                );
 
-          await tx.wrap({ label: "create_trigger" }, (tx) =>
-            tx.execute(
-              `
+                yield* tx.query(
+                  (tx) =>
+                    tx.execute(
+                      `
   CREATE OR REPLACE TRIGGER "${getReorgTriggerName()}"
   AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
   FOR EACH ROW EXECUTE PROCEDURE "${schema}".${getReorgProcedureName(table)};
   `,
-            ),
+                    ),
+                  { label: "create_trigger" },
+                );
+              }),
+            { concurrency: "unbounded", discard: true },
           );
         }),
-      );
-    },
-    undefined,
-    context,
-  );
-};
+      context,
+    );
+  });
 
-export const dropTriggers = async (
-  qb: QB,
+export const dropTriggers = (
+  client: DbClient,
   { tables, chainId }: { tables: Table[]; chainId?: number },
-  context?: { logger?: Logger },
-) => {
-  await qb.transaction(
-    async (tx) => {
-      await Promise.all(
-        tables.map(async (table) => {
-          const schema = getTableConfig(table).schema ?? "public";
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          yield* Effect.forEach(
+            tables,
+            (table) =>
+              Effect.gen(function* () {
+                const schema = getTableConfig(table).schema ?? "public";
 
-          await tx.wrap({ label: "drop_trigger" }, (tx) =>
-            tx.execute(
-              `DROP TRIGGER IF EXISTS "${getReorgTriggerName()}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
-            ),
+                yield* tx.query(
+                  (tx) =>
+                    tx.execute(
+                      `DROP TRIGGER IF EXISTS "${getReorgTriggerName()}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"`,
+                    ),
+                  { label: "drop_trigger" },
+                );
+              }),
+            { concurrency: "unbounded", discard: true },
           );
         }),
-      );
-    },
-    undefined,
-    context,
-  );
-};
+      context,
+    );
+  });
 
-export const createLiveQueryTriggers = async (
-  qb: QB,
+export const createLiveQueryTriggers = (
+  client: DbClient,
   {
     namespaceBuild,
     tables,
     chainId,
   }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
-  context?: { logger?: Logger },
-) => {
-  await qb.transaction(
-    async (tx) => {
-      const notifyProcedure = getLiveQueryNotifyProcedureName();
-      const notifyTrigger = getLiveQueryNotifyTriggerName();
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          const notifyProcedure = getLiveQueryNotifyProcedureName();
+          const notifyTrigger = getLiveQueryNotifyTriggerName();
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          `
+          yield* tx.query((tx) =>
+            tx.execute(
+              `
 CREATE OR REPLACE TRIGGER "${notifyTrigger}"
 AFTER INSERT OR UPDATE OR DELETE ON "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"
 FOR EACH STATEMENT EXECUTE PROCEDURE "${namespaceBuild.schema}".${notifyProcedure};`,
-        ),
-      );
+            ),
+          );
 
-      const trigger = getLiveQueryTriggerName();
-      const procedure = getLiveQueryProcedureName();
+          const trigger = getLiveQueryTriggerName();
+          const procedure = getLiveQueryProcedureName();
 
-      for (const table of tables) {
-        const schema = getTableConfig(table).schema ?? "public";
+          for (const table of tables) {
+            const schema = getTableConfig(table).schema ?? "public";
 
-        // Note: Because the realtime indexing store writes to the parent table, we create the trigger on
-        // the parent table instead of the partition table.
-        await tx.wrap((tx) =>
-          tx.execute(
-            `
+            // Note: Because the realtime indexing store writes to the parent table, we create the trigger on
+            // the parent table instead of the partition table.
+            yield* tx.query((tx) =>
+              tx.execute(
+                `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}"
 FOR EACH ROW EXECUTE PROCEDURE "${schema}".${procedure};`,
-          ),
-        );
-      }
-    },
-    undefined,
-    context,
-  );
-};
+              ),
+            );
+          }
+        }),
+      context,
+    );
+  });
 
-export const dropLiveQueryTriggers = async (
-  qb: QB,
+export const dropLiveQueryTriggers = (
+  client: DbClient,
   {
     namespaceBuild,
     tables,
     chainId,
   }: { namespaceBuild: NamespaceBuild; tables: Table[]; chainId?: number },
-  context?: { logger?: Logger },
-) => {
-  await qb.transaction(
-    async (tx) => {
-      const notifyTrigger = getLiveQueryNotifyTriggerName();
-      await tx.wrap((tx) =>
-        tx.execute(
-          `DROP TRIGGER IF EXISTS "${notifyTrigger}" ON "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}";`,
-        ),
-      );
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          const notifyTrigger = getLiveQueryNotifyTriggerName();
+          yield* tx.query((tx) =>
+            tx.execute(
+              `DROP TRIGGER IF EXISTS "${notifyTrigger}" ON "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}";`,
+            ),
+          );
 
-      const trigger = getLiveQueryTriggerName();
-      for (const table of tables) {
-        const schema = getTableConfig(table).schema ?? "public";
+          const trigger = getLiveQueryTriggerName();
+          for (const table of tables) {
+            const schema = getTableConfig(table).schema ?? "public";
 
-        await tx.wrap((tx) =>
-          tx.execute(
-            `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}";`,
-          ),
-        );
-      }
-    },
-    undefined,
-    context,
-  );
-};
+            yield* tx.query((tx) =>
+              tx.execute(
+                `DROP TRIGGER IF EXISTS "${trigger}" ON "${schema}"."${chainId === undefined ? getTableName(table) : getPartitionName(table, chainId)}";`,
+              ),
+            );
+          }
+        }),
+      context,
+    );
+  });
 
-export const createLiveQueryProcedures = async (
-  qb: QB,
+export const createLiveQueryProcedures = (
+  client: DbClient,
   { namespaceBuild }: { namespaceBuild: NamespaceBuild },
-  context?: { logger?: Logger },
-) => {
-  await qb.transaction(
-    async (tx) => {
-      const schema = namespaceBuild.schema;
-      const procedure = getLiveQueryProcedureName();
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          const schema = namespaceBuild.schema;
+          const procedure = getLiveQueryProcedureName();
 
-      await tx.wrap(
-        (tx) =>
-          tx.execute(
-            `
+          yield* tx.query(
+            (tx) =>
+              tx.execute(
+                `
 CREATE OR REPLACE FUNCTION "${schema}".${procedure}
 RETURNS TRIGGER LANGUAGE plpgsql
 AS $$
@@ -243,129 +264,129 @@ BEGIN
   RETURN NULL;
 END;
 $$;`,
-          ),
-        context,
-      );
+              ),
+            context,
+          );
 
-      const channel = getLiveQueryChannelName(namespaceBuild.schema);
+          const channel = getLiveQueryChannelName(namespaceBuild.schema);
 
-      await tx.wrap(
-        (tx) => tx.execute(getLiveQueryNotifyProcedureSql({ schema, channel })),
-        context,
-      );
-    },
-    undefined,
-    context,
-  );
-};
+          yield* tx.query(
+            (tx) =>
+              tx.execute(getLiveQueryNotifyProcedureSql({ schema, channel })),
+            context,
+          );
+        }),
+      context,
+    );
+  });
 
-export const createViews = async (
-  qb: QB,
+export const createViews = (
+  client: DbClient,
   {
     tables,
     views,
     namespaceBuild,
   }: { tables: Table[]; views: View[]; namespaceBuild: NamespaceBuild },
-  context?: { logger?: Logger },
-) => {
-  await qb.transaction(
-    { label: "create_views" },
-    async (tx) => {
-      await tx.wrap((tx) =>
-        tx.execute(
-          `CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`,
-        ),
-      );
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          yield* tx.query((tx) =>
+            tx.execute(
+              `CREATE SCHEMA IF NOT EXISTS "${namespaceBuild.viewsSchema}"`,
+            ),
+          );
 
-      // Note: Drop views before creating new ones because Postgres does not support
-      // altering the schema of a view with CREATE OR REPLACE VIEW.
+          // Note: Drop views before creating new ones because Postgres does not support
+          // altering the schema of a view with CREATE OR REPLACE VIEW.
 
-      for (const table of tables) {
-        await tx.wrap((tx) =>
-          tx.execute(
-            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
-          ),
-        );
+          for (const table of tables) {
+            yield* tx.query((tx) =>
+              tx.execute(
+                `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getTableName(table)}"`,
+              ),
+            );
 
-        await tx.wrap((tx) =>
-          tx.execute(
-            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
-          ),
-        );
-      }
+            yield* tx.query((tx) =>
+              tx.execute(
+                `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getTableName(table)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getTableName(table)}"`,
+              ),
+            );
+          }
 
-      for (const view of views) {
-        await tx.wrap((tx) =>
-          tx.execute(
-            `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getViewName(view)}"`,
-          ),
-        );
+          for (const view of views) {
+            yield* tx.query((tx) =>
+              tx.execute(
+                `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${getViewName(view)}"`,
+              ),
+            );
 
-        await tx.wrap((tx) =>
-          tx.execute(
-            `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getViewName(view)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getViewName(view)}"`,
-          ),
-        );
-      }
+            yield* tx.query((tx) =>
+              tx.execute(
+                `CREATE VIEW "${namespaceBuild.viewsSchema}"."${getViewName(view)}" AS SELECT * FROM "${namespaceBuild.schema}"."${getViewName(view)}"`,
+              ),
+            );
+          }
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
-        ),
-      );
+          yield* tx.query((tx) =>
+            tx.execute(
+              `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
+            ),
+          );
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
-        ),
-      );
+          yield* tx.query((tx) =>
+            tx.execute(
+              `DROP VIEW IF EXISTS "${namespaceBuild.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
+            ),
+          );
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          `CREATE VIEW "${namespaceBuild.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${namespaceBuild.schema}"."${PONDER_META_TABLE_NAME}"`,
-        ),
-      );
+          yield* tx.query((tx) =>
+            tx.execute(
+              `CREATE VIEW "${namespaceBuild.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${namespaceBuild.schema}"."${PONDER_META_TABLE_NAME}"`,
+            ),
+          );
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          `CREATE VIEW "${namespaceBuild.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
-        ),
-      );
+          yield* tx.query((tx) =>
+            tx.execute(
+              `CREATE VIEW "${namespaceBuild.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${namespaceBuild.schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
+            ),
+          );
 
-      const channel = getLiveQueryChannelName(namespaceBuild.viewsSchema!);
+          const channel = getLiveQueryChannelName(namespaceBuild.viewsSchema!);
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          getLiveQueryNotifyProcedureSql({
-            schema: namespaceBuild.viewsSchema!,
-            channel,
-          }),
-        ),
-      );
+          yield* tx.query((tx) =>
+            tx.execute(
+              getLiveQueryNotifyProcedureSql({
+                schema: namespaceBuild.viewsSchema!,
+                channel,
+              }),
+            ),
+          );
 
-      const trigger = getViewsLiveQueryNotifyTriggerName(
-        namespaceBuild.viewsSchema!,
-      );
-      const notifyProcedure = getLiveQueryNotifyProcedureName();
+          const trigger = getViewsLiveQueryNotifyTriggerName(
+            namespaceBuild.viewsSchema!,
+          );
+          const notifyProcedure = getLiveQueryNotifyProcedureName();
 
-      await tx.wrap((tx) =>
-        tx.execute(
-          `
+          yield* tx.query((tx) =>
+            tx.execute(
+              `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${namespaceBuild.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${namespaceBuild.viewsSchema}".${notifyProcedure};`,
-        ),
-      );
-    },
-    undefined,
-    context,
-  );
-};
+            ),
+          );
+        }),
+      { label: "create_views", ...context },
+    );
+  });
 
-export const revertOmnichain = async (
-  qb: QB,
+export const revertOmnichain = (
+  client: DbClient,
   {
     checkpoint,
     tables,
@@ -373,21 +394,22 @@ export const revertOmnichain = async (
     checkpoint: string;
     tables: Table[];
   },
-  context?: { logger?: Logger },
-): Promise<number[]> => {
-  if (tables.length === 0) return [];
+  context?: QueryOptions,
+): Effect.Effect<number[], Error> =>
+  Effect.gen(function* () {
+    if (tables.length === 0) return [];
 
-  return qb.transaction(
-    { label: "revert" },
-    async (tx) => {
-      const counts: number[] = [];
+    return yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          const counts: number[] = [];
 
-      for (const table of tables) {
-        const primaryKeyColumns = getPrimaryKeyColumns(table);
-        const schema = getTableConfig(table).schema ?? "public";
+          for (const table of tables) {
+            const primaryKeyColumns = getPrimaryKeyColumns(table);
+            const schema = getTableConfig(table).schema ?? "public";
 
-        const result = await tx.wrap((tx) =>
-          tx.execute(`
+            const result = yield* tx.query((tx) =>
+              tx.execute(`
 WITH reverted1 AS (
   DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE checkpoint > '${checkpoint}' RETURNING * 
@@ -402,60 +424,84 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), ${getRevertSql({ table })};`),
-        );
+            );
 
-        // @ts-expect-error
-        counts.push(result.rows[0]!.count);
-      }
+            // @ts-expect-error
+            counts.push(result.rows[0]!.count);
+          }
 
-      return counts;
-    },
-    undefined,
-    context,
-  );
-};
+          return counts;
+        }),
+      { label: "revert", ...context },
+    );
+  });
 
-export const revertMultichain = async (
-  qb: QB,
+/**
+ * SQL that matches the reorg rows of each chain at or after its checkpoint in
+ * `executedCheckpoints`.
+ *
+ * Note: The operations of the events of a chain are in checkpoint order, so
+ * these are the rows of the events at or after each checkpoint.
+ */
+const getExecutedCheckpointsSql = (executedCheckpoints: string[]) =>
+  executedCheckpoints
+    .map(
+      (checkpoint) => `
+OR (SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+AND checkpoint >= '${checkpoint}')`,
+    )
+    .join("");
+
+export const revertMultichain = (
+  client: DbClient,
   {
     checkpoint,
+    executedCheckpoints = [],
     tables,
   }: {
     checkpoint: string;
+    /**
+     * The checkpoint of the first executed event of each chain that is indexed
+     * again. The rows of the chain at or after it are reverted.
+     */
+    executedCheckpoints?: string[];
     tables: Table[];
   },
-  context?: { logger?: Logger },
-): Promise<number[]> => {
-  if (tables.length === 0) return [];
+  context?: QueryOptions,
+): Effect.Effect<number[], Error> =>
+  Effect.gen(function* () {
+    if (tables.length === 0) return [];
 
-  return qb.transaction(
-    { label: "revert" },
-    async (tx) => {
-      const counts: number[] = [];
+    return yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          const counts: number[] = [];
 
-      const minOperationId = await tx
-        .wrap((tx) =>
-          tx.execute(`
+          const minOperationId = yield* tx
+            .query((tx) =>
+              tx.execute(`
 SELECT MIN(operation_id) AS operation_id FROM (
 ${tables
   .map(
     (table) => `
 SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
 WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-AND checkpoint > '${checkpoint}'`,
+AND checkpoint > '${checkpoint}'${getExecutedCheckpointsSql(executedCheckpoints)}`,
   )
   .join(" UNION ALL ")}) AS all_mins;`),
-        )
-        .then((result) => {
-          return result.rows[0]?.operation_id as string | null;
-        });
+            )
+            .pipe(
+              Effect.map((result) => {
+                return result.rows[0]?.operation_id as string | null;
+              }),
+            );
 
-      for (const table of tables) {
-        const primaryKeyColumns = getPrimaryKeyColumns(table);
-        const schema = getTableConfig(table).schema ?? "public";
+          for (const table of tables) {
+            const primaryKeyColumns = getPrimaryKeyColumns(table);
+            const schema = getTableConfig(table).schema ?? "public";
 
-        const result = await tx.wrap((tx) =>
-          tx.execute(`
+            const result = yield* tx.query((tx) =>
+              tx.execute(`
 WITH reverted1 AS (
   DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE ${minOperationId!} IS NOT NULL AND operation_id >= ${minOperationId!}
@@ -471,21 +517,20 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), ${getRevertSql({ table })};`),
-        );
+            );
 
-        // @ts-expect-error
-        counts.push(result.rows[0]!.count);
-      }
+            // @ts-expect-error
+            counts.push(result.rows[0]!.count);
+          }
 
-      return counts;
-    },
-    undefined,
-    context,
-  );
-};
+          return counts;
+        }),
+      { label: "revert", ...context },
+    );
+  });
 
-export const revertIsolated = async (
-  qb: QB,
+export const revertIsolated = (
+  client: DbClient,
   {
     checkpoint,
     tables,
@@ -493,21 +538,22 @@ export const revertIsolated = async (
     checkpoint: string;
     tables: Table[];
   },
-  context?: { logger?: Logger },
-) => {
-  if (tables.length === 0) return [];
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    if (tables.length === 0) return [];
 
-  return qb.transaction(
-    { label: "revert" },
-    async (tx) => {
-      const counts: number[] = [];
+    return yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          const counts: number[] = [];
 
-      for (const table of tables) {
-        const primaryKeyColumns = getPrimaryKeyColumns(table);
-        const schema = getTableConfig(table).schema ?? "public";
+          for (const table of tables) {
+            const primaryKeyColumns = getPrimaryKeyColumns(table);
+            const schema = getTableConfig(table).schema ?? "public";
 
-        const result = await tx.wrap((tx) =>
-          tx.execute(`
+            const result = yield* tx.query((tx) =>
+              tx.execute(`
 WITH reverted1 AS (
   DELETE FROM "${schema}"."${getReorgTableName(table)}"
   WHERE checkpoint > '${checkpoint}' AND SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)} RETURNING * 
@@ -522,112 +568,139 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), ${getRevertSql({ table })};`),
-        );
+            );
 
-        // @ts-expect-error
-        counts.push(result.rows[0]!.count);
-      }
+            // @ts-expect-error
+            counts.push(result.rows[0]!.count);
+          }
 
-      return counts;
-    },
-    undefined,
-    context,
-  );
-};
-
-export const finalizeOmnichain = async (
-  qb: QB,
-  {
-    checkpoint,
-    tables,
-    namespaceBuild,
-  }: {
-    checkpoint: string;
-    tables: Table[];
-    namespaceBuild: NamespaceBuild;
-  },
-  context?: { logger?: Logger },
-) => {
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-
-  // TODO(kyle) is this breaking an invariant?
-  if (tables.length === 0) {
-    await qb.wrap(
-      (db) =>
-        db
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint }),
-      context,
-    );
-    return;
-  }
-
-  return qb.transaction(
-    { label: "finalize" },
-    async (tx) => {
-      await tx.wrap((tx) =>
-        tx.update(PONDER_CHECKPOINT).set({
-          finalizedCheckpoint: checkpoint,
-          safeCheckpoint: checkpoint,
+          return counts;
         }),
-      );
+      { label: "revert", ...context },
+    );
+  });
 
-      for (const table of tables) {
-        await tx.wrap((tx) =>
-          tx
-            .delete(getReorgTable(table))
-            .where(lte(getReorgTable(table).checkpoint, checkpoint)),
-        );
-      }
-    },
-    undefined,
-    context,
-  );
-};
-
-export const finalizeMultichain = async (
-  qb: QB,
+export const finalizeOmnichain = (
+  client: DbClient,
   {
     checkpoint,
+    chainNames,
     tables,
     namespaceBuild,
   }: {
     checkpoint: string;
+    /**
+     * The chains whose finalized checkpoint moves to `checkpoint`.
+     *
+     * Note: The finalized checkpoint of a chain must not be after the finalized
+     * block of the chain.
+     */
+    chainNames: string[];
     tables: Table[];
     namespaceBuild: NamespaceBuild;
   },
-  context?: { logger?: Logger },
-) => {
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const chainId = Number(decodeCheckpoint(checkpoint).chainId);
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
 
-  if (tables.length === 0) {
-    await qb.wrap(
-      (db) =>
-        db
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint })
-          .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
-      context,
-    );
-    return;
-  }
-
-  // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
-
-  return qb.transaction(
-    { label: "finalize" },
-    async (tx) => {
-      await tx.wrap((tx) =>
-        tx
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint })
-          .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+    // TODO(kyle) is this breaking an invariant?
+    if (tables.length === 0) {
+      yield* client.query(
+        (db) =>
+          db.update(PONDER_CHECKPOINT).set({ safeCheckpoint: checkpoint }),
+        context,
       );
+      yield* client.query(
+        (db) =>
+          db
+            .update(PONDER_CHECKPOINT)
+            .set({ finalizedCheckpoint: checkpoint })
+            .where(inArray(PONDER_CHECKPOINT.chainName, chainNames)),
+        context,
+      );
+      return;
+    }
 
-      const minOperationId = await tx
-        .wrap((tx) =>
-          tx.execute(`
+    return yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          yield* tx.query((tx) =>
+            tx.update(PONDER_CHECKPOINT).set({ safeCheckpoint: checkpoint }),
+          );
+          yield* tx.query((tx) =>
+            tx
+              .update(PONDER_CHECKPOINT)
+              .set({ finalizedCheckpoint: checkpoint })
+              .where(inArray(PONDER_CHECKPOINT.chainName, chainNames)),
+          );
+
+          for (const table of tables) {
+            yield* tx.query((tx) =>
+              tx
+                .delete(getReorgTable(table))
+                .where(lte(getReorgTable(table).checkpoint, checkpoint)),
+            );
+          }
+        }),
+      { label: "finalize", ...context },
+    );
+  });
+
+export const finalizeMultichain = (
+  client: DbClient,
+  {
+    checkpoint,
+    executedCheckpoints = [],
+    tables,
+    namespaceBuild,
+  }: {
+    checkpoint: string;
+    /**
+     * The checkpoint of the first executed event of each chain that can be
+     * indexed again after a reorg. The rows of the chain at or after it are
+     * kept.
+     */
+    executedCheckpoints?: string[];
+    tables: Table[];
+    namespaceBuild: NamespaceBuild;
+  },
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+    const chainId = Number(decodeCheckpoint(checkpoint).chainId);
+
+    if (tables.length === 0) {
+      yield* client.query(
+        (db) =>
+          db
+            .update(PONDER_CHECKPOINT)
+            .set({
+              finalizedCheckpoint: checkpoint,
+              safeCheckpoint: checkpoint,
+            })
+            .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+        context,
+      );
+      return;
+    }
+
+    // NOTE: It is invariant that PONDER_CHECKPOINT has a value for each chain.
+
+    return yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          yield* tx.query((tx) =>
+            tx
+              .update(PONDER_CHECKPOINT)
+              .set({ finalizedCheckpoint: checkpoint })
+              .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+          );
+
+          const minOperationId = yield* tx
+            .query((tx) =>
+              tx.execute(`
 SELECT MIN(operation_id) AS operation_id FROM (
 ${tables
   .map(
@@ -637,16 +710,18 @@ WHERE checkpoint > (
   SELECT finalized_checkpoint 
   FROM "${getTableConfig(PONDER_CHECKPOINT).schema ?? "public"}"."${getTableName(PONDER_CHECKPOINT)}" 
   WHERE chain_id = SUBSTRING(checkpoint, 11, 16)::numeric
-)`,
+)${getExecutedCheckpointsSql(executedCheckpoints)}`,
   )
   .join(" UNION ALL ")}) AS all_mins;`),
-        )
-        .then((result) => {
-          return result.rows[0]?.operation_id as string | null;
-        });
+            )
+            .pipe(
+              Effect.map((result) => {
+                return result.rows[0]?.operation_id as string | null;
+              }),
+            );
 
-      const result = await tx.wrap((tx) =>
-        tx.execute(`
+          const result = yield* tx.query((tx) =>
+            tx.execute(`
     WITH ${tables
       .map(
         (table, index) => `
@@ -665,24 +740,23 @@ WHERE checkpoint > (
     SELECT MAX(checkpoint) as safe_checkpoint, SUBSTRING(checkpoint, 11, 16)::numeric as chain_id
     FROM all_deleted
     GROUP BY SUBSTRING(checkpoint, 11, 16)::numeric;`),
-      );
+          );
 
-      for (const { chain_id, safe_checkpoint } of result.rows) {
-        await tx.wrap((tx) =>
-          tx
-            .update(PONDER_CHECKPOINT)
-            .set({ safeCheckpoint: safe_checkpoint as string })
-            .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
-        );
-      }
-    },
-    undefined,
-    context,
-  );
-};
+          for (const { chain_id, safe_checkpoint } of result.rows) {
+            yield* tx.query((tx) =>
+              tx
+                .update(PONDER_CHECKPOINT)
+                .set({ safeCheckpoint: safe_checkpoint as string })
+                .where(eq(PONDER_CHECKPOINT.chainId, chain_id as number)),
+            );
+          }
+        }),
+      { label: "finalize", ...context },
+    );
+  });
 
-export const finalizeIsolated = async (
-  qb: QB,
+export const finalizeIsolated = (
+  client: DbClient,
   {
     checkpoint,
     tables,
@@ -692,85 +766,97 @@ export const finalizeIsolated = async (
     tables: Table[];
     namespaceBuild: NamespaceBuild;
   },
-  context?: { logger?: Logger },
-) => {
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const chainId = Number(decodeCheckpoint(checkpoint).chainId);
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+    const chainId = Number(decodeCheckpoint(checkpoint).chainId);
 
-  if (tables.length === 0) {
-    await qb.wrap(
-      (db) =>
-        db
-          .update(PONDER_CHECKPOINT)
-          .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint })
-          .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
-      context,
-    );
-    return;
-  }
-  return qb.transaction({ label: "finalize" }, async (tx) => {
-    await tx.wrap((tx) =>
-      tx
-        .update(PONDER_CHECKPOINT)
-        .set({ finalizedCheckpoint: checkpoint, safeCheckpoint: checkpoint })
-        .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
-    );
-
-    for (const table of tables) {
-      await tx.wrap((tx) =>
-        tx
-          .delete(getReorgTable(table))
-          .where(
-            and(
-              lte(getReorgTable(table).checkpoint, checkpoint),
-              eq(sql`chain_id`, chainId),
-            ),
-          ),
+    if (tables.length === 0) {
+      yield* client.query(
+        (db) =>
+          db
+            .update(PONDER_CHECKPOINT)
+            .set({
+              finalizedCheckpoint: checkpoint,
+              safeCheckpoint: checkpoint,
+            })
+            .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+        context,
       );
+      return;
     }
-  });
-};
+    return yield* client.transaction(
+      (tx) =>
+        Effect.gen(function* () {
+          yield* tx.query((tx) =>
+            tx
+              .update(PONDER_CHECKPOINT)
+              .set({
+                finalizedCheckpoint: checkpoint,
+                safeCheckpoint: checkpoint,
+              })
+              .where(eq(PONDER_CHECKPOINT.chainId, chainId)),
+          );
 
-export const commitBlock = async (
-  qb: QB,
+          for (const table of tables) {
+            yield* tx.query((tx) =>
+              tx
+                .delete(getReorgTable(table))
+                .where(
+                  and(
+                    lte(getReorgTable(table).checkpoint, checkpoint),
+                    eq(sql`chain_id`, chainId),
+                  ),
+                ),
+            );
+          }
+        }),
+      { label: "finalize" },
+    );
+  });
+
+export const commitBlock = (
+  client: DbClient,
   {
     checkpoint,
     table,
     preBuild,
   }: { checkpoint: string; table: Table; preBuild: Pick<PreBuild, "ordering"> },
-  context?: { logger?: Logger },
-) => {
-  const reorgTable = getReorgTable(table);
-  let whereClause: SQL;
-  if (preBuild.ordering === "experimental_isolated") {
-    // Note: Query must include `chain_id` because it's possible for multiple chains to be indexing in parallel.
-    const chainId = Number(decodeCheckpoint(checkpoint).chainId);
-    whereClause = and(
-      eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING),
-      eq(sql`chain_id`, chainId),
-    )!;
-  } else {
-    whereClause = eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING);
-  }
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    const reorgTable = getReorgTable(table);
+    let whereClause: SQL;
+    if (preBuild.ordering === "experimental_isolated") {
+      // Note: Query must include `chain_id` because it's possible for multiple chains to be indexing in parallel.
+      const chainId = Number(decodeCheckpoint(checkpoint).chainId);
+      whereClause = and(
+        eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING),
+        eq(sql`chain_id`, chainId),
+      )!;
+    } else {
+      whereClause = eq(reorgTable.checkpoint, MAX_CHECKPOINT_STRING);
+    }
 
-  await qb.wrap(
-    { label: "commit_block" },
-    (db) => db.update(reorgTable).set({ checkpoint }).where(whereClause),
-    context,
-  );
-};
+    yield* client.query(
+      (db) => db.update(reorgTable).set({ checkpoint }).where(whereClause),
+      { label: "commit_block", ...context },
+    );
+  });
 
-export const crashRecovery = async (
-  qb: QB,
+export const crashRecovery = (
+  client: DbClient,
   { table }: { table: Table },
-  context?: { logger?: Logger },
-) => {
-  const primaryKeyColumns = getPrimaryKeyColumns(table);
-  const schema = getTableConfig(table).schema ?? "public";
+  context?: QueryOptions,
+) =>
+  Effect.gen(function* () {
+    const primaryKeyColumns = getPrimaryKeyColumns(table);
+    const schema = getTableConfig(table).schema ?? "public";
 
-  await qb.wrap(
-    (db) =>
-      db.execute(`
+    yield* client.query(
+      (db) =>
+        db.execute(`
 WITH reverted1 AS (
   DELETE FROM "${schema}"."${getTableName(getReorgTable(table))}"
   RETURNING *
@@ -785,9 +871,9 @@ WITH reverted1 AS (
   ON ${primaryKeyColumns.map(({ sql }) => `reverted2."${sql}" = reverted1."${sql}"`).join("AND ")}
   AND reverted2.operation_id = reverted1.operation_id
 ), ${getRevertSql({ table })}`),
-    context,
-  );
-};
+      context,
+    );
+  });
 
 const getRevertSql = ({ table }: { table: Table }) => {
   const primaryKeyColumns = getPrimaryKeyColumns(table);
