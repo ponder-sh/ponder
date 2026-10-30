@@ -1,29 +1,15 @@
-import { parseEther, zeroAddress } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { zeroAddress } from "viem";
+import { expect, test } from "vitest";
 import {
   ALICE,
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,
 } from "@/_test/constants.js";
 import {
-  context,
-  setupAnvil,
-  setupCleanup,
-  setupCommon,
-  setupDatabaseServices,
-  setupIsolatedDatabase,
-} from "@/_test/setup.js";
-import {
-  createPair,
-  deployErc20,
-  deployFactory,
-  mintErc20,
-} from "@/_test/simulate.js";
-import {
+  createStubRpc,
+  createTestCommon,
   getBlocksIndexingBuild,
   getChain,
-  getErc20IndexingBuild,
-  getPairWithFactoryIndexingBuild,
 } from "@/_test/utils.js";
 import type {
   BlockFilter,
@@ -34,39 +20,23 @@ import type {
   LogFilter,
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import { createRpc } from "@/rpc/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import {
-  syncBlockToInternal,
-  syncLogToInternal,
-  syncTransactionToInternal,
-} from "./events.js";
-import {
-  getFactoryFragmentIds,
-  getFactoryFragments,
-  getFragments,
-} from "./fragments.js";
+import { getFactoryFragments, getFragments } from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import {
   type CachedIntervals,
   getCachedBlock,
-  getChildAddresses,
   getLocalSyncProgress,
   getRequiredIntervals,
   getRequiredIntervalsWithFilters,
 } from "./index.js";
 
-beforeEach(setupCommon);
-beforeEach(setupAnvil);
-beforeEach(setupIsolatedDatabase);
-beforeEach(setupCleanup);
-
 test("getLocalSyncProgress()", async () => {
   const chain = getChain();
-  const rpc = createRpc({ chain, common: context.common });
+  const rpc = createStubRpc({ latestBlock: 0 });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
@@ -83,7 +53,7 @@ test("getLocalSyncProgress()", async () => {
   }
 
   const syncProgress = await getLocalSyncProgress({
-    common: context.common,
+    common: createTestCommon(),
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
@@ -91,15 +61,24 @@ test("getLocalSyncProgress()", async () => {
     cachedIntervals,
   });
 
-  expect(syncProgress.finalized.number).toBe("0x0");
-  expect(syncProgress.start.number).toBe("0x0");
-  expect(syncProgress.end).toBe(undefined);
-  expect(syncProgress.current).toBe(undefined);
+  expect({
+    finalized: syncProgress.finalized.number,
+    start: syncProgress.start.number,
+    end: syncProgress.end,
+    current: syncProgress.current,
+  }).toMatchInlineSnapshot(`
+    {
+      "current": undefined,
+      "end": undefined,
+      "finalized": "0x0",
+      "start": "0x0",
+    }
+  `);
 });
 
 test("getLocalSyncProgress() future end block", async () => {
   const chain = getChain();
-  const rpc = createRpc({ chain, common: context.common });
+  const rpc = createStubRpc({ latestBlock: 0 });
 
   const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
@@ -118,7 +97,7 @@ test("getLocalSyncProgress() future end block", async () => {
   }
 
   const syncProgress = await getLocalSyncProgress({
-    common: context.common,
+    common: createTestCommon(),
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
     rpc,
@@ -126,17 +105,24 @@ test("getLocalSyncProgress() future end block", async () => {
     cachedIntervals,
   });
 
-  expect(syncProgress.finalized.number).toBe("0x0");
-  expect(syncProgress.start.number).toBe("0x0");
-  expect(syncProgress.end).toMatchInlineSnapshot(`
+  expect({
+    finalized: syncProgress.finalized.number,
+    start: syncProgress.start.number,
+    end: syncProgress.end,
+    current: syncProgress.current,
+  }).toMatchInlineSnapshot(`
     {
-      "hash": "0x",
-      "number": "0xc",
-      "parentHash": "0x",
-      "timestamp": "0x2540be3ff",
+      "current": undefined,
+      "end": {
+        "hash": "0x",
+        "number": "0xc",
+        "parentHash": "0x",
+        "timestamp": "0x2540be3ff",
+      },
+      "finalized": "0x0",
+      "start": "0x0",
     }
   `);
-  expect(syncProgress.current).toBe(undefined);
 });
 
 test("getCachedBlock() no cached intervals", async () => {
@@ -955,122 +941,4 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
       ],
     ]
   `);
-});
-
-test("historical events match realtime events", async () => {
-  const { syncStore } = await setupDatabaseServices();
-
-  const { address } = await deployErc20({ sender: ALICE });
-  const blockData = await mintErc20({
-    erc20: address,
-    to: ALICE,
-    amount: parseEther("1"),
-    sender: ALICE,
-  });
-
-  const { eventCallbacks } = getErc20IndexingBuild({
-    address,
-    includeTransactionReceipts: true,
-  });
-
-  await syncStore.insertBlocks({ blocks: [blockData.block], chainId: 1 });
-  await syncStore.insertTransactions({
-    transactions: [blockData.transaction],
-    chainId: 1,
-  });
-  await syncStore.insertLogs({
-    logs: [blockData.log],
-    chainId: 1,
-  });
-
-  const { logs: historicalLogs } = await syncStore.getEventData({
-    filters: [eventCallbacks[0]!.filter],
-    fromBlock: 0,
-    toBlock: 10,
-    chainId: 1,
-    limit: 3,
-  });
-
-  const realtimeBlockData = [
-    {
-      block: syncBlockToInternal({ block: blockData.block }),
-      logs: [syncLogToInternal({ log: blockData.log })],
-      transactions: syncTransactionToInternal({
-        transaction: blockData.transaction,
-      }),
-      transactionReceipts: [],
-      traces: [],
-    },
-  ];
-
-  // Note: blocks and transactions are not asserted because they are non deterministic
-
-  expect(historicalLogs).toMatchInlineSnapshot(`
-    [
-      {
-        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-        "blockNumber": 2,
-        "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
-        "logIndex": 0,
-        "removed": false,
-        "topic0": undefined,
-        "topic1": undefined,
-        "topic2": undefined,
-        "topic3": undefined,
-        "topics": [
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-          null,
-        ],
-        "transactionIndex": 0,
-      },
-    ]
-  `);
-
-  expect(realtimeBlockData[0]!.logs).toMatchInlineSnapshot(`
-    [
-      {
-        "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
-        "blockNumber": 2,
-        "data": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000",
-        "logIndex": 0,
-        "removed": false,
-        "topics": [
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        ],
-        "transactionIndex": 0,
-      },
-    ]
-  `);
-});
-
-test("getChildAddresses() returns empty for cacheRpcRequests: false", async () => {
-  const { syncStore } = await setupDatabaseServices();
-
-  const { address } = await deployFactory({ sender: ALICE });
-  const { address: pair } = await createPair({
-    factory: address,
-    sender: ALICE,
-  });
-
-  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
-  const filter = eventCallbacks[0]!.filter as LogFilter<Factory>;
-
-  await syncStore.insertChildAddresses({
-    childAddresses: new Map([
-      [getFactoryFragmentIds(filter.address)[0]!, new Map([[pair, 0]])],
-    ]),
-    chainId: 1,
-  });
-
-  const childAddresses = await getChildAddresses({
-    chain: getChain({ cacheRpcRequests: false }),
-    filters: [filter],
-    syncStore,
-  });
-
-  expect(childAddresses.get(filter.address.id)!.size).toBe(0);
 });

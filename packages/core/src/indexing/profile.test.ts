@@ -1,7 +1,7 @@
 import { getAbiItem, zeroAddress } from "viem";
 import { expect, test } from "vitest";
+import { erc20ABI } from "@/_test/abis.js";
 import { ALICE, BOB } from "@/_test/constants.js";
-import { erc20ABI } from "@/_test/generated.js";
 import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
 import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
 import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
@@ -887,9 +887,17 @@ test("recordProfilePattern() hint with different args", () => {
   });
 
   expect(pattern).not.toBe(hint);
-  expect(pattern!.pattern.args).toStrictEqual([
-    { type: "derived", value: ["args", "to"] },
-  ]);
+  expect(pattern!.pattern.args).toMatchInlineSnapshot(`
+    [
+      {
+        "type": "derived",
+        "value": [
+          "args",
+          "to",
+        ],
+      },
+    ]
+  `);
   expect(recoverProfilePattern(pattern!.pattern, event).args).toStrictEqual([
     BOB,
   ]);

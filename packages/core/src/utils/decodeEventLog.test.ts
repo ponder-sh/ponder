@@ -33,11 +33,13 @@ test("named args: Transfer(address,address,uint256)", () => {
     ],
   });
 
-  expect(event).toEqual({
-    from: "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    to: "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    tokenId: 1n,
-  });
+  expect(event).toMatchInlineSnapshot(`
+    {
+      "from": "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      "to": "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      "tokenId": 1n,
+    }
+  `);
 });
 
 test("named args with a missing name: Transfer(address,address,uint256)", () => {
@@ -72,11 +74,13 @@ test("named args with a missing name: Transfer(address,address,uint256)", () => 
     ],
   });
 
-  expect(event).toEqual([
-    "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    1n,
-  ]);
+  expect(event).toMatchInlineSnapshot(`
+    [
+      "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      1n,
+    ]
+  `);
 });
 
 test("unnamed args: Transfer(address,address,uint256)", () => {
@@ -106,11 +110,13 @@ test("unnamed args: Transfer(address,address,uint256)", () => {
       "0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac",
     ],
   });
-  expect(event).toEqual([
-    "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    1n,
-  ]);
+  expect(event).toMatchInlineSnapshot(`
+    [
+      "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      1n,
+    ]
+  `);
 });
 
 test("unnamed args: mixed ordering of indexed args", () => {
@@ -140,11 +146,13 @@ test("unnamed args: mixed ordering of indexed args", () => {
       "0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac",
     ],
   });
-  expect(event).toEqual([
-    "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-    1n,
-    "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
-  ]);
+  expect(event).toMatchInlineSnapshot(`
+    [
+      "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+      1n,
+      "0xa5cc3c03994db5b0d9a5eedd10cabab0813678ac",
+    ]
+  `);
 });
 
 test("Foo(string)", () => {
@@ -166,10 +174,11 @@ test("Foo(string)", () => {
       "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
     ],
   });
-  expect(event).toEqual({
-    message:
-      "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
-  });
+  expect(event).toMatchInlineSnapshot(`
+    {
+      "message": "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
+    }
+  `);
 });
 
 test("args: eventName", () => {
@@ -191,10 +200,11 @@ test("args: eventName", () => {
       "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
     ],
   });
-  expect(event).toEqual({
-    message:
-      "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
-  });
+  expect(event).toMatchInlineSnapshot(`
+    {
+      "message": "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
+    }
+  `);
 });
 
 test("args: data – named (address,address,uint256)", () => {
@@ -227,11 +237,13 @@ test("args: data – named (address,address,uint256)", () => {
       "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     ],
   });
-  expect(event).toEqual({
-    from: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-    to: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    tokenId: 1n,
-  });
+  expect(event).toMatchInlineSnapshot(`
+    {
+      "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "tokenId": 1n,
+    }
+  `);
 });
 
 test("args: data – unnamed (address,address,uint256)", () => {
@@ -261,11 +273,13 @@ test("args: data – unnamed (address,address,uint256)", () => {
       "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     ],
   });
-  expect(event).toEqual([
-    "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    1n,
-  ]);
+  expect(event).toMatchInlineSnapshot(`
+    [
+      "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      1n,
+    ]
+  `);
 });
 
 test("named: topics + event params mismatch", () => {

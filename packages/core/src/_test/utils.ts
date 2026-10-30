@@ -1,40 +1,29 @@
-import { type AddressInfo, createServer } from "node:net";
 import {
   type Address,
-  createPublicClient,
-  createTestClient,
   getAbiItem,
-  http,
   toEventSelector,
   toFunctionSelector,
-  type Chain as ViemChain,
 } from "viem";
 import { mainnet } from "viem/chains";
 import { vi } from "vitest";
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Common } from "@/internal/common.js";
+import { createLogger } from "@/internal/logger.js";
+import { MetricsService } from "@/internal/metrics.js";
+import { buildOptions } from "@/internal/options.js";
+import { createShutdown } from "@/internal/shutdown.js";
 import type {
   Chain,
   Contract,
-  Event,
   EventCallback,
   Factory,
   FilterAddress,
   IndexingFunctions,
   SetupCallback,
-  Status,
   TransactionFilter,
 } from "@/internal/types.js";
-import {
-  buildEvents,
-  decodeEvents,
-  syncBlockToInternal,
-  syncLogToInternal,
-  syncTraceToInternal,
-  syncTransactionReceiptToInternal,
-  syncTransactionToInternal,
-} from "@/runtime/events.js";
+import type { Rpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -44,49 +33,55 @@ import {
   defaultTransferFilterInclude,
 } from "@/runtime/filter.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { erc20ABI, factoryABI, pairABI } from "./generated.js";
-import type {
-  mintErc20,
-  simulateBlock,
-  swapPair,
-  transferErc20,
-  transferEth,
-} from "./simulate.js";
+import { erc20ABI, factoryABI, pairABI } from "./abis.js";
 
-// Anvil test setup adapted from @viem/anvil `example-vitest` repository.
-// https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
+export function createTestCommon(): Common {
+  const cliOptions = {
+    command: "start",
+    config: "",
+    root: "",
+    logLevel: "silent",
+    logFormat: "pretty",
+    version: "0.0.0",
+  } as const;
+  const shutdown = createShutdown();
+  return {
+    options: buildOptions({ cliOptions }),
+    logger: createLogger({ level: cliOptions.logLevel }),
+    metrics: new MetricsService(),
+    shutdown,
+    apiShutdown: shutdown,
+    buildShutdown: shutdown,
+  };
+}
 
-// ID of the current test worker. Used by the `@viem/anvil` proxy server.
-
-export const TEST_POOL_ID = Number(process.env.VITEST_POOL_ID ?? 1);
-
-export const IS_BUN_TEST = "bun" in process.versions;
-
-export const anvil = {
-  ...mainnet, // We are using a mainnet fork for testing.
-  id: 1, // We configured our anvil instance to use `1` as the chain id (see `globalSetup.ts`);
-  rpcUrls: {
-    default: {
-      http: [`http://127.0.0.1:8545/${TEST_POOL_ID}`],
-      webSocket: [`ws://127.0.0.1:8545/${TEST_POOL_ID}`],
+/**
+ * RPC for a chain whose latest block is `latestBlock`. Only serves
+ * `eth_getBlockByNumber`, with each block's timestamp equal to its number.
+ */
+export function createStubRpc({ latestBlock }: { latestBlock: number }): Rpc {
+  const toHash = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
+  return {
+    hostnames: [],
+    request: async ({ method, params }: { method: string; params?: any }) => {
+      if (method !== "eth_getBlockByNumber") {
+        throw new Error(`Unexpected RPC method ${method}`);
+      }
+      const number =
+        params[0] === "latest" ? latestBlock : Number.parseInt(params[0], 16);
+      return {
+        hash: toHash(number),
+        parentHash: toHash(Math.max(number - 1, 0)),
+        number: `0x${number.toString(16)}`,
+        timestamp: `0x${number.toString(16)}`,
+        logsBloom: `0x${"0".repeat(512)}`,
+        transactions: [],
+      };
     },
-    public: {
-      http: [`http://127.0.0.1:8545/${TEST_POOL_ID}`],
-      webSocket: [`ws://127.0.0.1:8545/${TEST_POOL_ID}`],
-    },
-  },
-} as const satisfies ViemChain;
-
-export const testClient = createTestClient({
-  chain: anvil,
-  mode: "anvil",
-  transport: http(),
-});
-
-export const publicClient = createPublicClient({
-  chain: anvil,
-  transport: http(),
-});
+    subscribe: () => {},
+    unsubscribe: async () => {},
+  } as unknown as Rpc;
+}
 
 export async function withStubbedEnv(
   env: Record<string, string | undefined>,
@@ -108,27 +103,6 @@ export async function withStubbedEnv(
       else process.env[k] = v;
     }
   }
-}
-
-export function stubGlobal<Key extends keyof typeof globalThis>(
-  key: Key,
-  value: (typeof globalThis)[Key],
-): () => void {
-  const g = globalThis as any;
-
-  const hadOwnProperty = Object.hasOwn(g, key);
-  const original = g[key];
-
-  g[key] = value;
-
-  return () => {
-    if (hadOwnProperty) {
-      g[key] = original;
-    } else {
-      // If it didn't exist before, remove it entirely
-      delete g[key];
-    }
-  };
 }
 
 export const getErc20IndexingBuild = <
@@ -601,60 +575,6 @@ export const getAccountsIndexingBuild = (params: {
   return { eventCallbacks, indexingFunctions };
 };
 
-export const getSimulatedEvent = ({
-  eventCallback,
-  blockData,
-}: {
-  eventCallback: EventCallback;
-  blockData:
-    | Awaited<ReturnType<typeof simulateBlock>>
-    | Awaited<ReturnType<typeof mintErc20>>
-    | Awaited<ReturnType<typeof transferErc20>>
-    | Awaited<ReturnType<typeof transferEth>>
-    | Awaited<ReturnType<typeof swapPair>>;
-}): Event => {
-  const rawEvents = buildEvents({
-    eventCallbacks: [eventCallback],
-    blocks: [syncBlockToInternal({ block: blockData.block })],
-    // @ts-expect-error
-    logs: blockData.log ? [syncLogToInternal({ log: blockData.log })] : [],
-    // @ts-expect-error
-    transactions: blockData.transaction
-      ? // @ts-ignore
-        [syncTransactionToInternal({ transaction: blockData.transaction })]
-      : [],
-    // @ts-expect-error
-    transactionReceipts: blockData.transactionReceipt
-      ? [
-          syncTransactionReceiptToInternal({
-            // @ts-expect-error
-            transactionReceipt: blockData.transactionReceipt,
-          }),
-        ]
-      : [],
-    // @ts-expect-error
-    traces: blockData.trace
-      ? // @ts-ignore
-        [syncTraceToInternal({ trace: blockData.trace })]
-      : [],
-    childAddresses: new Map(),
-    chainId: 1,
-  });
-
-  const events = decodeEvents(
-    {} as Common,
-    getChain(),
-    [eventCallback],
-    rawEvents,
-  );
-
-  if (events.length !== 1) {
-    throw new Error("getSimulatedEvent() failed to construct the event");
-  }
-
-  return events[0]!;
-};
-
 export const getChain = (params?: {
   reorgWindow?: number;
   cacheRpcRequests?: boolean;
@@ -662,61 +582,12 @@ export const getChain = (params?: {
   return {
     name: "mainnet",
     id: 1,
-    rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+    rpc: "http://127.0.0.1:8545",
     ws: undefined,
     pollingInterval: 1_000,
     reorgWindow: params?.reorgWindow ?? 1,
     cacheRpcRequests: params?.cacheRpcRequests ?? true,
     ethGetLogsBlockRange: undefined,
-    viemChain: anvil,
+    viemChain: mainnet,
   } satisfies Chain;
 };
-
-export function getFreePort(): Promise<number> {
-  return new Promise((res) => {
-    const srv = createServer();
-    srv.listen(0, () => {
-      const port = (srv.address() as AddressInfo).port;
-      srv.close(() => res(port));
-    });
-  });
-}
-
-export async function waitForIndexedBlock({
-  port,
-  chainName,
-  block,
-}: {
-  port: number;
-  chainName: string;
-  block: { number: number };
-}) {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      reject(new Error("Timed out while waiting for the indexed block."));
-    }, 5_000);
-    const interval = setInterval(async () => {
-      const response = await fetch(`http://localhost:${port}/status`);
-      if (response.status === 200) {
-        const status = (await response.json()) as Status;
-        const sb = status[chainName]?.block;
-        if (sb !== undefined && sb.number >= block.number) {
-          clearTimeout(timeout);
-          clearInterval(interval);
-          resolve(undefined);
-        }
-      }
-    }, 20);
-  });
-}
-
-export function getRejectionValue(func: () => Promise<any>): Promise<any> {
-  return func()
-    .then(() => {
-      throw Error("expected promise to reject");
-    })
-    .catch((rejection) => {
-      return rejection;
-    });
-}

@@ -109,7 +109,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - Each job has a 15 minute timeout. A healthy job takes less than 5 minutes.
 - One-off reproductions in CI use `.github/workflows/simulation-test-single.yml`, which accepts an app and seed.
 - CI runs on self-hosted runners and uses GitHub secrets for `DATABASE_URL` and RPC URLs. Current workflow env sets `PGDATABASE=railway`, indicating the shared Postgres service is Railway-backed.
-- Simulation workflows call the shared `.github/actions/setup` action with `foundry: "false"`. These jobs do not need Foundry, and skipping it avoids self-hosted runner glibc/toolchain failures during setup.
+- Simulation workflows set up Node, pnpm, and Bun inline and do not install Foundry. They do not need it, and skipping it avoids self-hosted runner glibc/toolchain failures during setup.
 - The cleanup job runs after the fuzz jobs and calls `bun run src/cleanup-database.ts` to delete successful UUID databases.
 - Monitor failures in GitHub Actions first, then use the printed seed and UUID plus the `metadata` table and remaining run database for deeper inspection.
 - If Railway is unreachable from an AWS/dev instance but works from a laptop, ask DevOps to check whether outbound TCP to the Railway Postgres proxy host and port is allowed from that instance.
