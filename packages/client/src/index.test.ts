@@ -1,8 +1,9 @@
-import { expect, test } from "bun:test";
-import { relations } from "drizzle-orm";
+import { expect, test, vi } from "bun:test";
+import { eq, relations } from "drizzle-orm";
 import { getTableConfig, pgEnum, pgTable } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { setDatabaseSchema } from "./index.js";
+import superjson from "superjson";
+import { createClient, setDatabaseSchema } from "./index.js";
 
 test("setDatabaseSchema table", () => {
   const schema = {
@@ -85,5 +86,51 @@ test("setDatabaseSchema relations", () => {
         "none",
       ],
     }
+  `);
+});
+
+test("client.db select with columns of the same name", async () => {
+  const person = pgTable("person", (t) => ({
+    id: t.text("id").primaryKey(),
+    name: t.text("name"),
+  }));
+  const pet = pgTable("pet", (t) => ({
+    id: t.text("id").primaryKey(),
+    ownerId: t.text("owner_id"),
+    name: t.text("name"),
+  }));
+
+  const methods: unknown[] = [];
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+    input: URL | RequestInfo,
+  ) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    methods.push(superjson.parse<any>(url.searchParams.get("sql")!).method);
+    return Response.json({ rows: [["p1", "alice", "d1", "p1", "rex"]] });
+  }) as typeof globalThis.fetch);
+
+  const client = createClient("http://localhost:42069/sql");
+  const rows = await client.db
+    .select()
+    .from(person)
+    .innerJoin(pet, eq(person.id, pet.ownerId));
+
+  fetchSpy.mockRestore();
+
+  expect(methods).toStrictEqual(["all"]);
+  expect(rows).toMatchInlineSnapshot(`
+    [
+      {
+        "person": {
+          "id": "p1",
+          "name": "alice",
+        },
+        "pet": {
+          "id": "d1",
+          "name": "rex",
+          "ownerId": "p1",
+        },
+      },
+    ]
   `);
 });
