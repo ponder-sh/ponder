@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { count, relations } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
+import { Effect } from "effect";
 import {
   type ExecutionResult,
   execute,
@@ -10,7 +11,7 @@ import {
   parse,
   printType,
 } from "graphql";
-import type { QB } from "@/database/queryBuilder.js";
+import type { DbClient } from "@/database/db.js";
 import {
   onchainEnum,
   onchainTable,
@@ -50,18 +51,27 @@ const createGraphQL = (
     },
     { casing: "snake_case", schema },
   );
-  const qb = {
-    raw,
-    wrap: (...args: any[]) =>
-      args.findLast((a) => typeof a === "function")(raw),
-  } as unknown as QB;
+  const db = {
+    dialect: "postgres",
+    drizzle: raw,
+    query: (build: (db: typeof raw) => unknown) =>
+      Effect.tryPromise({
+        try: async () => await build(raw),
+        catch: (error) => error,
+      }),
+  } as unknown as DbClient;
+  const runPromise = Effect.runPromise;
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
   const query = (source: string) =>
     execute({
       schema: graphqlSchema,
-      contextValue: { qb, getDataLoader: buildDataLoaderCache(qb) },
+      contextValue: {
+        db,
+        runPromise,
+        getDataLoader: buildDataLoaderCache({ db, runPromise }),
+      },
       document: parse(source),
     });
 

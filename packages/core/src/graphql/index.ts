@@ -44,6 +44,7 @@ import {
   type PgTable,
   PgView,
 } from "drizzle-orm/pg-core";
+import { Effect } from "effect";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -65,7 +66,7 @@ import {
   GraphQLString,
 } from "graphql";
 import superjson from "superjson";
-import type { QB } from "@/database/queryBuilder.js";
+import type { DbClient } from "@/database/db.js";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import type { OnchainTable } from "@/drizzle/onchain.js";
 import { normalizeColumn } from "@/indexing-store/utils.js";
@@ -76,7 +77,9 @@ import { GraphQLJSON } from "./json.js";
 
 type Parent = Record<string, any>;
 type Context = {
-  qb: QB<{ [key: string]: OnchainTable }>;
+  db: DbClient;
+  /** Run `effect` with the services of the API build. */
+  runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
 };
 
@@ -442,13 +445,15 @@ export function buildGraphQLSchema({
                   "totalCount",
                 );
 
-                return executePluralQuery(
-                  schema[referencedTable.tsName] as PgTable,
-                  referencedTable.columns,
-                  context.qb,
-                  args,
-                  includeTotalCount,
-                  relationalConditions,
+                return context.runPromise(
+                  executePluralQuery(
+                    schema[referencedTable.tsName] as PgTable,
+                    referencedTable.columns,
+                    context.db,
+                    args,
+                    includeTotalCount,
+                    relationalConditions,
+                  ),
                 );
               },
             };
@@ -568,12 +573,14 @@ export function buildGraphQLSchema({
       resolve: async (_parent, args: PluralArgs, context, info) => {
         const includeTotalCount = selectionIncludesField(info, "totalCount");
 
-        return executePluralQuery(
-          schema[table.tsName] as PgTable,
-          table.columns,
-          context.qb,
-          args,
-          includeTotalCount,
+        return context.runPromise(
+          executePluralQuery(
+            schema[table.tsName] as PgTable,
+            table.columns,
+            context.db,
+            args,
+            includeTotalCount,
+          ),
         );
       },
     };
@@ -599,12 +606,14 @@ export function buildGraphQLSchema({
       resolve: async (_parent, args: PluralArgs, context, info) => {
         const includeTotalCount = selectionIncludesField(info, "totalCount");
 
-        return executePluralQuery(
-          view,
-          viewConfig.selectedFields as Record<string, Column>,
-          context.qb,
-          args,
-          includeTotalCount,
+        return context.runPromise(
+          executePluralQuery(
+            view,
+            viewConfig.selectedFields as Record<string, Column>,
+            context.db,
+            args,
+            includeTotalCount,
+          ),
         );
       },
     };
@@ -612,39 +621,42 @@ export function buildGraphQLSchema({
 
   queryFields._meta = {
     type: GraphQLMeta,
-    resolve: async (_source, _args, context) => {
-      // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context.qb
-        .wrap({ label: "select_checkpoints" }, (db) =>
-          db.execute(
-            "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-          ),
-        )
-        .then((res) => res.rows)) as {
-        chain_name: string;
-        chain_id: string;
-        latest_checkpoint: string;
-        safe_checkpoint: string;
-      }[];
+    resolve: (_source, _args, context) =>
+      context.runPromise(
+        Effect.gen(function* () {
+          // Note: This is done to avoid non-browser compatible dependencies
+          const checkpoints = (yield* context.db.query(
+            (db) =>
+              db.execute(
+                "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
+              ),
+            { label: "select_checkpoints" },
+          )).rows as {
+            chain_name: string;
+            chain_id: string;
+            latest_checkpoint: string;
+            safe_checkpoint: string;
+          }[];
 
-      const status: Status = {};
-      for (const {
-        chain_name,
-        chain_id,
-        latest_checkpoint,
-      } of checkpoints.sort((a, b) => (a.chain_id > b.chain_id ? 1 : -1))) {
-        status[chain_name] = {
-          id: Number(chain_id),
-          block: {
-            number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
-            timestamp: Number(
-              decodeCheckpoint(latest_checkpoint).blockTimestamp,
-            ),
-          },
-        };
-      }
-      return { status };
-    },
+          const status: Status = {};
+          for (const {
+            chain_name,
+            chain_id,
+            latest_checkpoint,
+          } of checkpoints.sort((a, b) => (a.chain_id > b.chain_id ? 1 : -1))) {
+            status[chain_name] = {
+              id: Number(chain_id),
+              block: {
+                number: Number(decodeCheckpoint(latest_checkpoint).blockNumber),
+                timestamp: Number(
+                  decodeCheckpoint(latest_checkpoint).blockTimestamp,
+                ),
+              },
+            };
+          }
+          return { status };
+        }),
+      ),
   };
 
   return new GraphQLSchema({
@@ -794,134 +806,221 @@ const innerType = (
   throw new Error(`Type ${type.toString()} is not implemented`);
 };
 
-async function executePluralQuery(
+/** Run the query that `query` returns, failing with the error it throws. */
+const tryQuery = <A>(query: () => PromiseLike<A>) =>
+  Effect.tryPromise({
+    try: async () => await query(),
+    catch: (error) => error,
+  });
+
+const executePluralQuery = (
   relation: PgTable | PgView,
   columns: Record<string, Column>,
-  qb: QB<{ [key: string]: OnchainTable }>,
+  db: DbClient,
   args: PluralArgs,
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
-) {
-  const limit = args.limit ?? DEFAULT_LIMIT;
-  const offset = args.offset ?? 0;
+) =>
+  Effect.gen(function* () {
+    const limit = args.limit ?? DEFAULT_LIMIT;
+    const offset = args.offset ?? 0;
 
-  if (limit > MAX_LIMIT) {
-    throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
-  }
-  if (limit < 0) {
-    throw new GraphQLError(`Invalid limit. Got ${limit}, expected >=0.`);
-  }
-  if (offset < 0) {
-    throw new GraphQLError(`Invalid offset. Got ${offset}, expected >=0.`);
-  }
+    if (limit > MAX_LIMIT) {
+      throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
+    }
+    if (limit < 0) {
+      throw new GraphQLError(`Invalid limit. Got ${limit}, expected >=0.`);
+    }
+    if (offset < 0) {
+      throw new GraphQLError(`Invalid offset. Got ${offset}, expected >=0.`);
+    }
 
-  const orderBySchema = buildOrderBySchema(relation, args);
-  const orderBy = orderBySchema.map(([columnName, direction]) => {
-    const column = columns[columnName];
-    if (column === undefined) {
-      throw new Error(
-        `Unknown column "${columnName}" used in orderBy argument`,
+    const orderBySchema = buildOrderBySchema(relation, args);
+    const orderBy = orderBySchema.map(([columnName, direction]) => {
+      const column = columns[columnName];
+      if (column === undefined) {
+        throw new Error(
+          `Unknown column "${columnName}" used in orderBy argument`,
+        );
+      }
+      return direction === "asc" ? asc(column) : desc(column);
+    });
+    const orderByReversed = orderBySchema.map(([columnName, direction]) => {
+      const column = columns[columnName];
+      if (column === undefined) {
+        throw new Error(
+          `Unknown column "${columnName}" used in orderBy argument`,
+        );
+      }
+      return direction === "asc" ? desc(column) : asc(column);
+    });
+
+    const whereConditions = buildWhereConditions(args.where, columns);
+
+    const after = args.after ?? null;
+    const before = args.before ?? null;
+
+    if (after !== null && before !== null) {
+      throw new Error("Cannot specify both before and after cursors.");
+    }
+    if (after !== null && offset > 0) {
+      throw new Error("Cannot specify both after cursor and offset.");
+    }
+    if (before !== null && offset > 0) {
+      throw new Error("Cannot specify both before cursor and offset.");
+    }
+
+    let startCursor = null;
+    let endCursor = null;
+    let hasPreviousPage = false;
+    let hasNextPage = false;
+
+    const totalCountQuery = includeTotalCount
+      ? db
+          .query((db) =>
+            db
+              .select({ count: count() })
+              .from(relation)
+              .where(and(...whereConditions, ...extraConditions)),
+          )
+          .pipe(Effect.map((rows) => rows[0]?.count ?? null))
+      : Effect.succeed(null);
+
+    // Neither cursors are specified, apply the order conditions and execute.
+    if (after === null && before === null) {
+      const [totalCount, rows] = yield* Effect.all(
+        [
+          totalCountQuery,
+          tryQuery(() =>
+            db.drizzle
+              .select()
+              .from(relation)
+              .where(and(...whereConditions, ...extraConditions))
+              .orderBy(...orderBy)
+              .limit(limit + 1)
+              .offset(offset),
+          ),
+        ],
+        { concurrency: "unbounded" },
       );
+
+      if (rows.length === limit + 1) {
+        rows.pop();
+        hasNextPage = true;
+      }
+
+      if (offset === 0) {
+        startCursor =
+          rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
+        endCursor =
+          rows.length > 0
+            ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
+            : null;
+      } else {
+        hasPreviousPage = true;
+      }
+
+      return {
+        items: rows,
+        totalCount,
+        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+      };
     }
-    return direction === "asc" ? asc(column) : desc(column);
-  });
-  const orderByReversed = orderBySchema.map(([columnName, direction]) => {
-    const column = columns[columnName];
-    if (column === undefined) {
-      throw new Error(
-        `Unknown column "${columnName}" used in orderBy argument`,
+
+    if (after !== null) {
+      // User specified an 'after' cursor.
+      const cursorObject = decodeCursor(after);
+      const cursorCondition = buildCursorCondition(
+        columns,
+        orderBySchema,
+        "after",
+        cursorObject,
       );
-    }
-    return direction === "asc" ? desc(column) : asc(column);
-  });
 
-  const whereConditions = buildWhereConditions(args.where, columns);
+      const [totalCount, rows] = yield* Effect.all(
+        [
+          totalCountQuery,
+          tryQuery(() =>
+            db.drizzle
+              .select()
+              .from(relation)
+              .where(
+                and(...whereConditions, cursorCondition, ...extraConditions),
+              )
+              .orderBy(...orderBy)
+              .limit(limit + 2)
+              .offset(offset),
+          ),
+        ],
+        { concurrency: "unbounded" },
+      );
 
-  const after = args.after ?? null;
-  const before = args.before ?? null;
+      if (rows.length === 0) {
+        return {
+          items: rows,
+          totalCount,
+          pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+        };
+      }
 
-  if (after !== null && before !== null) {
-    throw new Error("Cannot specify both before and after cursors.");
-  }
-  if (after !== null && offset > 0) {
-    throw new Error("Cannot specify both after cursor and offset.");
-  }
-  if (before !== null && offset > 0) {
-    throw new Error("Cannot specify both before cursor and offset.");
-  }
+      // If the cursor of the first returned record equals the `after` cursor,
+      // `hasPreviousPage` is true. Remove that record.
+      if (encodeCursor(orderBySchema, rows[0]!) === after) {
+        rows.shift();
+        hasPreviousPage = true;
+      } else {
+        // Otherwise, remove the last record.
+        rows.pop();
+      }
 
-  let startCursor = null;
-  let endCursor = null;
-  let hasPreviousPage = false;
-  let hasNextPage = false;
+      // Now if the length of the records is still equal to limit + 1,
+      // there is a next page.
+      if (rows.length === limit + 1) {
+        rows.pop();
+        hasNextPage = true;
+      }
 
-  const totalCountPromise = includeTotalCount
-    ? qb
-        .wrap((db) =>
-          db
-            .select({ count: count() })
-            .from(relation)
-            .where(and(...whereConditions, ...extraConditions)),
-        )
-        .then((rows) => rows[0]?.count ?? null)
-    : Promise.resolve(null);
-
-  // Neither cursors are specified, apply the order conditions and execute.
-  if (after === null && before === null) {
-    const [rows, totalCount] = await Promise.all([
-      qb.raw
-        .select()
-        .from(relation)
-        .where(and(...whereConditions, ...extraConditions))
-        .orderBy(...orderBy)
-        .limit(limit + 1)
-        .offset(offset),
-      totalCountPromise,
-    ]);
-
-    if (rows.length === limit + 1) {
-      rows.pop();
-      hasNextPage = true;
-    }
-
-    if (offset === 0) {
+      // Now calculate the cursors.
       startCursor =
         rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
       endCursor =
         rows.length > 0
           ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
           : null;
-    } else {
-      hasPreviousPage = true;
+
+      return {
+        items: rows,
+        totalCount,
+        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+      };
     }
 
-    return {
-      items: rows,
-      totalCount,
-      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-    };
-  }
-
-  if (after !== null) {
-    // User specified an 'after' cursor.
-    const cursorObject = decodeCursor(after);
+    // User specified a 'before' cursor.
+    const cursorObject = decodeCursor(before!);
     const cursorCondition = buildCursorCondition(
       columns,
       orderBySchema,
-      "after",
+      "before",
       cursorObject,
     );
 
-    const [rows, totalCount] = await Promise.all([
-      qb.raw
-        .select()
-        .from(relation)
-        .where(and(...whereConditions, cursorCondition, ...extraConditions))
-        .orderBy(...orderBy)
-        .limit(limit + 2)
-        .offset(offset),
-      totalCountPromise,
-    ]);
+    // Reverse the order by conditions to get the previous page,
+    // then reverse the results back to the original order.
+    const [totalCount, rows] = yield* Effect.all(
+      [
+        totalCountQuery,
+        tryQuery(() =>
+          db.drizzle
+            .select()
+            .from(relation)
+            .where(and(...whereConditions, cursorCondition, ...extraConditions))
+            .orderBy(...orderByReversed)
+            .limit(limit + 2)
+            .offset(offset),
+        ).pipe(Effect.map((rows) => rows.reverse())),
+      ],
+      { concurrency: "unbounded" },
+    );
 
     if (rows.length === 0) {
       return {
@@ -931,21 +1030,21 @@ async function executePluralQuery(
       };
     }
 
-    // If the cursor of the first returned record equals the `after` cursor,
-    // `hasPreviousPage` is true. Remove that record.
-    if (encodeCursor(orderBySchema, rows[0]!) === after) {
-      rows.shift();
-      hasPreviousPage = true;
-    } else {
-      // Otherwise, remove the last record.
-      rows.pop();
-    }
-
-    // Now if the length of the records is still equal to limit + 1,
-    // there is a next page.
-    if (rows.length === limit + 1) {
+    // If the cursor of the last returned record equals the `before` cursor,
+    // `hasNextPage` is true. Remove that record.
+    if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
       rows.pop();
       hasNextPage = true;
+    } else {
+      // Otherwise, remove the first record.
+      rows.shift();
+    }
+
+    // Now if the length of the records is equal to limit + 1, we know
+    // there is a previous page.
+    if (rows.length === limit + 1) {
+      rows.shift();
+      hasPreviousPage = true;
     }
 
     // Now calculate the cursors.
@@ -961,69 +1060,7 @@ async function executePluralQuery(
       totalCount,
       pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
     };
-  }
-
-  // User specified a 'before' cursor.
-  const cursorObject = decodeCursor(before!);
-  const cursorCondition = buildCursorCondition(
-    columns,
-    orderBySchema,
-    "before",
-    cursorObject,
-  );
-
-  // Reverse the order by conditions to get the previous page,
-  // then reverse the results back to the original order.
-  const [rows, totalCount] = await Promise.all([
-    qb.raw
-      .select()
-      .from(relation)
-      .where(and(...whereConditions, cursorCondition, ...extraConditions))
-      .orderBy(...orderByReversed)
-      .limit(limit + 2)
-      .offset(offset)
-      .then((rows) => rows.reverse()),
-    totalCountPromise,
-  ]);
-
-  if (rows.length === 0) {
-    return {
-      items: rows,
-      totalCount,
-      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-    };
-  }
-
-  // If the cursor of the last returned record equals the `before` cursor,
-  // `hasNextPage` is true. Remove that record.
-  if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
-    rows.pop();
-    hasNextPage = true;
-  } else {
-    // Otherwise, remove the first record.
-    rows.shift();
-  }
-
-  // Now if the length of the records is equal to limit + 1, we know
-  // there is a previous page.
-  if (rows.length === limit + 1) {
-    rows.shift();
-    hasPreviousPage = true;
-  }
-
-  // Now calculate the cursors.
-  startCursor = rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-  endCursor =
-    rows.length > 0
-      ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-      : null;
-
-  return {
-    items: rows,
-    totalCount,
-    pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-  };
-}
+  });
 
 const conditionSuffixes = {
   universal: ["", "_not"],
@@ -1301,15 +1338,17 @@ function buildCursorCondition(
   return buildCondition(0);
 }
 
-export function buildDataLoaderCache(qb: QB) {
+export function buildDataLoaderCache({
+  db,
+  runPromise,
+}: Pick<Context, "db" | "runPromise">) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
     DataLoader<string, any> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
-    const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>).raw.query[
-      table.tsName
-    ];
+    const baseQuery = (db as DbClient<{ [key: string]: OnchainTable }>).drizzle
+      .query[table.tsName];
     if (baseQuery === undefined)
       throw new Error(
         `Internal error: Unknown table "${table.tsName}" in data loader cache`,
@@ -1318,52 +1357,60 @@ export function buildDataLoaderCache(qb: QB) {
     let dataLoader = dataLoaderMap.get(table);
     if (dataLoader === undefined) {
       dataLoader = new DataLoader(
-        async (encodedIds) => {
-          const decodedRowFragments = encodedIds.map(decodeRowFragment);
+        (encodedIds) =>
+          runPromise(
+            Effect.gen(function* () {
+              const decodedRowFragments = encodedIds.map(decodeRowFragment);
 
-          // The decoded row fragments should be valid `where` objects
-          // which use the `eq` object shorthand for each primary key column.
-          const idConditions = decodedRowFragments.map((decodedRowFragment) =>
-            and(...buildWhereConditions(decodedRowFragment, table.columns)),
-          );
-
-          const rows = await baseQuery.findMany({
-            where: or(...idConditions),
-            limit: encodedIds.length,
-          });
-
-          // Now, we need to order the rows coming out of the database to match
-          // the order of the IDs passed in. To accomplish this, we need to do
-          // a comparison of the decoded row PK fragments with the database rows.
-          // This is tricky because the decoded row PK fragments are not normalized,
-          // so some comparisons will fail (eg for our PgHex column type).
-          // To fix this, we need to normalize the values before doing the comparison.
-          return (
-            decodedRowFragments
-              // Normalize the decoded row fragments
-              .map((fragment) =>
-                Object.fromEntries(
-                  Object.entries(fragment).map(([col, val]) => {
-                    const column = table.columns[col];
-                    if (column === undefined) {
-                      throw new Error(
-                        `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
-                      );
-                    }
-                    return [col, normalizeColumn(column, val, false)];
-                  }),
-                ),
-              )
-              // Find the database row corresponding to each normalized row fragment
-              .map((fragment) =>
-                rows.find((row) =>
-                  Object.entries(fragment).every(
-                    ([col, val]) => row[col] === val,
+              // The decoded row fragments should be valid `where` objects
+              // which use the `eq` object shorthand for each primary key column.
+              const idConditions = decodedRowFragments.map(
+                (decodedRowFragment) =>
+                  and(
+                    ...buildWhereConditions(decodedRowFragment, table.columns),
                   ),
-                ),
-              )
-          );
-        },
+              );
+
+              const rows = yield* tryQuery(() =>
+                baseQuery.findMany({
+                  where: or(...idConditions),
+                  limit: encodedIds.length,
+                }),
+              );
+
+              // Now, we need to order the rows coming out of the database to match
+              // the order of the IDs passed in. To accomplish this, we need to do
+              // a comparison of the decoded row PK fragments with the database rows.
+              // This is tricky because the decoded row PK fragments are not normalized,
+              // so some comparisons will fail (eg for our PgHex column type).
+              // To fix this, we need to normalize the values before doing the comparison.
+              return (
+                decodedRowFragments
+                  // Normalize the decoded row fragments
+                  .map((fragment) =>
+                    Object.fromEntries(
+                      Object.entries(fragment).map(([col, val]) => {
+                        const column = table.columns[col];
+                        if (column === undefined) {
+                          throw new Error(
+                            `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
+                          );
+                        }
+                        return [col, normalizeColumn(column, val, false)];
+                      }),
+                    ),
+                  )
+                  // Find the database row corresponding to each normalized row fragment
+                  .map((fragment) =>
+                    rows.find((row) =>
+                      Object.entries(fragment).every(
+                        ([col, val]) => row[col] === val,
+                      ),
+                    ),
+                  )
+              );
+            }),
+          ),
         { maxBatchSize: 1_000 },
       );
       dataLoaderMap.set(table, dataLoader);
