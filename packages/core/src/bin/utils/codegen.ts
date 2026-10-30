@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import type { Common } from "@/internal/common.js";
+import { Effect } from "effect";
+import { Options } from "@/internal/options.js";
 
 export const ponderEnv = `/// <reference types="ponder/virtual" />
 
@@ -19,14 +20,16 @@ declare module "ponder:schema" {
 // See https://ponder.sh/docs/requirements#typescript for more information.
 `;
 
-export function runCodegen({ common }: { common: Common }) {
+export const runCodegen = Effect.gen(function* () {
+  const options = yield* Options;
+
   writeFileSync(
-    path.join(common.options.rootDir, "ponder-env.d.ts"),
+    path.join(options.rootDir, "ponder-env.d.ts"),
     ponderEnv,
     "utf8",
   );
 
-  common.logger.debug({
+  yield* Effect.logDebug({
     msg: `Wrote file "ponder-env.d.ts"`,
   });
-}
+});

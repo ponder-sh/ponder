@@ -1,37 +1,42 @@
-import type { Common } from "@/internal/common.js";
+import { Effect } from "effect";
 import {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
+  Metrics,
 } from "@/internal/metrics.js";
+import { Options } from "@/internal/options.js";
 import { buildUiLines, initialUiState } from "./app.js";
 import { patchWriteStreams } from "./patch.js";
 
-export function createUi({ common }: { common: Common }) {
+/**
+ * Render the terminal UI until the scope closes.
+ */
+export const createUi = Effect.gen(function* () {
+  const options = yield* Options;
+  const metrics = yield* Metrics;
+
   const ui = initialUiState;
 
-  const { refresh, shutdown } = patchWriteStreams({
-    getLines: () => buildUiLines(ui),
-  });
+  const { refresh } = yield* Effect.acquireRelease(
+    Effect.sync(() => patchWriteStreams({ getLines: () => buildUiLines(ui) })),
+    ({ shutdown }) => Effect.sync(shutdown),
+  );
 
   // Update the UI state every 100ms (independent of write rate)
-  const stateUpdateInterval = setInterval(async () => {
-    ui.sync = await getSyncProgress(common.metrics);
-    ui.indexing = await getIndexingProgress(common.metrics);
-    ui.app = await getAppProgress(common.metrics);
+  yield* Effect.forkScoped(
+    Effect.gen(function* () {
+      ui.sync = yield* Effect.promise(() => getSyncProgress(metrics));
+      ui.indexing = yield* Effect.promise(() => getIndexingProgress(metrics));
+      ui.app = yield* Effect.promise(() => getAppProgress(metrics));
 
-    if (common.options.hostname) ui.hostname = common.options.hostname;
-    if (common.metrics.port) ui.port = common.metrics.port;
-  }, 100);
+      if (options.hostname) ui.hostname = options.hostname;
+      if (metrics.port) ui.port = metrics.port;
+    }).pipe(Effect.delay(100), Effect.forever),
+  );
 
   // Refresh the UI every 32ms
-  const refreshInterval = setInterval(() => {
-    refresh();
-  }, 32);
-
-  common.buildShutdown.add(() => {
-    clearInterval(stateUpdateInterval);
-    clearInterval(refreshInterval);
-    shutdown();
-  });
-}
+  yield* Effect.forkScoped(
+    Effect.sync(refresh).pipe(Effect.delay(32), Effect.forever),
+  );
+});
