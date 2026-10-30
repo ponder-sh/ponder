@@ -82,7 +82,7 @@ export type Client<schema extends Schema = Schema> = {
 const getUrl = (
   baseUrl: string,
   method: "live" | "db",
-  query?: QueryWithTypings,
+  query?: QueryWithTypings & { method: "all" | "execute" },
 ) => {
   const url = new URL(baseUrl);
   url.pathname = `${url.pathname}/${method}`;
@@ -98,6 +98,15 @@ const noopDatabase = drizzle(() => Promise.resolve({ rows: [] }), {
 
 // @ts-expect-error
 const dialect: PgDialect = noopDatabase.dialect;
+
+/**
+ * Returns `row` as an array of column values.
+ *
+ * @dev Ponder apps before this version return rows as objects, which lose
+ * columns with the same name.
+ */
+const toArrayRow = (row: unknown[] | object) =>
+  Array.isArray(row) ? row : Object.values(row);
 
 export const compileQuery = (query: SQLWrapper) => {
   return dialect.sqlToQuery(query.getSQL());
@@ -124,7 +133,7 @@ export const createClient = <schema extends Schema>(
   const client: Client<schema> = {
     db: drizzle(
       async (sql, params, method, typings) => {
-        const builtQuery = { sql, params, typings };
+        const builtQuery = { sql, params, typings, method };
         const response = await fetch(getUrl(baseUrl, "db", builtQuery), {
           method: "GET",
         });
@@ -138,10 +147,7 @@ export const createClient = <schema extends Schema>(
         const result = await response.json();
 
         if (method === "all") {
-          return {
-            ...result,
-            rows: result.rows.map((row: object) => Object.values(row)),
-          };
+          return { ...result, rows: result.rows.map(toArrayRow) };
         }
 
         return result;
@@ -164,7 +170,15 @@ export const createClient = <schema extends Schema>(
       const queryBuilder = queryPromise as unknown as SQLWrapper;
       const query = compileQuery(queryBuilder);
 
-      const sse = new EventSource(getUrl(baseUrl, "live", query));
+      const method =
+        queryBuilder instanceof TypedQueryBuilder ||
+        queryBuilder instanceof PgRelationalQuery
+          ? "all"
+          : "execute";
+
+      const sse = new EventSource(
+        getUrl(baseUrl, "live", { ...query, method }),
+      );
 
       const onDataListener = async (event: MessageEvent) => {
         try {
@@ -175,7 +189,7 @@ export const createClient = <schema extends Schema>(
               if (method === "all") {
                 return Promise.resolve({
                   ...result,
-                  rows: result.rows.map((row: object) => Object.values(row)),
+                  rows: result.rows.map(toArrayRow),
                 });
               }
 
