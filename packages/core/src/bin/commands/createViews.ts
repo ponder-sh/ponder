@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
+import { Effect } from "effect";
 import { createBuild } from "@/build/index.js";
+import { makeDb } from "@/database/db.js";
 import {
-  createDatabase,
   getPonderMetaTable,
   PONDER_CHECKPOINT_TABLE_NAME,
   PONDER_META_TABLE_NAME,
@@ -21,26 +22,13 @@ import {
   getViewsLiveQueryNotifyTriggerName,
 } from "@/drizzle/onchain.js";
 import { sql } from "@/index.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
-import { startClock } from "@/utils/timer.js";
+import { startClockEffect } from "@/utils/timer.js";
 import type { CliOptions } from "../ponder.js";
-import { createExit } from "../utils/exit.js";
+import { failBuild, isBuildFailed } from "../utils/command.js";
+import { runMain } from "../utils/exit.js";
 
-const emptySchemaBuild = {
-  schema: {},
-  statements: {
-    tables: { sql: [], json: [] },
-    views: { sql: [], json: [] },
-    enums: { sql: [], json: [] },
-    indexes: { sql: [], json: [] },
-    sequences: { sql: [], json: [] },
-  },
-};
-
-export async function createViews({
+export function createViews({
   cliOptions,
 }: {
   cliOptions: CliOptions & {
@@ -50,246 +38,200 @@ export async function createViews({
 }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({
-    level: "warn",
-    mode: options.logFormat,
-  });
+  const program = Effect.gen(function* () {
+    const build = yield* createBuild({ cliOptions });
 
-  const metrics = new MetricsService();
-  const shutdown = createShutdown();
-  const common = {
-    options,
-    logger,
-    metrics,
-    shutdown,
-    buildShutdown: shutdown,
-    apiShutdown: shutdown,
-  };
+    if (cliOptions.schema === undefined) {
+      yield* Effect.logError({
+        msg: "Required CLI option '--schema' not provided.",
+      });
+      return 1;
+    }
+    if (cliOptions.viewsSchema === undefined) {
+      yield* Effect.logError({
+        msg: "Required CLI option '--views-schema' not provided.",
+      });
+      return 1;
+    }
 
-  const build = await createBuild({ common, cliOptions });
+    const configResult = yield* build.executeConfig.pipe(failBuild("config"));
+    const preBuild = yield* build
+      .preCompile(configResult)
+      .pipe(failBuild("pre-compile"));
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75));
 
-  const exit = createExit({ common, options });
-
-  if (cliOptions.schema === undefined) {
-    logger.error({
-      msg: "Required CLI option '--schema' not provided.",
+    const db = yield* makeDb({
+      // Note: `namespace` is not used in this command
+      namespace: {
+        schema: cliOptions.schema!,
+        viewsSchema: undefined,
+      },
+      preBuild,
+      schemaBuild: { schema: {} },
     });
-    await exit({ code: 1 });
-    return;
-  }
-  if (cliOptions.viewsSchema === undefined) {
-    logger.error({
-      msg: "Required CLI option '--views-schema' not provided.",
-    });
-    await exit({ code: 1 });
-    return;
-  }
 
-  const configResult = await build.executeConfig();
-  if (configResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "config",
-      error: configResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    const endClock = yield* startClockEffect;
 
-  const buildResult = build.preCompile(configResult.result);
-
-  if (buildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "pre-compile",
-      error: buildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: buildResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
-
-  const database = createDatabase({
-    common,
-    // Note: `namespace` is not used in this command
-    namespace: {
-      schema: cliOptions.schema!,
-      viewsSchema: undefined,
-    },
-    preBuild: buildResult.result,
-    schemaBuild: emptySchemaBuild,
-  });
-
-  const endClock = startClock();
-
-  const schemaExists = await database.adminQB
-    .wrap((db) =>
+    const schemas = yield* db.admin.query((db) =>
       db
         .select()
         .from(SCHEMATA)
         .where(eq(SCHEMATA.schemaName, cliOptions.schema!)),
-    )
-    .then((res) => res.length > 0);
-
-  if (schemaExists === false) {
-    common.logger.error({
-      msg: "Schema does not exist.",
-      schema: cliOptions.schema!,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  const PONDER_META = getPonderMetaTable(cliOptions.schema!);
-
-  const meta = (await database.adminQB.wrap((db) =>
-    db
-      .select({ app: PONDER_META.value })
-      .from(PONDER_META)
-      .where(eq(PONDER_META.key, "app")),
-  )) as
-    | [
-        {
-          app:
-            | Partial<PonderApp0>
-            | PonderApp1
-            | PonderApp2
-            | PonderApp3
-            | PonderApp4
-            | PonderApp5
-            | PonderApp6;
-        },
-      ]
-    | [];
-
-  if (meta.length === 0) {
-    logger.warn({
-      msg: "Found 0 Ponder apps",
-      schema: cliOptions.schema!,
-    });
-    await exit({ code: 0 });
-    return;
-  }
-
-  if ("table_names" in meta[0]!.app === false) {
-    logger.warn({
-      msg: "Ponder app version not compatible with this command",
-      schema: cliOptions.schema!,
-    });
-    await exit({ code: 0 });
-    return;
-  }
-
-  await database.adminQB.wrap((db) =>
-    db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
-  );
-
-  // Note: Drop views before creating new ones because Postgres does not support
-  // altering the schema of a view with CREATE OR REPLACE VIEW.
-
-  for (const table of meta[0]!.app.table_names!) {
-    await database.adminQB.wrap((db) =>
-      db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
     );
 
-    await database.adminQB.wrap((db) =>
-      db.execute(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema!}"."${table}"`,
-      ),
-    );
-  }
+    if (schemas.length === 0) {
+      yield* Effect.logError({
+        msg: "Schema does not exist.",
+        schema: cliOptions.schema!,
+      });
+      return 1;
+    }
 
-  if ("view_names" in meta[0]!.app) {
-    for (const view of meta[0]!.app.view_names!) {
-      await database.adminQB.wrap((db) =>
-        db.execute(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${view}"`),
+    const PONDER_META = getPonderMetaTable(cliOptions.schema!);
+
+    const meta = (yield* db.admin.query((db) =>
+      db
+        .select({ app: PONDER_META.value })
+        .from(PONDER_META)
+        .where(eq(PONDER_META.key, "app")),
+    )) as
+      | [
+          {
+            app:
+              | Partial<PonderApp0>
+              | PonderApp1
+              | PonderApp2
+              | PonderApp3
+              | PonderApp4
+              | PonderApp5
+              | PonderApp6;
+          },
+        ]
+      | [];
+
+    if (meta.length === 0) {
+      yield* Effect.logWarning({
+        msg: "Found 0 Ponder apps",
+        schema: cliOptions.schema!,
+      });
+      return 0;
+    }
+
+    if ("table_names" in meta[0]!.app === false) {
+      yield* Effect.logWarning({
+        msg: "Ponder app version not compatible with this command",
+        schema: cliOptions.schema!,
+      });
+      return 0;
+    }
+
+    yield* db.admin.query((db) =>
+      db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
+    );
+
+    // Note: Drop views before creating new ones because Postgres does not support
+    // altering the schema of a view with CREATE OR REPLACE VIEW.
+
+    for (const table of meta[0]!.app.table_names!) {
+      yield* db.admin.query((db) =>
+        db.execute(
+          `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`,
+        ),
       );
 
-      await database.adminQB.wrap((db) =>
+      yield* db.admin.query((db) =>
         db.execute(
-          `CREATE VIEW "${cliOptions.viewsSchema}"."${view}" AS SELECT * FROM "${cliOptions.schema!}"."${view}"`,
+          `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema!}"."${table}"`,
         ),
       );
     }
-  }
 
-  logger.warn({
-    msg: "Created database views",
-    schema: cliOptions.viewsSchema,
-    count:
-      meta[0]!.app.table_names!.length +
-      ((meta[0]!.app as { view_names?: string[] }).view_names?.length ?? 0),
-    duration: endClock(),
-  });
+    if ("view_names" in meta[0]!.app) {
+      for (const view of meta[0]!.app.view_names!) {
+        yield* db.admin.query((db) =>
+          db.execute(
+            `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${view}"`,
+          ),
+        );
 
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql.raw(
-        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
+        yield* db.admin.query((db) =>
+          db.execute(
+            `CREATE VIEW "${cliOptions.viewsSchema}"."${view}" AS SELECT * FROM "${cliOptions.schema!}"."${view}"`,
+          ),
+        );
+      }
+    }
+
+    yield* Effect.logWarning({
+      msg: "Created database views",
+      schema: cliOptions.viewsSchema,
+      count:
+        meta[0]!.app.table_names!.length +
+        ((meta[0]!.app as { view_names?: string[] }).view_names?.length ?? 0),
+      duration: yield* endClock,
+    });
+
+    yield* db.admin.query((db) =>
+      db.execute(
+        sql.raw(
+          `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
+        ),
       ),
-    ),
-  );
+    );
 
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql.raw(
-        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
+    yield* db.admin.query((db) =>
+      db.execute(
+        sql.raw(
+          `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
+        ),
       ),
-    ),
-  );
+    );
 
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_META_TABLE_NAME}"`,
+    yield* db.admin.query((db) =>
+      db.execute(
+        sql.raw(
+          `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_META_TABLE_NAME}"`,
+        ),
       ),
-    ),
-  );
+    );
 
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      sql.raw(
-        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
+    yield* db.admin.query((db) =>
+      db.execute(
+        sql.raw(
+          `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
+        ),
       ),
-    ),
-  );
+    );
 
-  const notifyProcedure = getLiveQueryNotifyProcedureName();
-  const channel = getLiveQueryChannelName(cliOptions.viewsSchema);
+    const notifyProcedure = getLiveQueryNotifyProcedureName();
+    const channel = getLiveQueryChannelName(cliOptions.viewsSchema);
 
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      getLiveQueryNotifyProcedureSql({
-        schema: cliOptions.viewsSchema!,
-        channel,
-      }),
-    ),
-  );
+    yield* db.admin.query((db) =>
+      db.execute(
+        getLiveQueryNotifyProcedureSql({
+          schema: cliOptions.viewsSchema!,
+          channel,
+        }),
+      ),
+    );
 
-  const trigger = getViewsLiveQueryNotifyTriggerName(cliOptions.viewsSchema);
+    const trigger = getViewsLiveQueryNotifyTriggerName(cliOptions.viewsSchema);
 
-  await database.adminQB.wrap((db) =>
-    db.execute(
-      `
+    yield* db.admin.query((db) =>
+      db.execute(
+        `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE
 ON "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"
 FOR EACH STATEMENT
 EXECUTE PROCEDURE "${cliOptions.viewsSchema}".${notifyProcedure};`,
-    ),
-  );
+      ),
+    );
 
-  await exit({ code: 0 });
+    return 0;
+  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
+
+  runMain({ options, logLevel: "warn", program });
 }

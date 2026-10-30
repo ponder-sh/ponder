@@ -1,12 +1,10 @@
-import { satisfies } from "semver";
+import { Cause, Effect, Exit, Fiber, type Scope } from "effect";
 import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
-import { createDatabase, type Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
+import { Db, makeDb } from "@/database/db.js";
+import { migrate, migrateSync } from "@/database/migrate.js";
+import { Metrics } from "@/internal/metrics.js";
+import { buildOptions, type Options } from "@/internal/options.js";
 import type {
   ApiBuild,
   CrashRecoveryCheckpoint,
@@ -17,286 +15,165 @@ import type {
 } from "@/internal/types.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
-import { createServer } from "@/server/index.js";
+import { makeServer } from "@/server/index.js";
 import { isolatedController } from "../isolatedController.js";
 import type { CliOptions } from "../ponder.js";
-import { createExit } from "../utils/exit.js";
+import {
+  checkNodeVersion,
+  failBuild,
+  isBuildFailed,
+  setVersionInfo,
+} from "../utils/command.js";
+import { getExitCode, runMain } from "../utils/exit.js";
 
 export type PonderApp = {
-  common: Common;
   preBuild: PreBuild;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   apiBuild: ApiBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  database: Database;
 };
 
-export async function start({
+export function start({ cliOptions }: { cliOptions: CliOptions }) {
+  const options = buildOptions({ cliOptions });
+
+  runMain({ options, program: startApp({ cliOptions }) });
+}
+
+/**
+ * Build the app, then run the indexer and the HTTP server until the scope
+ * closes.
+ *
+ * @param onBuild - Replace the app after the build, before it runs.
+ * @returns The exit code, when the build or the indexer fails.
+ */
+export const startApp = ({
   cliOptions,
   onBuild,
 }: {
   cliOptions: CliOptions;
-  onBuild?: (app: PonderApp) => Promise<PonderApp>;
-}) {
-  const options = buildOptions({ cliOptions });
+  onBuild?: (app: PonderApp) => Effect.Effect<PonderApp>;
+}) =>
+  Effect.gen(function* () {
+    const metrics = yield* Metrics;
 
-  const logger = createLogger({
-    level: options.logLevel,
-    mode: options.logFormat,
-  });
+    yield* checkNodeVersion;
+    yield* setVersionInfo;
+    yield* runCodegen;
 
-  if (!satisfies(process.versions.node, ">=22.12")) {
-    logger.error({
-      msg: "Invalid Node.js version",
-      version: process.versions.node,
-      expected: ">=22.12",
-    });
-    process.exit(1);
-  }
+    const build = yield* createBuild({ cliOptions });
 
-  const metrics = new MetricsService();
-  const shutdown = createShutdown();
-  const common = {
-    options,
-    logger,
-    metrics,
-    shutdown,
-    buildShutdown: shutdown,
-    apiShutdown: shutdown,
-  };
-  const exit = createExit({ common, options });
-
-  if (options.version) {
-    metrics.ponder_version_info.set(
-      {
-        version: options.version.version,
-        major: options.version.major,
-        minor: options.version.minor,
-        patch: options.version.patch,
-      },
-      1,
+    const namespaceBuild = yield* build.namespaceCompile.pipe(
+      failBuild("namespace"),
     );
-  }
+    const configResult = yield* build.executeConfig.pipe(failBuild("config"));
+    const schemaResult = yield* build.executeSchema.pipe(failBuild("schema"));
+    const preBuild = yield* build
+      .preCompile(configResult)
+      .pipe(failBuild("pre-compile"));
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75));
+    const schemaBuild = yield* build
+      .compileSchema({ ...schemaResult, preBuild })
+      .pipe(failBuild("schema"));
+    const configBuild = yield* build
+      .compileConfig({ configResult })
+      .pipe(failBuild("config"));
+    yield* build
+      .rpcDiagnostic({ configBuild })
+      .pipe(failBuild("diagnostic", 75));
+    const indexingResult = yield* build.executeIndexingFunctions.pipe(
+      failBuild("indexing"),
+    );
+    const indexingBuild = yield* build
+      .compileIndexing({
+        configResult,
+        schemaResult,
+        indexingResult,
+        configBuild,
+      })
+      .pipe(failBuild("indexing"));
 
-  runCodegen({ common });
-
-  const build = await createBuild({ common, cliOptions });
-
-  // biome-ignore lint/style/useConst: `database` is assigned in later startup branches.
-  let database: Database | undefined;
-
-  const namespaceResult = build.namespaceCompile();
-  if (namespaceResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "namespace",
-      error: namespaceResult.error,
+    const db = yield* makeDb({
+      namespace: namespaceBuild,
+      preBuild,
+      schemaBuild,
     });
-    await exit({ code: 1 });
-    return;
-  }
 
-  const configResult = await build.executeConfig();
-  if (configResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "config",
-      error: configResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    return yield* Effect.gen(function* () {
+      const crashRecoveryCheckpoint = yield* migrate({
+        namespace: namespaceBuild,
+        preBuild,
+        schemaBuild,
+        buildId: indexingBuild.buildId,
+        chains: indexingBuild.chains,
+        rpcs: indexingBuild.rpcs,
+        finalizedBlocks: indexingBuild.finalizedBlocks,
+      });
 
-  const schemaResult = await build.executeSchema();
-  if (schemaResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "schema",
-      error: schemaResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+      yield* migrateSync;
 
-  const preCompileResult = build.preCompile(configResult.result);
+      const apiResult = yield* build
+        .executeApi({ preBuild, configBuild })
+        .pipe(failBuild("api"));
+      const apiBuild = yield* build
+        .compileApi({ apiResult })
+        .pipe(failBuild("api"));
 
-  if (preCompileResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "pre-compile",
-      error: preCompileResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+      metrics.ponder_settings_info.set(
+        {
+          ordering: preBuild.ordering,
+          database: preBuild.databaseConfig.kind,
+          command: cliOptions.command,
+        },
+        1,
+      );
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: preCompileResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
+      let app: PonderApp = {
+        preBuild,
+        namespaceBuild,
+        schemaBuild,
+        indexingBuild,
+        apiBuild,
+        crashRecoveryCheckpoint,
+      };
 
-  const compileSchemaResult = build.compileSchema({
-    ...schemaResult.result,
-    preBuild: preCompileResult.result,
-  });
+      if (onBuild) {
+        app = yield* onBuild(app);
+      }
 
-  if (compileSchemaResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "schema",
-      error: compileSchemaResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+      metrics.initializeIndexingMetrics(app);
 
-  const configBuildResult = build.compileConfig({
-    configResult: configResult.result,
-  });
-  if (configBuildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "config",
-      error: configBuildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+      const indexing = yield* Effect.forkScoped(runIndexing(app), {
+        startImmediately: true,
+      });
 
-  const rpcDiagnosticResult = await build.rpcDiagnostic({
-    configBuild: configBuildResult.result,
-  });
-  if (rpcDiagnosticResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: rpcDiagnosticResult.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
+      yield* makeServer(app.apiBuild);
 
-  const indexingResult = await build.executeIndexingFunctions();
-  if (indexingResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "indexing",
-      error: indexingResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+      // Note: The HTTP server keeps running after the indexer completes.
+      const result = yield* Fiber.await(indexing);
+      if (Exit.isSuccess(result)) return yield* Effect.never;
 
-  const indexingBuildResult = await build.compileIndexing({
-    configResult: configResult.result,
-    schemaResult: schemaResult.result,
-    indexingResult: indexingResult.result,
-    configBuild: configBuildResult.result,
-  });
+      const error = Cause.squash(result.cause);
+      yield* Effect.logError({ msg: "unhandledRejection", error });
+      return getExitCode(error);
+    }).pipe(Effect.provideService(Db, db));
+  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
 
-  if (indexingBuildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "indexing",
-      error: indexingBuildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  database = createDatabase({
-    common,
-    namespace: namespaceResult.result,
-    preBuild: preCompileResult.result,
-    schemaBuild: compileSchemaResult.result,
-  });
-  const crashRecoveryCheckpoint = await database.migrate({
-    buildId: indexingBuildResult.result.buildId,
-    chains: indexingBuildResult.result.chains,
-    finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
-  });
-
-  await database.migrateSync();
-
-  const apiResult = await build.executeApi({
-    preBuild: preCompileResult.result,
-    configBuild: configBuildResult.result,
-    database,
-  });
-  if (apiResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "api",
-      error: apiResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  const apiBuildResult = await build.compileApi({
-    apiResult: apiResult.result,
-  });
-
-  if (apiBuildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "api",
-      error: apiBuildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  metrics.ponder_settings_info.set(
-    {
-      ordering: preCompileResult.result.ordering,
-      database: preCompileResult.result.databaseConfig.kind,
-      command: cliOptions.command,
-    },
-    1,
-  );
-
-  let app: PonderApp = {
-    common,
-    preBuild: preCompileResult.result,
-    namespaceBuild: namespaceResult.result,
-    schemaBuild: compileSchemaResult.result,
-    indexingBuild: indexingBuildResult.result,
-    apiBuild: apiBuildResult.result,
-    crashRecoveryCheckpoint,
-    database,
-  };
-
-  if (onBuild) {
-    app = await onBuild(app);
-  }
-
-  metrics.initializeIndexingMetrics(app);
-
-  switch (preCompileResult.result.ordering) {
+/**
+ * Run the indexer with the ordering of the app.
+ */
+export const runIndexing = (
+  app: PonderApp,
+): Effect.Effect<void, Error, Db | Metrics | Options | Scope.Scope> => {
+  switch (app.preBuild.ordering) {
     case "omnichain":
-      runOmnichain(app);
-      break;
+      return runOmnichain(app);
     case "multichain":
-      runMultichain(app);
-      break;
-    case "experimental_isolated": {
-      isolatedController(app);
-      break;
-    }
+      return runMultichain(app);
+    case "experimental_isolated":
+      return isolatedController(app);
   }
-
-  createServer(app);
-
-  return shutdown.kill;
-}
+};

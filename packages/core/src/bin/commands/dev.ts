@@ -1,470 +1,267 @@
 import fs from "node:fs";
 import path from "node:path";
-import { satisfies } from "semver";
+import { Cause, Deferred, Effect, Exit, Queue, Scope, Stream } from "effect";
 import { createBuild } from "@/build/index.js";
-import { createDatabase, type Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
+import { Db, makeDb } from "@/database/db.js";
+import { migrate, migrateSync } from "@/database/migrate.js";
 import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
+import { Metrics } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
-import type {
-  CrashRecoveryCheckpoint,
-  IndexingBuild,
-  PreBuild,
-} from "@/internal/types.js";
-import { runMultichain } from "@/runtime/multichain.js";
-import { runOmnichain } from "@/runtime/omnichain.js";
-import { createServer } from "@/server/index.js";
+import type { IndexingBuild, PreBuild } from "@/internal/types.js";
+import { makeServer } from "@/server/index.js";
 import { createUi } from "@/ui/index.js";
-import { createQueue } from "@/utils/queue.js";
-import type { Result } from "@/utils/result.js";
-import { isolatedController } from "../isolatedController.js";
 import type { CliOptions } from "../ponder.js";
 import { runCodegen } from "../utils/codegen.js";
-import { createExit } from "../utils/exit.js";
+import {
+  checkNodeVersion,
+  failBuild,
+  isBuildFailed,
+  setVersionInfo,
+} from "../utils/command.js";
+import { runMain } from "../utils/exit.js";
+import { runIndexing } from "./start.js";
 
-export async function dev({ cliOptions }: { cliOptions: CliOptions }) {
+/** A build of the app or of the API only, or a stop of the app. */
+type BuildRequest = "indexing" | "api" | "stop";
+
+/** A running app, which an API build reuses. */
+type App = {
+  preBuild: PreBuild;
+  configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
+  db: Db["Service"];
+};
+
+export function dev({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({
-    level: options.logLevel,
-    mode: options.logFormat,
-  });
+  const program = Effect.gen(function* () {
+    const metrics = yield* Metrics;
+    const scope = yield* Scope.Scope;
 
-  if (!satisfies(process.versions.node, ">=22.12")) {
-    logger.error({
-      msg: "Invalid Node.js version",
-      version: process.versions.node,
-      expected: ">=22.12",
-    });
-    process.exit(1);
-  }
+    yield* checkNodeVersion;
 
-  if (!fs.existsSync(path.join(options.rootDir, ".env.local"))) {
-    logger.warn({
-      msg: "Local environment file (.env.local) not found",
-    });
-  }
+    if (!fs.existsSync(path.join(options.rootDir, ".env.local"))) {
+      yield* Effect.logWarning({
+        msg: "Local environment file (.env.local) not found",
+      });
+    }
 
-  const metrics = new MetricsService();
-  const common = {
-    options,
-    logger,
-    metrics,
-    shutdown: createShutdown(),
-    apiShutdown: createShutdown(),
-    buildShutdown: createShutdown(),
-  } as Common;
+    yield* setVersionInfo;
+    yield* runCodegen;
 
-  if (options.version) {
-    metrics.ponder_version_info.set(
-      {
-        version: options.version.version,
-        major: options.version.major,
-        minor: options.version.minor,
-        patch: options.version.patch,
-      },
-      1,
-    );
-  }
+    const build = yield* createBuild({ cliOptions });
 
-  runCodegen({ common });
+    if (cliOptions.disableUi !== true) {
+      yield* createUi;
+    }
 
-  const build = await createBuild({ common, cliOptions });
+    /** Builds that run one at a time. */
+    const queue = yield* Queue.unbounded<BuildRequest>();
+    /** The exit code of an error that stops the process. */
+    const fatal = yield* Deferred.make<number>();
 
-  if (cliOptions.disableUi !== true) {
-    createUi({ common });
-  }
+    /**
+     * Stop the app until the next hot reload for a user error, else exit.
+     */
+    const onError = (
+      msg: "uncaughtException" | "unhandledRejection",
+      error: unknown,
+    ) =>
+      Effect.gen(function* () {
+        yield* Effect.logError({ msg, error });
 
-  const exit = createExit({ common, options });
-
-  let isInitialBuild = true;
-
-  const buildQueue = createQueue({
-    initialStart: true,
-    concurrency: 1,
-    worker: async (result: Result<never> & { kind: "indexing" | "api" }) => {
-      if (result.kind === "indexing") {
-        await Promise.all([common.shutdown.kill(), common.apiShutdown.kill()]);
-        common.shutdown = createShutdown();
-        common.apiShutdown = createShutdown();
-      } else {
-        await common.apiShutdown.kill();
-        common.apiShutdown = createShutdown();
-      }
-
-      if (result.status === "error") {
-        if (isInitialBuild === false) {
-          common.logger.error({
-            error: result.error,
-          });
+        if (error instanceof NonRetryableUserError) {
+          // Note: A pending build replaces the app anyway.
+          if ((yield* Queue.size(queue)) === 0) {
+            yield* Queue.offer(queue, "stop");
+          }
+        } else {
+          yield* Deferred.succeed(fatal, 75);
         }
+      });
 
-        // This handles indexing function build failures on hot reload.
-        metrics.hasError = true;
-        return;
-      }
+    const namespace = {
+      schema: cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public",
+      viewsSchema: undefined,
+    };
 
-      if (result.kind === "indexing") {
-        metrics.resetIndexingMetrics();
+    globalThis.PONDER_NAMESPACE_BUILD = namespace;
 
-        const configResult = await build.executeConfig();
-        if (configResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "config",
-            error: configResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: configResult.error,
-          });
-          return;
+    const runSync = Effect.runSyncWith(yield* Effect.context<never>());
+    const onProcessError =
+      (msg: "uncaughtException" | "unhandledRejection") => (error: Error) => {
+        if (error instanceof ShutdownError) return;
+        runSync(onError(msg, error));
+      };
+
+    process.on("uncaughtException", onProcessError("uncaughtException"));
+    process.on("unhandledRejection", onProcessError("unhandledRejection"));
+
+    let app: App | undefined;
+
+    /** Resources of the app, such as the database and the indexer. */
+    let indexingScope = yield* Scope.fork(scope);
+    /** Resources of the API, such as the HTTP server. */
+    let apiScope = yield* Scope.fork(scope);
+
+    /** Stop the API, and the app unless `kind` is "api". */
+    const stop = (kind: "indexing" | "api") =>
+      Effect.gen(function* () {
+        yield* Scope.close(apiScope, Exit.void);
+        if (kind === "indexing") {
+          app = undefined;
+          yield* Scope.close(indexingScope, Exit.void);
+          indexingScope = yield* Scope.fork(scope);
         }
+        apiScope = yield* Scope.fork(scope);
+      });
 
-        const schemaResult = await build.executeSchema();
-        if (schemaResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "schema",
-            error: schemaResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: schemaResult.error,
-          });
-          return;
-        }
+    /** {@link stop} after an error, until the next hot reload. */
+    const fail = (kind: "indexing" | "api") =>
+      Effect.andThen(
+        stop(kind),
+        Effect.sync(() => {
+          metrics.hasError = true;
+        }),
+      );
 
-        const preCompileResult = build.preCompile(configResult.result);
+    const buildIndexing = Effect.gen(function* () {
+      metrics.resetIndexingMetrics();
 
-        if (preCompileResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "pre-compile",
-            error: preCompileResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: preCompileResult.error,
-          });
-          return;
-        }
+      const configResult = yield* build.executeConfig.pipe(failBuild("config"));
+      const schemaResult = yield* build.executeSchema.pipe(failBuild("schema"));
+      const preBuild = yield* build
+        .preCompile(configResult)
+        .pipe(failBuild("pre-compile"));
+      yield* build
+        .databaseDiagnostic({ preBuild })
+        .pipe(failBuild("diagnostic"));
+      const schemaBuild = yield* build
+        .compileSchema({ ...schemaResult, preBuild })
+        .pipe(failBuild("schema"));
+      const configBuild = yield* build
+        .compileConfig({ configResult })
+        .pipe(failBuild("config"), Scope.provide(indexingScope));
 
-        const databaseDiagnostic = await build.databaseDiagnostic({
-          preBuild: preCompileResult.result,
-        });
-        if (databaseDiagnostic.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "diagnostic",
-            error: databaseDiagnostic.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: databaseDiagnostic.error,
-          });
-          return;
-        }
+      yield* build.rpcDiagnostic({ configBuild }).pipe(failBuild("diagnostic"));
+      const indexingResult = yield* build.executeIndexingFunctions.pipe(
+        failBuild("indexing"),
+      );
+      const indexingBuild = yield* build
+        .compileIndexing({
+          configResult,
+          schemaResult,
+          indexingResult,
+          configBuild,
+        })
+        .pipe(failBuild("indexing"));
 
-        const compileSchemaResult = build.compileSchema({
-          ...schemaResult.result,
-          preBuild: preCompileResult.result,
-        });
+      const db = yield* makeDb({ namespace, preBuild, schemaBuild }).pipe(
+        Scope.provide(indexingScope),
+      );
 
-        if (compileSchemaResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "schema",
-            error: compileSchemaResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: compileSchemaResult.error,
-          });
-          return;
-        }
+      yield* Effect.gen(function* () {
+        const crashRecoveryCheckpoint = yield* migrate({
+          namespace,
+          preBuild,
+          schemaBuild,
+          buildId: indexingBuild.buildId,
+          chains: indexingBuild.chains,
+          rpcs: indexingBuild.rpcs,
+          finalizedBlocks: indexingBuild.finalizedBlocks,
+        }).pipe(Scope.provide(indexingScope));
 
-        const configBuildResult = build.compileConfig({
-          configResult: configResult.result,
-        });
-        if (configBuildResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "config",
-            error: configBuildResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: configBuildResult.error,
-          });
-          return;
-        }
-        preBuild = preCompileResult.result;
-        configBuild = configBuildResult.result;
+        yield* migrateSync;
 
-        const rpcDiagnosticResult = await build.rpcDiagnostic({
-          configBuild: configBuildResult.result,
-        });
-        if (rpcDiagnosticResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "diagnostic",
-            error: rpcDiagnosticResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: rpcDiagnosticResult.error,
-          });
-          return;
-        }
-
-        const indexingResult = await build.executeIndexingFunctions();
-        if (indexingResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "indexing",
-            error: indexingResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: indexingResult.error,
-          });
-          return;
-        }
-
-        const indexingBuildResult = await build.compileIndexing({
-          configResult: configResult.result,
-          schemaResult: schemaResult.result,
-          indexingResult: indexingResult.result,
-          configBuild: configBuildResult.result,
-        });
-
-        if (indexingBuildResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "indexing",
-            error: indexingBuildResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: indexingBuildResult.error,
-          });
-          return;
-        }
-
-        database = createDatabase({
-          common,
-          namespace: { schema, viewsSchema: undefined },
-          preBuild: preCompileResult.result,
-          schemaBuild: compileSchemaResult.result,
-        });
-        crashRecoveryCheckpoint = await database.migrate({
-          buildId: indexingBuildResult.result.buildId,
-          chains: indexingBuildResult.result.chains,
-          finalizedBlocks: indexingBuildResult.result.finalizedBlocks,
-        });
-
-        await database.migrateSync();
-
-        const apiResult = await build.executeApi({
-          preBuild: preCompileResult.result,
-          configBuild: configBuildResult.result,
-          database,
-        });
-        if (apiResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "api",
-            error: apiResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: apiResult.error,
-          });
-          return;
-        }
-
-        const apiBuildResult = await build.compileApi({
-          apiResult: apiResult.result,
-        });
-
-        if (apiBuildResult.status === "error") {
-          common.logger.error({
-            msg: "Build failed",
-            stage: "api",
-            error: apiBuildResult.error,
-          });
-          buildQueue.add({
-            status: "error",
-            kind: "indexing",
-            error: apiBuildResult.error,
-          });
-          return;
-        }
-
-        isInitialBuild = false;
+        const apiResult = yield* build
+          .executeApi({ preBuild, configBuild })
+          .pipe(failBuild("api"), Scope.provide(apiScope));
+        const apiBuild = yield* build
+          .compileApi({ apiResult })
+          .pipe(failBuild("api"));
 
         metrics.resetApiMetrics();
         metrics.ponder_settings_info.set(
           {
-            ordering: preCompileResult.result.ordering,
-            database: preCompileResult.result.databaseConfig.kind,
+            ordering: preBuild.ordering,
+            database: preBuild.databaseConfig.kind,
             command: cliOptions.command,
           },
           1,
         );
 
-        createServer({ common, database, apiBuild: apiBuildResult.result });
+        metrics.initializeIndexingMetrics({ indexingBuild, schemaBuild });
 
-        metrics.initializeIndexingMetrics({
-          indexingBuild: indexingBuildResult.result,
-          schemaBuild: compileSchemaResult.result,
-        });
+        yield* runIndexing({
+          preBuild,
+          namespaceBuild: namespace,
+          schemaBuild,
+          indexingBuild,
+          apiBuild,
+          crashRecoveryCheckpoint,
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.void
+              : onError("unhandledRejection", Cause.squash(cause)),
+          ),
+          Effect.forkIn(indexingScope, { startImmediately: true }),
+        );
 
-        switch (preCompileResult.result.ordering) {
-          case "omnichain":
-            runOmnichain({
-              common,
-              database,
-              preBuild: preCompileResult.result,
-              namespaceBuild: { schema, viewsSchema: undefined },
-              schemaBuild: compileSchemaResult.result,
-              indexingBuild: indexingBuildResult.result,
-              crashRecoveryCheckpoint,
-            });
-            break;
-          case "multichain":
-            runMultichain({
-              common,
-              database,
-              preBuild: preCompileResult.result,
-              namespaceBuild: { schema, viewsSchema: undefined },
-              schemaBuild: compileSchemaResult.result,
-              indexingBuild: indexingBuildResult.result,
-              crashRecoveryCheckpoint,
-            });
-            break;
-          case "experimental_isolated": {
-            isolatedController({
-              common,
-              database,
-              preBuild: preCompileResult.result,
-              namespaceBuild: { schema, viewsSchema: undefined },
-              schemaBuild: compileSchemaResult.result,
-              indexingBuild: indexingBuildResult.result,
-              crashRecoveryCheckpoint,
-            });
-            break;
-          }
-        }
-      } else {
+        yield* makeServer(apiBuild).pipe(Scope.provide(apiScope));
+
+        app = { preBuild, configBuild, db };
+      }).pipe(Effect.provideService(Db, db));
+    });
+
+    const buildApi = ({ preBuild, configBuild, db }: App) =>
+      Effect.gen(function* () {
         metrics.resetApiMetrics();
 
-        const apiResult = await build.executeApi({
-          preBuild: preBuild!,
-          configBuild: configBuild!,
-          database: database!,
-        });
-        if (apiResult.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "api",
-            error: apiResult.error,
-          });
-          return;
-        }
+        const apiResult = yield* build
+          .executeApi({ preBuild, configBuild })
+          .pipe(failBuild("api"), Scope.provide(apiScope));
+        const apiBuild = yield* build
+          .compileApi({ apiResult })
+          .pipe(failBuild("api"));
 
-        const buildResult = await build.compileApi({
-          apiResult: apiResult.result,
-        });
-        if (buildResult.status === "error") {
-          buildQueue.add({
-            status: "error",
-            kind: "api",
-            error: buildResult.error,
-          });
-          return;
-        }
+        yield* makeServer(apiBuild).pipe(Scope.provide(apiScope));
+      }).pipe(Effect.provideService(Db, db));
 
-        const apiBuild = buildResult.result;
+    const runBuild = (request: BuildRequest) => {
+      if (request === "stop") return fail("indexing");
 
-        createServer({ common, database: database!, apiBuild });
-      }
-    },
+      // Note: An API build needs the database of a running app.
+      const kind = request === "api" && app !== undefined ? "api" : "indexing";
+
+      return Effect.gen(function* () {
+        yield* stop(kind);
+        yield* kind === "api" ? buildApi(app!) : buildIndexing;
+      }).pipe(
+        Effect.catchIf(isBuildFailed, () => fail(kind)),
+        Effect.catchCause((cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.failCause(cause)
+            : onError("unhandledRejection", Cause.squash(cause)),
+        ),
+      );
+    };
+
+    // Note: A hot reload replaces the pending builds.
+    yield* build.reloads.pipe(
+      Stream.runForEach((kind) =>
+        Effect.andThen(Queue.clear(queue), Queue.offer(queue, kind)),
+      ),
+      Effect.forkScoped,
+    );
+
+    yield* Queue.offer(queue, "indexing");
+
+    return yield* Effect.raceFirst(
+      Effect.forever(Effect.flatMap(Queue.take(queue), runBuild)),
+      Deferred.await(fatal),
+    );
   });
 
-  let preBuild: PreBuild | undefined;
-  let configBuild: Pick<IndexingBuild, "chains" | "rpcs"> | undefined;
-  let database: Database | undefined;
-  let crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-
-  const schema = cliOptions.schema ?? process.env.DATABASE_SCHEMA ?? "public";
-
-  globalThis.PONDER_NAMESPACE_BUILD = { schema, viewsSchema: undefined };
-
-  process.on("uncaughtException", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
-
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
-    } else {
-      common.logger.error({
-        msg: "uncaughtException",
-        error,
-      });
-      exit({ code: 75 });
-    }
-  });
-  process.on("unhandledRejection", (error: Error) => {
-    if (error instanceof ShutdownError) return;
-    if (error instanceof NonRetryableUserError) {
-      common.logger.error({
-        msg: "unhandledRejection",
-        error,
-      });
-
-      buildQueue.clear();
-      buildQueue.add({ status: "error", kind: "indexing", error });
-    } else {
-      common.logger.error({
-        msg: "unhandledRejection",
-        error,
-      });
-      exit({ code: 75 });
-    }
-  });
-
-  build.startDev({
-    onReload: (kind) => {
-      buildQueue.clear();
-      buildQueue.add({ status: "success", kind });
-    },
-  });
-
-  buildQueue.add({ status: "success", kind: "indexing" });
-
-  return () =>
-    Promise.all([
-      common.shutdown.kill(),
-      common.apiShutdown.kill(),
-      common.buildShutdown.kill(),
-    ]);
+  runMain({ options, program });
 }

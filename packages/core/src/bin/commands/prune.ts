@@ -1,8 +1,9 @@
 import { count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
+import { Clock, Effect } from "effect";
 import { createBuild } from "@/build/index.js";
+import { makeDb } from "@/database/db.js";
 import {
-  createDatabase,
   getPonderMetaTable,
   PONDER_CHECKPOINT_TABLE_NAME,
   PONDER_META_TABLE_NAME,
@@ -23,297 +24,243 @@ import {
   getReorgProcedureName,
   getReorgTableName,
 } from "@/drizzle/onchain.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
-import { startClock } from "@/utils/timer.js";
+import { startClockEffect } from "@/utils/timer.js";
 import type { CliOptions } from "../ponder.js";
-import { createExit } from "../utils/exit.js";
+import { failBuild, isBuildFailed } from "../utils/command.js";
+import { runMain } from "../utils/exit.js";
 
-const emptySchemaBuild = {
-  schema: {},
-  statements: {
-    tables: { sql: [], json: [] },
-    views: { sql: [], json: [] },
-    enums: { sql: [], json: [] },
-    indexes: { sql: [], json: [] },
-    sequences: { sql: [], json: [] },
-  },
-};
-
-export async function prune({ cliOptions }: { cliOptions: CliOptions }) {
+export function prune({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({
-    level: "warn",
-    mode: options.logFormat,
-  });
+  const program = Effect.gen(function* () {
+    const build = yield* createBuild({ cliOptions });
 
-  const metrics = new MetricsService();
-  const shutdown = createShutdown();
-  const common = {
-    options,
-    logger,
-    metrics,
-    shutdown,
-    buildShutdown: shutdown,
-    apiShutdown: shutdown,
-  };
+    const configResult = yield* build.executeConfig.pipe(failBuild("config"));
+    const preBuild = yield* build
+      .preCompile(configResult)
+      .pipe(failBuild("pre-compile"));
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75));
 
-  const build = await createBuild({ common, cliOptions });
-
-  const exit = createExit({ common, options });
-
-  const configResult = await build.executeConfig();
-  if (configResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "config",
-      error: configResult.error,
+    const db = yield* makeDb({
+      // Note: `namespace` is not used in this command
+      namespace: { schema: "public", viewsSchema: undefined },
+      preBuild,
+      schemaBuild: { schema: {} },
     });
-    await exit({ code: 1 });
-    return;
-  }
 
-  const buildResult = build.preCompile(configResult.result);
+    const ponderSchemas = yield* db.admin.query((db) =>
+      db
+        .select({ schema: TABLES.table_schema, tableCount: count() })
+        .from(TABLES)
+        .where(
+          inArray(
+            TABLES.table_schema,
+            db
+              .select({ schema: TABLES.table_schema })
+              .from(TABLES)
+              .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
+          ),
+        )
+        .groupBy(TABLES.table_schema),
+    );
 
-  if (buildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "pre-compile",
-      error: buildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    const ponderViewSchemas = yield* db.admin.query((db) =>
+      db
+        .select({ schema: VIEWS.table_schema })
+        .from(VIEWS)
+        .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
+    );
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: buildResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
+    const queries = ponderSchemas.map((row) =>
+      db.admin.drizzle
+        .select({
+          value: getPonderMetaTable(row.schema).value,
+          schema: sql<string>`${row.schema}`.as("schema"),
+        })
+        .from(getPonderMetaTable(row.schema))
+        .where(eq(getPonderMetaTable(row.schema).key, "app")),
+    );
 
-  const database = createDatabase({
-    common,
-    // Note: `namespace` is not used in this command
-    namespace: { schema: "public", viewsSchema: undefined },
-    preBuild: buildResult.result,
-    schemaBuild: emptySchemaBuild,
-  });
+    if (queries.length === 0) {
+      yield* Effect.logWarning({
+        msg: "Found 0 inactive Ponder apps",
+      });
+      return 0;
+    }
 
-  const ponderSchemas = await database.adminQB.wrap((db) =>
-    db
-      .select({ schema: TABLES.table_schema, tableCount: count() })
-      .from(TABLES)
-      .where(
-        inArray(
-          TABLES.table_schema,
-          database.adminQB.raw
-            .select({ schema: TABLES.table_schema })
-            .from(TABLES)
-            .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
-        ),
-      )
-      .groupBy(TABLES.table_schema),
-  );
-
-  const ponderViewSchemas = await database.adminQB.wrap((db) =>
-    db
-      .select({ schema: VIEWS.table_schema })
-      .from(VIEWS)
-      .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
-  );
-
-  const queries = ponderSchemas.map((row) =>
-    database.adminQB.raw
-      .select({
-        value: getPonderMetaTable(row.schema).value,
-        schema: sql<string>`${row.schema}`.as("schema"),
-      })
-      .from(getPonderMetaTable(row.schema))
-      .where(eq(getPonderMetaTable(row.schema).key, "app")),
-  );
-
-  if (queries.length === 0) {
-    logger.warn({
-      msg: "Found 0 inactive Ponder apps",
-    });
-    await exit({ code: 0 });
-    return;
-  }
-
-  let result: {
-    value:
-      | Partial<PonderApp0>
-      | PonderApp1
-      | PonderApp2
-      | PonderApp3
-      | PonderApp4
-      | PonderApp5
-      | PonderApp6;
-    schema: string;
-  }[];
-
-  if (queries.length === 1) {
-    result = await database.adminQB.wrap(() => queries[0]!);
-  } else {
-    // @ts-expect-error
-    result = await database.adminQB.wrap(() => unionAll(...queries));
-  }
-
-  const tablesToDrop: string[] = [];
-  const viewsToDrop: string[] = [];
-  const schemasToDrop: string[] = [];
-  const functionsToDrop: string[] = [];
-
-  // "start" apps with metadata version >=2
-  const filteredResults = result.filter(
-    (
-      row,
-    ): row is {
-      value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5 | PonderApp6;
+    let result: {
+      value:
+        | Partial<PonderApp0>
+        | PonderApp1
+        | PonderApp2
+        | PonderApp3
+        | PonderApp4
+        | PonderApp5
+        | PonderApp6;
       schema: string;
-    } => "is_dev" in row.value && row.value.is_dev === 0,
-  );
+    }[];
 
-  for (const { value, schema } of filteredResults) {
-    if (value.is_dev === 1) continue;
-    if (
-      value.is_locked === 1 &&
-      value.heartbeat_at + common.options.databaseHeartbeatTimeout > Date.now()
-    ) {
-      continue;
-    }
-
-    if (ponderViewSchemas.some((vs) => vs.schema === schema)) {
-      for (const table of value.table_names) {
-        viewsToDrop.push(`"${schema}"."${table}"`);
-      }
-      if ("view_names" in value) {
-        for (const view of value.view_names) {
-          viewsToDrop.push(`"${schema}"."${view}"`);
-        }
-      }
-      viewsToDrop.push(`"${schema}"."${PONDER_META_TABLE_NAME}"`);
-      if (value.version === "2") {
-        viewsToDrop.push(`"${schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`);
-      } else {
-        viewsToDrop.push(`"${schema}"."${PONDER_STATUS_TABLE_NAME}"`);
-      }
-
-      const tableCount = ponderSchemas.find(
-        (s) => s.schema === schema,
-      )!.tableCount;
-
-      if (schema !== "public" && tableCount <= 2 + value.table_names.length) {
-        schemasToDrop.push(`"${schema}"`);
-      }
+    if (queries.length === 1) {
+      result = yield* db.admin.query(() => queries[0]!);
     } else {
-      for (const table of value.table_names) {
-        tablesToDrop.push(`"${schema}"."${table}"`);
-        tablesToDrop.push(`"${schema}"."${getReorgTableName(table)}"`);
-        functionsToDrop.push(`"${schema}"."${getReorgProcedureName(table)}"`);
+      // @ts-expect-error
+      result = yield* db.admin.query(() => unionAll(...queries));
+    }
+
+    const tablesToDrop: string[] = [];
+    const viewsToDrop: string[] = [];
+    const schemasToDrop: string[] = [];
+    const functionsToDrop: string[] = [];
+
+    // "start" apps with metadata version >=2
+    const filteredResults = result.filter(
+      (
+        row,
+      ): row is {
+        value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5 | PonderApp6;
+        schema: string;
+      } => "is_dev" in row.value && row.value.is_dev === 0,
+    );
+
+    const now = yield* Clock.currentTimeMillis;
+
+    for (const { value, schema } of filteredResults) {
+      if (value.is_dev === 1) continue;
+      if (
+        value.is_locked === 1 &&
+        value.heartbeat_at + options.databaseHeartbeatTimeout > now
+      ) {
+        continue;
       }
-      functionsToDrop.push(`"${schema}".${getLiveQueryProcedureName()}`);
-      functionsToDrop.push(`"${schema}".${getLiveQueryNotifyProcedureName()}`);
-      if ("view_names" in value) {
-        for (const view of value.view_names) {
-          viewsToDrop.push(`"${schema}"."${view}"`);
+
+      if (ponderViewSchemas.some((vs) => vs.schema === schema)) {
+        for (const table of value.table_names) {
+          viewsToDrop.push(`"${schema}"."${table}"`);
+        }
+        if ("view_names" in value) {
+          for (const view of value.view_names) {
+            viewsToDrop.push(`"${schema}"."${view}"`);
+          }
+        }
+        viewsToDrop.push(`"${schema}"."${PONDER_META_TABLE_NAME}"`);
+        if (value.version === "2") {
+          viewsToDrop.push(`"${schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`);
+        } else {
+          viewsToDrop.push(`"${schema}"."${PONDER_STATUS_TABLE_NAME}"`);
+        }
+
+        const tableCount = ponderSchemas.find(
+          (s) => s.schema === schema,
+        )!.tableCount;
+
+        if (schema !== "public" && tableCount <= 2 + value.table_names.length) {
+          schemasToDrop.push(`"${schema}"`);
+        }
+      } else {
+        for (const table of value.table_names) {
+          tablesToDrop.push(`"${schema}"."${table}"`);
+          tablesToDrop.push(`"${schema}"."${getReorgTableName(table)}"`);
+          functionsToDrop.push(`"${schema}"."${getReorgProcedureName(table)}"`);
+        }
+        functionsToDrop.push(`"${schema}".${getLiveQueryProcedureName()}`);
+        functionsToDrop.push(
+          `"${schema}".${getLiveQueryNotifyProcedureName()}`,
+        );
+        if ("view_names" in value) {
+          for (const view of value.view_names) {
+            viewsToDrop.push(`"${schema}"."${view}"`);
+          }
+        }
+        tablesToDrop.push(`"${schema}"."${PONDER_META_TABLE_NAME}"`);
+        if (value.version === "2") {
+          tablesToDrop.push(`"${schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`);
+        } else {
+          tablesToDrop.push(`"${schema}"."${PONDER_STATUS_TABLE_NAME}"`);
+        }
+
+        const tableCount = ponderSchemas.find(
+          (s) => s.schema === schema,
+        )!.tableCount;
+
+        if (
+          schema !== "public" &&
+          tableCount <= 2 + value.table_names.length * 2
+        ) {
+          schemasToDrop.push(`"${schema}"`);
         }
       }
-      tablesToDrop.push(`"${schema}"."${PONDER_META_TABLE_NAME}"`);
-      if (value.version === "2") {
-        tablesToDrop.push(`"${schema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`);
-      } else {
-        tablesToDrop.push(`"${schema}"."${PONDER_STATUS_TABLE_NAME}"`);
-      }
-
-      const tableCount = ponderSchemas.find(
-        (s) => s.schema === schema,
-      )!.tableCount;
-
-      if (
-        schema !== "public" &&
-        tableCount <= 2 + value.table_names.length * 2
-      ) {
-        schemasToDrop.push(`"${schema}"`);
-      }
     }
-  }
 
-  if (tablesToDrop.length === 0 && viewsToDrop.length === 0) {
-    logger.warn({
-      msg: "Found 0 inactive Ponder apps",
-    });
-    await exit({ code: 0 });
-    return;
-  }
+    if (tablesToDrop.length === 0 && viewsToDrop.length === 0) {
+      yield* Effect.logWarning({
+        msg: "Found 0 inactive Ponder apps",
+      });
+      return 0;
+    }
 
-  let endClock = startClock();
+    let endClock = yield* startClockEffect;
 
-  if (tablesToDrop.length > 0) {
-    await database.adminQB.wrap((db) =>
-      db.execute(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
-    );
+    if (tablesToDrop.length > 0) {
+      yield* db.admin.query((db) =>
+        db.execute(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
+      );
 
-    logger.warn({
-      msg: "Dropped database tables",
-      count: tablesToDrop.length,
-      duration: endClock(),
-    });
-  }
+      yield* Effect.logWarning({
+        msg: "Dropped database tables",
+        count: tablesToDrop.length,
+        duration: yield* endClock,
+      });
+    }
 
-  endClock = startClock();
+    endClock = yield* startClockEffect;
 
-  if (viewsToDrop.length > 0) {
-    await database.adminQB.wrap((db) =>
-      db.execute(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
-    );
+    if (viewsToDrop.length > 0) {
+      yield* db.admin.query((db) =>
+        db.execute(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
+      );
 
-    logger.warn({
-      msg: "Dropped database views",
-      count: viewsToDrop.length,
-      duration: endClock(),
-    });
-  }
+      yield* Effect.logWarning({
+        msg: "Dropped database views",
+        count: viewsToDrop.length,
+        duration: yield* endClock,
+      });
+    }
 
-  endClock = startClock();
+    endClock = yield* startClockEffect;
 
-  if (functionsToDrop.length > 0) {
-    await database.adminQB.wrap((db) =>
-      db.execute(
-        `DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`,
-      ),
-    );
+    if (functionsToDrop.length > 0) {
+      yield* db.admin.query((db) =>
+        db.execute(
+          `DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`,
+        ),
+      );
 
-    logger.warn({
-      msg: "Dropped database functions",
-      count: functionsToDrop.length,
-      duration: endClock(),
-    });
-  }
+      yield* Effect.logWarning({
+        msg: "Dropped database functions",
+        count: functionsToDrop.length,
+        duration: yield* endClock,
+      });
+    }
 
-  endClock = startClock();
+    endClock = yield* startClockEffect;
 
-  if (schemasToDrop.length > 0) {
-    await database.adminQB.wrap((db) =>
-      db.execute(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
-    );
+    if (schemasToDrop.length > 0) {
+      yield* db.admin.query((db) =>
+        db.execute(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
+      );
 
-    logger.warn({
-      msg: "Dropped database schemas",
-      count: schemasToDrop.length,
-      duration: endClock(),
-    });
-  }
+      yield* Effect.logWarning({
+        msg: "Dropped database schemas",
+        count: schemasToDrop.length,
+        duration: yield* endClock,
+      });
+    }
 
-  await exit({ code: 0 });
+    return 0;
+  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
+
+  runMain({ options, logLevel: "warn", program });
 }

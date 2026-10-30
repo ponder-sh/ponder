@@ -1,8 +1,9 @@
 import { eq, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
+import { Clock, Effect } from "effect";
 import { createBuild } from "@/build/index.js";
+import { makeDb } from "@/database/db.js";
 import {
-  createDatabase,
   getPonderMetaTable,
   PONDER_META_TABLE_NAME,
   type PonderApp0,
@@ -15,191 +16,134 @@ import {
   TABLES,
   VIEWS,
 } from "@/database/index.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
 import { buildTable } from "@/ui/app.js";
 import { formatEta } from "@/utils/format.js";
 import type { CliOptions } from "../ponder.js";
-import { createExit } from "../utils/exit.js";
+import { failBuild, isBuildFailed } from "../utils/command.js";
+import { runMain } from "../utils/exit.js";
 
-const emptySchemaBuild = {
-  schema: {},
-  statements: {
-    tables: { sql: [], json: [] },
-    views: { sql: [], json: [] },
-    enums: { sql: [], json: [] },
-    indexes: { sql: [], json: [] },
-    sequences: { sql: [], json: [] },
-  },
-};
-
-export async function list({ cliOptions }: { cliOptions: CliOptions }) {
+export function list({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({
-    level: "warn",
-    mode: options.logFormat,
-  });
+  const program = Effect.gen(function* () {
+    const build = yield* createBuild({ cliOptions });
 
-  const metrics = new MetricsService();
-  const shutdown = createShutdown();
-  const common = {
-    options,
-    logger,
-    metrics,
-    shutdown,
-    buildShutdown: shutdown,
-    apiShutdown: shutdown,
-  };
+    const configResult = yield* build.executeConfig.pipe(failBuild("config"));
+    const preBuild = yield* build
+      .preCompile(configResult)
+      .pipe(failBuild("pre-compile"));
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75));
 
-  const build = await createBuild({ common, cliOptions });
-
-  const exit = createExit({ common, options });
-
-  const configResult = await build.executeConfig();
-  if (configResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "config",
-      error: configResult.error,
+    const db = yield* makeDb({
+      // Note: `namespace` is not used in this command
+      namespace: { schema: "public", viewsSchema: undefined },
+      preBuild,
+      schemaBuild: { schema: {} },
     });
-    await exit({ code: 1 });
-    return;
-  }
 
-  const buildResult = build.preCompile(configResult.result);
+    const ponderSchemas = yield* db.admin.query((db) =>
+      db
+        .select({ schema: TABLES.table_schema })
+        .from(TABLES)
+        .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
+    );
 
-  if (buildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "pre-compile",
-      error: buildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    const ponderViewSchemas = yield* db.admin.query((db) =>
+      db
+        .select({ schema: VIEWS.table_schema })
+        .from(VIEWS)
+        .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
+    );
 
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: buildResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
+    const queries = ponderSchemas.map((row) =>
+      db.admin.drizzle
+        .select({
+          value: getPonderMetaTable(row.schema).value,
+          schema: sql<string>`${row.schema}`.as("schema"),
+        })
+        .from(getPonderMetaTable(row.schema))
+        .where(eq(getPonderMetaTable(row.schema).key, "app")),
+    );
 
-  const database = createDatabase({
-    common,
-    // Note: `namespace` is not used in this command
-    namespace: { schema: "public", viewsSchema: undefined },
-    preBuild: buildResult.result,
-    schemaBuild: emptySchemaBuild,
-  });
+    if (queries.length === 0) {
+      yield* Effect.logWarning({
+        msg: "Found 0 'ponder start' apps",
+      });
+      return 0;
+    }
 
-  const ponderSchemas = await database.adminQB.wrap((db) =>
-    db
-      .select({ schema: TABLES.table_schema })
-      .from(TABLES)
-      .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
-  );
-
-  const ponderViewSchemas = await database.adminQB.wrap((db) =>
-    db
-      .select({ schema: VIEWS.table_schema })
-      .from(VIEWS)
-      .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
-  );
-
-  const queries = ponderSchemas.map((row) =>
-    database.adminQB.raw
-      .select({
-        value: getPonderMetaTable(row.schema).value,
-        schema: sql<string>`${row.schema}`.as("schema"),
-      })
-      .from(getPonderMetaTable(row.schema))
-      .where(eq(getPonderMetaTable(row.schema).key, "app")),
-  );
-
-  if (queries.length === 0) {
-    logger.warn({
-      msg: "Found 0 'ponder start' apps",
-    });
-    await exit({ code: 0 });
-    return;
-  }
-
-  let result: {
-    value:
-      | Partial<PonderApp0>
-      | PonderApp1
-      | PonderApp2
-      | PonderApp3
-      | PonderApp4
-      | PonderApp5
-      | PonderApp6;
-    schema: string;
-  }[];
-
-  if (queries.length === 1) {
-    result = await database.adminQB.wrap(() => queries[0]!);
-  } else {
-    // @ts-expect-error
-    result = await database.adminQB.wrap(() => unionAll(...queries));
-  }
-
-  const columns = [
-    { title: "Schema", key: "table_schema", align: "left" },
-    { title: "Active", key: "active", align: "right" },
-    { title: "Last active", key: "last_active", align: "right" },
-    { title: "Relation count", key: "relation_count", align: "right" },
-    { title: "Is view", key: "is_view", align: "right" },
-  ];
-
-  // "start" apps with metadata version >=2
-  const filteredResults = result.filter(
-    (
-      row,
-    ): row is {
-      value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5 | PonderApp6;
+    let result: {
+      value:
+        | Partial<PonderApp0>
+        | PonderApp1
+        | PonderApp2
+        | PonderApp3
+        | PonderApp4
+        | PonderApp5
+        | PonderApp6;
       schema: string;
-    } => "is_dev" in row.value && row.value.is_dev === 0,
-  );
+    }[];
 
-  const rows = filteredResults.map((row) => ({
-    table_schema: row.schema,
-    active:
-      row.value.is_locked === 1 &&
-      row.value.heartbeat_at + common.options.databaseHeartbeatTimeout >
-        Date.now()
+    if (queries.length === 1) {
+      result = yield* db.admin.query(() => queries[0]!);
+    } else {
+      // @ts-expect-error
+      result = yield* db.admin.query(() => unionAll(...queries));
+    }
+
+    const columns = [
+      { title: "Schema", key: "table_schema", align: "left" },
+      { title: "Active", key: "active", align: "right" },
+      { title: "Last active", key: "last_active", align: "right" },
+      { title: "Relation count", key: "relation_count", align: "right" },
+      { title: "Is view", key: "is_view", align: "right" },
+    ];
+
+    // "start" apps with metadata version >=2
+    const filteredResults = result.filter(
+      (
+        row,
+      ): row is {
+        value: PonderApp2 | PonderApp3 | PonderApp4 | PonderApp5 | PonderApp6;
+        schema: string;
+      } => "is_dev" in row.value && row.value.is_dev === 0,
+    );
+
+    const now = yield* Clock.currentTimeMillis;
+
+    const rows = filteredResults.map((row) => ({
+      table_schema: row.schema,
+      active:
+        row.value.is_locked === 1 &&
+        row.value.heartbeat_at + options.databaseHeartbeatTimeout > now
+          ? "yes"
+          : "no",
+      last_active:
+        row.value.is_locked === 1
+          ? "---"
+          : `${formatEta(now - row.value.heartbeat_at)} ago`,
+      relation_count:
+        (row.value.table_names?.length ?? 0) +
+        ((row.value as { view_names?: string[] }).view_names?.length ?? 0),
+      is_view: ponderViewSchemas.some((schema) => schema.schema === row.schema)
         ? "yes"
         : "no",
-    last_active:
-      row.value.is_locked === 1
-        ? "---"
-        : `${formatEta(Date.now() - row.value.heartbeat_at)} ago`,
-    relation_count:
-      (row.value.table_names?.length ?? 0) +
-      ((row.value as { view_names?: string[] }).view_names?.length ?? 0),
-    is_view: ponderViewSchemas.some((schema) => schema.schema === row.schema)
-      ? "yes"
-      : "no",
-  }));
+    }));
 
-  if (rows.length === 0) {
-    logger.warn({ msg: "Found 0 'ponder start' apps" });
-    await exit({ code: 0 });
-    return;
-  }
+    if (rows.length === 0) {
+      yield* Effect.logWarning({ msg: "Found 0 'ponder start' apps" });
+      return 0;
+    }
 
-  const lines = buildTable(rows, columns);
-  const text = [...lines, ""].join("\n");
-  console.log(text);
+    const lines = buildTable(rows, columns);
+    const text = [...lines, ""].join("\n");
+    console.log(text);
 
-  await exit({ code: 0 });
+    return 0;
+  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
+
+  runMain({ options, logLevel: "warn", program });
 }

@@ -1,220 +1,99 @@
 import { eq } from "drizzle-orm";
-import { satisfies } from "semver";
+import { Effect } from "effect";
 import { createBuild } from "@/build/index.js";
-import { createDatabase, SCHEMATA } from "@/database/index.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
+import { Db, makeDb } from "@/database/db.js";
+import { SCHEMATA } from "@/database/index.js";
+import { Metrics } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
-import { createServer } from "@/server/index.js";
+import { makeServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
-import { createExit } from "../utils/exit.js";
+import {
+  checkNodeVersion,
+  failBuild,
+  isBuildFailed,
+  setVersionInfo,
+} from "../utils/command.js";
+import { runMain } from "../utils/exit.js";
 
-export async function serve({ cliOptions }: { cliOptions: CliOptions }) {
+export function serve({ cliOptions }: { cliOptions: CliOptions }) {
   const options = buildOptions({ cliOptions });
 
-  const logger = createLogger({
-    level: options.logLevel,
-    mode: options.logFormat,
-  });
+  const program = Effect.gen(function* () {
+    const metrics = yield* Metrics;
 
-  if (!satisfies(process.versions.node, ">=22.12")) {
-    logger.error({
-      msg: "Invalid Node.js version",
-      version: process.versions.node,
-      expected: ">=22.12",
-    });
-    process.exit(1);
-  }
+    yield* checkNodeVersion;
+    yield* setVersionInfo;
 
-  const metrics = new MetricsService();
-  const shutdown = createShutdown();
-  const common = {
-    options,
-    logger,
-    metrics,
-    shutdown,
-    buildShutdown: shutdown,
-    apiShutdown: shutdown,
-  };
+    const build = yield* createBuild({ cliOptions });
 
-  if (options.version) {
-    metrics.ponder_version_info.set(
-      {
-        version: options.version.version,
-        major: options.version.major,
-        minor: options.version.minor,
-        patch: options.version.patch,
-      },
-      1,
+    const namespaceBuild = yield* build.namespaceCompile.pipe(
+      failBuild("namespace"),
     );
-  }
+    const configResult = yield* build.executeConfig.pipe(failBuild("config"));
+    const schemaResult = yield* build.executeSchema.pipe(failBuild("schema"));
+    const preBuild = yield* build
+      .preCompile(configResult)
+      .pipe(failBuild("pre-compile"));
 
-  const build = await createBuild({ common, cliOptions });
+    if (preBuild.databaseConfig.kind === "pglite") {
+      yield* Effect.logError({
+        msg: "The 'ponder serve' command does not support PGlite",
+      });
+      return 1;
+    }
 
-  const exit = createExit({ common, options });
-  const namespaceResult = build.namespaceCompile();
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75));
+    const schemaBuild = yield* build
+      .compileSchema({ ...schemaResult, preBuild })
+      .pipe(failBuild("schema"));
+    const configBuild = yield* build
+      .compileConfig({ configResult })
+      .pipe(failBuild("config"));
 
-  if (namespaceResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "namespace",
-      error: namespaceResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    // Note: RPC diagnostic is skipped
 
-  const configResult = await build.executeConfig();
-  if (configResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "config",
-      error: configResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  const schemaResult = await build.executeSchema();
-  if (schemaResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "schema",
-      error: schemaResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  const preCompileResult = build.preCompile(configResult.result);
-
-  if (preCompileResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "pre-compile",
-      error: preCompileResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  if (preCompileResult.result.databaseConfig.kind === "pglite") {
-    common.logger.error({
-      msg: "The 'ponder serve' command does not support PGlite",
+    const db = yield* makeDb({
+      namespace: namespaceBuild,
+      preBuild,
+      schemaBuild,
     });
 
-    await exit({ code: 1 });
-    return;
-  }
-
-  const databaseDiagnostic = await build.databaseDiagnostic({
-    preBuild: preCompileResult.result,
-  });
-  if (databaseDiagnostic.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "diagnostic",
-      error: databaseDiagnostic.error,
-    });
-    await exit({ code: 75 });
-    return;
-  }
-
-  const compileSchemaResult = build.compileSchema({
-    ...schemaResult.result,
-    preBuild: preCompileResult.result,
-  });
-
-  if (compileSchemaResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "schema",
-      error: compileSchemaResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  const configBuildResult = build.compileConfig({
-    configResult: configResult.result,
-  });
-
-  if (configBuildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "indexing",
-      error: configBuildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
-
-  // Note: RPC diagnostic is skipped
-
-  const database = createDatabase({
-    common,
-    namespace: namespaceResult.result,
-    preBuild: preCompileResult.result,
-    schemaBuild: compileSchemaResult.result,
-  });
-
-  const schemaExists = await database.adminQB
-    .wrap((db) =>
+    const schemas = yield* db.admin.query((db) =>
       db
         .select()
         .from(SCHEMATA)
-        .where(eq(SCHEMATA.schemaName, namespaceResult.result.schema)),
-    )
-    .then((res) => res.length > 0);
+        .where(eq(SCHEMATA.schemaName, namespaceBuild.schema)),
+    );
 
-  if (schemaExists === false) {
-    common.logger.error({
-      msg: "Schema does not exist.",
-      schema: namespaceResult.result.schema,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    if (schemas.length === 0) {
+      yield* Effect.logError({
+        msg: "Schema does not exist.",
+        schema: namespaceBuild.schema,
+      });
+      return 1;
+    }
 
-  const apiResult = await build.executeApi({
-    preBuild: preCompileResult.result,
-    configBuild: configBuildResult.result,
-    database,
-  });
-  if (apiResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "api",
-      error: apiResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    const apiResult = yield* build
+      .executeApi({ preBuild, configBuild })
+      .pipe(failBuild("api"), Effect.provideService(Db, db));
+    const apiBuild = yield* build
+      .compileApi({ apiResult })
+      .pipe(failBuild("api"));
 
-  const apiBuildResult = await build.compileApi({
-    apiResult: apiResult.result,
-  });
+    metrics.ponder_settings_info.set(
+      {
+        database: preBuild.databaseConfig.kind,
+        command: cliOptions.command,
+      },
+      1,
+    );
 
-  if (apiBuildResult.status === "error") {
-    common.logger.error({
-      msg: "Build failed",
-      stage: "api",
-      error: apiBuildResult.error,
-    });
-    await exit({ code: 1 });
-    return;
-  }
+    yield* makeServer(apiBuild).pipe(Effect.provideService(Db, db));
 
-  metrics.ponder_settings_info.set(
-    {
-      database: preCompileResult.result.databaseConfig.kind,
-      command: cliOptions.command,
-    },
-    1,
-  );
+    return yield* Effect.never;
+  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
 
-  createServer({ common, database, apiBuild: apiBuildResult.result });
-
-  return shutdown.kill;
+  runMain({ options, program });
 }
