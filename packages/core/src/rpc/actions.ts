@@ -420,8 +420,12 @@ export const eth_getTransactionReceipts = (
           },
         },
       ]),
-      Effect.catch((error) =>
-        annotate(
+      Effect.catch((error) => {
+        // Note: A block that the RPCs don't have, such as a reorged block, is
+        // not a reason to stop using "eth_getBlockReceipts".
+        if (error instanceof BlockNotFoundError) return Effect.fail(error);
+
+        return annotate(
           Effect.logWarning({
             msg: "Caught eth_getBlockReceipts error, switching to eth_getTransactionReceipt method",
             error,
@@ -434,8 +438,8 @@ export const eth_getTransactionReceipts = (
               return eth_getTransactionReceipts(rpc, params, context);
             }),
           ),
-        ),
-      ),
+        );
+      }),
     );
   });
 

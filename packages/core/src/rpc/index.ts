@@ -33,6 +33,7 @@ import {
   BlockNotFoundError,
   eth_getBlockByNumber,
   standardizeBlock,
+  TransactionReceiptNotFoundError,
 } from "@/rpc/actions.js";
 import { randomUUID } from "@/utils/random.js";
 import { startClockEffect } from "@/utils/timer.js";
@@ -83,8 +84,13 @@ export const sanitizeLogTopics = <
 export type RequestContext = {
   /** Annotations for the logs of the request, such as `{ action: "fetch_block_data" }`. */
   logAnnotations?: Record<string, unknown>;
-  /** Retry when the block in a block request is `null`. */
+  /** Retry when the block or receipt in a request is `null`. */
   retryNullBlockRequest?: boolean;
+  /**
+   * Retries of a `null` block or receipt, instead of the retries of an
+   * error.
+   */
+  nullBlockRetryCount?: number;
 };
 
 export type Rpc = {
@@ -524,13 +530,27 @@ export const createRpc = ({
                 if (
                   response === null &&
                   (body.method === "eth_getBlockByNumber" ||
-                    body.method === "eth_getBlockByHash") &&
+                    body.method === "eth_getBlockByHash" ||
+                    body.method === "eth_getBlockReceipts") &&
                   context?.retryNullBlockRequest === true
                 ) {
                   // Note: Failing with this error will cause the request to be retried.
                   return Effect.fail(
                     new BlockNotFoundError({
                       blockNumber: body.params[0],
+                    }),
+                  );
+                }
+
+                if (
+                  response === null &&
+                  body.method === "eth_getTransactionReceipt" &&
+                  context?.retryNullBlockRequest === true
+                ) {
+                  // Note: Failing with this error will cause the request to be retried.
+                  return Effect.fail(
+                    new TransactionReceiptNotFoundError({
+                      hash: body.params[0],
                     }),
                   );
                 }
@@ -676,7 +696,13 @@ export const createRpc = ({
               return yield* Effect.fail(error);
             }
 
-            if (i === RETRY_COUNT) {
+            if (
+              i === RETRY_COUNT ||
+              ((error instanceof BlockNotFoundError ||
+                error instanceof TransactionReceiptNotFoundError ||
+                isUnknownBlockHashError(body, error)) &&
+                i >= (context?.nullBlockRetryCount ?? RETRY_COUNT))
+            ) {
               yield* log(
                 Effect.logWarning({
                   msg: "Received JSON-RPC error",
@@ -957,4 +983,21 @@ function shouldRetry(error: Error) {
     if (NON_RETRYABLE_STATUSES.has(error.status)) return false;
   }
   return true;
+}
+
+/**
+ * Return `true` if the error of an `eth_getLogs` request by block hash means
+ * that the RPC doesn't have the block, such as a block that it hasn't received
+ * yet or that was reorged out.
+ */
+function isUnknownBlockHashError(body: RequestParameters, error: Error) {
+  if (body.method !== "eth_getLogs" || body.params[0].blockHash === undefined) {
+    return false;
+  }
+
+  const details =
+    "details" in error && typeof error.details === "string"
+      ? error.details
+      : error.message;
+  return /unknown block|block not found|header not found/i.test(details);
 }
