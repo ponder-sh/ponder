@@ -1,48 +1,45 @@
 import { expect, test } from "bun:test";
+import { Effect, Stream } from "effect";
 import type { Filter } from "@/internal/types.js";
 import type { IntervalWithFilter } from "@/runtime/index.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
-import { mergeGeneratorIntervals } from "./in-memory.js";
+import { mergeIntervalStreams } from "./in-memory.js";
 
-const createIntervalGenerators = (
+const createIntervalStreams = (
   intervals: { interval: Interval; yields: Interval[] }[],
 ) => {
-  const filterGenerators = new Map<
-    IntervalWithFilter,
-    AsyncGenerator<Interval>
-  >();
+  const filterStreams = new Map<IntervalWithFilter, Stream.Stream<Interval>>();
   for (const { interval, yields } of intervals) {
-    filterGenerators.set(
+    filterStreams.set(
       { filter: {} as Filter, interval },
-      (async function* () {
-        yield* yields;
-      })(),
+      Stream.fromIterable(yields),
     );
   }
-  return filterGenerators;
+  return filterStreams;
 };
 
-test("mergeGeneratorIntervals()", async () => {
-  const intervals = await drainAsyncGenerator(
-    mergeGeneratorIntervals(
-      createIntervalGenerators([
-        {
-          interval: [1, 10],
-          yields: [
-            [1, 4],
-            [5, 10],
-          ],
-        },
-        {
-          interval: [1, 10],
-          yields: [
-            [1, 2],
-            [3, 6],
-            [7, 10],
-          ],
-        },
-      ]),
+test("mergeIntervalStreams()", () => {
+  const intervals = Effect.runSync(
+    Stream.runCollect(
+      mergeIntervalStreams(
+        createIntervalStreams([
+          {
+            interval: [1, 10],
+            yields: [
+              [1, 4],
+              [5, 10],
+            ],
+          },
+          {
+            interval: [1, 10],
+            yields: [
+              [1, 2],
+              [3, 6],
+              [7, 10],
+            ],
+          },
+        ]),
+      ),
     ),
   );
 
@@ -68,13 +65,15 @@ test("mergeGeneratorIntervals()", async () => {
   `);
 });
 
-test("mergeGeneratorIntervals() with different intervals", async () => {
-  const intervals = await drainAsyncGenerator(
-    mergeGeneratorIntervals(
-      createIntervalGenerators([
-        { interval: [1, 5], yields: [[1, 5]] },
-        { interval: [3, 10], yields: [[3, 10]] },
-      ]),
+test("mergeIntervalStreams() with different intervals", () => {
+  const intervals = Effect.runSync(
+    Stream.runCollect(
+      mergeIntervalStreams(
+        createIntervalStreams([
+          { interval: [1, 5], yields: [[1, 5]] },
+          { interval: [3, 10], yields: [[3, 10]] },
+        ]),
+      ),
     ),
   );
 
@@ -92,9 +91,9 @@ test("mergeGeneratorIntervals() with different intervals", async () => {
   `);
 });
 
-test("mergeGeneratorIntervals() with no generators", async () => {
-  const intervals = await drainAsyncGenerator(
-    mergeGeneratorIntervals(createIntervalGenerators([])),
+test("mergeIntervalStreams() with no streams", () => {
+  const intervals = Effect.runSync(
+    Stream.runCollect(mergeIntervalStreams(createIntervalStreams([]))),
   );
 
   expect(intervals).toMatchInlineSnapshot(`[]`);
