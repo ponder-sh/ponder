@@ -1,7 +1,7 @@
 import { expect, test, vi } from "bun:test";
 import { zeroAddress } from "viem";
 import { ALICE } from "../_test/constants.js";
-import { onchainTable } from "../drizzle/onchain.js";
+import { onchainTable, primaryKey } from "../drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NonRetryableUserError,
@@ -9,6 +9,7 @@ import {
 } from "../internal/errors.js";
 import { validateUpdateSet } from "./index.js";
 import {
+  getCacheKey,
   getPrimaryKeyCache,
   normalizeColumn,
   normalizeRow,
@@ -236,4 +237,77 @@ test("validateUpdateSet() primary key", () => {
       cache,
     ),
   ).not.toThrow();
+});
+
+test("validateUpdateSet() unchanged primary key", () => {
+  const table = onchainTable("account", (t) => ({
+    address: t.hex().primaryKey(),
+    balance: t.bigint().notNull(),
+  }));
+  const pkTable = onchainTable("bytes", (t) => ({
+    bytes: t.bytes().primaryKey(),
+    balance: t.bigint().notNull(),
+  }));
+  const timestampTable = onchainTable("timestamp", (t) => ({
+    timestamp: t.timestamp().primaryKey(),
+    balance: t.bigint().notNull(),
+  }));
+  const cache = getPrimaryKeyCache([table, pkTable, timestampTable]);
+
+  const address = "0x000000000000000000000000000000000000dEaD";
+  const prev = normalizeRow(table, { address, balance: 10n }, false);
+  expect(() =>
+    validateUpdateSet(table, { address, balance: 11n }, prev, cache),
+  ).not.toThrow();
+
+  const pkPrev = normalizeRow(
+    pkTable,
+    { bytes: new Uint8Array([1]), balance: 10n },
+    false,
+  );
+  expect(() =>
+    validateUpdateSet(
+      pkTable,
+      { bytes: new Uint8Array([1]), balance: 11n },
+      pkPrev,
+      cache,
+    ),
+  ).not.toThrow();
+  const timestampPrev = normalizeRow(
+    timestampTable,
+    { timestamp: new Date(1742925862000), balance: 10n },
+    false,
+  );
+  expect(() =>
+    validateUpdateSet(
+      timestampTable,
+      { timestamp: new Date(1742925862000), balance: 11n },
+      timestampPrev,
+      cache,
+    ),
+  ).not.toThrow();
+
+  expect(() =>
+    validateUpdateSet(
+      pkTable,
+      { bytes: new Uint8Array([2]), balance: 11n },
+      pkPrev,
+      cache,
+    ),
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Primary key column 'bytes' cannot be updated"`,
+  );
+});
+
+test("getCacheKey() composite primary key", () => {
+  const table = onchainTable(
+    "pair",
+    (t) => ({ a: t.text().notNull(), b: t.text().notNull() }),
+    (t) => ({ pk: primaryKey({ columns: [t.a, t.b] }) }),
+  );
+  const cache = getPrimaryKeyCache([table]);
+
+  expect(getCacheKey(table, { a: "x_y", b: "z" }, cache)).not.toBe(
+    getCacheKey(table, { a: "x", b: "y_z" }, cache),
+  );
 });

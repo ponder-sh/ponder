@@ -1,30 +1,26 @@
-import {
-  type PromiseWithResolvers,
-  promiseWithResolvers,
-} from "./promiseWithResolvers.js";
-
+/**
+ * Create a lock for promises, which grants the lock in the order of `lock` calls.
+ */
 export const createLock = (): {
   lock: () => Promise<void>;
   unlock: () => void;
 } => {
-  const queue: PromiseWithResolvers<void>[] = [];
+  const queue: (() => void)[] = [];
   let locked = false;
 
   return {
-    lock: async () => {
+    lock: () => {
       if (locked === false) {
         locked = true;
-        return;
+        return Promise.resolve();
       }
 
-      const pwr = promiseWithResolvers<void>();
-      queue.push(pwr);
-      return pwr.promise;
+      return new Promise<void>((resolve) => queue.push(resolve));
     },
     unlock: () => {
-      if (queue.length > 0) {
-        const pwr = queue.shift()!;
-        pwr.resolve();
+      const next = queue.shift();
+      if (next) {
+        next();
       } else {
         locked = false;
       }
