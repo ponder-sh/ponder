@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import {
   encodeEventTopics,
   type Hex,
@@ -11,7 +12,6 @@ import { expect, test } from "vitest";
 import { erc20ABI } from "@/_test/abis.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {
-  createTestCommon,
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
   getChain,
@@ -108,8 +108,6 @@ test("splitEvents()", async () => {
 });
 
 test("decodeEvents() log", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
   });
@@ -134,9 +132,9 @@ test("decodeEvents() log", async () => {
     log: { data, topics },
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [LogEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [LogEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toMatchObject({
@@ -147,8 +145,6 @@ test("decodeEvents() log", async () => {
 });
 
 test("decodeEvents() log error", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
   });
@@ -175,16 +171,14 @@ test("decodeEvents() log error", async () => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [LogEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [LogEvent];
 
   expect(events).toHaveLength(0);
 });
 
 test("decodeEvents() block", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getBlocksIndexingBuild({
     interval: 1,
   });
@@ -200,9 +194,9 @@ test("decodeEvents() block", async () => {
     log: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [BlockEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [BlockEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.block).toMatchObject({
@@ -211,8 +205,6 @@ test("decodeEvents() block", async () => {
 });
 
 test("decodeEvents() transfer", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
@@ -239,9 +231,9 @@ test("decodeEvents() transfer", async () => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [TransferEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [TransferEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.transfer).toMatchObject({
@@ -252,8 +244,6 @@ test("decodeEvents() transfer", async () => {
 });
 
 test("decodeEvents() transaction", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getAccountsIndexingBuild({
     address: ALICE,
   });
@@ -268,16 +258,14 @@ test("decodeEvents() transaction", async () => {
     trace: undefined,
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [TransferEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [TransferEvent];
 
   expect(events).toHaveLength(1);
 });
 
 test("decodeEvents() trace", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
@@ -313,9 +301,9 @@ test("decodeEvents() trace", async () => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [TraceEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [TraceEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
@@ -323,8 +311,6 @@ test("decodeEvents() trace", async () => {
 });
 
 test("decodeEvents() trace w/o output", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
@@ -361,9 +347,9 @@ test("decodeEvents() trace w/o output", async () => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [TraceEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [TraceEvent];
 
   expect(events).toHaveLength(1);
   expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
@@ -371,8 +357,6 @@ test("decodeEvents() trace w/o output", async () => {
 });
 
 test("decodeEvents() trace error", async () => {
-  const common = createTestCommon();
-
   const { eventCallbacks } = getErc20IndexingBuild({
     address: zeroAddress,
     includeCallTraces: true,
@@ -404,9 +388,9 @@ test("decodeEvents() trace error", async () => {
     },
   } as RawEvent;
 
-  const events = decodeEvents(common, getChain(), eventCallbacks, [
-    rawEvent,
-  ]) as [TraceEvent];
+  const events = Effect.runSync(
+    decodeEvents(getChain(), eventCallbacks, [rawEvent]),
+  ) as [TraceEvent];
 
   expect(events).toHaveLength(0);
 });
