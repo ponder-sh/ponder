@@ -134,7 +134,8 @@ export type Build = {
 export const createBuild = ({
   cliOptions,
 }: {
-  cliOptions: CliOptions;
+  /** The CLI options of the namespace. */
+  cliOptions: Pick<CliOptions, "schema" | "viewsSchema">;
 }): Effect.Effect<Build, never, Options | Scope.Scope> =>
   Effect.gen(function* () {
     const options = yield* Options;
