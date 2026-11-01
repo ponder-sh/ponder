@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { Effect, Stream } from "effect";
 import { zeroAddress } from "viem";
 import {
   ALICE,
@@ -7,7 +8,6 @@ import {
 } from "@/_test/constants.js";
 import {
   createStubRpc,
-  createTestCommon,
   getBlocksIndexingBuild,
   getChain,
 } from "@/_test/utils.js";
@@ -21,16 +21,15 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
 import { getFactoryFragments, getFragments } from "./fragments.js";
-import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
+import { mergeHistoricalEventsOmnichain } from "./historical.js";
 import {
   type CachedIntervals,
   getCachedBlock,
   getLocalSyncProgress,
   getRequiredIntervals,
+  getRequiredIntervalsPerPiece,
   getRequiredIntervalsWithFilters,
 } from "./index.js";
 
@@ -52,14 +51,17 @@ test("getLocalSyncProgress()", async () => {
     }
   }
 
-  const syncProgress = await getLocalSyncProgress({
-    common: createTestCommon(),
-    filters: eventCallbacks.map(({ filter }) => filter),
-    chain,
-    rpc,
-    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x0", true]),
-    cachedIntervals,
-  });
+  const syncProgress = await Effect.runPromise(
+    getLocalSyncProgress({
+      filters: eventCallbacks.map(({ filter }) => filter),
+      chain,
+      rpc,
+      finalizedBlock: await Effect.runPromise(
+        eth_getBlockByNumber(rpc, ["0x0", true]),
+      ),
+      cachedIntervals,
+    }),
+  );
 
   expect({
     finalized: syncProgress.finalized.number,
@@ -96,14 +98,17 @@ test("getLocalSyncProgress() future end block", async () => {
     }
   }
 
-  const syncProgress = await getLocalSyncProgress({
-    common: createTestCommon(),
-    filters: eventCallbacks.map(({ filter }) => filter),
-    chain,
-    rpc,
-    finalizedBlock: await eth_getBlockByNumber(rpc, ["0x0", true]),
-    cachedIntervals,
-  });
+  const syncProgress = await Effect.runPromise(
+    getLocalSyncProgress({
+      filters: eventCallbacks.map(({ filter }) => filter),
+      chain,
+      rpc,
+      finalizedBlock: await Effect.runPromise(
+        eth_getBlockByNumber(rpc, ["0x0", true]),
+      ),
+      cachedIntervals,
+    }),
+  );
 
   expect({
     finalized: syncProgress.finalized.number,
@@ -523,6 +528,159 @@ test("getRequiredIntervalsWithFilters()", async () => {
   `);
 });
 
+test("getRequiredIntervalsPerPiece()", () => {
+  const cache = (filter: LogFilter, ...intervals: Interval[][]) =>
+    [
+      filter,
+      getFragments(filter).map(({ fragment }, i) => ({
+        fragment,
+        intervals: intervals[i] ?? [],
+      })),
+    ] as const;
+
+  const summarize = (pieces: ReturnType<typeof getRequiredIntervalsPerPiece>) =>
+    pieces.map(({ interval, intervals }) => ({
+      piece: interval,
+      required: intervals.map(({ filter, interval }) => [
+        (filter as LogFilter).address,
+        interval,
+      ]),
+    }));
+
+  // The start block moved before the cached blocks.
+  const filter: LogFilter = {
+    ...EMPTY_LOG_FILTER,
+    fromBlock: 0,
+    toBlock: 2000,
+    address: zeroAddress,
+  };
+
+  expect(
+    summarize(
+      getRequiredIntervalsPerPiece({
+        filters: [filter],
+        interval: [0, 2000],
+        cachedIntervals: new Map([cache(filter, [[500, 1000]])]),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "piece": [
+          0,
+          499,
+        ],
+        "required": [
+          [
+            "0x0000000000000000000000000000000000000000",
+            [
+              0,
+              499,
+            ],
+          ],
+        ],
+      },
+      {
+        "piece": [
+          1001,
+          2000,
+        ],
+        "required": [
+          [
+            "0x0000000000000000000000000000000000000000",
+            [
+              1001,
+              2000,
+            ],
+          ],
+        ],
+      },
+    ]
+  `);
+
+  // An address was added to a cached filter.
+  const twoAddresses: LogFilter = { ...filter, address: [zeroAddress, ALICE] };
+
+  expect(
+    summarize(
+      getRequiredIntervalsPerPiece({
+        filters: [twoAddresses],
+        interval: [0, 2000],
+        cachedIntervals: new Map([cache(twoAddresses, [[0, 1000]], [])]),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "piece": [
+          0,
+          1000,
+        ],
+        "required": [
+          [
+            [
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            ],
+            [
+              0,
+              1000,
+            ],
+          ],
+        ],
+      },
+      {
+        "piece": [
+          1001,
+          2000,
+        ],
+        "required": [
+          [
+            [
+              "0x0000000000000000000000000000000000000000",
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            ],
+            [
+              1001,
+              2000,
+            ],
+          ],
+        ],
+      },
+    ]
+  `);
+
+  // A cached filter that ends early doesn't split the required filter.
+  const ended: LogFilter = { ...filter, toBlock: 999, address: ALICE };
+
+  expect(
+    summarize(
+      getRequiredIntervalsPerPiece({
+        filters: [filter, ended],
+        interval: [0, 2000],
+        cachedIntervals: new Map([cache(filter, []), cache(ended, [[0, 999]])]),
+      }),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "piece": [
+          0,
+          2000,
+        ],
+        "required": [
+          [
+            "0x0000000000000000000000000000000000000000",
+            [
+              0,
+              2000,
+            ],
+          ],
+        ],
+      },
+    ]
+  `);
+});
+
 test("getRequiredIntervalsWithFilters() with factory", async () => {
   const filter = {
     ...EMPTY_LOG_FILTER,
@@ -730,38 +888,7 @@ test("getRequiredIntervals() with factory", async () => {
   `);
 });
 
-test("mergeAsyncGeneratorsWithEventOrder()", async () => {
-  const p1 = promiseWithResolvers<{
-    events: Event[];
-    checkpoint: string;
-    blockRange: [number, number];
-  }>();
-  const p2 = promiseWithResolvers<{
-    events: Event[];
-    checkpoint: string;
-    blockRange: [number, number];
-  }>();
-  const p3 = promiseWithResolvers<{
-    events: Event[];
-    checkpoint: string;
-    blockRange: [number, number];
-  }>();
-  const p4 = promiseWithResolvers<{
-    events: Event[];
-    checkpoint: string;
-    blockRange: [number, number];
-  }>();
-
-  async function* generator1() {
-    yield await p1.promise;
-    yield await p2.promise;
-  }
-
-  async function* generator2() {
-    yield await p3.promise;
-    yield await p4.promise;
-  }
-
+test("mergeHistoricalEventsOmnichain()", async () => {
   const createCheckpoint = (i: number) =>
     encodeCheckpoint({
       blockTimestamp: BigInt(i),
@@ -772,50 +899,51 @@ test("mergeAsyncGeneratorsWithEventOrder()", async () => {
       eventIndex: 0n,
     });
 
-  const generator = mergeAsyncGeneratorsWithEventOrder([
-    generator1(),
-    generator2(),
-  ]);
+  const stream1 = Stream.make(
+    {
+      chainId: 1,
+      events: [
+        { checkpoint: createCheckpoint(1), chain: { id: 1 } },
+        { checkpoint: createCheckpoint(7), chain: { id: 1 } },
+      ] as Event[],
+      checkpoint: createCheckpoint(10),
+      blockRange: [1, 7] as [number, number],
+    },
+    {
+      chainId: 1,
+      events: [
+        { checkpoint: createCheckpoint(8), chain: { id: 1 } },
+        { checkpoint: createCheckpoint(13), chain: { id: 1 } },
+      ] as Event[],
+      checkpoint: createCheckpoint(20),
+      blockRange: [8, 13] as [number, number],
+    },
+  );
 
-  p1.resolve({
-    events: [
-      { checkpoint: createCheckpoint(1), chain: { id: 1 } },
-      { checkpoint: createCheckpoint(7), chain: { id: 1 } },
-    ] as Event[],
-    checkpoint: createCheckpoint(10),
-    blockRange: [1, 7],
-  });
-  p3.resolve({
-    events: [
-      { checkpoint: createCheckpoint(2), chain: { id: 2 } },
-      { checkpoint: createCheckpoint(5), chain: { id: 2 } },
-    ] as Event[],
-    checkpoint: createCheckpoint(6),
-    blockRange: [2, 5],
-  });
+  const stream2 = Stream.make(
+    {
+      chainId: 2,
+      events: [
+        { checkpoint: createCheckpoint(2), chain: { id: 2 } },
+        { checkpoint: createCheckpoint(5), chain: { id: 2 } },
+      ] as Event[],
+      checkpoint: createCheckpoint(6),
+      blockRange: [2, 5] as [number, number],
+    },
+    {
+      chainId: 2,
+      events: [
+        { checkpoint: createCheckpoint(8), chain: { id: 2 } },
+        { checkpoint: createCheckpoint(11), chain: { id: 2 } },
+      ] as Event[],
+      checkpoint: createCheckpoint(20),
+      blockRange: [8, 11] as [number, number],
+    },
+  );
 
-  await new Promise((res) => setTimeout(res));
-
-  p4.resolve({
-    events: [
-      { checkpoint: createCheckpoint(8), chain: { id: 2 } },
-      { checkpoint: createCheckpoint(11), chain: { id: 2 } },
-    ] as Event[],
-    checkpoint: createCheckpoint(20),
-    blockRange: [8, 11],
-  });
-  p2.resolve({
-    events: [
-      { checkpoint: createCheckpoint(8), chain: { id: 1 } },
-      { checkpoint: createCheckpoint(13), chain: { id: 1 } },
-    ] as Event[],
-    checkpoint: createCheckpoint(20),
-    blockRange: [8, 13],
-  });
-
-  await new Promise((res) => setTimeout(res));
-
-  const results = await drainAsyncGenerator(generator);
+  const results = await Effect.runPromise(
+    Stream.runCollect(mergeHistoricalEventsOmnichain([stream1, stream2])),
+  );
 
   expect(results).toMatchInlineSnapshot(`
     [

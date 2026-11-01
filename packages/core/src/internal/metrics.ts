@@ -2,10 +2,6 @@ import { parentPort, type Worker } from "node:worker_threads";
 import { getTableName, isTable } from "drizzle-orm";
 import { Context } from "effect";
 import prometheus from "prom-client";
-import {
-  type PromiseWithResolvers,
-  promiseWithResolvers,
-} from "@/utils/promiseWithResolvers.js";
 import { truncate } from "@/utils/truncate.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "./types.js";
 
@@ -117,6 +113,14 @@ export class MetricsService {
   ponder_postgres_pool_connections: prometheus.Gauge<"pool" | "kind"> = null!;
 
   private indexingCompletedEvents = new Map<string, number>();
+  /** Worker threads whose metrics are aggregated with the metrics of this thread. */
+  private workers: Worker[] = [];
+  private workerRequestId = 0;
+  private workerRequests = new Map<
+    number,
+    (worker: Worker, response: MetricsAggregationResponse) => void
+  >();
+
   private indexingCacheRequests = new Map<
     string,
     Map<IndexingCacheRequestType, number>
@@ -458,12 +462,79 @@ export class MetricsService {
    * Get string representation for all metrics.
    * @returns Metrics encoded using Prometheus v0.0.4 format.
    */
-  getMetrics() {
-    return this.registry.metrics();
+  async getMetrics() {
+    if (this.workers.length === 0) return this.registry.metrics();
+    return (await this.getAggregateRegistry()).metrics();
   }
 
   async getRegistry() {
-    return this.registry;
+    if (this.workers.length === 0) return this.registry;
+    return this.getAggregateRegistry();
+  }
+
+  /**
+   * Aggregate the metrics of `workers` with the metrics of this thread, in
+   * `getMetrics` and `getRegistry`.
+   *
+   * @dev The workers must use {@link IsolatedMetricsService}.
+   */
+  aggregateWorkerMetrics(workers: Worker[]) {
+    this.workers = workers;
+
+    for (const worker of workers) {
+      worker.on("message", (message: MetricsAggregationResponse) => {
+        if (message.type !== GET_METRICS_RES) return;
+        this.workerRequests.get(message.requestId)?.(worker, message);
+      });
+    }
+  }
+
+  private async getAggregateRegistry() {
+    const requestId = this.workerRequestId++;
+
+    const responses = await new Promise<
+      {
+        threadId: number;
+        metrics: MetricsAggregationResponse["metrics"];
+      }[]
+    >((resolve, reject) => {
+      const responses: {
+        threadId: number;
+        metrics: MetricsAggregationResponse["metrics"];
+      }[] = [];
+
+      this.workerRequests.set(requestId, (worker, response) => {
+        if (response.error) {
+          this.workerRequests.delete(requestId);
+          reject(new Error(response.error));
+          return;
+        }
+
+        responses.push({
+          threadId: worker.threadId,
+          metrics: response.metrics,
+        });
+        if (responses.length === this.workers.length) {
+          this.workerRequests.delete(requestId);
+          resolve(responses);
+        }
+      });
+
+      for (const worker of this.workers) {
+        worker.postMessage({
+          type: GET_METRICS_REQ,
+          requestId,
+        } satisfies MetricsAggregationRequest);
+      }
+    });
+
+    // Sort responses by worker id for consistent metrics
+    responses.sort((a, b) => a.threadId - b.threadId);
+
+    return prometheus.AggregatorRegistry.aggregate([
+      ...responses.map(({ metrics }) => metrics),
+      await this.registry.getMetricsAsJSON(),
+    ]) as prometheus.Registry;
   }
 
   incrementIndexingCompletedEvents(event: string, value = 1) {
@@ -633,128 +704,6 @@ type MetricsAggregationResponse = {
 export class Metrics extends Context.Service<Metrics, MetricsService>()(
   "ponder/Metrics",
 ) {}
-
-export class AggregateMetricsService extends MetricsService {
-  workers: Worker[];
-  requests: Map<
-    number,
-    {
-      responses: prometheus.MetricObjectWithValues<
-        prometheus.MetricValue<string>
-      >[][];
-      workerIds: number[];
-      pending: number;
-      pwr: PromiseWithResolvers<void>;
-    }
-  >;
-  requestId: number;
-  mainThreadMetrics: MetricsService;
-
-  constructor(mainThreadMetrics: MetricsService, workers: Worker[]) {
-    super();
-
-    this.mainThreadMetrics = mainThreadMetrics;
-    this.workers = workers;
-    this.requests = new Map();
-    this.requestId = 0;
-
-    for (const worker of workers) {
-      worker.on("message", (message: MetricsAggregationResponse) => {
-        if (message.type === GET_METRICS_RES) {
-          const request = this.requests.get(message.requestId);
-
-          if (request === undefined) return;
-
-          if (message.error) {
-            request.pwr.reject(new Error(message.error));
-            return;
-          }
-
-          request.responses.push(message.metrics);
-          request.workerIds.push(worker.threadId);
-          request.pending--;
-          if (request.pending === 0) {
-            request.pwr.resolve();
-          }
-        }
-      });
-    }
-  }
-
-  override async getMetrics() {
-    const requestId = this.requestId++;
-    const pwr = promiseWithResolvers<void>();
-
-    this.requests.set(requestId, {
-      responses: [],
-      workerIds: [],
-      pending: this.workers.length,
-      pwr,
-    });
-
-    for (const worker of this.workers) {
-      worker.postMessage({
-        type: GET_METRICS_REQ,
-        requestId,
-      } satisfies MetricsAggregationRequest);
-    }
-
-    await pwr.promise;
-
-    const request = this.requests.get(requestId)!;
-    this.requests.delete(requestId);
-
-    // Sort response by worker id for consistent metrics
-    const responseIndexSort = new Array(this.workers.length)
-      .fill(0)
-      .map((_, index) => index)
-      .sort((a, b) => request.workerIds[a]! - request.workerIds[b]!);
-
-    return prometheus.AggregatorRegistry.aggregate([
-      ...responseIndexSort.map((index) => request.responses[index]!),
-      await this.registry.getMetricsAsJSON(),
-      await this.mainThreadMetrics.registry.getMetricsAsJSON(),
-    ]).metrics();
-  }
-
-  override async getRegistry() {
-    const requestId = this.requestId++;
-    const pwr = promiseWithResolvers<void>();
-
-    this.requests.set(requestId, {
-      responses: [],
-      workerIds: [],
-      pending: this.workers.length,
-      pwr,
-    });
-
-    for (const worker of this.workers) {
-      worker.postMessage({
-        type: GET_METRICS_REQ,
-        requestId,
-      } satisfies MetricsAggregationRequest);
-    }
-
-    await pwr.promise;
-
-    const request = this.requests.get(requestId)!;
-    this.requests.delete(requestId);
-
-    // Sort response by worker id for consistent metrics
-    const responseIndexSort = new Array(this.workers.length)
-      .fill(0)
-      .map((_, index) => index)
-      .sort((a, b) => request.workerIds[a]! - request.workerIds[b]!);
-
-    return prometheus.AggregatorRegistry.aggregate([
-      ...responseIndexSort.map((index) => request.responses[index]!),
-      await this.registry.getMetricsAsJSON(),
-      await this.mainThreadMetrics.registry.getMetricsAsJSON(),
-    ]) as prometheus.Registry;
-  }
-
-  // Note: `resetIndexingMetrics` and `resetApiMetrics` are never called with `AggregateMetricsService`.
-}
 
 export class IsolatedMetricsService extends MetricsService {
   constructor() {

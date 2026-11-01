@@ -1,4 +1,6 @@
 import { eq, getTableName, isTable, isView, sql } from "drizzle-orm";
+import { Clock, Deferred, Effect, Fiber, type Scope, Stream } from "effect";
+import { hexToNumber } from "viem";
 import {
   commitBlock,
   createIndexes,
@@ -10,40 +12,29 @@ import {
   finalizeOmnichain,
   revertOmnichain,
 } from "@/database/actions.js";
+import { Db } from "@/database/db.js";
 import {
-  type Database,
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
 import { getLiveQueryTempTableName } from "@/drizzle/onchain.js";
-import { createCachedViemClient } from "@/indexing/client.js";
-import {
-  createColumnAccessPattern,
-  createIndexing,
-  getEventCount,
-} from "@/indexing/index.js";
-import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
-import type { Common } from "@/internal/common.js";
 import {
   InvalidEventAccessError,
   NonRetryableUserError,
-  type RetryableError,
 } from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
+import { Metrics } from "@/internal/metrics.js";
+import type { Options } from "@/internal/options.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
   Event,
   IndexingBuild,
-  IndexingErrorHandler,
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
   Seconds,
 } from "@/internal/types.js";
 import { splitEvents } from "@/runtime/events.js";
-import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
 import { createSyncStore } from "@/sync-store/index.js";
 import {
   decodeCheckpoint,
@@ -51,833 +42,830 @@ import {
   min,
   ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
-import {
-  bufferAsyncGenerator,
-  recordAsyncGenerator,
-} from "@/utils/generators.js";
-import { never } from "@/utils/never.js";
-import { startClock } from "@/utils/timer.js";
+import { bufferWithSize } from "@/utils/stream.js";
+import { startClockEffect } from "@/utils/timer.js";
 import { zipperMany } from "@/utils/zipper.js";
 import {
+  type ChainEvents,
   getHistoricalEventsOmnichain,
   refetchHistoricalEvents,
 } from "./historical.js";
 import {
-  type CachedIntervals,
-  type ChildAddresses,
-  getCachedIntervals,
-  getChildAddresses,
-  getLocalSyncProgress,
+  createIndexingRuntime,
+  getChainSync,
+  logBackfillProgress,
+  runBackfill,
   type SyncProgress,
 } from "./index.js";
-import { getRealtimeEventsOmnichain } from "./realtime.js";
+import {
+  getRealtimeEventsOmnichain,
+  logBackpressure,
+  type RealtimeEvent,
+} from "./realtime.js";
 
-export async function runOmnichain({
-  common,
+/**
+ * Run the backfill and then live indexing of all chains in omnichain order.
+ */
+export const runOmnichain = ({
   preBuild,
   namespaceBuild,
   schemaBuild,
   indexingBuild,
   crashRecoveryCheckpoint,
-  database,
 }: {
-  common: Common;
   preBuild: PreBuild;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  database: Database;
-}) {
-  const columnAccessPattern = createColumnAccessPattern({
-    indexingBuild,
-  });
-  const syncStore = createSyncStore({ common, qb: database.syncQB });
+}): Effect.Effect<void, Error, Db | Options | Metrics | Scope.Scope> =>
+  Effect.gen(function* () {
+    const db = yield* Db;
+    const metrics = yield* Metrics;
 
-  const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
-  const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
+    const syncStore = yield* createSyncStore(db.sync);
 
-  const eventCount = getEventCount(indexingBuild.indexingFunctions);
+    const PONDER_CHECKPOINT = getPonderCheckpointTable(namespaceBuild.schema);
+    const PONDER_META = getPonderMetaTable(namespaceBuild.schema);
 
-  const cachedViemClient = createCachedViemClient({
-    common,
-    indexingBuild,
-    syncStore,
-    eventCount,
-  });
-
-  const indexingErrorHandler: IndexingErrorHandler = {
-    getRetryableError: () => {
-      return indexingErrorHandler.error;
-    },
-    setRetryableError: (error: RetryableError) => {
-      indexingErrorHandler.error = error;
-    },
-    clearRetryableError: () => {
-      indexingErrorHandler.error = undefined;
-    },
-    error: undefined as RetryableError | undefined,
-  };
-
-  const indexingCache = createIndexingCache({
-    common,
-    schemaBuild,
-    crashRecoveryCheckpoint,
-    eventCount,
-  });
-
-  const indexingStore = createIndexingStore({
-    common,
-    schemaBuild,
-    indexingCache,
-    indexingErrorHandler,
-  });
-
-  const indexing = createIndexing({
-    common,
-    indexingBuild,
-    indexingStore,
-    indexingCache,
-    client: cachedViemClient,
-    indexingErrorHandler,
-    columnAccessPattern,
-    eventCount,
-  });
-
-  const perChainSync = new Map<
-    Chain,
-    {
-      syncProgress: SyncProgress;
-      childAddresses: ChildAddresses;
-      cachedIntervals: CachedIntervals;
-      unfinalizedBlocks: Omit<
-        Extract<RealtimeSyncEvent, { type: "block" }>,
-        "type"
-      >[];
-    }
-  >();
-  const seconds: Seconds = {};
-
-  await Promise.all(
-    indexingBuild.chains.map(async (chain) => {
-      const eventCallbacks =
-        indexingBuild.eventCallbacks[indexingBuild.chains.indexOf(chain)]!;
-
-      const cachedIntervals = await getCachedIntervals({
-        chain,
-        filters: eventCallbacks.map(({ filter }) => filter),
+    const { cachedViemClient, indexingCache, indexingStore, indexing } =
+      yield* createIndexingRuntime({
+        indexingBuild,
+        schemaBuild,
+        crashRecoveryCheckpoint,
         syncStore,
       });
-      const syncProgress = await getLocalSyncProgress({
-        common,
-        filters: eventCallbacks.map(({ filter }) => filter),
-        chain,
-        rpc: indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!,
-        finalizedBlock:
-          indexingBuild.finalizedBlocks[indexingBuild.chains.indexOf(chain)]!,
-        cachedIntervals,
-      });
-      const childAddresses = await getChildAddresses({
-        chain,
-        filters: eventCallbacks.map(({ filter }) => filter),
-        syncStore,
-      });
-      const unfinalizedBlocks: Omit<
-        Extract<RealtimeSyncEvent, { type: "block" }>,
-        "type"
-      >[] = [];
 
-      perChainSync.set(chain, {
-        syncProgress,
-        childAddresses,
-        cachedIntervals,
-        unfinalizedBlocks,
-      });
-    }),
-  );
-
-  const start = Number(
-    decodeCheckpoint(getOmnichainCheckpoint({ perChainSync, tag: "start" }))
-      .blockTimestamp,
-  );
-  const end = Number(
-    decodeCheckpoint(
-      min(
-        getOmnichainCheckpoint({ perChainSync, tag: "end" }),
-        getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
+    const perChainSync = new Map(
+      yield* Effect.forEach(
+        indexingBuild.chains,
+        (chain) =>
+          Effect.map(
+            getChainSync({ chain, indexingBuild, syncStore }),
+            (chainSync) => [chain, chainSync] as const,
+          ),
+        { concurrency: "unbounded" },
       ),
-    ).blockTimestamp,
-  );
+    );
+    const seconds: Seconds = {};
 
-  for (const chain of indexingBuild.chains) {
-    const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
-      ({ chainId }) => chainId === chain.id,
-    )?.checkpoint;
-
-    const cached = Math.min(
-      Number(
-        decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
-          .blockTimestamp,
-      ),
-      end,
+    const start = Number(
+      decodeCheckpoint(getOmnichainCheckpoint({ perChainSync, tag: "start" }))
+        .blockTimestamp,
+    );
+    const end = Number(
+      decodeCheckpoint(
+        min(
+          getOmnichainCheckpoint({ perChainSync, tag: "end" }),
+          getOmnichainCheckpoint({ perChainSync, tag: "finalized" }),
+        ),
+      ).blockTimestamp,
     );
 
-    seconds[chain.name] = { start, end, cached };
+    for (const chain of indexingBuild.chains) {
+      const _crashRecoveryCheckpoint = crashRecoveryCheckpoint?.find(
+        ({ chainId }) => chainId === chain.id,
+      )?.checkpoint;
 
-    const label = { chain: chain.name };
-    common.metrics.ponder_historical_total_indexing_seconds.set(
-      label,
-      Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
-    );
-    common.metrics.ponder_historical_cached_indexing_seconds.set(
-      label,
-      Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
-    );
-    common.metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
-    common.metrics.ponder_indexing_timestamp.set(
-      label,
-      Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-    );
-  }
-
-  const startTimestamp = Math.round(Date.now() / 1000);
-  for (const chain of indexingBuild.chains) {
-    common.metrics.ponder_historical_start_timestamp_seconds.set(
-      { chain: chain.name },
-      startTimestamp,
-    );
-  }
-  // Reset the start timestamp so the eta estimate doesn't include
-  // the startup time.
-  common.metrics.start_timestamp = Date.now();
-
-  // If the initial checkpoint is zero, we need to run setup events.
-  if (crashRecoveryCheckpoint === undefined) {
-    await database.userQB.transaction(async (tx) => {
-      indexingStore.qb = tx;
-      indexingStore.isProcessingEvents = true;
-      indexingCache.qb = tx;
-
-      await indexing.processSetupEvents();
-
-      indexingStore.isProcessingEvents = false;
-
-      await indexingCache.flush();
-
-      await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-        tx
-          .insert(PONDER_CHECKPOINT)
-          .values(
-            indexingBuild.chains.map((chain) => {
-              const initialCheckpoint = min(
-                perChainSync
-                  .get(chain)!
-                  .syncProgress.getCheckpoint({ tag: "start" }),
-                perChainSync
-                  .get(chain)!
-                  .syncProgress.getCheckpoint({ tag: "finalized" }),
-              );
-
-              return {
-                chainName: chain.name,
-                chainId: chain.id,
-                latestCheckpoint: initialCheckpoint,
-                safeCheckpoint: initialCheckpoint,
-                finalizedCheckpoint: initialCheckpoint,
-              };
-            }),
-          )
-          .onConflictDoUpdate({
-            target: PONDER_CHECKPOINT.chainName,
-            set: {
-              finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-              safeCheckpoint: sql`excluded.safe_checkpoint`,
-              latestCheckpoint: sql`excluded.latest_checkpoint`,
-            },
-          }),
+      const cached = Math.min(
+        Number(
+          decodeCheckpoint(_crashRecoveryCheckpoint ?? ZERO_CHECKPOINT_STRING)
+            .blockTimestamp,
+        ),
+        end,
       );
-    });
-  }
 
-  const etaInterval = setInterval(async () => {
-    // underlying metrics collection is actually synchronous
-    // https://github.com/siimon/prom-client/blob/master/lib/histogram.js#L102-L125
-    const { eta, progress } = await getAppProgress(common.metrics);
-    if (eta === undefined && progress === undefined) {
-      return;
+      seconds[chain.name] = { start, end, cached };
+
+      const label = { chain: chain.name };
+      metrics.ponder_historical_total_indexing_seconds.set(
+        label,
+        Math.max(seconds[chain.name]!.end - seconds[chain.name]!.start, 0),
+      );
+      metrics.ponder_historical_cached_indexing_seconds.set(
+        label,
+        Math.max(seconds[chain.name]!.cached - seconds[chain.name]!.start, 0),
+      );
+      metrics.ponder_historical_completed_indexing_seconds.set(label, 0);
+      metrics.ponder_indexing_timestamp.set(
+        label,
+        Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+      );
     }
 
-    common.logger.info({
-      msg: "Updated backfill indexing progress",
-      progress: progress === undefined ? undefined : formatPercentage(progress),
-      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
-    });
-  }, 5_000);
-
-  common.shutdown.add(() => {
-    clearInterval(etaInterval);
-  });
-
-  const backfillEndClock = startClock();
-
-  let pendingEvents: Event[] = [];
-
-  // Run historical indexing until complete.
-  for await (const result of recordAsyncGenerator(
-    getHistoricalEventsOmnichain({
-      common,
-      indexingBuild,
-      crashRecoveryCheckpoint,
-      perChainSync,
-      database,
-    }),
-    (params) => {
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
-        { group: "extract" },
-        params.await,
+    const startTimestamp = Math.round((yield* Clock.currentTimeMillis) / 1000);
+    for (const chain of indexingBuild.chains) {
+      metrics.ponder_historical_start_timestamp_seconds.set(
+        { chain: chain.name },
+        startTimestamp,
       );
-      common.metrics.ponder_historical_concurrency_group_duration.inc(
-        { group: "transform" },
-        params.yield,
-      );
-    },
-  )) {
-    if (result.type === "pending") {
-      pendingEvents = result.result;
-      continue;
     }
+    // Reset the start timestamp so the eta estimate doesn't include
+    // the startup time.
+    metrics.start_timestamp = yield* Clock.currentTimeMillis;
 
-    const context = {
-      logger: common.logger.child({ action: "index_block_range" }),
-    };
-    const indexStartClock = startClock();
-
-    let events = zipperMany(
-      result.result.map(({ events }) => events),
-      (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
-    );
-
-    indexingCache.qb = database.userQB;
-    await Promise.all([
-      indexingCache.prefetch({ events }),
-      cachedViemClient.prefetch({ events }),
-    ]);
-    common.metrics.ponder_historical_transform_duration.inc(
-      { step: "prefetch" },
-      indexStartClock(),
-    );
-    let endClock = startClock();
-    await database.userQB.transaction(
-      async (tx) => {
-        const initialCompletedEvents = structuredClone(
-          await common.metrics.ponder_indexing_completed_events.get(),
-        );
-
-        try {
-          indexingStore.qb = tx;
+    // If the initial checkpoint is zero, we need to run setup events.
+    if (crashRecoveryCheckpoint === undefined) {
+      yield* db.user.transaction((tx) =>
+        Effect.gen(function* () {
+          indexingStore.client = tx;
           indexingStore.isProcessingEvents = true;
-          indexingCache.qb = tx;
+          indexingCache.client = tx;
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "begin" },
-            endClock(),
-          );
-
-          endClock = startClock();
-
-          await indexing.processHistoricalEvents({
-            events,
-            updateIndexingSeconds(event) {
-              const checkpoint = decodeCheckpoint(event.checkpoint);
-              for (const chain of indexingBuild.chains) {
-                common.metrics.ponder_historical_completed_indexing_seconds.set(
-                  { chain: chain.name },
-                  Math.min(
-                    Math.max(
-                      Number(checkpoint.blockTimestamp) -
-                        Math.max(
-                          seconds[chain.name]!.cached,
-                          seconds[chain.name]!.start,
-                        ),
-                      0,
-                    ),
-                    Math.max(
-                      seconds[chain.name]!.end - seconds[chain.name]!.start,
-                      0,
-                    ),
-                  ),
-                );
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Math.max(
-                    Number(checkpoint.blockTimestamp),
-                    seconds[chain.name]!.end,
-                  ),
-                );
-              }
-            },
-          });
+          yield* indexing.processSetupEvents;
 
           indexingStore.isProcessingEvents = false;
 
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "index" },
-            endClock(),
+          yield* indexingCache.flush();
+
+          yield* tx.query(
+            (tx) =>
+              tx
+                .insert(PONDER_CHECKPOINT)
+                .values(
+                  indexingBuild.chains.map((chain) => {
+                    const initialCheckpoint = min(
+                      perChainSync
+                        .get(chain)!
+                        .syncProgress.getCheckpoint({ tag: "start" }),
+                      perChainSync
+                        .get(chain)!
+                        .syncProgress.getCheckpoint({ tag: "finalized" }),
+                    );
+
+                    return {
+                      chainName: chain.name,
+                      chainId: chain.id,
+                      latestCheckpoint: initialCheckpoint,
+                      safeCheckpoint: initialCheckpoint,
+                      finalizedCheckpoint: initialCheckpoint,
+                    };
+                  }),
+                )
+                .onConflictDoUpdate({
+                  target: PONDER_CHECKPOINT.chainName,
+                  set: {
+                    finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                    safeCheckpoint: sql`excluded.safe_checkpoint`,
+                    latestCheckpoint: sql`excluded.latest_checkpoint`,
+                  },
+                }),
+            { label: "update_checkpoints" },
           );
-
-          endClock = startClock();
-
-          // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-          // the "flush" + "finalize" is complete.
-
-          await indexingCache.flush();
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "load" },
-            endClock(),
-          );
-
-          endClock = startClock();
-
-          // Note: It is an invariant that result.result.length > 0
-          await tx.wrap({ label: "update_checkpoints" }, (tx) =>
-            tx
-              .insert(PONDER_CHECKPOINT)
-              .values(
-                result.result.map(({ chainId, checkpoint }) => ({
-                  chainName: indexingBuild.chains.find(
-                    (chain) => chain.id === chainId,
-                  )!.name,
-                  chainId,
-                  latestCheckpoint: checkpoint,
-                  safeCheckpoint: checkpoint,
-                  finalizedCheckpoint: checkpoint,
-                })),
-              )
-              .onConflictDoUpdate({
-                target: PONDER_CHECKPOINT.chainName,
-                set: {
-                  safeCheckpoint: sql`excluded.safe_checkpoint`,
-                  latestCheckpoint: sql`excluded.latest_checkpoint`,
-                  finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                },
-              }),
-          );
-
-          common.metrics.ponder_historical_transform_duration.inc(
-            { step: "finalize" },
-            endClock(),
-          );
-          endClock = startClock();
-        } catch (error) {
-          common.metrics.flushIndexingMetrics();
-          for (const value of initialCompletedEvents.values) {
-            common.metrics.ponder_indexing_completed_events.set(
-              value.labels,
-              value.value,
-            );
-          }
-          indexingCache.invalidate();
-          indexingCache.clear();
-
-          if (error instanceof InvalidEventAccessError) {
-            common.logger.debug({
-              msg: "Failed to index block range",
-              duration: indexStartClock(),
-              error,
-            });
-            events = await refetchHistoricalEvents({
-              common,
-              indexingBuild,
-              perChainSync,
-              syncStore,
-              events,
-            });
-          } else if (error instanceof NonRetryableUserError === false) {
-            common.logger.warn({
-              msg: "Failed to index block range",
-              duration: indexStartClock(),
-              error: error as Error,
-            });
-          }
-
-          throw error;
-        }
-      },
-      undefined,
-      context,
-    );
-
-    cachedViemClient.clear();
-    common.metrics.ponder_historical_transform_duration.inc(
-      { step: "commit" },
-      endClock(),
-    );
-
-    await new Promise(setImmediate);
-
-    for (const { chainId, events, blockRange } of result.result) {
-      common.logger.info({
-        msg: "Indexed block range",
-        chain: indexingBuild.chains.find((chain) => chain.id === chainId)!.name,
-        chain_id: chainId,
-        event_count: events.length,
-        block_range: JSON.stringify(blockRange),
-        duration: indexStartClock(),
-      });
+        }),
+      );
     }
-  }
 
-  indexingCache.clear();
-  // Note: Invalidating the cache means that only predicted rows will be in memory after this point.
-  indexingCache.invalidate();
+    const etaFiber = yield* Effect.forkScoped(logBackfillProgress);
 
-  // Manually update metrics to fix a UI bug that occurs when the end
-  // checkpoint is between the last processed event and the finalized
-  // checkpoint.
+    const backfillEndClock = yield* startClockEffect;
 
-  for (const chain of indexingBuild.chains) {
-    const label = { chain: chain.name };
-    common.metrics.ponder_historical_completed_indexing_seconds.set(
-      label,
-      Math.max(
-        seconds[chain.name]!.end -
-          Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
-        0,
-      ),
-    );
-    common.metrics.ponder_indexing_timestamp.set(
-      label,
-      seconds[chain.name]!.end,
-    );
-  }
+    /** Index the events of a backfill batch in one transaction. */
+    const indexBlockRange = (result: ChainEvents[]) =>
+      Effect.gen(function* () {
+        const context = { logAnnotations: { action: "index_block_range" } };
+        const indexStartClock = yield* startClockEffect;
 
-  const endTimestamp = Math.round(Date.now() / 1000);
-  for (const chain of indexingBuild.chains) {
-    common.metrics.ponder_historical_end_timestamp_seconds.set(
-      { chain: chain.name },
-      endTimestamp,
-    );
-  }
+        let events = zipperMany(
+          result.map(({ events }) => events),
+          (a, b) => (a.checkpoint < b.checkpoint ? -1 : 1),
+        );
 
-  common.logger.info({
-    msg: "Completed backfill indexing across all chains",
-    duration: backfillEndClock(),
-  });
-  clearInterval(etaInterval);
+        indexingCache.client = db.user;
+        yield* Effect.all(
+          [
+            indexingCache.prefetch({ events }),
+            cachedViemClient.prefetch({ events }),
+          ],
+          { concurrency: "unbounded", discard: true },
+        );
+        metrics.ponder_historical_transform_duration.inc(
+          { step: "prefetch" },
+          yield* indexStartClock,
+        );
 
-  const tables = Object.values(schemaBuild.schema).filter(isTable);
-  const views = Object.values(schemaBuild.schema).filter(isView);
-
-  let endClock = startClock();
-
-  await createIndexes(database.adminQB, { statements: schemaBuild.statements });
-
-  if (schemaBuild.statements.indexes.sql.length > 0) {
-    common.logger.info({
-      msg: "Created database indexes",
-      count: schemaBuild.statements.indexes.sql.length,
-      duration: endClock(),
-    });
-  }
-
-  endClock = startClock();
-
-  await createTriggers(database.adminQB, { tables });
-  await createLiveQueryTriggers(database.adminQB, { namespaceBuild, tables });
-
-  common.logger.debug({
-    msg: "Created database triggers",
-    count: tables.length,
-    duration: endClock(),
-  });
-
-  if (namespaceBuild.viewsSchema !== undefined) {
-    const endClock = startClock();
-
-    await createViews(database.adminQB, { tables, views, namespaceBuild });
-
-    common.logger.info({
-      msg: "Created database views",
-      schema: namespaceBuild.viewsSchema,
-      count: tables.length,
-      duration: endClock(),
-    });
-  }
-
-  endClock = startClock();
-
-  await database.adminQB.wrap({ label: "update_ready" }, (db) =>
-    db
-      .update(PONDER_META)
-      .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
-  );
-
-  common.logger.info({
-    msg: "Started returning 200 responses",
-    endpoint: "/ready",
-  });
-
-  const bufferCallback = (bufferSize: number) => {
-    // Note: Only log when the buffer size is greater than 1 because
-    // a buffer size of 1 is not backpressure.
-    if (bufferSize === 1) return;
-    common.logger.trace({
-      msg: "Detected live indexing backpressure",
-      buffer_size: bufferSize,
-      indexing_step: "index block",
-    });
-  };
-
-  for await (const event of bufferAsyncGenerator(
-    getRealtimeEventsOmnichain({
-      common,
-      indexingBuild,
-      perChainSync,
-      database,
-      pendingEvents,
-    }),
-    100,
-    bufferCallback,
-  )) {
-    switch (event.type) {
-      case "block": {
-        const context = {
-          logger: common.logger.child({ action: "index_block" }),
-        };
-        const endClock = startClock();
-
-        indexingCache.qb = database.userQB;
-        await Promise.all([
-          indexingCache.prefetch({ events: event.events }),
-          cachedViemClient.prefetch({ events: event.events }),
-        ]);
-
-        await database.userQB.transaction(
-          async (tx) => {
-            if (database.userQB.$dialect === "postgres") {
-              await tx.wrap(
-                (tx) =>
-                  tx.execute(
-                    `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
-                  ),
-                context,
+        let endClock = yield* startClockEffect;
+        yield* db.user.transaction(
+          (tx) =>
+            Effect.gen(function* () {
+              const initialCompletedEvents = structuredClone(
+                yield* Effect.promise(() =>
+                  metrics.ponder_indexing_completed_events.get(),
+                ),
               );
-            } else {
-              await tx.wrap(
-                (tx) =>
-                  tx.execute(
-                    `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
-                  ),
-                context,
-              );
-            }
 
-            // Events must be run block-by-block, so that `database.commitBlock` can accurately
-            // update the temporary `checkpoint` value set in the trigger.
-            for (const { checkpoint, events } of splitEvents(event.events)) {
-              const chain = indexingBuild.chains.find(
-                (chain) =>
-                  chain.id === Number(decodeCheckpoint(checkpoint).chainId),
-              )!;
-
-              try {
-                indexingStore.qb = tx;
+              yield* Effect.gen(function* () {
+                indexingStore.client = tx;
                 indexingStore.isProcessingEvents = true;
-                indexingCache.qb = tx;
+                indexingCache.client = tx;
 
-                common.logger.trace({
-                  msg: "Processing block events",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                  event_count: events.length,
-                });
+                metrics.ponder_historical_transform_duration.inc(
+                  { step: "begin" },
+                  yield* endClock,
+                );
 
-                await indexing.processRealtimeEvents({ events });
+                endClock = yield* startClockEffect;
 
-                common.logger.trace({
-                  msg: "Processed block events",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                  event_count: events.length,
+                yield* indexing.processHistoricalEvents({
+                  events,
+                  updateIndexingSeconds(event) {
+                    const checkpoint = decodeCheckpoint(event.checkpoint);
+                    for (const chain of indexingBuild.chains) {
+                      metrics.ponder_historical_completed_indexing_seconds.set(
+                        { chain: chain.name },
+                        Math.min(
+                          Math.max(
+                            Number(checkpoint.blockTimestamp) -
+                              Math.max(
+                                seconds[chain.name]!.cached,
+                                seconds[chain.name]!.start,
+                              ),
+                            0,
+                          ),
+                          Math.max(
+                            seconds[chain.name]!.end -
+                              seconds[chain.name]!.start,
+                            0,
+                          ),
+                        ),
+                      );
+                      metrics.ponder_indexing_timestamp.set(
+                        { chain: chain.name },
+                        Math.max(
+                          Number(checkpoint.blockTimestamp),
+                          seconds[chain.name]!.end,
+                        ),
+                      );
+                    }
+                  },
                 });
 
                 indexingStore.isProcessingEvents = false;
 
-                await indexingCache.flush();
-
-                await Promise.all(
-                  tables.map(
-                    (table) =>
-                      commitBlock(tx, { table, checkpoint, preBuild }, context),
-                    context,
-                  ),
+                metrics.ponder_historical_transform_duration.inc(
+                  { step: "index" },
+                  yield* endClock,
                 );
 
-                cachedViemClient.clear();
+                endClock = yield* startClockEffect;
 
-                common.logger.trace({
-                  msg: "Committed reorg data for block",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                  number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                  event_count: events.length,
-                  checkpoint,
-                });
-              } catch (error) {
-                indexingCache.clear();
+                // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+                // the "flush" + "finalize" is complete.
 
-                if (error instanceof NonRetryableUserError === false) {
-                  common.logger.warn({
-                    msg: "Failed to index block",
-                    chain: chain.name,
-                    chain_id: chain.id,
-                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
-                    error: error,
-                  });
-                }
+                yield* indexingCache.flush();
 
-                throw error;
-              }
-
-              for (const chain of indexingBuild.chains) {
-                common.metrics.ponder_indexing_timestamp.set(
-                  { chain: chain.name },
-                  Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                metrics.ponder_historical_transform_duration.inc(
+                  { step: "load" },
+                  yield* endClock,
                 );
-              }
-            }
 
-            try {
-              await tx.wrap(
-                { label: "update_checkpoints" },
-                (db) =>
-                  db
-                    .update(PONDER_CHECKPOINT)
-                    .set({ latestCheckpoint: event.checkpoint })
-                    .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
-                context,
-              );
+                endClock = yield* startClockEffect;
 
-              if (database.userQB.$dialect === "pglite") {
-                await tx.wrap(
+                // Note: It is an invariant that result.length > 0
+                yield* tx.query(
                   (tx) =>
-                    tx.execute(`TRUNCATE TABLE ${getLiveQueryTempTableName()}`),
-                  context,
+                    tx
+                      .insert(PONDER_CHECKPOINT)
+                      .values(
+                        result.map(({ chainId, checkpoint }) => ({
+                          chainName: indexingBuild.chains.find(
+                            (chain) => chain.id === chainId,
+                          )!.name,
+                          chainId,
+                          latestCheckpoint: checkpoint,
+                          safeCheckpoint: checkpoint,
+                          finalizedCheckpoint: checkpoint,
+                        })),
+                      )
+                      .onConflictDoUpdate({
+                        target: PONDER_CHECKPOINT.chainName,
+                        set: {
+                          safeCheckpoint: sql`excluded.safe_checkpoint`,
+                          latestCheckpoint: sql`excluded.latest_checkpoint`,
+                          finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                        },
+                      }),
+                  { label: "update_checkpoints" },
                 );
-              }
-            } catch (error) {
-              indexingCache.invalidate();
-              indexingCache.clear();
-              throw error;
-            }
-          },
-          undefined,
+
+                metrics.ponder_historical_transform_duration.inc(
+                  { step: "finalize" },
+                  yield* endClock,
+                );
+                endClock = yield* startClockEffect;
+              }).pipe(
+                Effect.tapError((error) =>
+                  Effect.gen(function* () {
+                    metrics.flushIndexingMetrics();
+                    for (const value of initialCompletedEvents.values) {
+                      metrics.ponder_indexing_completed_events.set(
+                        value.labels,
+                        value.value,
+                      );
+                    }
+                    indexingCache.invalidate();
+                    indexingCache.clear();
+
+                    if (error instanceof InvalidEventAccessError) {
+                      yield* Effect.logDebug({
+                        msg: "Failed to index block range",
+                        duration: yield* indexStartClock,
+                        error,
+                      });
+                      events = yield* refetchHistoricalEvents({
+                        indexingBuild,
+                        perChainSync,
+                        syncStore,
+                        events,
+                      });
+                    } else if (
+                      error instanceof NonRetryableUserError ===
+                      false
+                    ) {
+                      yield* Effect.logWarning({
+                        msg: "Failed to index block range",
+                        duration: yield* indexStartClock,
+                        error,
+                      });
+                    }
+                  }),
+                ),
+              );
+            }),
           context,
         );
 
-        event.blockCallback?.(true);
+        cachedViemClient.clear();
+        metrics.ponder_historical_transform_duration.inc(
+          { step: "commit" },
+          yield* endClock,
+        );
 
-        common.logger.info({
+        yield* Effect.yieldNow;
+
+        for (const { chainId, events, blockRange } of result) {
+          yield* Effect.logInfo({
+            msg: "Indexed block range",
+            chain: indexingBuild.chains.find((chain) => chain.id === chainId)!
+              .name,
+            chain_id: chainId,
+            event_count: events.length,
+            block_range: JSON.stringify(blockRange),
+            duration: yield* indexStartClock,
+          });
+        }
+      });
+
+    let pendingEvents: Event[] = [];
+
+    // Run historical indexing until complete.
+    yield* runBackfill(
+      getHistoricalEventsOmnichain({
+        indexingBuild,
+        crashRecoveryCheckpoint,
+        perChainSync,
+      }),
+      (result) => {
+        if (result.type === "pending") {
+          pendingEvents = result.result;
+          return Effect.void;
+        }
+        return indexBlockRange(result.result);
+      },
+    );
+
+    indexingCache.clear();
+    // Note: Invalidating the cache means that only predicted rows will be in memory after this point.
+    indexingCache.invalidate();
+
+    // Manually update metrics to fix a UI bug that occurs when the end
+    // checkpoint is between the last processed event and the finalized
+    // checkpoint.
+
+    for (const chain of indexingBuild.chains) {
+      const label = { chain: chain.name };
+      metrics.ponder_historical_completed_indexing_seconds.set(
+        label,
+        Math.max(
+          seconds[chain.name]!.end -
+            Math.max(seconds[chain.name]!.cached, seconds[chain.name]!.start),
+          0,
+        ),
+      );
+      metrics.ponder_indexing_timestamp.set(label, seconds[chain.name]!.end);
+    }
+
+    const endTimestamp = Math.round((yield* Clock.currentTimeMillis) / 1000);
+    for (const chain of indexingBuild.chains) {
+      metrics.ponder_historical_end_timestamp_seconds.set(
+        { chain: chain.name },
+        endTimestamp,
+      );
+    }
+
+    yield* Effect.logInfo({
+      msg: "Completed backfill indexing across all chains",
+      duration: yield* backfillEndClock,
+    });
+    yield* Fiber.interrupt(etaFiber);
+
+    const tables = Object.values(schemaBuild.schema).filter(isTable);
+    const views = Object.values(schemaBuild.schema).filter(isView);
+
+    let endClock = yield* startClockEffect;
+
+    yield* createIndexes(db.admin, { statements: schemaBuild.statements });
+
+    if (schemaBuild.statements.indexes.sql.length > 0) {
+      yield* Effect.logInfo({
+        msg: "Created database indexes",
+        count: schemaBuild.statements.indexes.sql.length,
+        duration: yield* endClock,
+      });
+    }
+
+    endClock = yield* startClockEffect;
+
+    yield* createTriggers(db.admin, { tables });
+    yield* createLiveQueryTriggers(db.admin, { namespaceBuild, tables });
+
+    yield* Effect.logDebug({
+      msg: "Created database triggers",
+      count: tables.length,
+      duration: yield* endClock,
+    });
+
+    if (namespaceBuild.viewsSchema !== undefined) {
+      const endClock = yield* startClockEffect;
+
+      yield* createViews(db.admin, { tables, views, namespaceBuild });
+
+      yield* Effect.logInfo({
+        msg: "Created database views",
+        schema: namespaceBuild.viewsSchema,
+        count: tables.length,
+        duration: yield* endClock,
+      });
+    }
+
+    yield* db.admin.query(
+      (db) =>
+        db
+          .update(PONDER_META)
+          .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+      { label: "update_ready" },
+    );
+
+    yield* Effect.logInfo({
+      msg: "Started returning 200 responses",
+      endpoint: "/ready",
+    });
+
+    // Note: A chain that only requires backfill indexing has no live blocks. Its
+    // latest checkpoint moves to its last block once live indexing passes it.
+    const initialEndChains = indexingBuild.chains.filter((chain) =>
+      perChainSync.get(chain)!.syncProgress.isEnd(),
+    );
+    let endChains = initialEndChains;
+
+    /** Index the events of a live block, one block at a time, in one transaction. */
+    const indexBlock = (event: Extract<RealtimeEvent, { type: "block" }>) =>
+      Effect.gen(function* () {
+        const context = { logAnnotations: { action: "index_block" } };
+        const endClock = yield* startClockEffect;
+
+        const completedEndChains = endChains.filter(
+          (chain) =>
+            perChainSync
+              .get(chain)!
+              .syncProgress.getCheckpoint({ tag: "current" }) <
+            event.checkpoint,
+        );
+
+        indexingCache.client = db.user;
+        yield* Effect.all(
+          [
+            indexingCache.prefetch({ events: event.events }),
+            cachedViemClient.prefetch({ events: event.events }),
+          ],
+          { concurrency: "unbounded", discard: true },
+        );
+
+        yield* db.user.transaction(
+          (tx) =>
+            Effect.gen(function* () {
+              if (db.dialect === "postgres") {
+                yield* tx.query(
+                  (tx) =>
+                    tx.execute(
+                      `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
+                    ),
+                  context,
+                );
+              } else {
+                yield* tx.query(
+                  (tx) =>
+                    tx.execute(
+                      `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
+                    ),
+                  context,
+                );
+              }
+
+              // Note: The events can include blocks of other chains, such as the
+              // pending events of the backfill.
+              const latestCheckpoints = new Map<string, string>();
+
+              // Events must be run block-by-block, so that `database.commitBlock` can accurately
+              // update the temporary `checkpoint` value set in the trigger.
+              for (const { checkpoint, events } of splitEvents(event.events)) {
+                const chain = indexingBuild.chains.find(
+                  (chain) =>
+                    chain.id === Number(decodeCheckpoint(checkpoint).chainId),
+                )!;
+                latestCheckpoints.set(chain.name, checkpoint);
+
+                yield* Effect.gen(function* () {
+                  indexingStore.client = tx;
+                  indexingStore.isProcessingEvents = true;
+                  indexingCache.client = tx;
+
+                  yield* Effect.logTrace({
+                    msg: "Processing block events",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    event_count: events.length,
+                  });
+
+                  yield* indexing.processRealtimeEvents({ events });
+
+                  yield* Effect.logTrace({
+                    msg: "Processed block events",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    event_count: events.length,
+                  });
+
+                  indexingStore.isProcessingEvents = false;
+
+                  yield* indexingCache.flush();
+
+                  yield* Effect.forEach(
+                    tables,
+                    (table) =>
+                      commitBlock(tx, { table, checkpoint, preBuild }, context),
+                    { concurrency: "unbounded", discard: true },
+                  );
+
+                  cachedViemClient.clear();
+
+                  yield* Effect.logTrace({
+                    msg: "Committed reorg data for block",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    number: Number(decodeCheckpoint(checkpoint).blockNumber),
+                    event_count: events.length,
+                    checkpoint,
+                  });
+                }).pipe(
+                  Effect.tapError((error) =>
+                    Effect.gen(function* () {
+                      indexingCache.clear();
+
+                      if (error instanceof NonRetryableUserError === false) {
+                        yield* Effect.logWarning({
+                          msg: "Failed to index block",
+                          chain: chain.name,
+                          chain_id: chain.id,
+                          number: Number(
+                            decodeCheckpoint(checkpoint).blockNumber,
+                          ),
+                          error,
+                        });
+                      }
+                    }),
+                  ),
+                );
+
+                for (const chain of indexingBuild.chains) {
+                  metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(decodeCheckpoint(checkpoint).blockTimestamp),
+                  );
+                }
+              }
+
+              for (const chain of completedEndChains) {
+                latestCheckpoints.set(
+                  chain.name,
+                  perChainSync
+                    .get(chain)!
+                    .syncProgress.getCheckpoint({ tag: "current" }),
+                );
+              }
+              latestCheckpoints.set(event.chain.name, event.checkpoint);
+
+              yield* Effect.gen(function* () {
+                for (const [chainName, checkpoint] of latestCheckpoints) {
+                  yield* tx.query(
+                    (db) =>
+                      db
+                        .update(PONDER_CHECKPOINT)
+                        .set({ latestCheckpoint: checkpoint })
+                        .where(eq(PONDER_CHECKPOINT.chainName, chainName)),
+                    { label: "update_checkpoints", ...context },
+                  );
+                }
+
+                if (db.dialect === "pglite") {
+                  yield* tx.query(
+                    (tx) =>
+                      tx.execute(
+                        `TRUNCATE TABLE ${getLiveQueryTempTableName()}`,
+                      ),
+                    context,
+                  );
+                }
+              }).pipe(
+                Effect.tapError(() =>
+                  Effect.sync(() => {
+                    indexingCache.invalidate();
+                    indexingCache.clear();
+                  }),
+                ),
+              );
+            }),
+          context,
+        );
+
+        endChains = endChains.filter(
+          (chain) => completedEndChains.includes(chain) === false,
+        );
+
+        if (event.isAccepted) yield* Deferred.succeed(event.isAccepted, true);
+
+        yield* Effect.logInfo({
           msg: "Indexed block",
           chain: event.chain.name,
           chain_id: event.chain.id,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
           event_count: event.events.length,
-          duration: endClock(),
+          duration: yield* endClock,
         });
+      });
 
-        break;
-      }
-      case "reorg": {
-        const context = {
-          logger: common.logger.child({ action: "reorg_block" }),
-        };
-        const endClock = startClock();
+    /** Revert the rows of the reorged blocks. */
+    const reorgBlock = (event: Extract<RealtimeEvent, { type: "reorg" }>) =>
+      Effect.gen(function* () {
+        const context = { logAnnotations: { action: "reorg_block" } };
+        const endClock = yield* startClockEffect;
 
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        await database.userQB.transaction(async (tx) => {
-          await dropTriggers(tx, { tables }, context);
-          await dropLiveQueryTriggers(tx, { namespaceBuild, tables }, context);
+        yield* db.user.transaction((tx) =>
+          Effect.gen(function* () {
+            yield* dropTriggers(tx, { tables }, context);
+            yield* dropLiveQueryTriggers(
+              tx,
+              { namespaceBuild, tables },
+              context,
+            );
 
-          const counts = await revertOmnichain(
-            tx,
-            {
-              tables,
-              checkpoint: event.checkpoint,
-            },
-            context,
-          );
+            const counts = yield* revertOmnichain(
+              tx,
+              { tables, checkpoint: event.checkpoint },
+              context,
+            );
 
-          for (const [index, table] of tables.entries()) {
-            common.logger.debug({
-              msg: "Reverted reorged database rows",
-              table: getTableName(table),
-              row_count: counts[index],
-            });
-          }
+            for (const [index, table] of tables.entries()) {
+              yield* Effect.logDebug({
+                msg: "Reverted reorged database rows",
+                table: getTableName(table),
+                row_count: counts[index],
+              });
+            }
 
-          await createTriggers(tx, { tables }, context);
-          await createLiveQueryTriggers(
-            tx,
-            { namespaceBuild, tables },
-            context,
-          );
-        });
+            yield* createTriggers(tx, { tables }, context);
+            yield* createLiveQueryTriggers(
+              tx,
+              { namespaceBuild, tables },
+              context,
+            );
+          }),
+        );
 
         indexingCache.clear();
+        cachedViemClient.reorg({
+          chainId: event.chain.id,
+          checkpoint: event.checkpoint,
+        });
 
-        common.logger.info({
+        // Note: The reorg can revert the pending events of a chain that only
+        // requires backfill indexing, which live indexing indexes again.
+        endChains = initialEndChains.filter(
+          (chain) =>
+            endChains.includes(chain) ||
+            perChainSync
+              .get(chain)!
+              .syncProgress.getCheckpoint({ tag: "current" }) >
+              event.checkpoint,
+        );
+
+        yield* Effect.logInfo({
           msg: "Reorged block",
           chain: event.chain.name,
           chain_id: event.chain.id,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
-          duration: endClock(),
+          duration: yield* endClock,
         });
+      });
 
-        break;
-      }
-      case "finalize": {
-        const context = {
-          logger: common.logger.child({ action: "finalize_block" }),
-        };
-        const endClock = startClock();
+    /** Remove the reorg data of the finalized blocks. */
+    const finalizeBlock = (
+      event: Extract<RealtimeEvent, { type: "finalize" }>,
+    ) =>
+      Effect.gen(function* () {
+        const context = { logAnnotations: { action: "finalize_block" } };
+        const endClock = yield* startClockEffect;
 
-        await finalizeOmnichain(
-          database.userQB,
+        yield* finalizeOmnichain(
+          db.user,
           {
             checkpoint: event.checkpoint,
+            // Note: The checkpoint can be after the finalized block of a chain
+            // that only requires backfill indexing.
+            chainNames: indexingBuild.chains
+              .filter(
+                (chain) =>
+                  perChainSync
+                    .get(chain)!
+                    .syncProgress.getCheckpoint({ tag: "finalized" }) >=
+                  event.checkpoint,
+              )
+              .map((chain) => chain.name),
             tables,
             namespaceBuild,
           },
           context,
         );
 
-        common.logger.info({
+        for (const chain of indexingBuild.chains) {
+          yield* cachedViemClient.finalize({
+            chainId: chain.id,
+            checkpoint: event.checkpoint,
+          });
+        }
+
+        yield* Effect.logInfo({
           msg: "Finalized block",
           chain: event.chain.name,
           chain_id: event.chain.id,
           number: Number(decodeCheckpoint(event.checkpoint).blockNumber),
-          duration: endClock(),
+          duration: yield* endClock,
         });
+      });
 
-        break;
-      }
-      default:
-        never(event);
+    // Note: The events of the backfill are finalized, so the results of their
+    // requests are written at once.
+    for (const [chain, { syncProgress }] of perChainSync) {
+      yield* cachedViemClient.finalize({
+        chainId: chain.id,
+        checkpoint: syncProgress.getCheckpoint({ tag: "finalized" }),
+      });
     }
-  }
 
-  common.logger.info({
-    msg: "Completed indexing across all chains",
-    duration: backfillEndClock(),
+    yield* bufferWithSize(
+      getRealtimeEventsOmnichain({
+        indexingBuild,
+        perChainSync,
+        pendingEvents,
+      }),
+      {
+        capacity: 100,
+        onSize: (bufferSize) =>
+          logBackpressure(bufferSize, { indexing_step: "index block" }),
+      },
+    ).pipe(
+      Stream.runForEach((event) => {
+        switch (event.type) {
+          case "block":
+            return indexBlock(event);
+          case "reorg":
+            return reorgBlock(event);
+          case "finalize":
+            return finalizeBlock(event);
+        }
+      }),
+    );
+
+    yield* Effect.logInfo({
+      msg: "Completed indexing across all chains",
+      duration: yield* backfillEndClock,
+    });
   });
-}
 
 /**
  * Compute the checkpoint across all chains.
@@ -905,14 +893,20 @@ export const getOmnichainCheckpoint = <
       : string;
   }
 
-  // Note: extra logic is needed for `current` because completed chains
-  // shouldn't be included in the minimum checkpoint. However, when all
+  // Note: extra logic is needed for `current` and `finalized` because completed
+  // chains shouldn't be included in the minimum checkpoint. However, when all
   // chains are completed, the maximum checkpoint should be computed across
-  // all chains.
+  // all chains. A chain is completed for `current` once its end block is
+  // indexed, and for `finalized` once its end block is finalized.
 
-  if (tag === "current") {
+  if (tag === "current" || tag === "finalized") {
     const isComplete = Array.from(perChainSync.values()).map(
-      ({ syncProgress }) => syncProgress.isEnd(),
+      ({ syncProgress }) =>
+        tag === "current"
+          ? syncProgress.isEnd()
+          : syncProgress.end !== undefined &&
+            hexToNumber(syncProgress.end.number) <=
+              hexToNumber(syncProgress.finalized.number),
     );
     if (isComplete.every((c) => c)) {
       return max(...checkpoints) as tag extends "end"

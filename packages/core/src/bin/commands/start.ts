@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Fiber, type Scope } from "effect";
+import { Cause, Effect, Exit, Fiber } from "effect";
 import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
 import { Db, makeDb } from "@/database/db.js";
@@ -164,16 +164,19 @@ export const startApp = ({
 
 /**
  * Run the indexer with the ordering of the app.
+ *
+ * @dev The resources of the indexer, such as its fibers and worker threads,
+ * close when the indexer completes, fails, or is interrupted.
  */
 export const runIndexing = (
   app: PonderApp,
-): Effect.Effect<void, Error, Db | Metrics | Options | Scope.Scope> => {
+): Effect.Effect<void, Error, Db | Metrics | Options> => {
   switch (app.preBuild.ordering) {
     case "omnichain":
-      return runOmnichain(app);
+      return Effect.scoped(runOmnichain(app));
     case "multichain":
-      return runMultichain(app);
+      return Effect.scoped(runMultichain(app));
     case "experimental_isolated":
-      return isolatedController(app);
+      return Effect.scoped(isolatedController(app));
   }
 };

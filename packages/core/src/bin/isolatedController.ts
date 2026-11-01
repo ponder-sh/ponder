@@ -3,14 +3,24 @@ import url from "node:url";
 import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
 import { isTable, isView, sql } from "drizzle-orm";
+import {
+  Cause,
+  Deferred,
+  Effect,
+  Fiber,
+  Queue,
+  type Scope,
+  Stream,
+} from "effect";
 import { createIndexes, createViews } from "@/database/actions.js";
-import { type Database, getPonderMetaTable } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
+import { Db } from "@/database/db.js";
+import { getPonderMetaTable } from "@/database/index.js";
 import {
   NonRetryableUserError,
   nonRetryableUserErrorNames,
 } from "@/internal/errors.js";
-import { AggregateMetricsService, getAppProgress } from "@/internal/metrics.js";
+import { Metrics } from "@/internal/metrics.js";
+import { Options } from "@/internal/options.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
@@ -18,283 +28,309 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
+import { logBackfillProgress } from "@/runtime/index.js";
 import { runIsolated } from "@/runtime/isolated.js";
 import { chunk } from "@/utils/chunk.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
-import { startClock } from "@/utils/timer.js";
-import type { isolatedWorker } from "./isolatedWorker.js";
+import { startClockEffect } from "@/utils/timer.js";
+import type {
+  IsolatedWorkerData,
+  IsolatedWorkerMessage,
+} from "./isolatedWorker.js";
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 type WorkerState = "backfill" | "live" | "complete";
 
-export async function isolatedController({
-  common,
+/**
+ * Run each chain with isolated ordering, in this thread or in worker threads.
+ * Once every chain completes its backfill, create the indexes and views, and
+ * start returning 200 responses from `/ready`.
+ */
+export const isolatedController = ({
   preBuild,
   namespaceBuild,
   schemaBuild,
   indexingBuild,
   crashRecoveryCheckpoint,
-  database,
 }: {
-  common: Common;
   preBuild: PreBuild;
   namespaceBuild: NamespaceBuild;
   schemaBuild: SchemaBuild;
   indexingBuild: IndexingBuild;
   crashRecoveryCheckpoint: CrashRecoveryCheckpoint;
-  database: Database;
-}) {
-  const backfillEndClock = startClock();
-  const perChainState = new Map<number, WorkerState>();
+}): Effect.Effect<void, Error, Db | Options | Metrics | Scope.Scope> =>
+  Effect.gen(function* () {
+    const db = yield* Db;
+    const options = yield* Options;
+    const metrics = yield* Metrics;
 
-  const etaInterval = setInterval(async () => {
-    const { eta, progress } = await getAppProgress(common.metrics);
+    const backfillEndClock = yield* startClockEffect;
+    const perChainState = new Map<number, WorkerState>();
+    const isReady = yield* Deferred.make<void>();
 
-    if (eta === undefined && progress === undefined) {
-      return;
+    for (const chain of indexingBuild.chains) {
+      perChainState.set(chain.id, "backfill");
     }
 
-    common.logger.info({
-      msg: "Updated backfill indexing progress",
-      progress: progress === undefined ? undefined : formatPercentage(progress),
-      estimate: eta === undefined ? undefined : formatEta(eta * 1_000),
-    });
-  }, 5_000);
+    const setChainState = (chainId: number, state: WorkerState) =>
+      Effect.gen(function* () {
+        perChainState.set(chainId, state);
 
-  common.shutdown.add(() => {
-    clearInterval(etaInterval);
-  });
+        if (
+          indexingBuild.chains.every(
+            (chain) => perChainState.get(chain.id) !== "backfill",
+          )
+        ) {
+          yield* Deferred.succeed(isReady, undefined);
+        }
+      });
 
-  let isAllReady = false;
-  let isAllComplete = false;
-  const callback = async () => {
-    if (
-      isAllReady === false &&
-      indexingBuild.chains.every(
-        (chain) => perChainState.get(chain.id) !== "backfill",
-      )
-    ) {
-      isAllReady = true;
+    const etaFiber = yield* Effect.forkScoped(logBackfillProgress);
 
-      common.logger.info({
+    /** Wait for the backfill of every chain, then create the indexes and views. */
+    const ready = Effect.gen(function* () {
+      yield* Deferred.await(isReady);
+
+      yield* Effect.logInfo({
         msg: "Completed backfill indexing across all chains",
-        duration: backfillEndClock(),
+        duration: yield* backfillEndClock,
       });
-      clearInterval(etaInterval);
+      yield* Fiber.interrupt(etaFiber);
 
-      let endClock = startClock();
-      await createIndexes(database.adminQB, {
-        statements: schemaBuild.statements,
-      });
+      let endClock = yield* startClockEffect;
+      yield* createIndexes(db.admin, { statements: schemaBuild.statements });
 
       if (schemaBuild.statements.indexes.sql.length > 0) {
-        common.logger.info({
+        yield* Effect.logInfo({
           msg: "Created database indexes",
           count: schemaBuild.statements.indexes.sql.length,
-          duration: endClock(),
+          duration: yield* endClock,
         });
       }
 
       if (namespaceBuild.viewsSchema !== undefined) {
-        endClock = startClock();
+        endClock = yield* startClockEffect;
 
         const tables = Object.values(schemaBuild.schema).filter(isTable);
         const views = Object.values(schemaBuild.schema).filter(isView);
-        await createViews(database.adminQB, { tables, views, namespaceBuild });
+        yield* createViews(db.admin, { tables, views, namespaceBuild });
 
-        common.logger.info({
+        yield* Effect.logInfo({
           msg: "Created database views",
           schema: namespaceBuild.viewsSchema,
           count: tables.length,
-          duration: endClock(),
+          duration: yield* endClock,
         });
-
-        endClock = startClock();
       }
 
-      await database.adminQB.wrap({ label: "update_ready" }, (db) =>
-        db
-          .update(getPonderMetaTable(namespaceBuild.schema))
-          .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+      yield* db.admin.query(
+        (db) =>
+          db
+            .update(getPonderMetaTable(namespaceBuild.schema))
+            .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+        { label: "update_ready" },
       );
 
-      common.logger.info({
+      yield* Effect.logInfo({
         msg: "Started returning 200 responses",
         endpoint: "/ready",
       });
-    }
+    });
+
+    let chains: Effect.Effect<
+      void,
+      Error,
+      Db | Options | Metrics | Scope.Scope
+    >;
 
     if (
-      isAllComplete === false &&
-      indexingBuild.chains.every(
-        (chain) => perChainState.get(chain.id) === "complete",
-      )
+      options.command === "dev" ||
+      indexingBuild.chains.length === 1 ||
+      db.dialect === "pglite" ||
+      options.maxThreads === 1
     ) {
-      isAllComplete = true;
-    }
-  };
+      const isolatedOptions = {
+        ...options,
+        indexingCacheMaxBytes: Math.floor(
+          options.indexingCacheMaxBytes / indexingBuild.chains.length,
+        ),
+        rpcMaxConcurrency: Math.floor(
+          options.rpcMaxConcurrency / indexingBuild.chains.length,
+        ),
+        syncEventsQuerySize: Math.floor(
+          options.syncEventsQuerySize / indexingBuild.chains.length,
+        ),
+      };
 
-  if (
-    common.options.command === "dev" ||
-    indexingBuild.chains.length === 1 ||
-    database.driver.dialect === "pglite" ||
-    common.options.maxThreads === 1
-  ) {
-    common.options.indexingCacheMaxBytes = Math.floor(
-      common.options.indexingCacheMaxBytes / indexingBuild.chains.length,
-    );
-    common.options.rpcMaxConcurrency = Math.floor(
-      common.options.rpcMaxConcurrency / indexingBuild.chains.length,
-    );
-    common.options.syncEventsQuerySize = Math.floor(
-      common.options.syncEventsQuerySize / indexingBuild.chains.length,
-    );
+      chains = Effect.forEach(
+        indexingBuild.chains,
+        (chain) =>
+          Effect.gen(function* () {
+            yield* runIsolated({
+              preBuild,
+              namespaceBuild,
+              schemaBuild,
+              indexingBuild: getChainIndexingBuild(indexingBuild, chain.id),
+              crashRecoveryCheckpoint,
+              onReady: setChainState(chain.id, "live"),
+            });
 
-    await Promise.all(
-      indexingBuild.chains.map(async (chain) => {
-        const chainIndex = indexingBuild.chains.findIndex(
-          (c) => c.id === chain.id,
-        );
-        const _indexingBuild = {
-          ...indexingBuild,
-          chains: [indexingBuild.chains[chainIndex]!],
-          rpcs: [indexingBuild.rpcs[chainIndex]!],
-          finalizedBlocks: [indexingBuild.finalizedBlocks[chainIndex]!],
-          eventCallbacks: [indexingBuild.eventCallbacks[chainIndex]!],
-          setupCallbacks: [indexingBuild.setupCallbacks[chainIndex]!],
-          contracts: [indexingBuild.contracts[chainIndex]!],
-        };
+            yield* setChainState(chain.id, "complete");
+          }),
+        { concurrency: "unbounded", discard: true },
+      ).pipe(Effect.provideService(Options, isolatedOptions));
+    } else {
+      const workerPath = path.join(__dirname, "isolatedWorker.js");
 
-        perChainState.set(chain.id, "backfill");
-
-        await runIsolated({
-          common,
-          preBuild,
-          namespaceBuild,
-          schemaBuild,
-          indexingBuild: _indexingBuild,
-          crashRecoveryCheckpoint,
-          database,
-          onReady: () => {
-            perChainState.set(chain.id, "live");
-            callback();
-          },
-        });
-
-        perChainState.set(chain.id, "complete");
-        callback();
-      }),
-    );
-  } else {
-    const workerPath = path.join(__dirname, "isolatedWorker.js");
-
-    const perThreadChains = chunk(
-      indexingBuild.chains,
-      Math.ceil(indexingBuild.chains.length / common.options.maxThreads),
-    );
-
-    const perThreadWorkers: Worker[] = [];
-    for (const chains of perThreadChains) {
-      const chainIds = chains.map((chain) => chain.id);
-
-      // Note: This is a hack to force color support in the worker threads
-      if (process.stdout.isTTY) {
-        process.env.FORCE_COLOR = "1";
-      }
-
-      const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
-      const perThreadHeapSizeLimit = Math.floor(
-        heapSizeLimit / (common.options.maxThreads + 1) / 1024 / 1024,
+      const perThreadChains = chunk(
+        indexingBuild.chains,
+        Math.ceil(indexingBuild.chains.length / options.maxThreads),
       );
 
-      // Note: This sets `--max-old-space-size` for the worker thread.
-      // `resourceLimits` does not work because it gets overridden by
-      // CLI flags or environment variables. It does not change the heap
-      // size limit for the current main thread
-      v8.setFlagsFromString(`--max-old-space-size=${perThreadHeapSizeLimit}`);
+      const workers = yield* Effect.forEach(perThreadChains, (chains) =>
+        Effect.acquireRelease(
+          Effect.sync(() => {
+            // Note: This is a hack to force color support in the worker threads
+            if (process.stdout.isTTY) {
+              process.env.FORCE_COLOR = "1";
+            }
 
-      const worker = new Worker(workerPath, {
-        workerData: {
-          options: common.options,
-          chainIds,
-          namespaceBuild,
-          crashRecoveryCheckpoint,
-        } satisfies Parameters<typeof isolatedWorker>[0],
+            const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
+            const perThreadHeapSizeLimit = Math.floor(
+              heapSizeLimit / (options.maxThreads + 1) / 1024 / 1024,
+            );
+
+            // Note: This sets `--max-old-space-size` for the worker thread.
+            // `resourceLimits` does not work because it gets overridden by
+            // CLI flags or environment variables. It does not change the heap
+            // size limit for the current main thread
+            v8.setFlagsFromString(
+              `--max-old-space-size=${perThreadHeapSizeLimit}`,
+            );
+
+            return new Worker(workerPath, {
+              workerData: {
+                options,
+                chainIds: chains.map((chain) => chain.id),
+                finalizedBlocks: chains.map(
+                  (chain) =>
+                    indexingBuild.finalizedBlocks[
+                      indexingBuild.chains.indexOf(chain)
+                    ]!,
+                ),
+                namespaceBuild,
+                crashRecoveryCheckpoint,
+              } satisfies IsolatedWorkerData,
+            });
+          }),
+          (worker) => Effect.sync(() => worker.postMessage({ type: "kill" })),
+        ),
+      );
+
+      yield* Effect.logDebug({
+        msg: "Created worker threads",
+        count: workers.length,
+        duration: yield* backfillEndClock,
       });
 
-      for (const chainId of chainIds) {
-        perChainState.set(chainId, "backfill");
-      }
+      metrics.aggregateWorkerMetrics(workers);
 
-      worker.on(
-        "message",
-        (
-          message:
-            | { type: "ready"; chainId: number }
-            | { type: "done"; chainId: number }
-            | { type: "error"; error: Error },
-        ) => {
-          switch (message.type) {
-            case "ready": {
-              perChainState.set(message.chainId, "live");
-              callback();
-              break;
-            }
-            case "done": {
-              perChainState.set(message.chainId, "complete");
-              callback();
-              break;
-            }
-            case "error": {
-              let error: Error;
-              if (nonRetryableUserErrorNames.includes(message.error.name)) {
-                error = new NonRetryableUserError(message.error.message);
-              } else {
-                error = new Error(message.error.message);
+      chains = Effect.forEach(
+        workers,
+        (worker) =>
+          getWorkerMessages(worker).pipe(
+            Stream.runForEach((message) => {
+              switch (message.type) {
+                case "ready":
+                  return setChainState(message.chainId, "live");
+                case "done":
+                  return message.chainId === undefined
+                    ? Effect.void
+                    : setChainState(message.chainId, "complete");
               }
-              error.name = message.error.name;
-              error.stack = message.error.stack;
-              throw error;
-            }
-          }
-        },
+            }),
+          ),
+        { concurrency: "unbounded", discard: true },
       );
-
-      worker.on("error", (error: Error) => {
-        if (nonRetryableUserErrorNames.includes(error.name)) {
-          error = new NonRetryableUserError(error.message);
-        } else {
-          error = new Error(error.message);
-        }
-        throw error;
-      });
-
-      worker.on("exit", (code: number) => {
-        const error = new Error(`Worker thread exited with code ${code}.`);
-        error.stack = undefined;
-        throw error;
-      });
-
-      perThreadWorkers.push(worker);
     }
 
-    common.logger.debug({
-      msg: "Created worker threads",
-      count: perThreadWorkers.length,
-      duration: backfillEndClock(),
+    yield* Effect.all([ready, chains], {
+      concurrency: "unbounded",
+      discard: true,
     });
+  });
 
-    common.metrics = new AggregateMetricsService(
-      common.metrics,
-      perThreadWorkers,
-    );
+/** Returns the indexing build of one chain. */
+const getChainIndexingBuild = (
+  indexingBuild: IndexingBuild,
+  chainId: number,
+): IndexingBuild => {
+  const chainIndex = indexingBuild.chains.findIndex((c) => c.id === chainId);
 
-    common.shutdown.add(() => {
-      for (const worker of perThreadWorkers) {
-        worker.postMessage({ type: "kill" });
-      }
-    });
-  }
-}
+  return {
+    ...indexingBuild,
+    chains: [indexingBuild.chains[chainIndex]!],
+    rpcs: [indexingBuild.rpcs[chainIndex]!],
+    finalizedBlocks: [indexingBuild.finalizedBlocks[chainIndex]!],
+    eventCallbacks: [indexingBuild.eventCallbacks[chainIndex]!],
+    setupCallbacks: [indexingBuild.setupCallbacks[chainIndex]!],
+    contracts: [indexingBuild.contracts[chainIndex]!],
+  };
+};
+
+/**
+ * Stream the state messages of a worker thread. Fails when the worker thread
+ * fails or exits.
+ */
+const getWorkerMessages = (worker: Worker) =>
+  Stream.callback<Exclude<IsolatedWorkerMessage, { type: "error" }>, Error>(
+    (queue) =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const onMessage = (message: IsolatedWorkerMessage) => {
+            switch (message.type) {
+              case "ready":
+              case "done":
+                Queue.offerUnsafe(queue, message);
+                break;
+              case "error": {
+                const error = toWorkerError(message.error);
+                error.stack = message.error.stack;
+                Queue.failCauseUnsafe(queue, Cause.fail(error));
+                break;
+              }
+            }
+          };
+          const onError = (error: Error) => {
+            Queue.failCauseUnsafe(queue, Cause.fail(toWorkerError(error)));
+          };
+          const onExit = (code: number) => {
+            const error = new Error(`Worker thread exited with code ${code}.`);
+            error.stack = undefined;
+            Queue.failCauseUnsafe(queue, Cause.fail(error));
+          };
+
+          worker.on("message", onMessage);
+          worker.on("error", onError);
+          worker.on("exit", onExit);
+
+          return { onMessage, onError, onExit };
+        }),
+        ({ onMessage, onError, onExit }) =>
+          Effect.sync(() => {
+            worker.off("message", onMessage);
+            worker.off("error", onError);
+            worker.off("exit", onExit);
+          }),
+      ),
+  );
+
+/** Returns the error of a worker thread, with the class of a user error. */
+const toWorkerError = (error: { name: string; message: string }) => {
+  const workerError = nonRetryableUserErrorNames.includes(error.name)
+    ? new NonRetryableUserError(error.message)
+    : new Error(error.message);
+  workerError.name = error.name;
+  return workerError;
+};

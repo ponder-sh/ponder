@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import {
   type AbiEvent,
   type AbiFunction,
@@ -11,7 +12,6 @@ import {
   toEventSelector,
   toFunctionSelector,
 } from "viem";
-import type { Common } from "@/internal/common.js";
 import type {
   BlockFilter,
   Chain,
@@ -565,203 +565,206 @@ export const splitEvents = (
   return result;
 };
 
+/**
+ * Decode the arguments of `rawEvents`, and drop the events that fail to decode.
+ */
 export const decodeEvents = (
-  common: Common,
   chain: Chain,
   eventCallbacks: EventCallback[],
   rawEvents: RawEvent[],
-): Event[] => {
-  const events: Event[] = [];
+): Effect.Effect<Event[]> =>
+  Effect.gen(function* () {
+    const events: Event[] = [];
 
-  const logDecodeFailureSelectors = new Set<Hex>();
-  let logDecodeFailureCount = 0;
-  let logDecodeSuccessCount = 0;
+    const logDecodeFailureSelectors = new Set<Hex>();
+    let logDecodeFailureCount = 0;
+    let logDecodeSuccessCount = 0;
 
-  const traceDecodeFailureSelectors = new Set<Hex>();
-  let traceDecodeFailureCount = 0;
-  let traceDecodeSuccessCount = 0;
+    const traceDecodeFailureSelectors = new Set<Hex>();
+    let traceDecodeFailureCount = 0;
+    let traceDecodeSuccessCount = 0;
 
-  for (const event of rawEvents) {
-    const eventCallback = eventCallbacks[event.eventCallbackIndex]!;
+    for (const event of rawEvents) {
+      const eventCallback = eventCallbacks[event.eventCallbackIndex]!;
 
-    if (
-      eventCallback.type === "contract" &&
-      eventCallback.filter.type === "log"
-    ) {
-      let args: any;
-      try {
-        args = decodeEventLog({
-          abiItem: eventCallback.abiItem as AbiEvent,
-          data: event.log!.data,
-          topics: event.log!.topics,
-        });
-        logDecodeSuccessCount++;
-      } catch (_err) {
-        logDecodeFailureCount++;
-        const selector = toEventSelector(eventCallback.abiItem as AbiEvent);
-        if (!logDecodeFailureSelectors.has(selector)) {
-          logDecodeFailureSelectors.add(selector);
-          common.logger.debug({
-            msg: "Failed to decode matched event log using provided ABI item",
-            chain: eventCallback.chain.name,
-            chain_id: eventCallback.chain.id,
-            event: eventCallback.name,
-            block_number: event?.block?.number ?? "unknown",
-            log_index: event.log?.logIndex,
-            data: event.log?.data,
-            topics: JSON.stringify(event.log?.topics),
+      if (
+        eventCallback.type === "contract" &&
+        eventCallback.filter.type === "log"
+      ) {
+        let args: any;
+        try {
+          args = decodeEventLog({
+            abiItem: eventCallback.abiItem as AbiEvent,
+            data: event.log!.data,
+            topics: event.log!.topics,
           });
+          logDecodeSuccessCount++;
+        } catch (_err) {
+          logDecodeFailureCount++;
+          const selector = toEventSelector(eventCallback.abiItem as AbiEvent);
+          if (!logDecodeFailureSelectors.has(selector)) {
+            logDecodeFailureSelectors.add(selector);
+            yield* Effect.logDebug({
+              msg: "Failed to decode matched event log using provided ABI item",
+              chain: eventCallback.chain.name,
+              chain_id: eventCallback.chain.id,
+              event: eventCallback.name,
+              block_number: event?.block?.number ?? "unknown",
+              log_index: event.log?.logIndex,
+              data: event.log?.data,
+              topics: JSON.stringify(event.log?.topics),
+            });
+          }
+          continue;
         }
-        continue;
-      }
 
-      events.push({
-        type: "log",
-        checkpoint: event.checkpoint,
-        chain,
-        eventCallback,
+        events.push({
+          type: "log",
+          checkpoint: event.checkpoint,
+          chain,
+          eventCallback,
 
-        event: {
-          id: event.checkpoint,
-          args,
-          log: event.log!,
-          block: event.block as Block,
-          transaction: event.transaction! as Transaction,
-          transactionReceipt: event.transactionReceipt as TransactionReceipt,
-        },
-      });
-    } else if (
-      eventCallback.type === "contract" &&
-      eventCallback.filter.type === "trace"
-    ) {
-      let decodedData: { args: readonly unknown[]; functionName: string };
-      // A function with one output decodes to that value, not an array.
-      let decodedResult: unknown;
-      try {
-        decodedData = decodeFunctionData({
-          abi: [eventCallback.abiItem as AbiFunction],
-          data: event.trace!.input,
-        });
-
-        decodedResult = decodeFunctionResult({
-          abi: [eventCallback.abiItem as AbiFunction],
-          data: event.trace!.output ?? "0x",
-          functionName: decodedData.functionName,
-        });
-        traceDecodeSuccessCount++;
-      } catch (_err) {
-        traceDecodeFailureCount++;
-        const selector = toFunctionSelector(
-          eventCallback.abiItem as AbiFunction,
-        );
-        if (!traceDecodeFailureSelectors.has(selector)) {
-          traceDecodeFailureSelectors.add(selector);
-          common.logger.debug({
-            msg: "Failed to decode matched call trace using provided ABI item",
-            chain: eventCallback.chain.name,
-            chain_id: eventCallback.chain.id,
-            function: eventCallback.name,
-            block_number: event?.block?.number ?? "unknown",
-            transaction_index: event.transaction?.transactionIndex,
-            trace_address:
-              event.trace === undefined
-                ? undefined
-                : JSON.stringify(event.trace.traceAddress),
-            input: event.trace?.input,
-            output: event.trace?.output,
-          });
-        }
-        continue;
-      }
-
-      events.push({
-        type: "trace",
-        checkpoint: event.checkpoint,
-        chain,
-        eventCallback,
-
-        event: {
-          id: event.checkpoint,
-          args: decodedData.args,
-          result: decodedResult,
-          trace: event.trace! as Trace,
-          block: event.block as Block,
-          transaction: event.transaction! as Transaction,
-          transactionReceipt: event.transactionReceipt as TransactionReceipt,
-        },
-      });
-    } else if (
-      eventCallback.type === "account" &&
-      eventCallback.filter.type === "transaction"
-    ) {
-      events.push({
-        type: "transaction",
-        checkpoint: event.checkpoint,
-        chain,
-        eventCallback,
-
-        event: {
-          id: event.checkpoint,
-          block: event.block as Block,
-          transaction: event.transaction! as Transaction,
-          transactionReceipt: event.transactionReceipt as TransactionReceipt,
-        },
-      });
-    } else if (
-      eventCallback.type === "account" &&
-      eventCallback.filter.type === "transfer"
-    ) {
-      events.push({
-        type: "transfer",
-        checkpoint: event.checkpoint,
-        chain,
-        eventCallback,
-
-        event: {
-          id: event.checkpoint,
-          transfer: {
-            from: event.trace!.from,
-            to: event.trace!.to!,
-            value: event.trace!.value!,
+          event: {
+            id: event.checkpoint,
+            args,
+            log: event.log!,
+            block: event.block as Block,
+            transaction: event.transaction! as Transaction,
+            transactionReceipt: event.transactionReceipt as TransactionReceipt,
           },
-          block: event.block as Block,
-          transaction: event.transaction! as Transaction,
-          transactionReceipt: event.transactionReceipt as TransactionReceipt,
-          trace: event.trace! as Trace,
-        },
-      });
-    } else if (eventCallback.type === "block") {
-      events.push({
-        type: "block",
-        checkpoint: event.checkpoint,
-        chain,
-        eventCallback,
-        event: {
-          id: event.checkpoint,
-          block: event.block as Block,
-        },
+        });
+      } else if (
+        eventCallback.type === "contract" &&
+        eventCallback.filter.type === "trace"
+      ) {
+        let decodedData: { args: readonly unknown[]; functionName: string };
+        // A function with one output decodes to that value, not an array.
+        let decodedResult: unknown;
+        try {
+          decodedData = decodeFunctionData({
+            abi: [eventCallback.abiItem as AbiFunction],
+            data: event.trace!.input,
+          });
+
+          decodedResult = decodeFunctionResult({
+            abi: [eventCallback.abiItem as AbiFunction],
+            data: event.trace!.output ?? "0x",
+            functionName: decodedData.functionName,
+          });
+          traceDecodeSuccessCount++;
+        } catch (_err) {
+          traceDecodeFailureCount++;
+          const selector = toFunctionSelector(
+            eventCallback.abiItem as AbiFunction,
+          );
+          if (!traceDecodeFailureSelectors.has(selector)) {
+            traceDecodeFailureSelectors.add(selector);
+            yield* Effect.logDebug({
+              msg: "Failed to decode matched call trace using provided ABI item",
+              chain: eventCallback.chain.name,
+              chain_id: eventCallback.chain.id,
+              function: eventCallback.name,
+              block_number: event?.block?.number ?? "unknown",
+              transaction_index: event.transaction?.transactionIndex,
+              trace_address:
+                event.trace === undefined
+                  ? undefined
+                  : JSON.stringify(event.trace.traceAddress),
+              input: event.trace?.input,
+              output: event.trace?.output,
+            });
+          }
+          continue;
+        }
+
+        events.push({
+          type: "trace",
+          checkpoint: event.checkpoint,
+          chain,
+          eventCallback,
+
+          event: {
+            id: event.checkpoint,
+            args: decodedData.args,
+            result: decodedResult,
+            trace: event.trace! as Trace,
+            block: event.block as Block,
+            transaction: event.transaction! as Transaction,
+            transactionReceipt: event.transactionReceipt as TransactionReceipt,
+          },
+        });
+      } else if (
+        eventCallback.type === "account" &&
+        eventCallback.filter.type === "transaction"
+      ) {
+        events.push({
+          type: "transaction",
+          checkpoint: event.checkpoint,
+          chain,
+          eventCallback,
+
+          event: {
+            id: event.checkpoint,
+            block: event.block as Block,
+            transaction: event.transaction! as Transaction,
+            transactionReceipt: event.transactionReceipt as TransactionReceipt,
+          },
+        });
+      } else if (
+        eventCallback.type === "account" &&
+        eventCallback.filter.type === "transfer"
+      ) {
+        events.push({
+          type: "transfer",
+          checkpoint: event.checkpoint,
+          chain,
+          eventCallback,
+
+          event: {
+            id: event.checkpoint,
+            transfer: {
+              from: event.trace!.from,
+              to: event.trace!.to!,
+              value: event.trace!.value!,
+            },
+            block: event.block as Block,
+            transaction: event.transaction! as Transaction,
+            transactionReceipt: event.transactionReceipt as TransactionReceipt,
+            trace: event.trace! as Trace,
+          },
+        });
+      } else if (eventCallback.type === "block") {
+        events.push({
+          type: "block",
+          checkpoint: event.checkpoint,
+          chain,
+          eventCallback,
+          event: {
+            id: event.checkpoint,
+            block: event.block as Block,
+          },
+        });
+      }
+    }
+
+    if (logDecodeFailureCount > 0) {
+      yield* Effect.logDebug({
+        msg: "Event batch contained logs that could not be decoded",
+        failure_count: logDecodeFailureCount,
+        success_count: logDecodeSuccessCount,
       });
     }
-  }
 
-  if (logDecodeFailureCount > 0) {
-    common.logger.debug({
-      msg: "Event batch contained logs that could not be decoded",
-      failure_count: logDecodeFailureCount,
-      success_count: logDecodeSuccessCount,
-    });
-  }
+    if (traceDecodeFailureCount > 0) {
+      yield* Effect.logDebug({
+        msg: "Event batch contained traces that could not be decoded",
+        failure_count: traceDecodeFailureCount,
+        success_count: traceDecodeSuccessCount,
+      });
+    }
 
-  if (traceDecodeFailureCount > 0) {
-    common.logger.debug({
-      msg: "Event batch contained traces that could not be decoded",
-      failure_count: traceDecodeFailureCount,
-      success_count: traceDecodeSuccessCount,
-    });
-  }
-
-  return events;
-};
+    return events;
+  });
 
 export const syncBlockToInternal = ({
   block,
