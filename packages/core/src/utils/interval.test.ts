@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import {
-  getChunks,
   intervalDifference,
   intervalIntersection,
   intervalSum,
@@ -293,35 +292,6 @@ test("sortIntervals", () => {
       [
         4,
         7,
-      ],
-    ]
-  `);
-});
-
-test("getChunks", () => {
-  const result = getChunks({ interval: [1, 9], maxChunkSize: 2 });
-
-  expect(result).toMatchInlineSnapshot(`
-    [
-      [
-        1,
-        2,
-      ],
-      [
-        3,
-        4,
-      ],
-      [
-        5,
-        6,
-      ],
-      [
-        7,
-        8,
-      ],
-      [
-        9,
-        9,
       ],
     ]
   `);

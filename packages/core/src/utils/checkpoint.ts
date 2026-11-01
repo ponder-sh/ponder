@@ -151,11 +151,6 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) =>
 /**
  * Returns true if checkpoint a is greater than or equal to checkpoint b.|
  */
-export const isCheckpointGreaterThanOrEqualTo = (
-  a: Checkpoint,
-  b: Checkpoint,
-) => encodeCheckpoint(a) >= encodeCheckpoint(b);
-
 export const checkpointMax = (...checkpoints: Checkpoint[]) =>
   checkpoints.reduce((max, checkpoint) => {
     return isCheckpointGreaterThan(checkpoint, max) ? checkpoint : max;
@@ -165,8 +160,6 @@ export const checkpointMin = (...checkpoints: Checkpoint[]) =>
   checkpoints.reduce((min, checkpoint) => {
     return isCheckpointGreaterThan(min, checkpoint) ? checkpoint : min;
   });
-
-export const LATEST = MAX_CHECKPOINT_STRING;
 
 /** Compute the minimum checkpoint, filtering out undefined. */
 export const min = (...checkpoints: (string | undefined)[]) => {

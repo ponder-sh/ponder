@@ -4,7 +4,7 @@ import { Cause, Deferred, Effect, Exit, Queue, Scope, Stream } from "effect";
 import { createBuild } from "@/build/index.js";
 import { Db, makeDb } from "@/database/db.js";
 import { migrate, migrateSync } from "@/database/migrate.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
+import { NonRetryableUserError } from "@/internal/errors.js";
 import { Metrics } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import type { IndexingBuild, PreBuild } from "@/internal/types.js";
@@ -90,7 +90,6 @@ export function dev({ cliOptions }: { cliOptions: CliOptions }) {
     const runSync = Effect.runSyncWith(yield* Effect.context<never>());
     const onProcessError =
       (msg: "uncaughtException" | "unhandledRejection") => (error: Error) => {
-        if (error instanceof ShutdownError) return;
         runSync(onError(msg, error));
       };
 

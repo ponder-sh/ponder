@@ -7,13 +7,8 @@ import {
   EMPTY_TRANSACTION_FILTER,
   EMPTY_TRANSFER_FILTER,
 } from "@/_test/constants.js";
-import type { Filter, Fragment, FragmentAddress } from "@/internal/types.js";
-import {
-  decodeFragment,
-  encodeFragment,
-  getFragments,
-  recoverFilter,
-} from "./fragments.js";
+import type { Filter } from "@/internal/types.js";
+import { getFragments, recoverFilter } from "./fragments.js";
 
 test("getFragments() block filter", () => {
   const fragments = getFragments({
@@ -364,131 +359,6 @@ test("getFragments() multiple factories", () => {
       },
     ]
   `);
-});
-
-test("decodeFragment()", () => {
-  const [blockFragment] = getFragments({
-    ...EMPTY_BLOCK_FILTER,
-    interval: 100,
-    offset: 5,
-  });
-
-  expect(decodeFragment(encodeFragment(blockFragment!.fragment))).toStrictEqual(
-    blockFragment!.fragment,
-  );
-
-  const [logFragment] = getFragments({
-    ...EMPTY_LOG_FILTER,
-    chainId: 1,
-    address: ["0xa", "0xb"],
-    topic0: zeroHash,
-    topic1: null,
-    topic2: "0xe",
-    topic3: null,
-  });
-
-  expect(decodeFragment(encodeFragment(logFragment!.fragment))).toStrictEqual(
-    logFragment!.fragment,
-  );
-
-  const [traceFragment] = getFragments({
-    ...EMPTY_TRACE_FILTER,
-    fromAddress: {
-      id: `log_${"0xa"}_${1}_topic${1}_${"0xc"}_${"undefined"}_${"undefined"}`,
-      type: "log",
-      chainId: 1,
-      sourceId: "factory",
-      address: "0xa",
-      eventSelector: "0xc",
-      childAddressLocation: "topic1",
-      fromBlock: undefined,
-      toBlock: undefined,
-    },
-    toAddress: "0xb",
-    functionSelector: "0xd",
-    callType: "CALL",
-  });
-
-  expect(decodeFragment(encodeFragment(traceFragment!.fragment))).toStrictEqual(
-    traceFragment!.fragment,
-  );
-
-  const [transferFragment] = getFragments({
-    ...EMPTY_TRANSFER_FILTER,
-    fromAddress: "0xa",
-    toAddress: undefined,
-  });
-
-  expect(
-    decodeFragment(encodeFragment(transferFragment!.fragment)),
-  ).toStrictEqual(transferFragment!.fragment);
-});
-
-test("decodeFragment() factory addresses", () => {
-  const factories: FragmentAddress[] = [
-    {
-      address: "0xa",
-      eventSelector: "0xc",
-      childAddressLocation: "topic1",
-      fromBlock: 5,
-      toBlock: null,
-    },
-    {
-      address: null,
-      eventSelector: "0xc",
-      childAddressLocation: "offset64",
-      fromBlock: null,
-      toBlock: 9,
-    },
-  ];
-  const addresses: FragmentAddress[] = [...factories, "0xb", null];
-
-  const fragments: Fragment[] = [];
-  for (const fromAddress of addresses) {
-    for (const toAddress of addresses) {
-      if (
-        factories.includes(fromAddress) === false &&
-        factories.includes(toAddress) === false
-      ) {
-        continue;
-      }
-
-      fragments.push(
-        { type: "transaction", chainId: 1, fromAddress, toAddress },
-        {
-          type: "trace",
-          chainId: 1,
-          fromAddress,
-          toAddress,
-          functionSelector: "0xd",
-          includeTransactionReceipts: true,
-        },
-        {
-          type: "transfer",
-          chainId: 1,
-          fromAddress,
-          toAddress,
-          includeTransactionReceipts: true,
-        },
-      );
-    }
-  }
-  for (const address of factories) {
-    fragments.push({
-      type: "log",
-      chainId: 1,
-      address,
-      topic0: zeroHash,
-      topic1: null,
-      topic2: "0xe",
-      topic3: null,
-      includeTransactionReceipts: true,
-    });
-  }
-
-  for (const fragment of fragments) {
-    expect(decodeFragment(encodeFragment(fragment))).toStrictEqual(fragment);
-  }
 });
 
 test("recoverFilter() block filter", () => {

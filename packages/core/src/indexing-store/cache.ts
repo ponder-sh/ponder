@@ -38,10 +38,6 @@ import {
 
 export type IndexingCache = {
   /**
-   * Returns true if the cache has an entry for `table` with `key`.
-   */
-  has: (params: { table: Table; key: object }) => boolean;
-  /**
    * Returns the entry for `table` with `key`.
    *
    * @dev Returns the entry when it is cached, and an Effect that reads it from
@@ -380,16 +376,6 @@ export const createIndexingCache = ({
       );
 
     const indexingCache: IndexingCache = {
-      has({ table, key }) {
-        if (cache.get(table)!.isCacheComplete) return true;
-        const ck = getCacheKey(table, key, primaryKeyCache);
-
-        return (
-          cache.get(table)!.cache.has(ck) ??
-          insertBuffer.get(table)!.has(ck) ??
-          updateBuffer.get(table)!.has(ck)
-        );
-      },
       get({ table, key }) {
         if (
           event &&
