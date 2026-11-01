@@ -1,7 +1,8 @@
+import { Effect, Scope } from "effect";
 import { zeroAddress } from "viem";
 import { expect, test } from "vitest";
-import { createTestCommon } from "@/_test/utils.js";
-import type { QB } from "@/database/queryBuilder.js";
+import { createTestServices } from "@/_test/utils.js";
+import type { DbClient } from "@/database/db.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { IndexingErrorHandler, Schema } from "@/internal/types.js";
 import { createIndexingCache } from "./cache.js";
@@ -11,36 +12,38 @@ import { createIndexingStore } from "./index.js";
  * Indexing store backed only by the in-memory cache. Without a crash recovery
  * checkpoint the cache is complete, so reads never query the database.
  */
-const createStore = (schema: Schema) => {
-  const common = createTestCommon();
-  const indexingErrorHandler: IndexingErrorHandler = {
-    getRetryableError: () => indexingErrorHandler.error,
-    setRetryableError: (error) => {
-      indexingErrorHandler.error = error;
-    },
-    clearRetryableError: () => {
-      indexingErrorHandler.error = undefined;
-    },
-    error: undefined,
-  };
-  const indexingCache = createIndexingCache({
-    common,
-    schemaBuild: { schema },
-    crashRecoveryCheckpoint: undefined,
-    eventCount: {},
-  });
-  const indexingStore = createIndexingStore({
-    common,
-    schemaBuild: { schema },
-    indexingCache,
-    indexingErrorHandler,
-  });
-  // Note: Only the dialect is read. Any query would throw.
-  const qb = { $dialect: "postgres" } as QB;
-  indexingCache.qb = qb;
-  indexingStore.qb = qb;
-  return indexingStore;
-};
+const createStore = (schema: Schema) =>
+  Effect.gen(function* () {
+    const indexingErrorHandler: IndexingErrorHandler = {
+      getRetryableError: () => indexingErrorHandler.error,
+      setRetryableError: (error) => {
+        indexingErrorHandler.error = error;
+      },
+      clearRetryableError: () => {
+        indexingErrorHandler.error = undefined;
+      },
+      error: undefined,
+    };
+    const indexingCache = yield* createIndexingCache({
+      schemaBuild: { schema },
+      crashRecoveryCheckpoint: undefined,
+      eventCount: {},
+    });
+    const indexingStore = yield* createIndexingStore({
+      schemaBuild: { schema },
+      indexingCache,
+      indexingErrorHandler,
+    });
+    // Note: Only the dialect is read. Any query would fail.
+    const client = { dialect: "postgres" } as DbClient;
+    indexingCache.client = client;
+    indexingStore.client = client;
+    return indexingStore;
+  }).pipe(
+    Effect.provide(createTestServices()),
+    Scope.provide(Scope.makeUnsafe()),
+    Effect.runSync,
+  );
 
 test("update", async () => {
   const account = onchainTable("account", (p) => ({
