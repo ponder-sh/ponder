@@ -49,7 +49,7 @@ process.env.DATABASE_SCHEMA = "benchmark";
 
 const startTimestamp = performance.now();
 
-const kill = await start({
+start({
   cliOptions: {
     ...program.optsWithGlobals(),
     command: "start",
@@ -73,6 +73,5 @@ console.log(`${APP_ID} took ${Math.round(endTimestamp - startTimestamp)}ms`);
 
 console.log("Killing app");
 
-await kill!();
-
-process.exit(0);
+// Note: `ponder start` runs its shutdown sequence and exits on SIGINT.
+process.kill(process.pid, "SIGINT");
