@@ -190,12 +190,14 @@ export const getCacheKey = (
     return String(normalizeColumn(col, key[pk]!, false));
   }
 
+  // Note: Each value is prefixed with its length, so that values containing
+  // the separator can't produce the same key as other values.
   let result = "";
   for (let i = 0; i < primaryKeys.length; i++) {
     const [pk, col] = primaryKeys[i]!;
     // @ts-expect-error
-    const value = normalizeColumn(col, key[pk]!, false);
-    result += `${String(value)}_`;
+    const value = String(normalizeColumn(col, key[pk]!, false));
+    result += `${value.length}_${value}`;
   }
 
   return result;
