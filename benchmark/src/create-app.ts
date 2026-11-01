@@ -47,7 +47,7 @@ process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/benchmark_${APP_ID}`;
 process.env.DATABASE_SCHEMA = "benchmark";
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 
-const kill = await start({
+start({
   cliOptions: {
     ...program.optsWithGlobals(),
     command: "start",
@@ -65,6 +65,5 @@ while (true) {
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
-await kill!();
-
-process.exit(0);
+// Note: `ponder start` runs its shutdown sequence and exits on SIGINT.
+process.kill(process.pid, "SIGINT");
