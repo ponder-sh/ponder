@@ -1,6 +1,5 @@
 import { Effect } from "effect";
 import type { Context, HonoRequest } from "hono";
-import { html } from "hono/html";
 import { addStackTrace } from "@/indexing/addStackTrace.js";
 import type { BaseError } from "@/internal/errors.js";
 import { Options } from "@/internal/options.js";
@@ -51,14 +50,6 @@ export const onError = (
       500,
     );
   });
-
-export const onNotFound = (c: Context) => {
-  return c.html(
-    html`<!doctype html>
-      <h1>Bad news!</h1>
-      <p>The route "<code>${c.req.path}</code>" does not exist</p>`,
-  );
-};
 
 const tryExtractRequestBody = (request: HonoRequest): Effect.Effect<unknown> =>
   Effect.tryPromise(() => request.json()).pipe(

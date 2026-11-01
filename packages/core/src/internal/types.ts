@@ -1,4 +1,3 @@
-import type { PGlite } from "@electric-sql/pglite";
 import type { Hono } from "hono";
 import type { PoolConfig } from "pg";
 import type {
@@ -35,7 +34,6 @@ import type { RetryableError } from "./errors.js";
 
 export type DatabaseConfig =
   | { kind: "pglite"; options: PGliteOptions }
-  | { kind: "pglite_test"; instance: PGlite }
   | { kind: "postgres"; poolConfig: Prettify<PoolConfig & { max: number }> };
 
 // Indexing
@@ -448,11 +446,6 @@ export type RequiredInternalTraceColumns =
   | RequiredTraceColumns
   | "blockNumber"
   | "transactionIndex";
-export type RequiredInternalLogColumns =
-  | RequiredLogColumns
-  | "blockNumber"
-  | "transactionIndex";
-
 export type InternalBlock = PartialExcept<Block, RequiredBlockColumns>;
 export type InternalTransaction = PartialExcept<
   Transaction,

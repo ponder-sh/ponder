@@ -1,7 +1,7 @@
 import os from "node:os";
 import readline from "node:readline";
 import { Cause, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
+import { NonRetryableUserError } from "@/internal/errors.js";
 import { type LogLevel, layerLogger } from "@/internal/logger.js";
 import { Metrics, MetricsService } from "@/internal/metrics.js";
 import { Options } from "@/internal/options.js";
@@ -110,7 +110,6 @@ export const runMain = ({
   if (options.command !== "dev") {
     const onError =
       (msg: "uncaughtException" | "unhandledRejection") => (error: Error) => {
-        if (error instanceof ShutdownError) return;
         logUnsafe(Effect.logError({ msg, error }));
         exit(getExitCode(error));
       };

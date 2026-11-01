@@ -30,15 +30,6 @@ export class RetryableError extends BaseError {
   }
 }
 
-export class ShutdownError extends NonRetryableUserError {
-  override name = "ShutdownError";
-
-  constructor(message?: string | undefined) {
-    super(message);
-    Object.setPrototypeOf(this, ShutdownError.prototype);
-  }
-}
-
 export class BuildError extends NonRetryableUserError {
   override name = "BuildError";
 
@@ -211,7 +202,6 @@ export class RpcProviderError extends BaseError {
 }
 
 export const nonRetryableUserErrorNames = [
-  ShutdownError,
   BuildError,
   MigrationError,
   UniqueConstraintError,

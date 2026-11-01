@@ -1,5 +1,3 @@
-import { range } from "./range.js";
-
 export type Interval = [number, number];
 
 /**
@@ -181,32 +179,4 @@ export function intervalBounds(intervals: Interval[]): Interval {
 
 export function sortIntervals(intervals: Interval[]) {
   return intervals.sort((a, b) => (a[0] < b[0] ? -1 : 1));
-}
-
-export function getChunks({
-  interval,
-  maxChunkSize,
-}: {
-  interval: Interval;
-  maxChunkSize: number;
-}) {
-  const _chunks: Interval[] = [];
-
-  const [startBlock, endBlock] = interval;
-
-  let fromBlock = startBlock;
-  let toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
-
-  while (fromBlock <= endBlock) {
-    _chunks.push([fromBlock, toBlock]);
-
-    fromBlock = toBlock + 1;
-    toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
-  }
-
-  return _chunks;
-}
-
-export function intervalRange(interval: Interval) {
-  return range(interval[0], interval[1] + 1);
 }
