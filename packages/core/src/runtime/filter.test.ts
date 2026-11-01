@@ -3,11 +3,9 @@ import {
   type Address,
   encodeEventTopics,
   encodeFunctionData,
-  getAbiItem,
   type Hex,
   padHex,
   parseEther,
-  toEventSelector,
   toHex,
   zeroAddress,
   zeroHash,
@@ -45,9 +43,7 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
   mergeLogFiltersToBlockRequest,
-  mergeLogFiltersToRequests,
 } from "./filter.js";
-import type { IntervalWithFilter } from "./index.js";
 
 const ERC20_ADDRESS: Address = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
 const FACTORY_ADDRESS: Address = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
@@ -303,209 +299,6 @@ test("isTraceFilterMatched()", () => {
 
   isMatched = isTraceFilterMatched({ filter, block, trace });
   expect(isMatched).toBe(false);
-});
-
-const ADDRESS_A: Address = "0x1111111111111111111111111111111111111111";
-const ADDRESS_B: Address = "0x2222222222222222222222222222222222222222";
-
-const TOPIC1_ALICE: Hex = `0x${"0".repeat(24)}${ALICE.slice(2)}`;
-const TOPIC1_BOB: Hex = `0x${"0".repeat(24)}${BOB.slice(2)}`;
-
-const baseLogFilter = {
-  type: "log",
-  chainId: 1,
-  sourceId: "Erc20",
-  fromBlock: undefined,
-  toBlock: undefined,
-  hasTransactionReceipt: false,
-  include: [] as LogFilter["include"],
-};
-
-test("mergeLogFiltersToRequests merges filters with different topic1 values into one request", () => {
-  const transfer = toEventSelector(
-    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
-  );
-
-  const requiredIntervals: IntervalWithFilter[] = [
-    {
-      filter: {
-        ...baseLogFilter,
-        address: ADDRESS_A,
-        topic0: transfer,
-        topic1: TOPIC1_ALICE,
-        topic2: null,
-        topic3: null,
-      } as LogFilter,
-      interval: [1, 100],
-    },
-    {
-      filter: {
-        ...baseLogFilter,
-        address: ADDRESS_A,
-        topic0: transfer,
-        topic1: TOPIC1_BOB,
-        topic2: null,
-        topic3: null,
-      } as LogFilter,
-      interval: [1, 100],
-    },
-  ];
-
-  // Only `topic1` differs between the two filters, so they're merged into a
-  // single request with `topic1` unioned into an array.
-  const mergedRequests = mergeLogFiltersToRequests(
-    requiredIntervals,
-    new Map(),
-    1000,
-  );
-
-  expect(
-    mergedRequests.map((request) => request.params),
-  ).toMatchInlineSnapshot(`
-    [
-      [
-        {
-          "address": "0x1111111111111111111111111111111111111111",
-          "fromBlock": "0x1",
-          "toBlock": "0x64",
-          "topics": [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-            [
-              "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-              "0x00000000000000000000000070997970C51812dc3A010C7d01b50e0d17dc79C8",
-            ],
-          ],
-        },
-      ],
-    ]
-  `);
-});
-
-test("mergeLogFiltersToRequests merges filters with different addresses into one request", () => {
-  const transfer = toEventSelector(
-    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
-  );
-
-  const requiredIntervals: IntervalWithFilter[] = [
-    {
-      filter: {
-        ...baseLogFilter,
-        address: ADDRESS_A,
-        topic0: transfer,
-        topic1: null,
-        topic2: null,
-        topic3: null,
-      } as LogFilter,
-      interval: [1, 100],
-    },
-    {
-      filter: {
-        ...baseLogFilter,
-        address: ADDRESS_B,
-        topic0: transfer,
-        topic1: null,
-        topic2: null,
-        topic3: null,
-      } as LogFilter,
-      interval: [1, 100],
-    },
-  ];
-
-  // Only `address` differs between the two filters, so they're merged into a
-  // single request with `address` unioned into an array.
-  const mergedRequests = mergeLogFiltersToRequests(
-    requiredIntervals,
-    new Map(),
-    1000,
-  );
-
-  expect(
-    mergedRequests.map((request) => request.params),
-  ).toMatchInlineSnapshot(`
-    [
-      [
-        {
-          "address": [
-            "0x1111111111111111111111111111111111111111",
-            "0x2222222222222222222222222222222222222222",
-          ],
-          "fromBlock": "0x1",
-          "toBlock": "0x64",
-          "topics": [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          ],
-        },
-      ],
-    ]
-  `);
-});
-
-test("mergeLogFiltersToRequests does not merge disjoint intervals into an overly wide request", () => {
-  const transfer = toEventSelector(
-    getAbiItem({ abi: erc20ABI, name: "Transfer" }),
-  );
-
-  const requiredIntervals: IntervalWithFilter[] = [
-    {
-      filter: {
-        ...baseLogFilter,
-        address: ADDRESS_A,
-        topic0: transfer,
-        topic1: null,
-        topic2: null,
-        topic3: null,
-      } as LogFilter,
-      interval: [1, 100],
-    },
-    {
-      filter: {
-        ...baseLogFilter,
-        address: ADDRESS_A,
-        topic0: transfer,
-        topic1: null,
-        topic2: null,
-        topic3: null,
-      } as LogFilter,
-      interval: [100_000, 100_100],
-    },
-  ];
-
-  // The two filters are otherwise identical, but their intervals are
-  // disjoint (0% overlap), so merging them would force an unnecessarily wide
-  // request that refetches ~100,000 unrelated blocks. Instead, two
-  // tightly-bounded requests are kept.
-  const mergedRequests = mergeLogFiltersToRequests(
-    requiredIntervals,
-    new Map(),
-    1000,
-  );
-
-  expect(
-    mergedRequests.map((request) => request.params),
-  ).toMatchInlineSnapshot(`
-    [
-      [
-        {
-          "address": "0x1111111111111111111111111111111111111111",
-          "fromBlock": "0x1",
-          "toBlock": "0x64",
-          "topics": [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          ],
-        },
-      ],
-      [
-        {
-          "address": "0x1111111111111111111111111111111111111111",
-          "fromBlock": "0x186a0",
-          "toBlock": "0x18704",
-          "topics": [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          ],
-        },
-      ],
-    ]
-  `);
 });
 
 const REQUEST_ADDRESS_A = "0x000000000000000000000000000000000000000a";

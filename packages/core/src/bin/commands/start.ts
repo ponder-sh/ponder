@@ -45,16 +45,9 @@ export function start({ cliOptions }: { cliOptions: CliOptions }) {
  * Build the app, then run the indexer and the HTTP server until the scope
  * closes.
  *
- * @param onBuild - Replace the app after the build, before it runs.
  * @returns The exit code, when the build or the indexer fails.
  */
-export const startApp = ({
-  cliOptions,
-  onBuild,
-}: {
-  cliOptions: CliOptions;
-  onBuild?: (app: PonderApp) => Effect.Effect<PonderApp>;
-}) =>
+export const startApp = ({ cliOptions }: { cliOptions: CliOptions }) =>
   Effect.gen(function* () {
     const metrics = yield* Metrics;
 
@@ -131,7 +124,7 @@ export const startApp = ({
         1,
       );
 
-      let app: PonderApp = {
+      const app: PonderApp = {
         preBuild,
         namespaceBuild,
         schemaBuild,
@@ -139,10 +132,6 @@ export const startApp = ({
         apiBuild,
         crashRecoveryCheckpoint,
       };
-
-      if (onBuild) {
-        app = yield* onBuild(app);
-      }
 
       metrics.initializeIndexingMetrics(app);
 

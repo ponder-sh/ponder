@@ -433,20 +433,14 @@ export const makeDb = ({
 
     const dialect = preBuild.databaseConfig.kind;
 
-    if (dialect === "pglite" || dialect === "pglite_test") {
+    if (dialect === "pglite") {
       const databaseConfig = preBuild.databaseConfig;
       const pgliteDriver: PGliteDriver = yield* Effect.acquireRelease(
         Effect.sync(() => ({
           dialect: "pglite" as const,
-          instance:
-            databaseConfig.kind === "pglite"
-              ? createPglite(databaseConfig.options)
-              : databaseConfig.instance,
+          instance: createPglite(databaseConfig.options),
         })),
-        (driver) =>
-          dialect === "pglite"
-            ? Effect.promise(() => driver.instance.close())
-            : Effect.void,
+        (driver) => Effect.promise(() => driver.instance.close()),
       );
       driver = pgliteDriver;
       adminTransport = makePgliteTransport(
