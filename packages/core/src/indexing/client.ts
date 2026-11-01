@@ -1,3 +1,4 @@
+import { Effect, Exit, Fiber, FiberSet, Result, type Scope } from "effect";
 import {
   type Abi,
   type Account,
@@ -41,7 +42,7 @@ import {
   toHex,
   type Chain as ViemChain,
 } from "viem";
-import type { Common } from "@/internal/common.js";
+import { Metrics } from "@/internal/metrics.js";
 import type {
   Chain,
   Event,
@@ -53,8 +54,7 @@ import type { SyncStore } from "@/sync-store/index.js";
 import { dedupe } from "@/utils/dedupe.js";
 import { toLowerCase } from "@/utils/lowercase.js";
 import { orderObject } from "@/utils/order.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+import { startClockEffect } from "@/utils/timer.js";
 import {
   getProfilePatternKey,
   recordProfilePattern,
@@ -63,9 +63,29 @@ import {
 
 export type CachedViemClient = {
   getClient: (chain: Chain) => ReadonlyClient;
-  prefetch: (params: { events: Event[] }) => Promise<void>;
+  /**
+   * Predict and load the RPC requests of the next event batch, from the rpc
+   * cache or the RPC.
+   */
+  prefetch: (params: { events: Event[] }) => Effect.Effect<void, Error>;
   clear: () => void;
   event: Event | SetupEvent | undefined;
+  /**
+   * Write the rpc cache results of the requests of the events of `chainId` at
+   * or before `checkpoint`, which is finalized. The results of later events
+   * are written once they are finalized.
+   *
+   * Note: Until the first call for a chain, the results are written at once.
+   */
+  finalize: (params: {
+    chainId: number;
+    checkpoint: string;
+  }) => Effect.Effect<void>;
+  /**
+   * Discard the rpc cache results of the requests of the events of `chainId`
+   * after `checkpoint`, which are reorged.
+   */
+  reorg: (params: { chainId: number; checkpoint: string }) => void;
 };
 
 const MULTICALL_SELECTOR = toFunctionSelector(
@@ -76,6 +96,8 @@ const SAMPLING_RATE = 10;
 const DB_PREDICTION_THRESHOLD = 0.2;
 const RPC_PREDICTION_THRESHOLD = 0.8;
 const MAX_CONSTANT_PATTERN_COUNT = 10;
+const RETRY_COUNT = 9;
+const BASE_DURATION = 125;
 
 /**
  * RPC responses that are not cached. These are valid responses
@@ -389,7 +411,14 @@ type ProfileConstantLRU = Map<EventName, Set<ProfileKey>>;
 /**
  * Cache of RPC responses.
  */
-type Cache = Map<number, Map<CacheKey, Promise<Response | Error> | Response>>;
+/**
+ * Results of requests per chain. A request that is prefetched from the RPC is
+ * a fiber until an indexing function makes it.
+ */
+type Cache = Map<
+  number,
+  Map<CacheKey, Fiber.Fiber<Response, Error> | Response>
+>;
 
 export const getCacheKey = (request: RequestParameters) => {
   return toLowerCase(JSON.stringify(orderObject(request)));
@@ -420,421 +449,149 @@ export const decodeResponse = (response: Response) => {
   }
 };
 
+/**
+ * Create the `context.client` of each chain, which caches RPC requests in
+ * memory and in the rpc cache.
+ *
+ * @dev The clients return promises for indexing functions. Requests run as
+ * fibers that are interrupted when the scope closes.
+ */
 export const createCachedViemClient = ({
-  common,
   indexingBuild,
   syncStore,
   eventCount,
 }: {
-  common: Common;
   indexingBuild: Pick<IndexingBuild, "chains" | "rpcs">;
   syncStore: SyncStore;
   eventCount: { [eventName: string]: number };
-}): CachedViemClient => {
-  let event: Event | SetupEvent = undefined!;
-  const cache: Cache = new Map();
-  const profile: Profile = new Map();
-  const profileConstantLRU: ProfileConstantLRU = new Map();
+}): Effect.Effect<CachedViemClient, never, Metrics | Scope.Scope> =>
+  Effect.gen(function* () {
+    const metrics = yield* Metrics;
+    /** Requests of indexing functions, prefetched requests, and rpc cache writes. */
+    const fibers = yield* FiberSet.make<unknown, unknown>();
+    const runPromise = yield* FiberSet.runtimePromise(fibers)();
 
-  for (const chain of indexingBuild.chains) {
-    cache.set(chain.id, new Map());
-  }
+    let event: Event | SetupEvent = undefined!;
+    const cache: Cache = new Map();
+    const profile: Profile = new Map();
+    const profileConstantLRU: ProfileConstantLRU = new Map();
 
-  const ponderActions = <
-    TTransport extends Transport = Transport,
-    TChain extends ViemChain | undefined = ViemChain | undefined,
-    TAccount extends Account | undefined = Account | undefined,
-  >(
-    client: Client<TTransport, TChain, TAccount>,
-  ): PonderActions => {
-    const actions = {} as PonderActions;
-    const _publicActions = publicActions(client);
-
-    const addProfilePattern = ({
-      pattern,
-      hasConstant,
-    }: {
-      pattern: ProfilePattern;
-      hasConstant: boolean;
-    }) => {
-      const profilePatternKey = getProfilePatternKey(pattern);
-      const eventName = (event as Event).eventCallback.name;
-
-      if (profile.get(eventName)!.has(profilePatternKey)) {
-        profile.get(eventName)!.get(profilePatternKey)!.count++;
-
-        if (hasConstant) {
-          profileConstantLRU.get(eventName)!.delete(profilePatternKey);
-          profileConstantLRU.get(eventName)!.add(profilePatternKey);
-        }
-      } else {
-        profile
-          .get(eventName)!
-          .set(profilePatternKey, { pattern, hasConstant, count: 1 });
-
-        if (hasConstant) {
-          profileConstantLRU.get(eventName)!.add(profilePatternKey);
-          if (
-            profileConstantLRU.get(eventName)!.size > MAX_CONSTANT_PATTERN_COUNT
-          ) {
-            const firstKey = profileConstantLRU
-              .get(eventName)!
-              .keys()
-              .next().value;
-            if (firstKey) {
-              profile.get(eventName)!.delete(firstKey);
-              profileConstantLRU.get(eventName)!.delete(firstKey);
-            }
-          }
-        }
-      }
-    };
-
-    const getPonderAction = <
-      action extends (typeof blockDependentActions)[number],
-    >(
-      action: action,
-    ) => {
-      return ({
-        cache,
-        blockNumber: userBlockNumber,
-        ...args
-      }: Parameters<PonderActions[action]>[0]) => {
-        // Note: prediction only possible when block number is managed by Ponder.
-
-        if (
-          event.type !== "setup" &&
-          userBlockNumber === undefined &&
-          eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
-        ) {
-          const eventName = event.eventCallback.name;
-
-          if (profile.has(eventName) === false) {
-            profile.set(eventName, new Map());
-            profileConstantLRU.set(eventName, new Set());
-          }
-
-          // profile "readContract" and "multicall" actions
-          if (action === "readContract") {
-            const recordPatternResult = recordProfilePattern({
-              event: event,
-              args: { ...args, cache } as Parameters<
-                PonderActions["readContract"]
-              >[0],
-              hints: Array.from(profile.get(eventName)!.values()),
-            });
-            if (recordPatternResult) {
-              addProfilePattern(recordPatternResult);
-            }
-          } else if (action === "multicall") {
-            const contracts = (
-              { ...args, cache } as Parameters<PonderActions["multicall"]>[0]
-            ).contracts as ContractFunctionParameters[];
-
-            if (contracts.length < 10) {
-              for (const contract of contracts) {
-                const recordPatternResult = recordProfilePattern({
-                  event: event,
-                  args: contract,
-                  hints: Array.from(profile.get(eventName)!.values()),
-                });
-                if (recordPatternResult) {
-                  addProfilePattern(recordPatternResult);
-                }
-              }
-            }
-          }
-        }
-
-        const blockNumber =
-          event.type === "setup" ? event.block : event.event.block.number;
-
-        // @ts-expect-error
-        return _publicActions[action]({
-          ...args,
-          ...(cache === "immutable"
-            ? { blockTag: "latest" }
-            : { blockNumber: userBlockNumber ?? blockNumber }),
-        } as Parameters<ReturnType<typeof publicActions>[action]>[0]);
-      };
-    };
-
-    const getRetryAction = (
-      action: PonderActions[keyof PonderActions],
-      actionName: keyof PonderActions,
-    ) => {
-      return async (...args: Parameters<typeof action>) => {
-        const RETRY_COUNT = 9;
-        const BASE_DURATION = 125;
-        for (let i = 0; i <= RETRY_COUNT; i++) {
-          try {
-            // @ts-expect-error
-            return await action(...args);
-          } catch (error) {
-            const eventName =
-              event.type === "setup"
-                ? event.setupCallback.name
-                : event.eventCallback.name;
-            if (
-              (error instanceof BlockNotFoundError === false &&
-                error instanceof TransactionNotFoundError === false &&
-                error instanceof TransactionReceiptNotFoundError === false &&
-                // Note: Another way to catch this error is:
-                // `error instanceof ContractFunctionExecutionError && error.cause instanceOf ContractFunctionZeroDataError`
-                (error as Error)?.message?.includes("returned no data") ===
-                  false) ||
-              i === RETRY_COUNT ||
-              (args[0] as RetryableOptions).retryEmptyResponse === false
-            ) {
-              const chain = indexingBuild.chains.find(
-                (n) => n.id === event.chain.id,
-              )!;
-              common.logger.warn({
-                msg: "Failed 'context.client' action",
-                action: actionName,
-                event: eventName,
-                chain: chain.name,
-                chain_id: chain.id,
-                retry_count: i,
-                error: error as Error,
-              });
-
-              throw error;
-            }
-
-            const duration = BASE_DURATION * 2 ** i;
-            const chain = indexingBuild.chains.find(
-              (n) => n.id === event.chain.id,
-            )!;
-            common.logger.warn({
-              msg: "Failed 'context.client' action",
-              action: actionName,
-              event: eventName,
-              chain: chain.name,
-              chain_id: chain.id,
-              retry_count: i,
-              retry_delay: duration,
-              error: error as Error,
-            });
-            await wait(duration);
-          }
-        }
-      };
-    };
-
-    for (const action of blockDependentActions) {
-      actions[action] = getPonderAction(action);
+    for (const chain of indexingBuild.chains) {
+      cache.set(chain.id, new Map());
     }
 
-    for (const action of nonBlockDependentActions) {
-      // @ts-expect-error
-      actions[action] = _publicActions[action];
-    }
+    const getEventName = () =>
+      event.type === "setup"
+        ? event.setupCallback.name
+        : event.eventCallback.name;
 
-    for (const action of blockRequiredActions) {
-      // @ts-expect-error
-      actions[action] = _publicActions[action];
-    }
-
-    for (const action of retryableActions) {
-      actions[action] = getRetryAction(actions[action], action);
-    }
-
-    const actionsWithMetrics = {} as PonderActions;
-
-    for (const [action, actionFn] of Object.entries(actions)) {
-      // @ts-expect-error
-      actionsWithMetrics[action] = async (
-        ...args: Parameters<PonderActions[keyof PonderActions]>
-      ) => {
-        const endClock = startClock();
-        try {
-          // @ts-expect-error
-          return await actionFn(...args);
-        } finally {
-          common.metrics.ponder_indexing_rpc_action_duration.observe(
-            { action },
-            endClock(),
-          );
-        }
-      };
-    }
-
-    return actionsWithMetrics;
-  };
-
-  return {
-    getClient(chain) {
-      const rpc = indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!;
-
-      return createClient({
-        transport: cachedTransport({
-          common,
-          chain,
-          rpc,
-          syncStore,
-          cache,
-          event: () => event,
-        }),
-        chain: chain.viemChain,
-        // @ts-expect-error overriding `readContract` is not supported by viem
-      }).extend(ponderActions);
-    },
-    async prefetch({ events }) {
-      const context = {
-        logger: common.logger.child({ action: "prefetch_rpc_requests" }),
-      };
-      const prefetchEndClock = startClock();
-
-      // Use profiling metadata + next event batch to determine which
-      // rpc requests are going to be made, and preload them into the cache.
-
-      const prediction: { ev: number; request: Request }[] = [];
-
-      for (const event of events) {
-        if (profile.has(event.eventCallback.name)) {
-          for (const [, { pattern, count }] of profile.get(
-            event.eventCallback.name,
-          )!) {
-            // Expected value of times the prediction will be used.
-            const ev =
-              (count * SAMPLING_RATE) / eventCount[event.eventCallback.name]!;
-            prediction.push({
-              ev,
-              request: recoverProfilePattern(pattern, event),
-            });
-          }
-        }
-      }
-
-      const chainRequests: Map<
-        number,
-        { ev: number; request: RequestParameters }[]
-      > = new Map();
-      for (const chain of indexingBuild.chains) {
-        chainRequests.set(chain.id, []);
-      }
-
-      for (const { ev, request } of dedupe(prediction, ({ request }) =>
-        getCacheKey(encodeRequest(request)),
-      )) {
-        chainRequests.get(request.chainId)!.push({
-          ev,
-          request: encodeRequest(request),
-        });
-      }
-
-      await Promise.all(
-        Array.from(chainRequests.entries()).map(async ([chainId, requests]) => {
-          const i = indexingBuild.chains.findIndex((n) => n.id === chainId);
-          const chain = indexingBuild.chains[i]!;
-          const rpc = indexingBuild.rpcs[i]!;
-
-          const dbRequests = requests.filter(
-            ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
-          );
-
-          // Note: Without the rpc request cache, all requests miss the database.
-          let cachedResults: (string | undefined)[] = [];
-          if (chain.cacheRpcRequests) {
-            common.metrics.ponder_indexing_rpc_prefetch_total.inc(
-              {
-                chain: chain.name,
-                method: "eth_call",
-                type: "database",
-              },
-              dbRequests.length,
-            );
-
-            cachedResults = await syncStore.getRpcRequestResults(
-              {
-                requests: dbRequests.map(({ request }) => request),
-                chainId,
-              },
-              context,
-            );
-          }
-
-          for (let i = 0; i < dbRequests.length; i++) {
-            const request = dbRequests[i]!;
-            const cachedResult = cachedResults[i];
-
-            if (cachedResult !== undefined) {
-              cache
-                .get(chainId)!
-                .set(getCacheKey(request.request), cachedResult);
-            } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
-              const resultPromise = rpc
-                .request(request.request, context)
-                .then((result) => JSON.stringify(result))
-                .catch((error) => error as Error);
-
-              common.metrics.ponder_indexing_rpc_prefetch_total.inc({
-                chain: chain.name,
-                method: "eth_call",
-                type: "rpc",
-              });
-
-              // Note: Unawaited request added to cache
-              cache
-                .get(chainId)!
-                .set(getCacheKey(request.request), resultPromise);
-            }
-          }
-
-          if (dbRequests.length > 0) {
-            common.logger.debug({
-              msg: "Prefetched JSON-RPC requests",
-              chain: chain.name,
-              chain_id: chain.id,
-              request_count: dbRequests.length,
-              duration: prefetchEndClock(),
-            });
-          }
-        }),
+    /**
+     * Write the results of requests to the rpc cache in the background.
+     *
+     * Note: Failed writes are ignored, since the responses are already fetched.
+     */
+    const writeRpcRequestResults = (
+      ...args: Parameters<SyncStore["insertRpcRequestResults"]>
+    ) =>
+      FiberSet.run(
+        fibers,
+        syncStore.insertRpcRequestResults(...args).pipe(Effect.ignore),
       );
-    },
-    clear() {
-      for (const chain of indexingBuild.chains) {
-        cache.get(chain.id)!.clear();
-      }
-    },
-    set event(_event: Event | SetupEvent) {
-      event = _event;
-    },
-  };
-};
 
-export const cachedTransport =
-  ({
-    common,
-    chain,
-    rpc,
-    syncStore,
-    cache,
-    event,
-  }: {
-    common: Common;
-    chain: Chain;
-    rpc: Rpc;
-    syncStore: SyncStore;
-    cache: Cache;
-    event: () => Event | SetupEvent;
-  }): Transport =>
-  ({ chain: viemChain }) =>
-    custom({
-      async request({ method, params }) {
-        const _event = event();
+    /** The finalized checkpoint of each chain, see `finalize`. */
+    const finalizedCheckpoints = new Map<number, string>();
+    /**
+     * The rpc cache results of the requests of unfinalized events of each
+     * chain, by cache key, with the checkpoint of the first event.
+     */
+    const unfinalizedResults = new Map<
+      number,
+      Map<
+        string,
+        Parameters<
+          SyncStore["insertRpcRequestResults"]
+        >[0]["requests"][number] & { checkpoint: string }
+      >
+    >();
+    for (const chain of indexingBuild.chains) {
+      unfinalizedResults.set(chain.id, new Map());
+    }
+
+    // Note: The rpc cache is keyed by block number, so a cached result of a
+    // block that is reorged, such as while the app is down, would be read for
+    // the block that replaces it. Only the results of finalized events are
+    // written, and of requests at the "latest" block (encoded as 0), which are
+    // immutable.
+    const insertRpcRequestResults = (
+      ...[{ requests, chainId }, context]: Parameters<
+        SyncStore["insertRpcRequestResults"]
+      >
+    ) => {
+      const finalizedCheckpoint = finalizedCheckpoints.get(chainId);
+      if (
+        finalizedCheckpoint === undefined ||
+        event.checkpoint <= finalizedCheckpoint
+      ) {
+        return writeRpcRequestResults({ requests, chainId }, context);
+      }
+
+      const results = unfinalizedResults.get(chainId)!;
+      for (const request of requests) {
+        const cacheKey = getCacheKey(request.request);
+        if (request.blockNumber !== 0 && results.has(cacheKey) === false) {
+          results.set(cacheKey, { ...request, checkpoint: event.checkpoint });
+        }
+      }
+
+      const immutableRequests = requests.filter(
+        ({ blockNumber }) => blockNumber === 0,
+      );
+      return immutableRequests.length === 0
+        ? Effect.void
+        : writeRpcRequestResults(
+            { requests: immutableRequests, chainId },
+            context,
+          );
+    };
+
+    /** Read the rpc cache, and the results of unfinalized events. */
+    const getRpcRequestResults = (
+      ...[{ requests, chainId }, context]: Parameters<
+        SyncStore["getRpcRequestResults"]
+      >
+    ) =>
+      Effect.gen(function* () {
+        const results = unfinalizedResults.get(chainId)!;
+        const dbResults = yield* syncStore.getRpcRequestResults(
+          {
+            requests: requests.filter(
+              (request) => results.has(getCacheKey(request)) === false,
+            ),
+            chainId,
+          },
+          context,
+        );
+        let index = 0;
+        return requests.map(
+          (request) =>
+            results.get(getCacheKey(request))?.result ?? dbResults[index++],
+        );
+      });
+
+    /** Send `body` with the cache in memory, the rpc cache, then the RPC. */
+    const request = (
+      chain: Chain,
+      rpc: Rpc,
+      { method, params }: { method: string; params: any },
+    ): Effect.Effect<unknown, Error> =>
+      Effect.gen(function* () {
         const context = {
-          logger: common.logger.child({
+          logAnnotations: {
             action: "cache JSON-RPC request",
-            event:
-              _event.type === "setup"
-                ? _event.setupCallback.name
-                : _event.eventCallback.name,
-          }),
+            event: getEventName(),
+          },
         };
-        const body = { method, params };
+        const body = { method, params } as RequestParameters;
 
         // multicall
         if (
@@ -882,28 +639,28 @@ export const cachedTransport =
             if (cache.get(chain.id)!.has(cacheKey)) {
               const cachedResult = cache.get(chain.id)!.get(cacheKey)!;
 
-              if (cachedResult instanceof Promise) {
-                common.metrics.ponder_indexing_rpc_requests_total.inc({
+              if (Fiber.isFiber(cachedResult)) {
+                metrics.ponder_indexing_rpc_requests_total.inc({
                   chain: chain.name,
                   method,
                   type: "prefetch_rpc",
                 });
-                const result = await cachedResult;
+                const result = yield* Fiber.await(cachedResult);
 
                 // Note: we don't attempt to cache or prefetch errors, instead relying on the eventual RPC request.
 
-                if (result instanceof Error) continue;
+                if (Exit.isFailure(result)) continue;
 
-                if (UNCACHED_RESPONSES.includes(result) === false) {
+                if (UNCACHED_RESPONSES.includes(result.value) === false) {
                   requestsToInsert.add(request);
                 }
 
                 results.set(request, {
                   success: true,
-                  returnData: decodeResponse(result),
+                  returnData: decodeResponse(result.value),
                 });
               } else {
-                common.metrics.ponder_indexing_rpc_requests_total.inc({
+                metrics.ponder_indexing_rpc_requests_total.inc({
                   chain: chain.name,
                   method,
                   type: "prefetch_database",
@@ -921,7 +678,7 @@ export const cachedTransport =
           );
 
           const dbResults = chain.cacheRpcRequests
-            ? await syncStore.getRpcRequestResults(
+            ? yield* getRpcRequestResults(
                 { requests: dbRequests, chainId: chain.id },
                 context,
               )
@@ -932,7 +689,7 @@ export const cachedTransport =
             const result = dbResults[i];
 
             if (result !== undefined) {
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
+              metrics.ponder_indexing_rpc_requests_total.inc({
                 chain: chain.name,
                 method,
                 type: "database",
@@ -950,8 +707,10 @@ export const cachedTransport =
               (request) => results.has(request) === false,
             );
 
-            const multicallResult = await rpc
-              .request(
+            const multicallResult = decodeFunctionResult({
+              abi: multicall3Abi,
+              functionName: "aggregate3",
+              data: yield* rpc.request(
                 {
                   method: "eth_call",
                   params: [
@@ -971,14 +730,8 @@ export const cachedTransport =
                   ],
                 },
                 context,
-              )
-              .then((result) =>
-                decodeFunctionResult({
-                  abi: multicall3Abi,
-                  functionName: "aggregate3",
-                  data: result,
-                }),
-              );
+              ),
+            });
 
             for (let i = 0; i < _requests.length; i++) {
               const request = _requests[i]!;
@@ -991,7 +744,7 @@ export const cachedTransport =
                 requestsToInsert.add(request);
               }
 
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
+              metrics.ponder_indexing_rpc_requests_total.inc({
                 chain: chain.name,
                 method,
                 type: "rpc",
@@ -1008,22 +761,18 @@ export const cachedTransport =
                 ? 0
                 : hexToNumber(blockNumber);
 
-          // Note: insertRpcRequestResults errors can be ignored and not awaited, since
-          // the response is already fetched.
           if (chain.cacheRpcRequests) {
-            syncStore
-              .insertRpcRequestResults(
-                {
-                  requests: Array.from(requestsToInsert).map((request) => ({
-                    request,
-                    blockNumber: encodedBlockNumber,
-                    result: JSON.stringify(results.get(request)!.returnData),
-                  })),
-                  chainId: chain.id,
-                },
-                context,
-              )
-              .catch(() => {});
+            yield* insertRpcRequestResults(
+              {
+                requests: Array.from(requestsToInsert).map((request) => ({
+                  request,
+                  blockNumber: encodedBlockNumber,
+                  result: JSON.stringify(results.get(request)!.returnData),
+                })),
+                chainId: chain.id,
+              },
+              context,
+            );
           }
 
           // Note: at this point, it is an invariant that either `allowFailure` is true or
@@ -1070,43 +819,37 @@ export const cachedTransport =
           if (cache.get(chain.id)!.has(cacheKey)) {
             const cachedResult = cache.get(chain.id)!.get(cacheKey)!;
 
-            // `cachedResult` is a Promise if the request had to be fetched from the RPC.
-            if (cachedResult instanceof Promise) {
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
+            // `cachedResult` is a fiber if the request had to be fetched from the RPC.
+            if (Fiber.isFiber(cachedResult)) {
+              metrics.ponder_indexing_rpc_requests_total.inc({
                 chain: chain.name,
                 method,
                 type: "prefetch_rpc",
               });
-              const result = await cachedResult;
-
-              if (result instanceof Error) throw result;
+              const result = yield* Fiber.join(cachedResult);
 
               if (
                 chain.cacheRpcRequests &&
                 UNCACHED_RESPONSES.includes(result) === false
               ) {
-                // Note: insertRpcRequestResults errors can be ignored and not awaited, since
-                // the response is already fetched.
-                syncStore
-                  .insertRpcRequestResults(
-                    {
-                      requests: [
-                        {
-                          request: body,
-                          blockNumber: encodedBlockNumber,
-                          result,
-                        },
-                      ],
-                      chainId: chain.id,
-                    },
-                    context,
-                  )
-                  .catch(() => {});
+                yield* insertRpcRequestResults(
+                  {
+                    requests: [
+                      {
+                        request: body,
+                        blockNumber: encodedBlockNumber,
+                        result,
+                      },
+                    ],
+                    chainId: chain.id,
+                  },
+                  context,
+                );
               }
 
               return decodeResponse(result);
             } else {
-              common.metrics.ponder_indexing_rpc_requests_total.inc({
+              metrics.ponder_indexing_rpc_requests_total.inc({
                 chain: chain.name,
                 method,
                 type: "prefetch_database",
@@ -1117,14 +860,14 @@ export const cachedTransport =
           }
 
           const [cachedResult] = chain.cacheRpcRequests
-            ? await syncStore.getRpcRequestResults(
+            ? yield* getRpcRequestResults(
                 { requests: [body], chainId: chain.id },
                 context,
               )
             : [undefined];
 
           if (cachedResult !== undefined) {
-            common.metrics.ponder_indexing_rpc_requests_total.inc({
+            metrics.ponder_indexing_rpc_requests_total.inc({
               chain: chain.name,
               method,
               type: "database",
@@ -1133,42 +876,449 @@ export const cachedTransport =
             return decodeResponse(cachedResult);
           }
 
-          common.metrics.ponder_indexing_rpc_requests_total.inc({
+          metrics.ponder_indexing_rpc_requests_total.inc({
             chain: chain.name,
             method,
             type: "rpc",
           });
 
-          const response = await rpc.request(body, context);
+          const response = yield* rpc.request(body, context);
 
           if (
             chain.cacheRpcRequests &&
             UNCACHED_RESPONSES.includes(response) === false
           ) {
-            // Note: insertRpcRequestResults errors can be ignored and not awaited, since
-            // the response is already fetched.
-            syncStore
-              .insertRpcRequestResults(
-                {
-                  requests: [
-                    {
-                      request: body,
-                      blockNumber: encodedBlockNumber,
-                      result: JSON.stringify(response),
-                    },
-                  ],
-                  chainId: chain.id,
-                },
-                context,
-              )
-              .catch(() => {});
+            yield* insertRpcRequestResults(
+              {
+                requests: [
+                  {
+                    request: body,
+                    blockNumber: encodedBlockNumber,
+                    result: JSON.stringify(response),
+                  },
+                ],
+                chainId: chain.id,
+              },
+              context,
+            );
           }
           return response;
         } else {
-          return rpc.request(body, context);
+          return yield* rpc.request(body, context);
+        }
+      });
+
+    const ponderActions = <
+      TTransport extends Transport = Transport,
+      TChain extends ViemChain | undefined = ViemChain | undefined,
+      TAccount extends Account | undefined = Account | undefined,
+    >(
+      client: Client<TTransport, TChain, TAccount>,
+    ): PonderActions => {
+      const _publicActions = publicActions(client);
+
+      const addProfilePattern = ({
+        pattern,
+        hasConstant,
+      }: {
+        pattern: ProfilePattern;
+        hasConstant: boolean;
+      }) => {
+        const profilePatternKey = getProfilePatternKey(pattern);
+        const eventName = (event as Event).eventCallback.name;
+
+        if (profile.get(eventName)!.has(profilePatternKey)) {
+          profile.get(eventName)!.get(profilePatternKey)!.count++;
+
+          if (hasConstant) {
+            profileConstantLRU.get(eventName)!.delete(profilePatternKey);
+            profileConstantLRU.get(eventName)!.add(profilePatternKey);
+          }
+        } else {
+          profile
+            .get(eventName)!
+            .set(profilePatternKey, { pattern, hasConstant, count: 1 });
+
+          if (hasConstant) {
+            profileConstantLRU.get(eventName)!.add(profilePatternKey);
+            if (
+              profileConstantLRU.get(eventName)!.size >
+              MAX_CONSTANT_PATTERN_COUNT
+            ) {
+              const firstKey = profileConstantLRU
+                .get(eventName)!
+                .keys()
+                .next().value;
+              if (firstKey) {
+                profile.get(eventName)!.delete(firstKey);
+                profileConstantLRU.get(eventName)!.delete(firstKey);
+              }
+            }
+          }
+        }
+      };
+
+      const getPonderAction = <
+        action extends (typeof blockDependentActions)[number],
+      >(
+        action: action,
+      ) => {
+        return ({
+          cache,
+          blockNumber: userBlockNumber,
+          ...args
+        }: Parameters<PonderActions[action]>[0]) => {
+          // Note: prediction only possible when block number is managed by Ponder.
+
+          if (
+            event.type !== "setup" &&
+            userBlockNumber === undefined &&
+            eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
+          ) {
+            const eventName = event.eventCallback.name;
+
+            if (profile.has(eventName) === false) {
+              profile.set(eventName, new Map());
+              profileConstantLRU.set(eventName, new Set());
+            }
+
+            // profile "readContract" and "multicall" actions
+            if (action === "readContract") {
+              const recordPatternResult = recordProfilePattern({
+                event: event,
+                args: { ...args, cache } as Parameters<
+                  PonderActions["readContract"]
+                >[0],
+                hints: Array.from(profile.get(eventName)!.values()),
+              });
+              if (recordPatternResult) {
+                addProfilePattern(recordPatternResult);
+              }
+            } else if (action === "multicall") {
+              const contracts = (
+                { ...args, cache } as Parameters<PonderActions["multicall"]>[0]
+              ).contracts as ContractFunctionParameters[];
+
+              if (contracts.length < 10) {
+                for (const contract of contracts) {
+                  const recordPatternResult = recordProfilePattern({
+                    event: event,
+                    args: contract,
+                    hints: Array.from(profile.get(eventName)!.values()),
+                  });
+                  if (recordPatternResult) {
+                    addProfilePattern(recordPatternResult);
+                  }
+                }
+              }
+            }
+          }
+
+          const blockNumber =
+            event.type === "setup" ? event.block : event.event.block.number;
+
+          // @ts-expect-error
+          return _publicActions[action]({
+            ...args,
+            ...(cache === "immutable"
+              ? { blockTag: "latest" }
+              : { blockNumber: userBlockNumber ?? blockNumber }),
+          } as Parameters<ReturnType<typeof publicActions>[action]>[0]);
+        };
+      };
+
+      /** Retry `action` when the RPC returns an empty response. */
+      const withRetry =
+        (
+          action: (...args: any[]) => Effect.Effect<unknown, Error>,
+          actionName: keyof PonderActions,
+        ) =>
+        (...args: any[]): Effect.Effect<unknown, Error> =>
+          Effect.gen(function* () {
+            for (let i = 0; i <= RETRY_COUNT; i++) {
+              const result = yield* Effect.result(action(...args));
+              if (Result.isSuccess(result)) return result.success;
+
+              const error = result.failure;
+              const chain = indexingBuild.chains.find(
+                (n) => n.id === event.chain.id,
+              )!;
+
+              if (
+                (error instanceof BlockNotFoundError === false &&
+                  error instanceof TransactionNotFoundError === false &&
+                  error instanceof TransactionReceiptNotFoundError === false &&
+                  // Note: Another way to catch this error is:
+                  // `error instanceof ContractFunctionExecutionError && error.cause instanceOf ContractFunctionZeroDataError`
+                  error?.message?.includes("returned no data") === false) ||
+                i === RETRY_COUNT ||
+                (args[0] as RetryableOptions).retryEmptyResponse === false
+              ) {
+                yield* Effect.logWarning({
+                  msg: "Failed 'context.client' action",
+                  action: actionName,
+                  event: getEventName(),
+                  chain: chain.name,
+                  chain_id: chain.id,
+                  retry_count: i,
+                  error,
+                });
+
+                return yield* Effect.fail(error);
+              }
+
+              const duration = BASE_DURATION * 2 ** i;
+              yield* Effect.logWarning({
+                msg: "Failed 'context.client' action",
+                action: actionName,
+                event: getEventName(),
+                chain: chain.name,
+                chain_id: chain.id,
+                retry_count: i,
+                retry_delay: duration,
+                error,
+              });
+              yield* Effect.sleep(duration);
+            }
+
+            return yield* Effect.die("unreachable");
+          });
+
+      const actions = {} as Record<
+        keyof PonderActions,
+        (...args: any[]) => Effect.Effect<unknown, Error>
+      >;
+
+      for (const action of blockDependentActions) {
+        const ponderAction = getPonderAction(action);
+        actions[action] = (...args) =>
+          fromPromise(() => (ponderAction as any)(...args));
+      }
+
+      for (const action of [
+        ...nonBlockDependentActions,
+        ...blockRequiredActions,
+      ]) {
+        actions[action] = (...args) =>
+          fromPromise(() => (_publicActions[action] as any)(...args));
+      }
+
+      for (const action of retryableActions) {
+        actions[action] = withRetry(actions[action], action);
+      }
+
+      const actionsWithMetrics = {} as PonderActions;
+
+      for (const [action, actionFn] of Object.entries(actions)) {
+        // @ts-expect-error
+        actionsWithMetrics[action] = (...args: any[]) =>
+          runPromise(
+            Effect.gen(function* () {
+              const endClock = yield* startClockEffect;
+              return yield* actionFn(...args).pipe(
+                Effect.ensuring(
+                  Effect.map(endClock, (duration) =>
+                    metrics.ponder_indexing_rpc_action_duration.observe(
+                      { action },
+                      duration,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+      }
+
+      return actionsWithMetrics;
+    };
+
+    const cachedViemClient: CachedViemClient = {
+      getClient(chain) {
+        const rpc = indexingBuild.rpcs[indexingBuild.chains.indexOf(chain)]!;
+
+        return createClient({
+          transport: ({ chain: viemChain }) =>
+            custom({
+              request: (body) => runPromise(request(chain, rpc, body)),
+            })({ chain: viemChain, retryCount: 0 }),
+          chain: chain.viemChain,
+          // @ts-expect-error overriding `readContract` is not supported by viem
+        }).extend(ponderActions);
+      },
+      prefetch: ({ events }) =>
+        Effect.gen(function* () {
+          const context = {
+            logAnnotations: { action: "prefetch_rpc_requests" },
+          };
+          const prefetchEndClock = yield* startClockEffect;
+
+          // Use profiling metadata + next event batch to determine which
+          // rpc requests are going to be made, and preload them into the cache.
+
+          const prediction: { ev: number; request: Request }[] = [];
+
+          for (const event of events) {
+            if (profile.has(event.eventCallback.name)) {
+              for (const [, { pattern, count }] of profile.get(
+                event.eventCallback.name,
+              )!) {
+                // Expected value of times the prediction will be used.
+                const ev =
+                  (count * SAMPLING_RATE) /
+                  eventCount[event.eventCallback.name]!;
+                prediction.push({
+                  ev,
+                  request: recoverProfilePattern(pattern, event),
+                });
+              }
+            }
+          }
+
+          const chainRequests: Map<
+            number,
+            { ev: number; request: RequestParameters }[]
+          > = new Map();
+          for (const chain of indexingBuild.chains) {
+            chainRequests.set(chain.id, []);
+          }
+
+          for (const { ev, request } of dedupe(prediction, ({ request }) =>
+            getCacheKey(encodeRequest(request)),
+          )) {
+            chainRequests.get(request.chainId)!.push({
+              ev,
+              request: encodeRequest(request),
+            });
+          }
+
+          yield* Effect.forEach(
+            chainRequests.entries(),
+            ([chainId, requests]) =>
+              Effect.gen(function* () {
+                const i = indexingBuild.chains.findIndex(
+                  (n) => n.id === chainId,
+                );
+                const chain = indexingBuild.chains[i]!;
+                const rpc = indexingBuild.rpcs[i]!;
+
+                const dbRequests = requests.filter(
+                  ({ ev }) => ev > DB_PREDICTION_THRESHOLD,
+                );
+
+                // Note: Without the rpc request cache, all requests miss the database.
+                let cachedResults: (string | undefined)[] = [];
+                if (chain.cacheRpcRequests) {
+                  metrics.ponder_indexing_rpc_prefetch_total.inc(
+                    {
+                      chain: chain.name,
+                      method: "eth_call",
+                      type: "database",
+                    },
+                    dbRequests.length,
+                  );
+
+                  cachedResults = yield* getRpcRequestResults(
+                    {
+                      requests: dbRequests.map(({ request }) => request),
+                      chainId,
+                    },
+                    context,
+                  );
+                }
+
+                for (let i = 0; i < dbRequests.length; i++) {
+                  const request = dbRequests[i]!;
+                  const cachedResult = cachedResults[i];
+
+                  if (cachedResult !== undefined) {
+                    cache
+                      .get(chainId)!
+                      .set(getCacheKey(request.request), cachedResult);
+                  } else if (request.ev > RPC_PREDICTION_THRESHOLD) {
+                    // Note: The request runs in the background, and the first request
+                    // of an indexing function that hits the cache awaits it.
+                    const result = yield* FiberSet.run(
+                      fibers,
+                      rpc
+                        .request(request.request, context)
+                        .pipe(Effect.map((result) => JSON.stringify(result))),
+                    );
+
+                    metrics.ponder_indexing_rpc_prefetch_total.inc({
+                      chain: chain.name,
+                      method: "eth_call",
+                      type: "rpc",
+                    });
+
+                    cache
+                      .get(chainId)!
+                      .set(getCacheKey(request.request), result);
+                  }
+                }
+
+                if (dbRequests.length > 0) {
+                  yield* Effect.logDebug({
+                    msg: "Prefetched JSON-RPC requests",
+                    chain: chain.name,
+                    chain_id: chain.id,
+                    request_count: dbRequests.length,
+                    duration: yield* prefetchEndClock,
+                  });
+                }
+              }),
+            { concurrency: "unbounded", discard: true },
+          );
+        }),
+      clear() {
+        for (const chain of indexingBuild.chains) {
+          cache.get(chain.id)!.clear();
         }
       },
-    })({ chain: viemChain, retryCount: 0 });
+      get event() {
+        return event;
+      },
+      set event(_event: Event | SetupEvent) {
+        event = _event;
+      },
+      finalize: ({ chainId, checkpoint }) =>
+        Effect.suspend(() => {
+          finalizedCheckpoints.set(chainId, checkpoint);
+          const results = unfinalizedResults.get(chainId)!;
+          const requests: Parameters<
+            SyncStore["insertRpcRequestResults"]
+          >[0]["requests"] = [];
+          for (const [cacheKey, result] of results) {
+            if (result.checkpoint <= checkpoint) {
+              requests.push(result);
+              results.delete(cacheKey);
+            }
+          }
+          return Effect.forEach(
+            Array.from({ length: Math.ceil(requests.length / 1_000) }, (_, i) =>
+              requests.slice(i * 1_000, (i + 1) * 1_000),
+            ),
+            (requests) => writeRpcRequestResults({ requests, chainId }),
+            { discard: true },
+          );
+        }),
+      reorg({ chainId, checkpoint }) {
+        const results = unfinalizedResults.get(chainId)!;
+        for (const [cacheKey, result] of results) {
+          if (result.checkpoint > checkpoint) results.delete(cacheKey);
+        }
+      },
+    };
+
+    return cachedViemClient;
+  });
+
+const fromPromise = <A>(
+  evaluate: () => PromiseLike<A>,
+): Effect.Effect<A, Error> =>
+  Effect.tryPromise({
+    try: async () => await evaluate(),
+    catch: (error) => error as Error,
+  });
 
 export const extractBlockNumberParam = (request: RequestParameters) => {
   let blockNumber: Hex | "latest" | undefined;
