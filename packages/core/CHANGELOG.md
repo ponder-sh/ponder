@@ -1,5 +1,11 @@
 # ponder
 
+## 0.18.4
+
+### Patch Changes
+
+- [#2427](https://github.com/ponder-sh/ponder/pull/2427) [`16fc227`](https://github.com/ponder-sh/ponder/commit/16fc227d692202adb498839d36963b202b9d784e) Thanks [@tremarkley](https://github.com/tremarkley)! - Fixed a bug that caused Postgres queries to hang or fail with `timeout exceeded when trying to connect` after a database restart or failover until Ponder was restarted.
+
 ## 0.18.3
 
 No changes in this release.
