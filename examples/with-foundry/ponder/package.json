@@ -5,7 +5,6 @@
   "scripts": {
     "codegen": "ponder codegen",
     "dev": "ponder dev",
-    "lint": "eslint .",
     "start": "ponder start",
     "typecheck": "tsc"
   },
@@ -16,8 +15,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "eslint": "^8.54.0",
-    "eslint-config-ponder": "workspace:*",
     "typescript": "^5.4.0"
   },
   "engines": {

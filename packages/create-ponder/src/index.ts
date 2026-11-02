@@ -336,8 +336,6 @@ export async function run({
   const packageJson = await fs.readJSON(path.join(projectPath, "package.json"));
   packageJson.name = projectName;
   packageJson.dependencies.ponder = `^${rootPackageJson.version}`;
-  packageJson.devDependencies["eslint-config-ponder"] =
-    `^${rootPackageJson.version}`;
   if ("bun" in process.versions) {
     packageJson.scripts = addBunFlagToScripts(packageJson.scripts ?? {});
   }

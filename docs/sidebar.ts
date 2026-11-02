@@ -1,5 +1,3 @@
-import type { Sidebar } from "vocs";
-
 export const sidebar = {
   "/docs/": [
     {
@@ -880,7 +878,7 @@ export const sidebar = {
       ],
     },
   ],
-} satisfies Sidebar;
+};
 
 export function getCanonicalSubpath(subpath: string): string | null {
   if (subpath.startsWith("/docs/0.17")) {

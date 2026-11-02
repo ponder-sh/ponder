@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Repository Shape
-- This is a pnpm `12.10.1` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI uses the Node `24` preinstalled on the runner, Postgres 16 preinstalled on the runner, and a pinned Foundry nightly.
+- This is a pnpm `12.15.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`), uses the Postgres preinstalled on the runner (16 on Linux, 17 on Windows), and sets up exact Node, pnpm, Bun, and Foundry versions inline in each workflow job. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
 - Workspace packages are `packages/*`, `docs`, `examples/**`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
 - `packages/core` and `packages/react` build with custom `build.ts` scripts. `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.
@@ -39,8 +39,7 @@
 - CI separately verifies the Next.js frontend example with `pnpm --filter ponder-examples-with-nextjs-frontend build` after `pnpm build`.
 
 ## Changesets
-- Changesets are fixed for `ponder`, `create-ponder`, `eslint-config-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `pnpm changeset`. Public API or bug-fix PRs normally need a patch changeset.
-- Changesets has a bug for fixed packages at pre-`1.0.0` versions with a minor component of `10` or greater: a `minor` changeset incorrectly produces `1.0.0`. Manually correct the generated release PR to the next `0.x` minor version (for example, `0.16.10` to `0.17.0`) before merging.
+- Changesets are fixed for `ponder`, `create-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `pnpm changeset`. Public API or bug-fix PRs normally need a patch changeset.
 - Write changesets in the same voice as `packages/core/CHANGELOG.md`: concise, user-facing, past tense, and focused on observable behavior.
 - Start with the outcome, not the implementation. Prefer phrasing like "Fixed a bug that caused...", "Fixed a regression introduced in `v0.16.0` that caused...", "Improved...", "Added...", "Updated...", or "Removed...".
 - Include concrete symptoms when helpful, especially exact error messages in backticks. Use patterns like "Fixed the error `...`" or "that caused `...`".

@@ -43,13 +43,17 @@ jobs:
             seed: 98c5c3716e33ba8ea2a8ba8d36f942cf1c2fb368f2d33a5f6bf434e087487bce
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          foundry: "false"
-      - uses: oven-sh/setup-bun@v2
+          node-version: 24.22.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
-          bun-version: 1.4.0
+          cache: true
+      - run: pnpm install --frozen-lockfile
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
 
       - run: pnpm build
       - run: pnpm install
@@ -88,13 +92,17 @@ jobs:
         iteration: [0, 1, 2]
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          foundry: "false"
-      - uses: oven-sh/setup-bun@v2
+          node-version: 24.22.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
-          bun-version: 1.4.0
+          cache: true
+      - run: pnpm install --frozen-lockfile
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
 
       - run: pnpm build
       - run: pnpm install
@@ -120,13 +128,17 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          foundry: "false"
-      - uses: oven-sh/setup-bun@v2
+          node-version: 24.22.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
-          bun-version: 1.4.0
+          cache: true
+      - run: pnpm install --frozen-lockfile
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
       - run: |
           cd simulation-test
           bun run src/cleanup-database.ts

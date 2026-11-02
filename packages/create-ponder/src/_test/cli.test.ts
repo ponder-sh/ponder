@@ -26,7 +26,6 @@ test("create empty", async () => {
   expect(files).toEqual(
     expect.arrayContaining([
       ".env.local",
-      ".eslintrc.json",
       ".gitignore",
       "package.json",
       "ponder-env.d.ts",

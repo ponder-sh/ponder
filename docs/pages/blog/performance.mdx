@@ -1,5 +1,6 @@
 ---
 layout: minimal
+showAskAi: false
 title: "Ponder’s (ongoing) journey to 100,000 events per second"
 description: "Part 1: Speculation and Ponder’s in-memory database"
 date: "June 23, 2025"
@@ -13,7 +14,7 @@ import { Footer } from "../../components/footer";
   <img src="/kyle-avatar.jpg" className="w-10 h-10 rounded-full" />
   <div className="flex flex-col">
     <span className="font-medium">Kyle Scott</span>
-    <span className="text-sm" style={{ color: "var(--vocs-color_text3)" }}>June 23, 2025</span>
+    <span className="text-sm" style={{ color: "var(--vocs-text-color-secondary)" }}>June 23, 2025</span>
   </div>
 </div>
 
@@ -161,6 +162,6 @@ We haven’t yet achieved our goal of 100,000 events per second. There are still
 + **Column selection**: Most data (`block.logsBloom`, `transaction.input`) passed to indexing functions never gets used.
 + **Node-API**: Computationally expensive functions such as `checksumAddress` can benefit from native code.
 
-If any of these ideas excite you, please check out our [GitHub](https://github.com/ponder-sh/ponder) or reach out to jobs@ponder.sh.
+If any of these ideas excite you, please check out our [GitHub](https://github.com/ponder-sh/ponder).
 
 <Footer />

@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.18.3
+
+### Patch Changes
+
+- [#2438](https://github.com/ponder-sh/ponder/pull/2438) [`bf8acf2`](https://github.com/ponder-sh/ponder/commit/bf8acf271a450c9308c8d07287ee43cd82c4fd1d) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed ESLint and `eslint-config-ponder` from projects created by `create-ponder`. The `eslint-config-ponder` package is no longer maintained.
+
 ## 0.18.2
 
 ## 0.18.1
