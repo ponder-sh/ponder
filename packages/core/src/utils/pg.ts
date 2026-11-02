@@ -66,7 +66,8 @@ export function createPool(config: PoolConfig, logger: Logger) {
       callback: (err: Error) => void | undefined,
     ): void | Promise<void> {
       if (callback) {
-        super.connect(() => {
+        super.connect((error) => {
+          if (error) return callback(error);
           this.query(
             `
             SET synchronous_commit = off;
@@ -150,7 +151,8 @@ export function createReadonlyPool(
       callback: (err: Error) => void | undefined,
     ): void | Promise<void> {
       if (callback) {
-        super.connect(() => {
+        super.connect((error) => {
+          if (error) return callback(error);
           this.query(
             `
           SET search_path = "${namespace}";
