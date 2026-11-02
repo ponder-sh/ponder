@@ -119,6 +119,13 @@ type ChainConfig<chain> = {
    * attempt to determine the block range automatically based on error messages.
    */
   ethGetLogsBlockRange?: number;
+  /**
+   * With omnichain ordering, let live indexing continue past this chain's last block
+   * while its RPC confirms there is no newer one, instead of waiting for its next
+   * block. Set this on a chain with slow block times. Its next block may then be
+   * indexed after blocks from other chains with later timestamps. Default: `false`.
+   */
+  allowLateBlocks?: boolean;
 };
 
 type ChainsConfig<chains> = {} extends chains

@@ -159,6 +159,7 @@ export default createConfig({
 | **reorgWindow**           |  `number`                          | **Default: `180`**. Duration, in seconds between block timestamps, for which Ponder retains the data required to recover from reorgs. Must be an integer between `0` and `600`. |
 | **cacheRpcRequests**      |  `boolean`                         | **Default: `true`**. Cache JSON-RPC data in the database and reuse it between runs. [Read more](/docs/config/chains#rpc-request-cache) about RPC request caching. |
 | **ethGetLogsBlockRange** |  `number`                          | **Default: `undefined`**. Maximum block range for `eth_getLogs` requests. If undefined, Ponder will attempt to determine the block range automatically based on error messages. |
+| **allowLateBlocks**      |  `boolean`                         | **Default: `false`**. With `"omnichain"` ordering, don't wait for this chain's next block while its RPC confirms there is no newer one. [Read more](/docs/config/chains#late-blocks) about late blocks. |
 
 ### `contracts`
 
