@@ -1090,6 +1090,52 @@ test("plural with one relation uses dataloader", async () => {
   expect(petSelectSpy).toHaveBeenCalledTimes(1);
 });
 
+test("total count in fragments", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets {
+        ... on petPage {
+          totalCount
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
+
+  result = await query(`
+    query {
+      pets {
+        ...Outer
+      }
+    }
+    fragment Outer on petPage {
+      ...PetCount
+    }
+    fragment PetCount on petPage {
+      totalCount
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
+});
+
 test("filter input type", async () => {
   const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
