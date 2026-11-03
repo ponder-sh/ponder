@@ -91,6 +91,26 @@ test("clear", () => {
   expect(queue.size()).toBe(0);
 });
 
+test("clear after partial dequeue", async () => {
+  const { promise } = promiseWithResolvers<void>();
+
+  const queue = createQueue<void, number>({
+    concurrency: 2,
+    browser: false,
+    worker: () => promise,
+  });
+
+  for (const task of [0, 1, 2, 3, 4]) queue.add(task);
+
+  await queue.start();
+
+  expect(queue.size()).toBe(3);
+
+  queue.clear();
+
+  expect(queue.size()).toBe(0);
+});
+
 test("clear timer", async () => {
   const queue = createQueue({
     frequency: 1,
