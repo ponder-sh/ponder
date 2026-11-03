@@ -3903,6 +3903,80 @@ test("cursor pagination with date order", async () => {
   `);
 });
 
+test("filter timestamp and date", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    createdAt: t.timestamp(),
+    day: t.date({ mode: "date" }),
+    history: t.timestamp().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    {
+      id: "id1",
+      createdAt: new Date("2024-01-01T00:00:00.000Z"),
+      day: new Date("2024-01-01"),
+      history: [new Date("2024-01-01T00:00:00.000Z")],
+    },
+    {
+      id: "id2",
+      createdAt: new Date("2024-06-01T12:30:00.000Z"),
+      day: new Date("2024-06-01"),
+      history: [],
+    },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  // Values are returned as unix timestamps in milliseconds.
+  const result = await query(`query { pet(id: "id2") { createdAt day } }`);
+  expect(result.data).toMatchObject({
+    pet: { createdAt: "1717245000000", day: "1717200000000" },
+  });
+
+  // Filters accept the output format and ISO 8601 strings.
+  expect(await ids(`{ createdAt: "1717245000000" }`)).toStrictEqual(["id2"]);
+  expect(await ids(`{ createdAt: "2024-06-01T12:30:00.000Z" }`)).toStrictEqual([
+    "id2",
+  ]);
+  expect(await ids(`{ createdAt_not: "1717245000000" }`)).toStrictEqual([
+    "id1",
+  ]);
+  expect(
+    await ids(`{ createdAt_in: ["2024-01-01T00:00:00.000Z"] }`),
+  ).toStrictEqual(["id1"]);
+  expect(await ids(`{ createdAt_not_in: ["1704067200000"] }`)).toStrictEqual([
+    "id2",
+  ]);
+  expect(await ids(`{ day: "2024-06-01" }`)).toStrictEqual(["id2"]);
+  expect(await ids(`{ day: "1717200000000" }`)).toStrictEqual(["id2"]);
+  expect(await ids(`{ history_has: "1704067200000" }`)).toStrictEqual(["id1"]);
+
+  const invalid = await query(
+    `query { pets(where: { createdAt: "yesterday" }) { items { id } } }`,
+  );
+  expect(invalid.errors?.[0]?.message).toBe(
+    'Invalid query: Invalid date value "yesterday" for column createdAt',
+  );
+});
+
 test("column casing", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({

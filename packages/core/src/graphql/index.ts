@@ -36,6 +36,7 @@ import {
   getViewConfig,
   isPgEnum,
   isPgView,
+  type PgArray,
   PgBigInt53,
   type PgColumn,
   type PgEnum,
@@ -1090,7 +1091,7 @@ function buildWhereConditions(
 
   if (where === undefined || where === null) return conditions;
 
-  for (const [whereKey, rawValue] of Object.entries(where)) {
+  for (let [whereKey, rawValue] of Object.entries(where)) {
     // Handle the `AND` and `OR` operators
     if (whereKey === "AND" || whereKey === "OR") {
       if (rawValue === null) continue;
@@ -1156,6 +1157,8 @@ function buildWhereConditions(
     if (Array.isArray(rawValue) && rawValue.includes(null)) {
       throw new GraphQLError(`Invalid query: ${whereKey} cannot contain null`);
     }
+
+    rawValue = parseDateValue(column, columnName, rawValue);
 
     switch (conditionSuffix) {
       case "":
@@ -1263,6 +1266,29 @@ function buildWhereConditions(
   }
 
   return conditions;
+}
+
+function parseDateValue(column: Column, columnName: string, value: any): any {
+  const isDateColumn =
+    column.dataType === "date" ||
+    (column.columnType === "PgArray" &&
+      (column as PgArray<any, any>).baseColumn.dataType === "date");
+  if (isDateColumn === false) return value;
+
+  const parse = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(parse);
+    if (typeof v !== "string") return v;
+
+    const date = /^-?\d+$/.test(v) ? new Date(Number(v)) : new Date(v);
+    if (Number.isNaN(date.getTime())) {
+      throw new GraphQLError(
+        `Invalid query: Invalid date value "${v}" for column ${columnName}`,
+      );
+    }
+    return date;
+  };
+
+  return parse(value);
 }
 
 function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
