@@ -593,7 +593,8 @@ function addColumnFilterFields(
       };
     });
 
-    if (["String", "ID"].includes(type.name)) {
+    // String filters use `LIKE`, which only supports text columns.
+    if (textColumnTypes.includes(column.columnType)) {
       const stringConditionSuffixes =
         column.columnType === "PgHex"
           ? conditionSuffixes.string.filter(
@@ -1000,6 +1001,8 @@ const conditionSuffixes = {
     "_not_ends_with_nocase",
   ],
 } as const;
+
+const textColumnTypes = ["PgText", "PgVarchar", "PgChar", "PgHex"];
 
 const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
   .flat()
