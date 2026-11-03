@@ -826,6 +826,12 @@ async function executePluralQuery(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
     }
+    // Note: Postgres has no ordering operator for `json` (unlike `jsonb`).
+    if (column.columnType === "PgJson") {
+      throw new GraphQLError(
+        `Invalid orderBy. Column "${columnName}" has type json, which cannot be ordered.`,
+      );
+    }
     return direction === "asc" ? asc(column) : desc(column);
   });
   const orderByReversed = orderBySchema.map(([columnName, direction]) => {
