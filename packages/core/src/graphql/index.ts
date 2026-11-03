@@ -30,6 +30,7 @@ import {
   One,
   or,
   SQL,
+  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -1129,12 +1130,7 @@ function buildWhereConditions(
     switch (conditionSuffix) {
       case "":
         if (column.columnType === "PgArray") {
-          conditions.push(
-            and(
-              arrayContains(column, rawValue),
-              arrayContained(column, rawValue),
-            ),
-          );
+          conditions.push(arrayEquals(column, rawValue));
         } else {
           if (rawValue === null) {
             conditions.push(isNull(column));
@@ -1145,14 +1141,7 @@ function buildWhereConditions(
         break;
       case "_not":
         if (column.columnType === "PgArray") {
-          conditions.push(
-            not(
-              and(
-                arrayContains(column, rawValue),
-                arrayContained(column, rawValue),
-              )!,
-            ),
-          );
+          conditions.push(not(arrayEquals(column, rawValue)));
         } else {
           if (rawValue === null) {
             conditions.push(isNotNull(column));
@@ -1437,4 +1426,14 @@ function selectionIncludesField(
   return info.fieldNodes.some((fieldNode) =>
     includes(fieldNode.selectionSet?.selections ?? []),
   );
+}
+
+/**
+ * Returns a condition that is true if the array column contains exactly the
+ * elements of `value`, regardless of order.
+ */
+function arrayEquals(column: Column, value: unknown[]): SQL {
+  // Note: `arrayContains` and `arrayContained` don't support empty arrays.
+  if (value.length === 0) return sql`cardinality(${column}) = 0`;
+  return and(arrayContains(column, value), arrayContained(column, value))!;
 }
