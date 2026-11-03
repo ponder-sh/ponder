@@ -47,6 +47,7 @@ import {
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLError,
   type GraphQLFieldConfig,
   type GraphQLFieldConfigMap,
   GraphQLFloat,
@@ -805,14 +806,16 @@ async function executePluralQuery(
   const offset = args.offset ?? 0;
 
   if (limit > MAX_LIMIT) {
-    throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
+    throw new GraphQLError(
+      `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
+    );
   }
 
   const orderBySchema = buildOrderBySchema(relation, args);
   const orderBy = orderBySchema.map(([columnName, direction]) => {
     const column = columns[columnName];
     if (column === undefined) {
-      throw new Error(
+      throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
     }
@@ -821,7 +824,7 @@ async function executePluralQuery(
   const orderByReversed = orderBySchema.map(([columnName, direction]) => {
     const column = columns[columnName];
     if (column === undefined) {
-      throw new Error(
+      throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
     }
@@ -834,13 +837,13 @@ async function executePluralQuery(
   const before = args.before ?? null;
 
   if (after !== null && before !== null) {
-    throw new Error("Cannot specify both before and after cursors.");
+    throw new GraphQLError("Cannot specify both before and after cursors.");
   }
   if (after !== null && offset > 0) {
-    throw new Error("Cannot specify both after cursor and offset.");
+    throw new GraphQLError("Cannot specify both after cursor and offset.");
   }
   if (before !== null && offset > 0) {
-    throw new Error("Cannot specify both before cursor and offset.");
+    throw new GraphQLError("Cannot specify both before cursor and offset.");
   }
 
   let startCursor = null;
@@ -1055,7 +1058,7 @@ function buildWhereConditions(
     // Handle the `AND` and `OR` operators
     if (whereKey === "AND" || whereKey === "OR") {
       if (!Array.isArray(rawValue)) {
-        throw new Error(
+        throw new GraphQLError(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
         );
       }
@@ -1257,7 +1260,7 @@ function buildCursorCondition(
   const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
     const column = columns[columnName];
     if (column === undefined)
-      throw new Error(
+      throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
 
