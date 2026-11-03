@@ -1354,9 +1354,11 @@ export function buildDataLoaderCache(qb: QB) {
             and(...buildWhereConditions(decodedRowFragment, table.columns)),
           );
 
+          // Note: No limit is applied because a `one` relation can reference
+          // a non-unique column, so a key can match more than one row. For a
+          // low-cardinality column, this can fetch many rows per key.
           const rows = await baseQuery.findMany({
             where: or(...idConditions),
-            limit: encodedIds.length,
           });
 
           // Now, we need to order the rows coming out of the database to match
