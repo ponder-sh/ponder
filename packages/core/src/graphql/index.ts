@@ -47,6 +47,7 @@ import {
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLError,
   type GraphQLFieldConfig,
   type GraphQLFieldConfigMap,
   GraphQLFloat,
@@ -1206,7 +1207,12 @@ function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
   // If the user-provided order by does not include the ALL of the ID columns,
   // add any missing ID columns to the end of the order by clause (asc).
   // This ensures a consistent sort order to unblock cursor pagination.
-  const userDirection = args.orderDirection ?? "asc";
+  const userDirection = (args.orderDirection ?? "asc").toLowerCase();
+  if (userDirection !== "asc" && userDirection !== "desc") {
+    throw new GraphQLError(
+      `Invalid orderDirection. Got "${args.orderDirection}", expected "asc" or "desc".`,
+    );
+  }
   const userColumns: [string, "asc" | "desc"][] =
     args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
 

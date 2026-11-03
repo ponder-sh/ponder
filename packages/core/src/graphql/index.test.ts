@@ -1921,6 +1921,67 @@ test("order by", async () => {
   });
 });
 
+test("order direction validation", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: 2 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "ASC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "DESC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "up") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderDirection. Got "up", expected "asc" or "desc".',
+  );
+});
+
 test("limit", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
