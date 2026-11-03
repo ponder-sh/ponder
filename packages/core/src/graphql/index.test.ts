@@ -399,6 +399,55 @@ test("json, json not null", async () => {
   });
 });
 
+test("order by json column", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    json: t.json(),
+    jsonb: t.jsonb(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", json: { a: 2 }, jsonb: { a: 2 } },
+    { id: "id2", json: { a: 1 }, jsonb: { a: 1 } },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "json") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderBy. Column "json" has type json, which cannot be ordered.',
+  );
+
+  result = await query(`
+    query {
+      pets(orderBy: "jsonb") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+});
+
 test("singular", async () => {
   const transferEvents = onchainTable("transfer_events", (t) => ({
     id: t.text().primaryKey(),
