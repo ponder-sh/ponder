@@ -1984,6 +1984,52 @@ test("limit", async () => {
   );
 });
 
+test("negative limit and offset", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const schema = { person };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  for (let i = 0; i < 5; i++) {
+    await database.userQB.raw.insert(schema.person).values({ id: String(i) });
+  }
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      persons(limit: -2) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid limit. Got -2, expected >=0.",
+  );
+
+  result = await query(`
+    query {
+      persons(offset: -1) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid offset. Got -1, expected >=0.",
+  );
+});
+
 function clone(result: ExecutionResult): ExecutionResult {
   return JSON.parse(JSON.stringify(result));
 }
