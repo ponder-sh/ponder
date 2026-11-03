@@ -2273,6 +2273,45 @@ test("cursor pagination descending", async () => {
   });
 });
 
+test("offset has previous page", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", name: "a" },
+    { id: "id2", name: "a" },
+    { id: "id3", name: "b" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const hasPreviousPage = async (args: string) => {
+    const result = await query(
+      `query { pets(${args}) { pageInfo { hasPreviousPage } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.pageInfo.hasPreviousPage;
+  };
+
+  expect(await hasPreviousPage(`offset: 1`)).toBe(true);
+  // Rows exist before the offset, even though the page is empty.
+  expect(await hasPreviousPage(`offset: 10`)).toBe(true);
+  expect(await hasPreviousPage(`where: { name: "a" }, offset: 2`)).toBe(true);
+  // No rows match the filter.
+  expect(await hasPreviousPage(`where: { name: "c" }, offset: 1`)).toBe(false);
+});
+
 test("cursor pagination start and end cursors", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),

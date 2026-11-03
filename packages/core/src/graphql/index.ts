@@ -898,7 +898,8 @@ async function executePluralQuery(
           ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
           : null;
     } else {
-      hasPreviousPage = true;
+      // Rows are skipped by the offset if any row matches the filters.
+      hasPreviousPage = rows.length > 0 || (await rowExists(undefined));
     }
 
     return {
