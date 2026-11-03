@@ -4,6 +4,7 @@ import {
   execute,
   type GraphQLType,
   parse,
+  validate,
 } from "graphql";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -1346,6 +1347,24 @@ test("filter universal", async () => {
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }] },
   });
+});
+
+test("numeric literal validation", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    num: t.numeric(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const errors = validate(
+    graphqlSchema,
+    parse(`query { pets(where: { num: 5 }) { items { id } } }`),
+  );
+  expect(errors[0]?.message).toBe(
+    'Expected value of type "Numeric", found 5; Invalid value kind provided for field of type Numeric: IntValue. Expected: StringValue',
+  );
 });
 
 test("filter null equality", async () => {

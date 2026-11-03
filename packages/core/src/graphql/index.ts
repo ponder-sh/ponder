@@ -706,7 +706,7 @@ const GraphQLNumeric = new GraphQLScalarType({
       return String(value.value);
     } else {
       throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
+        `Invalid value kind provided for field of type Numeric: ${value.kind}. Expected: StringValue`,
       );
     }
   },
