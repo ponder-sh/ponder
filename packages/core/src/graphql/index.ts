@@ -1463,16 +1463,28 @@ export function buildDataLoaderCache(qb: QB) {
                         `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
                       );
                     }
-                    return [col, normalizeColumn(column, val, false)];
+                    return [
+                      col,
+                      normalizeColumn(
+                        column,
+                        parseDateValue(column, col, val),
+                        false,
+                      ),
+                    ];
                   }),
                 ),
               )
               // Find the database row corresponding to each normalized row fragment
               .map((fragment) =>
                 rows.find((row) =>
-                  Object.entries(fragment).every(
-                    ([col, val]) => row[col] === val,
-                  ),
+                  Object.entries(fragment).every(([col, val]) => {
+                    const rowVal = row[col];
+                    // Note: `Date` values must be compared by value.
+                    if (val instanceof Date && rowVal instanceof Date) {
+                      return rowVal.getTime() === val.getTime();
+                    }
+                    return rowVal === val;
+                  }),
                 ),
               )
           );

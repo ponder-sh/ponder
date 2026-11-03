@@ -542,6 +542,49 @@ test("singular", async () => {
   });
 });
 
+test("singular with timestamp primary key", async () => {
+  const event = onchainTable(
+    "event",
+    (t) => ({
+      chainId: t.integer().notNull(),
+      timestamp: t.timestamp().notNull(),
+      name: t.text(),
+    }),
+    (table) => ({
+      pk: primaryKey({ columns: [table.chainId, table.timestamp] }),
+    }),
+  );
+  const schema = { event };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.event).values([
+    { chainId: 1, timestamp: new Date("2024-01-01T00:00:00.000Z"), name: "a" },
+    { chainId: 1, timestamp: new Date("2024-01-02T00:00:00.000Z"), name: "b" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      a: event(chainId: 1, timestamp: "1704067200000") {
+        name
+      }
+      b: event(chainId: 1, timestamp: "2024-01-02T00:00:00.000Z") {
+        name
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(result.data).toMatchObject({ a: { name: "a" }, b: { name: "b" } });
+});
+
 test("singular with one relation", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
