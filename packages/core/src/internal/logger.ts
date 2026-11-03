@@ -98,6 +98,9 @@ export function createLogger({
   });
 
   let logger: pino.Logger;
+  /** The time of the log being written, from the `Clock` of its fiber. */
+  let time = 0;
+  const timestamp = () => `,"time":${time}`;
 
   if (mode === "pretty") {
     logger = pino(
@@ -106,6 +109,7 @@ export function createLogger({
         serializers: { error: errorSerializer },
         // Removes "pid" and "hostname" properties from the log.
         base: undefined,
+        timestamp,
       },
       stream,
     );
@@ -115,11 +119,13 @@ export function createLogger({
       serializers: { error: errorSerializer },
       // Removes "pid" and "hostname" properties from the log.
       base: undefined,
+      timestamp,
     });
   }
 
-  return Logger.make(({ message, logLevel, cause, fiber }) => {
+  return Logger.make(({ message, logLevel, cause, fiber, date }) => {
     if (logLevel === "All" || logLevel === "None") return;
+    time = date.getTime();
 
     const [first, printKeys] = message as [unknown, string[] | undefined];
 

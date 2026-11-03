@@ -13,6 +13,7 @@
       "!**/cache",
       "!**/out",
       "!**/.ponder",
+      "!simulation-test/.apps",
       "!**/docs/",
       "!**/benchmarks/apps/subgraph-*",
       "!**/bun.lock",

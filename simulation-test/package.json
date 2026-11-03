@@ -1,24 +1,22 @@
 {
   "name": "simulation-test",
-  "module": "index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "generate": "bun run --bun drizzle-kit generate",
-    "migrate": "bun run --bun drizzle-kit migrate",
-    "create:app": "bun run src/create-app.ts",
     "test": "bun run src/index.ts",
-    "benchmark": "bun run src/benchmark.ts"
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.5",
+    "hono": "4.5.0",
+    "pg": "8.16.2",
+    "ponder": "0.18.6",
+    "viem": "2.35.0"
   },
   "devDependencies": {
     "@types/bun": "1.2.14",
     "@types/node": "22.20.1",
     "@types/pg": "8.10.9",
-    "@types/seedrandom": "3.0.8",
-    "commander": "12.0.0",
-    "drizzle-orm": "0.41.0",
-    "pg": "8.16.2",
-    "ponder": "0.18.6",
-    "seedrandom": "3.0.5"
+    "typescript": "5.9.3"
   }
 }
