@@ -1,4 +1,5 @@
-import { count, relations } from "drizzle-orm";
+import { count, getTableColumns, relations } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   type ExecutionResult,
   execute,
@@ -22,7 +23,11 @@ import {
   primaryKey,
 } from "@/drizzle/onchain.js";
 import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
-import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
+import {
+  buildCursorCondition,
+  buildDataLoaderCache,
+  buildGraphQLSchema,
+} from "./index.js";
 
 beforeEach(setupCommon);
 beforeEach(setupIsolatedDatabase);
@@ -2751,6 +2756,60 @@ test("cursor pagination has previous page", async () => {
   });
 });
 
+test("cursor condition only adds null checks for nullable columns", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+    weight: t.integer().notNull(),
+  }));
+  const columns = getTableColumns(pet);
+  const dialect = new PgDialect();
+  const toSql = (
+    orderBySchema: [string, "asc" | "desc"][],
+    direction: "after" | "before",
+    cursor: Record<string, unknown>,
+  ) =>
+    dialect.sqlToQuery(
+      buildCursorCondition(columns, orderBySchema, direction, cursor)!,
+    ).sql;
+
+  // NOT NULL columns keep plain range comparisons.
+  expect(
+    toSql(
+      [
+        ["weight", "asc"],
+        ["id", "asc"],
+      ],
+      "after",
+      { weight: 1, id: "a" },
+    ),
+  ).toBe('("pet"."weight" > $1 or ("pet"."weight" = $2 and "pet"."id" >= $3))');
+
+  // Nullable columns include the NULL group on the side where Postgres sorts it.
+  expect(
+    toSql(
+      [
+        ["age", "asc"],
+        ["id", "asc"],
+      ],
+      "after",
+      { age: 1, id: "a" },
+    ),
+  ).toBe(
+    '(("pet"."age" > $1 or "pet"."age" is null) or ("pet"."age" = $2 and "pet"."id" >= $3))',
+  );
+  expect(
+    toSql(
+      [
+        ["age", "asc"],
+        ["id", "asc"],
+      ],
+      "before",
+      { age: 1, id: "a" },
+    ),
+  ).toBe('("pet"."age" < $1 or ("pet"."age" = $2 and "pet"."id" <= $3))');
+});
+
 test("cursor pagination composite primary key", async () => {
   const allowance = onchainTable(
     "allowance",
@@ -2899,6 +2958,82 @@ test("cursor pagination composite primary key", async () => {
       totalCount: 6,
     },
   });
+});
+
+test("cursor pagination with null values in the order by column", async () => {
+  type Page = {
+    items: { id: string }[];
+    pageInfo: {
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      startCursor: string | null;
+      endCursor: string | null;
+    };
+  };
+
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: null },
+    { id: "id3", age: 2 },
+    { id: "id4", age: null },
+    { id: "id5", age: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const page = async (args: string) => {
+    const result = await query(`
+      query {
+        pets(${args}) {
+          items { id }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    `);
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    return result.data!.pets as Page;
+  };
+
+  for (const [orderDirection, expected] of [
+    // Postgres sorts NULLs last for `asc` and first for `desc`.
+    ["asc", ["id1", "id3", "id2", "id4", "id5"]],
+    ["desc", ["id5", "id4", "id2", "id3", "id1"]],
+  ] as const) {
+    const args = `orderBy: "age", orderDirection: "${orderDirection}", limit: 2`;
+
+    // Forward
+    const forward: string[] = [];
+    let result = await page(args);
+    forward.push(...result.items.map((item) => item.id));
+    while (result.pageInfo.hasNextPage) {
+      result = await page(`${args}, after: "${result.pageInfo.endCursor}"`);
+      forward.push(...result.items.map((item) => item.id));
+    }
+    expect(forward).toStrictEqual(expected);
+
+    // Backward, starting before the last row
+    const backward: string[] = [];
+    result = await page(`${args}, before: "${result.pageInfo.endCursor}"`);
+    backward.unshift(...result.items.map((item) => item.id));
+    while (result.pageInfo.hasPreviousPage) {
+      result = await page(`${args}, before: "${result.pageInfo.startCursor}"`);
+      backward.unshift(...result.items.map((item) => item.id));
+    }
+    expect(backward).toStrictEqual(expected.slice(0, 4));
+  }
 });
 
 test("cursor pagination with date order", async () => {

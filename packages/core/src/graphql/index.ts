@@ -30,6 +30,7 @@ import {
   One,
   or,
   SQL,
+  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -1282,7 +1283,7 @@ function decodeRowFragment(encodedRowFragment: string): {
   return superjson.parse(Buffer.from(encodedRowFragment, "base64").toString());
 }
 
-function buildCursorCondition(
+export function buildCursorCondition(
   columns: Record<string, Column>,
   orderBySchema: [string, "asc" | "desc"][],
   direction: "after" | "before",
@@ -1307,22 +1308,42 @@ function buildCursorCondition(
         orderDirection === "asc" ? [lt, lte] : [gt, gte];
     }
 
-    return { column, value, comparator, comparatorOrEquals };
+    // Postgres sorts NULLs last for `asc` and first for `desc`. Determine
+    // whether NULLs come after non-NULL values in the direction of the scan.
+    const nullsBeyond = (direction === "after") === (orderDirection === "asc");
+
+    // `beyond`: rows strictly beyond the cursor value in the direction of the scan.
+    // `equal`: rows with the same value as the cursor.
+    // `beyondOrEqual`: either, used for the last column. `undefined` matches every row.
+    let beyond: SQL;
+    let equal: SQL;
+    let beyondOrEqual: SQL | undefined;
+    if (value === null) {
+      beyond = nullsBeyond ? sql`false` : isNotNull(column);
+      equal = isNull(column);
+      beyondOrEqual = nullsBeyond ? isNull(column) : undefined;
+    } else if (nullsBeyond && column.notNull !== true) {
+      beyond = or(comparator(column, value), isNull(column))!;
+      equal = eq(column, value);
+      beyondOrEqual = or(comparatorOrEquals(column, value), isNull(column));
+    } else {
+      // Keep plain comparisons when NULLs can't be beyond the cursor, so
+      // Postgres can use an index range scan.
+      beyond = comparator(column, value);
+      equal = eq(column, value);
+      beyondOrEqual = comparatorOrEquals(column, value);
+    }
+
+    return { beyond, equal, beyondOrEqual };
   });
 
   const buildCondition = (index: number): SQL | undefined => {
-    if (index === cursorColumns.length - 1) {
-      const { column, value, comparatorOrEquals } = cursorColumns[index]!;
-      return comparatorOrEquals(column, value);
-    }
+    const { beyond, equal, beyondOrEqual } = cursorColumns[index]!;
 
-    const currentColumn = cursorColumns[index]!;
-    const nextCondition = buildCondition(index + 1);
+    // The cursor condition is inclusive of the cursor row.
+    if (index === cursorColumns.length - 1) return beyondOrEqual;
 
-    return or(
-      currentColumn.comparator(currentColumn.column, currentColumn.value),
-      and(eq(currentColumn.column, currentColumn.value), nextCondition),
-    );
+    return or(beyond, and(equal, buildCondition(index + 1)));
   };
 
   return buildCondition(0);
