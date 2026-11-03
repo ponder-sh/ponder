@@ -1121,13 +1121,23 @@ function buildWhereConditions(
     }
 
     // Search for a valid filter suffix, traversing the list from longest to shortest
-    // to avoid ambiguity between cases like `_not_in` and `_in`.
-    const conditionSuffix = conditionSuffixesByLengthDesc.find((s) =>
+    // to avoid ambiguity between cases like `_not_in` and `_in`. Only accept a
+    // suffix if the remaining string is a column name, so that columns whose
+    // names end with a suffix (e.g. `opt_in`) are supported.
+    const matchingSuffixes = conditionSuffixesByLengthDesc.filter((s) =>
       whereKey.endsWith(s),
     );
+    const conditionSuffix = matchingSuffixes.find(
+      (s) =>
+        columns[whereKey.slice(0, whereKey.length - s.length)] !== undefined,
+    );
     if (conditionSuffix === undefined) {
-      throw new Error(
-        `Invariant violation: Condition suffix not found for where key ${whereKey}`,
+      const columnName = whereKey.slice(
+        0,
+        whereKey.length - matchingSuffixes[0]!.length,
+      );
+      throw new GraphQLError(
+        `Invalid query: Where clause contains unknown column ${columnName}`,
       );
     }
 
@@ -1136,14 +1146,7 @@ function buildWhereConditions(
       0,
       whereKey.length - conditionSuffix.length,
     );
-
-    // Validate that the column name is present in the table.
-    const column = columns[columnName];
-    if (column === undefined) {
-      throw new GraphQLError(
-        `Invalid query: Where clause contains unknown column ${columnName}`,
-      );
-    }
+    const column = columns[columnName]!;
 
     if (
       rawValue === null &&
