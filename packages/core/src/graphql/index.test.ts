@@ -1968,6 +1968,47 @@ test("filter string escapes wildcards", async () => {
   ]);
 });
 
+test("filter string on hex column is case insensitive", async () => {
+  const account = onchainTable("account", (t) => ({
+    id: t.text().primaryKey(),
+    address: t.hex(),
+  }));
+  const schema = { account };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.account).values([
+    { id: "id1", address: "0xabcdef" },
+    { id: "id2", address: "0x123456" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { accounts(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.accounts.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids(`{ address: "0xABCDEF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_starts_with: "0xABC" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_contains: "CDE" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_ends_with: "EF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_not_contains: "CDE" }`)).toStrictEqual(["id2"]);
+  expect(await ids(`{ address_not_starts_with: "0xABC" }`)).toStrictEqual([
+    "id2",
+  ]);
+  expect(await ids(`{ address_not_ends_with: "EF" }`)).toStrictEqual(["id2"]);
+});
+
 test("filter and/or", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
