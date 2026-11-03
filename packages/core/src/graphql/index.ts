@@ -85,8 +85,8 @@ type PluralArgs = {
   before?: string;
   limit?: number;
   offset?: number;
-  orderBy?: string;
-  orderDirection?: "asc" | "desc";
+  orderBy?: string | null;
+  orderDirection?: "asc" | "desc" | null;
 };
 
 const DEFAULT_LIMIT = 50 as const;
@@ -1208,7 +1208,9 @@ function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
   // This ensures a consistent sort order to unblock cursor pagination.
   const userDirection = args.orderDirection ?? "asc";
   const userColumns: [string, "asc" | "desc"][] =
-    args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
+    args.orderBy !== undefined && args.orderBy !== null
+      ? [[args.orderBy, userDirection]]
+      : [];
 
   if (is(relation, PgView)) {
     return userColumns;

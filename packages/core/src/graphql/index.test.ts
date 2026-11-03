@@ -1019,6 +1019,62 @@ test("singular with many relation using order by", async () => {
   });
 });
 
+test("order by null", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 2 },
+    { id: "id2", age: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  // A null `orderBy` (e.g. a variable set to `null`) is treated as omitted.
+  let result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(`
+      query($orderBy: String, $orderDirection: String) {
+        pets(orderBy: $orderBy, orderDirection: $orderDirection) {
+          items {
+            id
+          }
+        }
+      }
+    `),
+    variableValues: { orderBy: null, orderDirection: null },
+  });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(`
+      query {
+        pets(orderBy: null, orderDirection: "desc") {
+          items {
+            id
+          }
+        }
+      }
+    `),
+  });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+});
+
 test("plural with one relation uses dataloader", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
