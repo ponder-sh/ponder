@@ -144,15 +144,23 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+            // Geometric types don't have an equality operator.
+            if (column.columnType === "PgGeometry") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Containment filters are only supported for SQL arrays.
+            if (column.columnType === "PgArray") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
@@ -232,15 +240,23 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+            // Geometric types don't have an equality operator.
+            if ((column as PgColumn).columnType === "PgGeometry") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Containment filters are only supported for SQL arrays.
+            if ((column as PgColumn).columnType === "PgArray") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
