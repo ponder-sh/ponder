@@ -2,8 +2,6 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { isMainThread } from "node:worker_threads";
-import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { Effect, Queue, Result, type Scope, Stream } from "effect";
 import { glob } from "glob";
 import { Hono } from "hono";
@@ -12,11 +10,7 @@ import { hexToNumber } from "viem";
 import { createServer, createServerModuleRunner, normalizePath } from "vite";
 import type { CliOptions } from "@/bin/ponder.js";
 import type { Config } from "@/config/index.js";
-import { Db, makeDbClient } from "@/database/db.js";
-import {
-  makeNodePostgresTransport,
-  makePgliteTransport,
-} from "@/database/transport.js";
+import { Db } from "@/database/db.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
 import { setApiContext } from "@/internal/api.js";
 import {
@@ -24,12 +18,12 @@ import {
   NonRetryableUserError,
   RetryableError,
 } from "@/internal/errors.js";
+import { externalIo } from "@/internal/io.js";
 import {
   type LogMessage,
   type LogUnsafe,
   makeLogUnsafe,
 } from "@/internal/logger.js";
-import { Metrics } from "@/internal/metrics.js";
 import { Options } from "@/internal/options.js";
 import type {
   ApiBuild,
@@ -41,8 +35,7 @@ import type {
   SchemaBuild,
 } from "@/internal/types.js";
 import { PONDER_SYNC_SCHEMAS } from "@/sync-store/schema.js";
-import { createPool, getDatabaseName } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
+import { getDatabaseName } from "@/utils/pg.js";
 import { getNextAvailablePort } from "@/utils/port.js";
 import { startClockEffect } from "@/utils/timer.js";
 import { safeBuildConfig, safeBuildIndexingFunctions } from "./config.js";
@@ -93,18 +86,10 @@ export type Build = {
     schema: Schema;
     preBuild: PreBuild;
   }) => Effect.Effect<SchemaBuild, BuildError>;
-  /**
-   * Build the chains of the config and create an RPC client for each chain.
-   *
-   * @dev The RPC clients stop when the scope closes.
-   */
+  /** Build the chains of the config. */
   compileConfig: (params: {
     configResult: ConfigResult;
-  }) => Effect.Effect<
-    Pick<IndexingBuild, "chains" | "rpcs">,
-    BuildError,
-    Metrics | Scope.Scope
-  >;
+  }) => Effect.Effect<Pick<IndexingBuild, "chains">, BuildError>;
   compileIndexing: (params: {
     configResult: ConfigResult;
     schemaResult: SchemaResult;
@@ -122,9 +107,10 @@ export type Build = {
   rpcDiagnostic: (params: {
     configBuild: Pick<IndexingBuild, "chains" | "rpcs">;
   }) => Effect.Effect<void, RetryableError>;
+  /** Run a statement on the database, to check the connection. */
   databaseDiagnostic: (params: {
     preBuild: PreBuild;
-  }) => Effect.Effect<void, RetryableError, Metrics>;
+  }) => Effect.Effect<void, RetryableError, Db>;
 };
 
 /**
@@ -209,34 +195,37 @@ export const createBuild = ({
     };
 
     const viteDevServer = yield* Effect.acquireRelease(
-      Effect.promise(() =>
-        createServer({
-          root: options.rootDir,
-          // Do not load a "vite.config.ts" file from the project root.
-          configFile: false,
-          cacheDir: path.join(options.ponderDir, "vite"),
-          publicDir: false,
-          appType: "custom",
-          customLogger: viteLogger,
-          server: {
-            // Do not create an HTTP server or register a SIGTERM listener.
-            middlewareMode: true,
-            hmr: false,
-            ws: false,
-            // Only `ponder dev` uses the file watcher. Isolated worker threads do not.
-            watch:
-              options.command === "dev" && isMainThread
-                ? { ignored: isFileIgnored }
-                : null,
-          },
-          resolve: { tsconfigPaths: true },
-          // Load `ponder` with Node instead of transforming it. This matters when `ponder`
-          // is a linked package, which Vite does not externalize by default.
-          ssr: { external: ["ponder"] },
-          plugins: [vitePluginPonder(options)],
-        }),
+      externalIo(
+        Effect.promise(() =>
+          createServer({
+            root: options.rootDir,
+            // Do not load a "vite.config.ts" file from the project root.
+            configFile: false,
+            cacheDir: path.join(options.ponderDir, "vite"),
+            publicDir: false,
+            appType: "custom",
+            customLogger: viteLogger,
+            server: {
+              // Do not create an HTTP server or register a SIGTERM listener.
+              middlewareMode: true,
+              hmr: false,
+              ws: false,
+              // Only `ponder dev` uses the file watcher. Isolated worker threads do not.
+              watch:
+                options.command === "dev" && isMainThread
+                  ? { ignored: isFileIgnored }
+                  : null,
+            },
+            resolve: { tsconfigPaths: true },
+            // Load `ponder` with Node instead of transforming it. This matters when `ponder`
+            // is a linked package, which Vite does not externalize by default.
+            ssr: { external: ["ponder"] },
+            plugins: [vitePluginPonder(options)],
+          }),
+        ),
       ),
-      (viteDevServer) => Effect.promise(() => viteDevServer.close()),
+      (viteDevServer) =>
+        externalIo(Effect.promise(() => viteDevServer.close())),
     );
 
     const ssrEnvironment = viteDevServer.environments.ssr;
@@ -247,7 +236,7 @@ export const createBuild = ({
           sourcemapInterceptor: "prepareStackTrace",
         }),
       ),
-      (moduleRunner) => Effect.promise(() => moduleRunner.close()),
+      (moduleRunner) => externalIo(Effect.promise(() => moduleRunner.close())),
     );
 
     const invalidateDepTree = (files: string[]) => {
@@ -275,11 +264,16 @@ export const createBuild = ({
      * Run `file` and return its exports.
      */
     const executeFile = (file: string): Effect.Effect<any, Error> =>
-      Effect.tryPromise({
-        try: () => moduleRunner.import(file),
-        catch: (error) =>
-          parseViteError(path.relative(options.rootDir, file), error as Error),
-      });
+      externalIo(
+        Effect.tryPromise({
+          try: () => moduleRunner.import(file),
+          catch: (error) =>
+            parseViteError(
+              path.relative(options.rootDir, file),
+              error as Error,
+            ),
+        }),
+      );
 
     const executeFileWithTimeout = (file: string) =>
       executeFile(file).pipe(
@@ -506,14 +500,13 @@ export const createBuild = ({
       compileConfig: ({ configResult }) =>
         Effect.gen(function* () {
           // Validates and builds the config
-          const { chains, rpcs, logs } = yield* safeBuildConfig({
+          const { chains, logs } = yield* safeBuildConfig({
             config: configResult.config,
-            options,
           });
 
           yield* writeLogs(logs);
 
-          return { chains, rpcs };
+          return { chains };
         }),
       compileIndexing: ({
         configResult,
@@ -571,10 +564,12 @@ export const createBuild = ({
             }
           }
 
-          const port = yield* getNextAvailablePort({
-            port: options.port,
-            hostname: options.hostname,
-          }).pipe(
+          const port = yield* externalIo(
+            getNextAvailablePort({
+              port: options.port,
+              hostname: options.hostname,
+            }),
+          ).pipe(
             // Note: An error other than a port in use is unexpected.
             Effect.orDie,
           );
@@ -733,85 +728,38 @@ export const createBuild = ({
         }),
       databaseDiagnostic: ({ preBuild }) =>
         Effect.gen(function* () {
-          const metrics = yield* Metrics;
-          const logAnnotations = { action: "database_diagnostic" };
+          const db = yield* Db;
           const endClock = yield* startClockEffect;
-
           const dialect = preBuild.databaseConfig.kind;
-          if (dialect === "pglite") {
-            const databaseConfig = preBuild.databaseConfig;
-            yield* Effect.acquireUseRelease(
-              Effect.sync(() => createPglite(databaseConfig.options)),
-              (driver) =>
-                makeDbClient(makePgliteTransport(drizzlePglite(driver)), {
-                  metrics,
-                }).query((db) => db.execute("SELECT version()"), {
-                  logAnnotations,
-                }),
-              (driver) => Effect.promise(() => driver.close()),
-            ).pipe(
+
+          yield* db.admin
+            .query((db) => db.execute("SELECT version()"), {
+              logAnnotations: { action: "database_diagnostic" },
+            })
+            .pipe(
               Effect.mapError((e) => {
                 const error = new RetryableError(
-                  `Failed to connect to PGlite database. Please check your database connection settings.\n\n${(e as any).message}`,
+                  `Failed to connect to ${dialect === "pglite" ? "PGlite database" : "database"}. Please check your database connection settings.\n\n${e.message}`,
                 );
                 error.stack = undefined;
                 return error;
               }),
             );
 
-            const pgliteDir = databaseConfig.options.dataDir;
-
-            const pglitePath =
-              pgliteDir === "memory://"
-                ? "memory://"
-                : path.relative(options.rootDir, pgliteDir);
-            yield* Effect.logInfo({
-              msg: "Connected to database",
-              type: dialect,
-              database: pglitePath,
-              duration: yield* endClock,
-            });
-          } else if (dialect === "postgres") {
-            const poolConfig = preBuild.databaseConfig.poolConfig;
-            yield* Effect.acquireUseRelease(
-              Effect.sync(() =>
-                createPool(
-                  {
-                    ...poolConfig,
-                    application_name: "ponder_diagnostic",
-                    max: 1,
-                    statement_timeout: 10_000,
-                  },
-                  logUnsafe,
-                ),
-              ),
-              (pool) =>
-                makeDbClient(
-                  makeNodePostgresTransport(drizzleNodePostgres(pool)),
-                  {
-                    metrics,
-                  },
-                ).query((db) => db.execute("SELECT version()"), {
-                  logAnnotations,
-                }),
-              (pool) => Effect.promise(() => pool.end()),
-            ).pipe(
-              Effect.mapError((e) => {
-                const error = new RetryableError(
-                  `Failed to connect to database. Please check your database connection settings.\n\n${(e as any).message}`,
-                );
-                error.stack = undefined;
-                return error;
-              }),
-            );
-
-            yield* Effect.logInfo({
-              msg: "Connected to database",
-              type: dialect,
-              database: getDatabaseName(poolConfig),
-              duration: yield* endClock,
-            });
-          }
+          yield* Effect.logInfo({
+            msg: "Connected to database",
+            type: dialect,
+            database:
+              preBuild.databaseConfig.kind === "pglite"
+                ? preBuild.databaseConfig.options.dataDir === "memory://"
+                  ? "memory://"
+                  : path.relative(
+                      options.rootDir,
+                      preBuild.databaseConfig.options.dataDir,
+                    )
+                : getDatabaseName(preBuild.databaseConfig.poolConfig),
+            duration: yield* endClock,
+          });
         }),
     } satisfies Build;
 

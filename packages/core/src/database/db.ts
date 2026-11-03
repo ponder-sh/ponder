@@ -1,4 +1,3 @@
-import type { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
 import type { PgTransactionConfig } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -15,6 +14,7 @@ import {
   NotNullConstraintError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
+import { externalIo } from "@/internal/io.js";
 import { makeLogUnsafe } from "@/internal/logger.js";
 import { Metrics } from "@/internal/metrics.js";
 import { Options } from "@/internal/options.js";
@@ -393,13 +393,21 @@ export const makeDbClient = <
   return client;
 };
 
-type PGliteDriver = {
-  dialect: "pglite";
-  instance: PGlite;
+/**
+ * The transport of each role of the database.
+ *
+ * @dev The transports of {@link makeDbTransports} use the drivers of the
+ * config. A simulation can wrap them, or replace them.
+ */
+export type DbTransports = {
+  dialect: DbTransport["dialect"];
+  admin: DbListenTransport<any>;
+  user: DbTransport<any>;
+  readonly: DbTransport<any>;
+  sync: DbTransport<typeof PONDER_SYNC>;
 };
 
 type PostgresDriver = {
-  dialect: "postgres";
   admin: Pool;
   sync: Pool;
   user: Pool;
@@ -407,10 +415,10 @@ type PostgresDriver = {
 };
 
 /**
- * Create the drivers and a client for each role. The drivers close when the
- * scope closes.
+ * Create the drivers of the database config, and a transport for each role.
+ * The drivers close when the scope closes.
  */
-export const makeDb = ({
+export const makeDbTransports = ({
   namespace,
   preBuild,
   schemaBuild,
@@ -418,122 +426,82 @@ export const makeDb = ({
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
   schemaBuild: Pick<SchemaBuild, "schema">;
-}) =>
+}): Effect.Effect<DbTransports, never, Options | Metrics | Scope.Scope> =>
   Effect.gen(function* () {
     const options = yield* Options;
     const metrics = yield* Metrics;
     const logUnsafe = yield* makeLogUnsafe;
 
-    let driver: PGliteDriver | PostgresDriver;
-    let sync: DbClient<typeof PONDER_SYNC>;
-    let admin: DbClient;
-    let user: DbClient;
-    let readonlyClient: DbClient;
-    let adminTransport: DbListenTransport;
-
-    const dialect = preBuild.databaseConfig.kind;
-
-    if (dialect === "pglite") {
+    if (preBuild.databaseConfig.kind === "pglite") {
       const databaseConfig = preBuild.databaseConfig;
-      const pgliteDriver: PGliteDriver = yield* Effect.acquireRelease(
-        Effect.sync(() => ({
-          dialect: "pglite" as const,
-          instance: createPglite(databaseConfig.options),
-        })),
-        (driver) => Effect.promise(() => driver.instance.close()),
+      const instance = yield* Effect.acquireRelease(
+        Effect.sync(() => createPglite(databaseConfig.options)),
+        (instance) => Effect.promise(() => instance.close()),
       );
-      driver = pgliteDriver;
-      adminTransport = makePgliteTransport(
-        drizzlePglite(pgliteDriver.instance, { casing: "snake_case" }),
-      );
+      const transport = <TSchema extends Schema>(schema: TSchema) =>
+        makePgliteTransport(
+          drizzlePglite(instance, { casing: "snake_case", schema }),
+        );
 
-      sync = makeDbClient(
-        makePgliteTransport(
-          drizzlePglite(pgliteDriver.instance, {
-            casing: "snake_case",
-            schema: PONDER_SYNC,
-          }),
-        ),
-        { metrics },
-      );
-      admin = makeDbClient(
-        makePgliteTransport(
-          drizzlePglite(pgliteDriver.instance, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          }),
-        ),
-        { metrics },
-      );
-      user = makeDbClient(
-        makePgliteTransport(
-          drizzlePglite(pgliteDriver.instance, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          }),
-        ),
-        { metrics },
-      );
-      readonlyClient = makeDbClient(
-        makePgliteTransport(
-          drizzlePglite(pgliteDriver.instance, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          }),
-        ),
-        { metrics },
-      );
-    } else {
-      const internalMax = 2;
-      const equalMax = Math.floor(
-        (preBuild.databaseConfig.poolConfig.max - internalMax) / 3,
-      );
-      const [readonlyMax, userMax, syncMax] =
-        options.command === "serve"
-          ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
-          : [equalMax, equalMax, equalMax];
+      return {
+        dialect: "pglite",
+        admin: transport(schemaBuild.schema),
+        user: transport(schemaBuild.schema),
+        readonly: transport(schemaBuild.schema),
+        sync: transport(PONDER_SYNC),
+      };
+    }
 
-      const poolConfig = preBuild.databaseConfig.poolConfig;
+    const internalMax = 2;
+    const equalMax = Math.floor(
+      (preBuild.databaseConfig.poolConfig.max - internalMax) / 3,
+    );
+    const [readonlyMax, userMax, syncMax] =
+      options.command === "serve"
+        ? [preBuild.databaseConfig.poolConfig.max - internalMax, 0, 0]
+        : [equalMax, equalMax, equalMax];
 
-      const d: PostgresDriver = yield* Effect.acquireRelease(
-        Effect.sync(() => ({
-          dialect: "postgres" as const,
-          admin: createPool(
-            {
-              ...poolConfig,
-              application_name: `${namespace.schema}_internal`,
-              max: internalMax,
-              statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
-            },
-            logUnsafe,
-          ),
-          user: createPool(
-            {
-              ...poolConfig,
-              application_name: `${namespace.schema}_user`,
-              max: userMax,
-            },
-            logUnsafe,
-          ),
-          readonly: createReadonlyPool(
-            {
-              ...poolConfig,
-              application_name: `${namespace.schema}_readonly`,
-              max: readonlyMax,
-            },
-            logUnsafe,
-            namespace.schema,
-          ),
-          sync: createPool(
-            {
-              ...poolConfig,
-              application_name: "ponder_sync",
-              max: syncMax,
-            },
-            logUnsafe,
-          ),
-        })),
-        (d) =>
+    const poolConfig = preBuild.databaseConfig.poolConfig;
+
+    const d: PostgresDriver = yield* Effect.acquireRelease(
+      Effect.sync(() => ({
+        admin: createPool(
+          {
+            ...poolConfig,
+            application_name: `${namespace.schema}_internal`,
+            max: internalMax,
+            statement_timeout: 10 * 60 * 1000, // 10 minutes to accommodate slow sync store migrations.
+          },
+          logUnsafe,
+        ),
+        user: createPool(
+          {
+            ...poolConfig,
+            application_name: `${namespace.schema}_user`,
+            max: userMax,
+          },
+          logUnsafe,
+        ),
+        readonly: createReadonlyPool(
+          {
+            ...poolConfig,
+            application_name: `${namespace.schema}_readonly`,
+            max: readonlyMax,
+          },
+          logUnsafe,
+          namespace.schema,
+        ),
+        sync: createPool(
+          {
+            ...poolConfig,
+            application_name: "ponder_sync",
+            max: syncMax,
+          },
+          logUnsafe,
+        ),
+      })),
+      (d) =>
+        externalIo(
           Effect.promise(() =>
             Promise.all([
               d.admin.end(),
@@ -542,89 +510,71 @@ export const makeDb = ({
               d.sync.end(),
             ]),
           ),
-      );
-      driver = d;
-      adminTransport = makeNodePostgresTransport(
-        drizzleNodePg(d.admin, { casing: "snake_case" }),
+        ),
+    );
+
+    // Register Postgres-only metrics
+    metrics.registry.removeSingleMetric("ponder_postgres_pool_connections");
+    metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
+      name: "ponder_postgres_pool_connections",
+      help: "Number of connections in the pool",
+      labelNames: ["pool", "kind"] as const,
+      registers: [metrics.registry],
+      collect() {
+        this.set({ pool: "admin", kind: "idle" }, d.admin.idleCount);
+        this.set({ pool: "admin", kind: "total" }, d.admin.totalCount);
+        this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
+        this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
+        this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
+        this.set({ pool: "user", kind: "total" }, d.user.totalCount);
+        this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
+        this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
+      },
+    });
+
+    metrics.registry.removeSingleMetric("ponder_postgres_query_queue_size");
+    metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
+      name: "ponder_postgres_query_queue_size",
+      help: "Number of queries waiting for an available connection",
+      labelNames: ["pool"] as const,
+      registers: [metrics.registry],
+      collect() {
+        this.set({ pool: "admin" }, d.admin.waitingCount);
+        this.set({ pool: "sync" }, d.sync.waitingCount);
+        this.set({ pool: "user" }, d.user.waitingCount);
+        this.set({ pool: "readonly" }, d.readonly.waitingCount);
+      },
+    });
+
+    const transport = <TSchema extends Schema>(pool: Pool, schema: TSchema) =>
+      makeNodePostgresTransport(
+        drizzleNodePg(pool, { casing: "snake_case", schema }),
       );
 
-      sync = makeDbClient(
-        makeNodePostgresTransport(
-          drizzleNodePg(d.sync, {
-            casing: "snake_case",
-            schema: PONDER_SYNC,
-          }),
-        ),
-        { metrics },
-      );
-      admin = makeDbClient(
-        makeNodePostgresTransport(
-          drizzleNodePg(d.admin, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          }),
-        ),
-        { metrics },
-      );
-      user = makeDbClient(
-        makeNodePostgresTransport(
-          drizzleNodePg(d.user, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          }),
-        ),
-        { metrics },
-      );
-      readonlyClient = makeDbClient(
-        makeNodePostgresTransport(
-          drizzleNodePg(d.readonly, {
-            casing: "snake_case",
-            schema: schemaBuild.schema,
-          }),
-        ),
-        { metrics },
-      );
+    return {
+      dialect: "postgres",
+      admin: transport(d.admin, schemaBuild.schema),
+      user: transport(d.user, schemaBuild.schema),
+      readonly: transport(d.readonly, schemaBuild.schema),
+      sync: transport(d.sync, PONDER_SYNC),
+    };
+  });
 
-      // Register Postgres-only metrics
-      metrics.registry.removeSingleMetric("ponder_postgres_pool_connections");
-      metrics.ponder_postgres_pool_connections = new prometheus.Gauge({
-        name: "ponder_postgres_pool_connections",
-        help: "Number of connections in the pool",
-        labelNames: ["pool", "kind"] as const,
-        registers: [metrics.registry],
-        collect() {
-          this.set({ pool: "admin", kind: "idle" }, d.admin.idleCount);
-          this.set({ pool: "admin", kind: "total" }, d.admin.totalCount);
-          this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
-          this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
-          this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
-          this.set({ pool: "user", kind: "total" }, d.user.totalCount);
-          this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
-          this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
-        },
-      });
-
-      metrics.registry.removeSingleMetric("ponder_postgres_query_queue_size");
-      metrics.ponder_postgres_query_queue_size = new prometheus.Gauge({
-        name: "ponder_postgres_query_queue_size",
-        help: "Number of queries waiting for an available connection",
-        labelNames: ["pool"] as const,
-        registers: [metrics.registry],
-        collect() {
-          this.set({ pool: "admin" }, d.admin.waitingCount);
-          this.set({ pool: "sync" }, d.sync.waitingCount);
-          this.set({ pool: "user" }, d.user.waitingCount);
-          this.set({ pool: "readonly" }, d.readonly.waitingCount);
-        },
-      });
-    }
+/**
+ * Create the database, with a client for each transport.
+ */
+export const makeDb = (
+  transports: DbTransports,
+): Effect.Effect<Db["Service"], never, Metrics> =>
+  Effect.gen(function* () {
+    const metrics = yield* Metrics;
 
     return Db.of({
-      dialect: driver.dialect,
-      admin,
-      user,
-      readonly: readonlyClient,
-      sync,
-      listen: (channel) => adminTransport.listen(channel),
+      dialect: transports.dialect,
+      admin: makeDbClient(transports.admin, { metrics }),
+      user: makeDbClient(transports.user, { metrics }),
+      readonly: makeDbClient(transports.readonly, { metrics }),
+      sync: makeDbClient(transports.sync, { metrics }),
+      listen: (channel) => transports.admin.listen(channel),
     });
   });

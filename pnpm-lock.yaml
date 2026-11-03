@@ -1056,10 +1056,23 @@ importers:
         version: 5.0.2(@edge-runtime/vm@3.2.0)(@types/node@22.20.1)(vite@8.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   simulation-test:
+    dependencies:
+      effect:
+        specifier: 4.0.5
+        version: 4.0.5
+      hono:
+        specifier: 4.5.0
+        version: 4.5.0
+      pg:
+        specifier: ^8.16.2
+        version: 8.16.2
+      ponder:
+        specifier: workspace:*
+        version: link:../packages/core
+      viem:
+        specifier: 2.35.0
+        version: 2.35.0(typescript@5.9.3)(zod@3.25.76)
     devDependencies:
-      '@commander-js/extra-typings':
-        specifier: ^12.0.1
-        version: 12.0.1(commander@12.0.0)
       '@types/bun':
         specifier: ^1.2.14
         version: 1.2.14
@@ -1069,24 +1082,9 @@ importers:
       '@types/pg':
         specifier: ^8.10.9
         version: 8.10.9
-      '@types/seedrandom':
-        specifier: ^3.0.8
-        version: 3.0.8
-      commander:
-        specifier: ^12.0.0
-        version: 12.0.0
-      drizzle-orm:
-        specifier: 0.41.0
-        version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2(supports-color@7.2.0))(pg@8.16.2)
-      pg:
-        specifier: ^8.16.2
-        version: 8.16.2
-      ponder:
-        specifier: workspace:*
-        version: link:../packages/core
-      seedrandom:
-        specifier: ^3.0.5
-        version: 3.0.5
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -3947,9 +3945,6 @@ packages:
 
   '@types/scheduler@0.16.8':
     resolution: {integrity: sha512-WZLiwShhwLRmeV6zH+GkbOFT6Z6VklCItrDioxUnv+u4Ll+8vKeFySoFyK/0ctcRpOmwAicELfmys1sDc/Rw+A==}
-
-  '@types/seedrandom@3.0.8':
-    resolution: {integrity: sha512-TY1eezMU2zH2ozQoAFAQFOPpvP15g+ZgSfTZt31AUUH/Rxtnz3H+A/Sv1Snw2/amp//omibc+AEkTaA8KUeOLQ==}
 
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
@@ -7028,9 +7023,6 @@ packages:
 
   scheduler@0.28.0:
     resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
-
-  seedrandom@3.0.5:
-    resolution: {integrity: sha512-8OwmbklUNzwezjGInmZ+2clQmExQPvomqjL7LFqOYqtmuxRgQYqOD3mHaU+MvZn5FLUeVxVfQjwLZW/n/JFuqg==}
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
@@ -10873,8 +10865,6 @@ snapshots:
 
   '@types/scheduler@0.16.8': {}
 
-  '@types/seedrandom@3.0.8': {}
-
   '@types/semver@7.5.8': {}
 
   '@types/trusted-types@2.0.7':
@@ -14475,8 +14465,6 @@ snapshots:
       loose-envify: 1.4.0
 
   scheduler@0.28.0: {}
-
-  seedrandom@3.0.5: {}
 
   semver@6.3.1: {}
 

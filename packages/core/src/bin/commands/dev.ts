@@ -2,12 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { Cause, Deferred, Effect, Exit, Queue, Scope, Stream } from "effect";
 import { createBuild } from "@/build/index.js";
-import { Db, makeDb } from "@/database/db.js";
+import { Db, makeDb, makeDbTransports } from "@/database/db.js";
 import { migrate, migrateSync } from "@/database/migrate.js";
 import { NonRetryableUserError } from "@/internal/errors.js";
 import { Metrics } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
 import type { IndexingBuild, PreBuild } from "@/internal/types.js";
+import { createRpcs } from "@/rpc/index.js";
 import { makeServer } from "@/server/index.js";
 import { createUi } from "@/ui/index.js";
 import type { CliOptions } from "../ponder.js";
@@ -132,15 +133,27 @@ export function dev({ cliOptions }: { cliOptions: CliOptions }) {
       const preBuild = yield* build
         .preCompile(configResult)
         .pipe(failBuild("pre-compile"));
-      yield* build
-        .databaseDiagnostic({ preBuild })
-        .pipe(failBuild("diagnostic"));
       const schemaBuild = yield* build
         .compileSchema({ ...schemaResult, preBuild })
         .pipe(failBuild("schema"));
-      const configBuild = yield* build
+      const { chains } = yield* build
         .compileConfig({ configResult })
-        .pipe(failBuild("config"), Scope.provide(indexingScope));
+        .pipe(failBuild("config"));
+
+      const db = yield* makeDbTransports({
+        namespace,
+        preBuild,
+        schemaBuild,
+      }).pipe(Effect.flatMap(makeDb), Scope.provide(indexingScope));
+      yield* build
+        .databaseDiagnostic({ preBuild })
+        .pipe(failBuild("diagnostic"), Effect.provideService(Db, db));
+
+      const rpcs = yield* createRpcs(chains).pipe(
+        failBuild("config"),
+        Scope.provide(indexingScope),
+      );
+      const configBuild = { chains, rpcs };
 
       yield* build.rpcDiagnostic({ configBuild }).pipe(failBuild("diagnostic"));
       const indexingResult = yield* build.executeIndexingFunctions.pipe(
@@ -154,10 +167,6 @@ export function dev({ cliOptions }: { cliOptions: CliOptions }) {
           configBuild,
         })
         .pipe(failBuild("indexing"));
-
-      const db = yield* makeDb({ namespace, preBuild, schemaBuild }).pipe(
-        Scope.provide(indexingScope),
-      );
 
       yield* Effect.gen(function* () {
         const crashRecoveryCheckpoint = yield* migrate({

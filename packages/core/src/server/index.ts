@@ -9,6 +9,7 @@ import {
   getPonderCheckpointTable,
   getPonderMetaTable,
 } from "@/database/index.js";
+import { externalIo } from "@/internal/io.js";
 import { Metrics } from "@/internal/metrics.js";
 import type { Options } from "@/internal/options.js";
 import type { ApiBuild, Status } from "@/internal/types.js";
@@ -160,7 +161,10 @@ export const makeServer = (
 
     const endClock = yield* startClockEffect;
 
-    yield* Effect.acquireRelease(listen(hono, apiBuild), close);
+    yield* Effect.acquireRelease(
+      externalIo(listen(hono, apiBuild)),
+      (httpServer) => externalIo(close(httpServer)),
+    );
 
     metrics.port = apiBuild.port;
     yield* Effect.logInfo({

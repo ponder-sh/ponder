@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { createBuild } from "@/build/index.js";
-import { Db, makeDb } from "@/database/db.js";
+import { Db, makeDb, makeDbTransports } from "@/database/db.js";
 import { SCHEMATA } from "@/database/index.js";
 import { Metrics } from "@/internal/metrics.js";
 import { buildOptions } from "@/internal/options.js";
+import { createRpcs } from "@/rpc/index.js";
 import { makeServer } from "@/server/index.js";
 import type { CliOptions } from "../ponder.js";
 import {
@@ -42,23 +43,27 @@ export function serve({ cliOptions }: { cliOptions: CliOptions }) {
       return 1;
     }
 
-    yield* build
-      .databaseDiagnostic({ preBuild })
-      .pipe(failBuild("diagnostic", 75));
     const schemaBuild = yield* build
       .compileSchema({ ...schemaResult, preBuild })
       .pipe(failBuild("schema"));
-    const configBuild = yield* build
+    const { chains } = yield* build
       .compileConfig({ configResult })
       .pipe(failBuild("config"));
+    const rpcs = yield* createRpcs(chains).pipe(failBuild("config"));
+    const configBuild = { chains, rpcs };
 
     // Note: RPC diagnostic is skipped
 
-    const db = yield* makeDb({
-      namespace: namespaceBuild,
-      preBuild,
-      schemaBuild,
-    });
+    const db = yield* makeDb(
+      yield* makeDbTransports({
+        namespace: namespaceBuild,
+        preBuild,
+        schemaBuild,
+      }),
+    );
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75), Effect.provideService(Db, db));
 
     const schemas = yield* db.admin.query((db) =>
       db
