@@ -1069,6 +1069,14 @@ const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
   .flat()
   .sort((a, b) => b.length - a.length);
 
+/**
+ * Escape the `LIKE` wildcard characters (`%` and `_`) and the escape character
+ * (backslash) so that string filters match the value literally.
+ */
+function escapeLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
 function buildWhereConditions(
   where: Record<string, any> | undefined,
   columns: Record<string, Column>,
@@ -1186,40 +1194,40 @@ function buildWhereConditions(
         conditions.push(lte(column, rawValue));
         break;
       case "_contains":
-        conditions.push(like(column, `%${rawValue}%`));
+        conditions.push(like(column, `%${escapeLikePattern(rawValue)}%`));
         break;
       case "_not_contains":
-        conditions.push(notLike(column, `%${rawValue}%`));
+        conditions.push(notLike(column, `%${escapeLikePattern(rawValue)}%`));
         break;
       case "_starts_with":
-        conditions.push(like(column, `${rawValue}%`));
+        conditions.push(like(column, `${escapeLikePattern(rawValue)}%`));
         break;
       case "_ends_with":
-        conditions.push(like(column, `%${rawValue}`));
+        conditions.push(like(column, `%${escapeLikePattern(rawValue)}`));
         break;
       case "_not_starts_with":
-        conditions.push(notLike(column, `${rawValue}%`));
+        conditions.push(notLike(column, `${escapeLikePattern(rawValue)}%`));
         break;
       case "_not_ends_with":
-        conditions.push(notLike(column, `%${rawValue}`));
+        conditions.push(notLike(column, `%${escapeLikePattern(rawValue)}`));
         break;
       case "_contains_nocase":
-        conditions.push(ilike(column, `%${rawValue}%`));
+        conditions.push(ilike(column, `%${escapeLikePattern(rawValue)}%`));
         break;
       case "_not_contains_nocase":
-        conditions.push(notIlike(column, `%${rawValue}%`));
+        conditions.push(notIlike(column, `%${escapeLikePattern(rawValue)}%`));
         break;
       case "_starts_with_nocase":
-        conditions.push(ilike(column, `${rawValue}%`));
+        conditions.push(ilike(column, `${escapeLikePattern(rawValue)}%`));
         break;
       case "_ends_with_nocase":
-        conditions.push(ilike(column, `%${rawValue}`));
+        conditions.push(ilike(column, `%${escapeLikePattern(rawValue)}`));
         break;
       case "_not_starts_with_nocase":
-        conditions.push(notIlike(column, `${rawValue}%`));
+        conditions.push(notIlike(column, `${escapeLikePattern(rawValue)}%`));
         break;
       case "_not_ends_with_nocase":
-        conditions.push(notIlike(column, `%${rawValue}`));
+        conditions.push(notIlike(column, `%${escapeLikePattern(rawValue)}`));
         break;
       default:
         never(conditionSuffix);
