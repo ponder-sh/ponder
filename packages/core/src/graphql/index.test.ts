@@ -2108,6 +2108,57 @@ test("filter numeric", async () => {
   });
 });
 
+test("filter multidimensional array", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    matrix: t.integer().array().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    {
+      id: "id1",
+      matrix: [
+        [1, 2],
+        [3, 4],
+      ],
+    },
+    {
+      id: "id2",
+      matrix: [
+        [5, 6],
+        [7, 8],
+      ],
+    },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const filterFields = (graphqlSchema.getType("petFilter") as any).getFields();
+  expect(filterFields.matrix.type.toString()).toBe("[[Int]]");
+  expect(filterFields.matrix_has.type.toString()).toBe("Int");
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids("{ matrix: [[1, 2], [3, 4]] }")).toStrictEqual(["id1"]);
+  expect(await ids("{ matrix_not: [[1, 2], [3, 4]] }")).toStrictEqual(["id2"]);
+  expect(await ids("{ matrix_has: 7 }")).toStrictEqual(["id2"]);
+});
+
 test("filter string", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),

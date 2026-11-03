@@ -36,6 +36,7 @@ import {
   getViewConfig,
   isPgEnum,
   isPgView,
+  type PgArray,
   PgBigInt53,
   type PgColumn,
   type PgEnum,
@@ -150,7 +151,7 @@ export function buildGraphQLSchema({
 
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
-                type: new GraphQLList(baseType),
+                type: toNullableInputType(type),
               };
             });
 
@@ -244,7 +245,7 @@ export function buildGraphQLSchema({
 
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
-                type: new GraphQLList(baseType),
+                type: toNullableInputType(type),
               };
             });
 
@@ -806,6 +807,32 @@ const columnToGraphQLCore = (
   }
 };
 
+/**
+ * Returns `type` with every level made nullable, e.g. `[[Int!]!]` -> `[[Int]]`.
+ */
+const toNullableInputType = (type: GraphQLOutputType): GraphQLInputType => {
+  if (type instanceof GraphQLNonNull) return toNullableInputType(type.ofType);
+  if (type instanceof GraphQLList) {
+    return new GraphQLList(toNullableInputType(type.ofType));
+  }
+  return type as GraphQLInputType;
+};
+
+/**
+ * Wrap `value` in an array with the same number of dimensions as the array
+ * column, for use with `arrayContains`. Note: Postgres compares the elements
+ * of multidimensional arrays without regard to dimensions.
+ */
+function toArrayElement(column: Column, value: unknown): unknown[] {
+  let wrapped: unknown = value;
+  let current: Column = column;
+  while (current.columnType === "PgArray") {
+    wrapped = [wrapped];
+    current = (current as PgArray<any, any>).baseColumn;
+  }
+  return wrapped as unknown[];
+}
+
 const innerType = (
   type: GraphQLOutputType,
 ): GraphQLScalarType | GraphQLEnumType => {
@@ -1204,10 +1231,14 @@ function buildWhereConditions(
         conditions.push(notInArray(column, rawValue));
         break;
       case "_has":
-        conditions.push(arrayContains(column, [rawValue]));
+        conditions.push(
+          arrayContains(column, toArrayElement(column, rawValue)),
+        );
         break;
       case "_not_has":
-        conditions.push(not(arrayContains(column, [rawValue])));
+        conditions.push(
+          not(arrayContains(column, toArrayElement(column, rawValue))),
+        );
         break;
       case "_gt":
         conditions.push(gt(column, rawValue));
