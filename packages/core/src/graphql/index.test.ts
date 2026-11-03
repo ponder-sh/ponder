@@ -1921,6 +1921,53 @@ test("filter string", async () => {
   });
 });
 
+test("filter string escapes wildcards", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", name: "50%_off" },
+    { id: "id2", name: "50abc" },
+    { id: "id3", name: "a\\b" },
+    { id: "id4", name: "ab" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids(`{ name_contains: "%" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_contains: "_" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_starts_with: "50%" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_ends_with: "%_off" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_not_contains: "%" }`)).toStrictEqual([
+    "id2",
+    "id3",
+    "id4",
+  ]);
+  expect(await ids(`{ name_contains_nocase: "%_OFF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_starts_with_nocase: "A\\\\" }`)).toStrictEqual([
+    "id3",
+  ]);
+});
+
 test("filter and/or", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
