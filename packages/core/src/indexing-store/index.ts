@@ -24,6 +24,7 @@ import {
   UndefinedTableError,
   UniqueConstraintError,
 } from "@/internal/errors.js";
+import { externalIo } from "@/internal/io.js";
 import { Metrics } from "@/internal/metrics.js";
 import type {
   IndexingErrorHandler,
@@ -619,8 +620,9 @@ export const createIndexingStore = ({
           storeMethodWrapper((sql, params, method, typings) =>
             runPromise(
               Effect.gen(function* () {
-                const isSelectOnly = yield* Effect.promise(() =>
-                  isReadonlySQLQuery(sql),
+                // Note: The SQL parser loads WebAssembly the first time.
+                const isSelectOnly = yield* externalIo(
+                  Effect.promise(() => isReadonlySQLQuery(sql)),
                 );
 
                 if (isSelectOnly === false) {
@@ -630,8 +632,8 @@ export const createIndexingStore = ({
                 } else {
                   // Note: Not all nodes are implemented in the parser,
                   // so the relations are undefined when parsing fails.
-                  const relations = yield* Effect.tryPromise(() =>
-                    getSQLQueryRelations(sql),
+                  const relations = yield* externalIo(
+                    Effect.tryPromise(() => getSQLQueryRelations(sql)),
                   ).pipe(Effect.orElseSucceed(() => undefined));
 
                   if (

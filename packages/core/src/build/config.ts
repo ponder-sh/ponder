@@ -12,7 +12,6 @@ import {
 import type { Factory } from "@/config/address.js";
 import type { Config } from "@/config/index.js";
 import { BuildError } from "@/internal/errors.js";
-import type { Options } from "@/internal/options.js";
 import type {
   BlockFilter,
   Chain,
@@ -29,7 +28,7 @@ import type {
   TransferFilter,
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import { createRpc, type Rpc } from "@/rpc/index.js";
+import type { Rpc } from "@/rpc/index.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -1128,32 +1127,10 @@ export const safeBuildIndexingFunctions = (
 ) => buildIndexingFunctions(params).pipe(Effect.mapError(toBuildError));
 
 /**
- * Validate the chains of the config and create an RPC client for each chain.
- *
- * @dev The RPC clients stop when the scope closes.
+ * Validate the chains of the config.
  */
-export const safeBuildConfig = ({
-  config,
-  options,
-}: {
-  config: Config;
-  options: Pick<Options["Service"], "rpcMaxConcurrency">;
-}) =>
-  Effect.gen(function* () {
-    const { chains, logs } = yield* Effect.try({
-      try: () => buildConfig({ config }),
-      catch: (error) => error as Error,
-    });
-
-    const rpcs = yield* Effect.forEach(chains, (chain) =>
-      createRpc({
-        chain,
-        concurrency: Math.floor(options.rpcMaxConcurrency / chains.length),
-      }).pipe(
-        // Note: `createRpc` throws for an unsupported RPC URL.
-        Effect.catchDefect((error) => Effect.fail(error as Error)),
-      ),
-    );
-
-    return { chains, rpcs, logs };
+export const safeBuildConfig = ({ config }: { config: Config }) =>
+  Effect.try({
+    try: () => buildConfig({ config }),
+    catch: (error) => error as Error,
   }).pipe(Effect.mapError(toBuildError));

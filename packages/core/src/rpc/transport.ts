@@ -1,4 +1,4 @@
-import { Data, Effect } from "effect";
+import { Data, Effect, type Scope, type Stream } from "effect";
 import type { EIP1193RequestFn } from "viem";
 import { redactError } from "@/utils/redact.js";
 import type { RequestParameters, RpcSchema } from "./index.js";
@@ -101,3 +101,25 @@ export const makeCustomTransport = (
       catch: (error) => redactError(error as Error),
     }),
 });
+
+/**
+ * A connection that can subscribe with `eth_subscribe`, such as a WebSocket.
+ */
+export type RpcSubscribeTransport = {
+  hostname: string;
+  /**
+   * Subscribe with `eth_subscribe` and `params`. Closing the scope
+   * unsubscribes.
+   *
+   * @returns The subscription id, and the stream of notification results,
+   * which fails when the connection closes.
+   */
+  subscribe: (params: unknown[]) => Effect.Effect<
+    {
+      id: string;
+      notifications: Stream.Stream<unknown, RpcTransportError>;
+    },
+    RpcTransportError,
+    Scope.Scope
+  >;
+};

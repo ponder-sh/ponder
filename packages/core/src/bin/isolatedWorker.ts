@@ -1,7 +1,7 @@
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 import { Cause, Effect, Exit, Fiber, Layer } from "effect";
 import { createBuild } from "@/build/index.js";
-import { Db, makeDb } from "@/database/db.js";
+import { Db, makeDb, makeDbTransports } from "@/database/db.js";
 import { layerLogger } from "@/internal/logger.js";
 import { IsolatedMetricsService, Metrics } from "@/internal/metrics.js";
 import { Options } from "@/internal/options.js";
@@ -10,6 +10,7 @@ import type {
   LightBlock,
   NamespaceBuild,
 } from "@/internal/types.js";
+import { createRpcs } from "@/rpc/index.js";
 import { runIsolated } from "@/runtime/isolated.js";
 
 export type IsolatedWorkerData = {
@@ -68,7 +69,9 @@ export const isolatedWorker = ({
       ...schemaResult,
       preBuild,
     });
-    const configBuild = yield* build.compileConfig({ configResult });
+    const { chains } = yield* build.compileConfig({ configResult });
+    const rpcs = yield* createRpcs(chains);
+    const configBuild = { chains, rpcs };
     const indexingResult = yield* build.executeIndexingFunctions;
     const indexingBuild = yield* build.compileIndexing({
       configResult,
@@ -90,11 +93,13 @@ export const isolatedWorker = ({
       ),
     };
 
-    const db = yield* makeDb({
-      namespace: namespaceBuild,
-      preBuild,
-      schemaBuild,
-    });
+    const db = yield* makeDb(
+      yield* makeDbTransports({
+        namespace: namespaceBuild,
+        preBuild,
+        schemaBuild,
+      }),
+    );
 
     yield* Effect.forEach(
       chainIds,

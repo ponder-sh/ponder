@@ -1,7 +1,7 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { runCodegen } from "@/bin/utils/codegen.js";
 import { createBuild } from "@/build/index.js";
-import { Db, makeDb } from "@/database/db.js";
+import { Db, makeDb, makeDbTransports } from "@/database/db.js";
 import { migrate, migrateSync } from "@/database/migrate.js";
 import { Metrics } from "@/internal/metrics.js";
 import { buildOptions, type Options } from "@/internal/options.js";
@@ -13,6 +13,7 @@ import type {
   PreBuild,
   SchemaBuild,
 } from "@/internal/types.js";
+import { createRpcs, type Rpc } from "@/rpc/index.js";
 import { runMultichain } from "@/runtime/multichain.js";
 import { runOmnichain } from "@/runtime/omnichain.js";
 import { makeServer } from "@/server/index.js";
@@ -42,15 +43,33 @@ export function start({ cliOptions }: { cliOptions: CliOptions }) {
 }
 
 /**
- * Build the app, then run the indexer and the HTTP server until the scope
- * closes.
+ * Build the app, create its database and RPC clients, then run the indexer
+ * and the HTTP server until the scope closes.
  *
  * @returns The exit code, when the build or the indexer fails.
  */
 export const startApp = ({ cliOptions }: { cliOptions: CliOptions }) =>
   Effect.gen(function* () {
-    const metrics = yield* Metrics;
+    const app = yield* buildApp({ cliOptions });
+    const db = yield* makeDb(
+      yield* makeDbTransports({
+        namespace: app.namespaceBuild,
+        preBuild: app.preBuild,
+        schemaBuild: app.schemaBuild,
+      }),
+    );
+    const rpcs = yield* createRpcs(app.chains).pipe(failBuild("config"));
+    return yield* runApp({ ...app, rpcs }).pipe(Effect.provideService(Db, db));
+  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
 
+/**
+ * Build the config and the schema of the app.
+ *
+ * @dev Fails with `BuildFailed`. The database and the RPC clients of the app
+ * are created from the result, then passed to {@link runApp}.
+ */
+export const buildApp = ({ cliOptions }: { cliOptions: CliOptions }) =>
+  Effect.gen(function* () {
     yield* checkNodeVersion;
     yield* setVersionInfo;
     yield* runCodegen;
@@ -65,15 +84,49 @@ export const startApp = ({ cliOptions }: { cliOptions: CliOptions }) =>
     const preBuild = yield* build
       .preCompile(configResult)
       .pipe(failBuild("pre-compile"));
-    yield* build
-      .databaseDiagnostic({ preBuild })
-      .pipe(failBuild("diagnostic", 75));
     const schemaBuild = yield* build
       .compileSchema({ ...schemaResult, preBuild })
       .pipe(failBuild("schema"));
-    const configBuild = yield* build
+    const { chains } = yield* build
       .compileConfig({ configResult })
       .pipe(failBuild("config"));
+
+    return {
+      cliOptions,
+      build,
+      namespaceBuild,
+      configResult,
+      schemaResult,
+      preBuild,
+      schemaBuild,
+      chains,
+    };
+  });
+
+/**
+ * Run the app with the database in `Db` and `rpcs`, the RPC client of each
+ * chain: the indexer, and the HTTP server until the scope closes.
+ *
+ * @returns The exit code, when the indexer fails. Fails with `BuildFailed`.
+ */
+export const runApp = ({
+  cliOptions,
+  build,
+  namespaceBuild,
+  configResult,
+  schemaResult,
+  preBuild,
+  schemaBuild,
+  chains,
+  rpcs,
+}: Effect.Success<ReturnType<typeof buildApp>> & { rpcs: Rpc[] }) =>
+  Effect.gen(function* () {
+    const metrics = yield* Metrics;
+    const configBuild = { chains, rpcs };
+
+    yield* build
+      .databaseDiagnostic({ preBuild })
+      .pipe(failBuild("diagnostic", 75));
     yield* build
       .rpcDiagnostic({ configBuild })
       .pipe(failBuild("diagnostic", 75));
@@ -89,67 +142,59 @@ export const startApp = ({ cliOptions }: { cliOptions: CliOptions }) =>
       })
       .pipe(failBuild("indexing"));
 
-    const db = yield* makeDb({
+    const crashRecoveryCheckpoint = yield* migrate({
       namespace: namespaceBuild,
       preBuild,
       schemaBuild,
+      buildId: indexingBuild.buildId,
+      chains: indexingBuild.chains,
+      rpcs: indexingBuild.rpcs,
+      finalizedBlocks: indexingBuild.finalizedBlocks,
     });
 
-    return yield* Effect.gen(function* () {
-      const crashRecoveryCheckpoint = yield* migrate({
-        namespace: namespaceBuild,
-        preBuild,
-        schemaBuild,
-        buildId: indexingBuild.buildId,
-        chains: indexingBuild.chains,
-        rpcs: indexingBuild.rpcs,
-        finalizedBlocks: indexingBuild.finalizedBlocks,
-      });
+    yield* migrateSync;
 
-      yield* migrateSync;
+    const apiResult = yield* build
+      .executeApi({ preBuild, configBuild })
+      .pipe(failBuild("api"));
+    const apiBuild = yield* build
+      .compileApi({ apiResult })
+      .pipe(failBuild("api"));
 
-      const apiResult = yield* build
-        .executeApi({ preBuild, configBuild })
-        .pipe(failBuild("api"));
-      const apiBuild = yield* build
-        .compileApi({ apiResult })
-        .pipe(failBuild("api"));
+    metrics.ponder_settings_info.set(
+      {
+        ordering: preBuild.ordering,
+        database: preBuild.databaseConfig.kind,
+        command: cliOptions.command,
+      },
+      1,
+    );
 
-      metrics.ponder_settings_info.set(
-        {
-          ordering: preBuild.ordering,
-          database: preBuild.databaseConfig.kind,
-          command: cliOptions.command,
-        },
-        1,
-      );
+    const app: PonderApp = {
+      preBuild,
+      namespaceBuild,
+      schemaBuild,
+      indexingBuild,
+      apiBuild,
+      crashRecoveryCheckpoint,
+    };
 
-      const app: PonderApp = {
-        preBuild,
-        namespaceBuild,
-        schemaBuild,
-        indexingBuild,
-        apiBuild,
-        crashRecoveryCheckpoint,
-      };
+    metrics.initializeIndexingMetrics(app);
 
-      metrics.initializeIndexingMetrics(app);
+    const indexing = yield* Effect.forkScoped(runIndexing(app), {
+      startImmediately: true,
+    });
 
-      const indexing = yield* Effect.forkScoped(runIndexing(app), {
-        startImmediately: true,
-      });
+    yield* makeServer(app.apiBuild);
 
-      yield* makeServer(app.apiBuild);
+    // Note: The HTTP server keeps running after the indexer completes.
+    const result = yield* Fiber.await(indexing);
+    if (Exit.isSuccess(result)) return yield* Effect.never;
 
-      // Note: The HTTP server keeps running after the indexer completes.
-      const result = yield* Fiber.await(indexing);
-      if (Exit.isSuccess(result)) return yield* Effect.never;
-
-      const error = Cause.squash(result.cause);
-      yield* Effect.logError({ msg: "unhandledRejection", error });
-      return getExitCode(error);
-    }).pipe(Effect.provideService(Db, db));
-  }).pipe(Effect.catchIf(isBuildFailed, ({ code }) => Effect.succeed(code)));
+    const error = Cause.squash(result.cause);
+    yield* Effect.logError({ msg: "unhandledRejection", error });
+    return getExitCode(error);
+  });
 
 /**
  * Run the indexer with the ordering of the app.

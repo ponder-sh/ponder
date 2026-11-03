@@ -28,6 +28,7 @@ import {
   type RpcTransactionReceipt,
 } from "viem";
 import { Metrics } from "@/internal/metrics.js";
+import { Options } from "@/internal/options.js";
 import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import {
   BlockNotFoundError,
@@ -42,8 +43,10 @@ import { makeHttpTransport } from "./http.js";
 import {
   makeCustomTransport,
   RpcNetworkError,
+  type RpcSubscribeTransport,
   RpcTimeoutError,
   type RpcTransport,
+  type RpcTransportError,
 } from "./transport.js";
 import { makeWebSocketTransport, WebSocketClosedError } from "./webSocket.js";
 
@@ -222,22 +225,28 @@ const warnIfSlow =
     });
 
 /**
- * Create a load-balanced JSON-RPC client for `chain`.
- *
- * @dev Reactivation timers and subscriptions stop when the scope closes.
+ * The transports of a chain: one for each JSON-RPC provider, and the
+ * connection for `eth_subscribe`, if any.
  */
-export const createRpc = ({
-  chain,
-  concurrency = 25,
-}: {
-  chain: Chain;
-  concurrency?: number;
-}): Effect.Effect<Rpc, never, Metrics | Scope.Scope> =>
-  Effect.gen(function* () {
-    const metrics = yield* Metrics;
-    /** Background fibers that stop when the scope closes. */
-    const fibers = yield* FiberSet.make();
+export type RpcTransports = {
+  transports: RpcTransport[];
+  /**
+   * Connect for `eth_subscribe` to new heads. Without it, the chain polls for
+   * new blocks.
+   */
+  subscribe:
+    | Effect.Effect<RpcSubscribeTransport, RpcTransportError, Scope.Scope>
+    | undefined;
+};
 
+/**
+ * Create the transports of the `rpc` and `ws` of `chain`. WebSocket
+ * connections close when the scope closes.
+ */
+export const makeRpcTransports = (
+  chain: Chain,
+): Effect.Effect<RpcTransports, Error, Scope.Scope> =>
+  Effect.gen(function* () {
     const transports: RpcTransport[] = [];
 
     if (typeof chain.rpc === "string" || Array.isArray(chain.rpc)) {
@@ -252,7 +261,9 @@ export const createRpc = ({
             yield* makeWebSocketTransport(rpc, { chain, timeout: 10_000 }),
           );
         } else {
-          throw new Error(`Unsupported RPC URL protocol: ${protocol}`);
+          return yield* Effect.fail(
+            new Error(`Unsupported RPC URL protocol: ${protocol}`),
+          );
         }
       }
     } else {
@@ -267,15 +278,62 @@ export const createRpc = ({
       );
     }
 
-    if (typeof chain.ws === "string") {
-      const protocol = new url.URL(chain.ws).protocol;
+    if (chain.ws === undefined) return { transports, subscribe: undefined };
 
-      if (protocol !== "wss:" && protocol !== "ws:") {
-        throw new Error(
+    const protocol = new url.URL(chain.ws).protocol;
+    if (protocol !== "wss:" && protocol !== "ws:") {
+      return yield* Effect.fail(
+        new Error(
           `Inconsistent RPC URL protocol: ${protocol}. Expected wss or ws.`,
-        );
-      }
+        ),
+      );
     }
+
+    return {
+      transports,
+      subscribe: makeWebSocketTransport(chain.ws, { chain, timeout: 10_000 }),
+    };
+  });
+
+/**
+ * Create a JSON-RPC client for each chain, with the transports of its config.
+ *
+ * @dev The clients stop when the scope closes.
+ */
+export const createRpcs = (
+  chains: Chain[],
+): Effect.Effect<Rpc[], Error, Metrics | Options | Scope.Scope> =>
+  Effect.gen(function* () {
+    const options = yield* Options;
+    return yield* Effect.forEach(chains, (chain) =>
+      Effect.flatMap(makeRpcTransports(chain), (transports) =>
+        createRpc({
+          chain,
+          ...transports,
+          concurrency: Math.floor(options.rpcMaxConcurrency / chains.length),
+        }),
+      ),
+    );
+  });
+
+/**
+ * Create a load-balanced JSON-RPC client for `chain`, over `transports`.
+ *
+ * @dev Reactivation timers and subscriptions stop when the scope closes.
+ */
+export const createRpc = ({
+  chain,
+  transports,
+  subscribe,
+  concurrency = 25,
+}: {
+  chain: Chain;
+  concurrency?: number;
+} & RpcTransports): Effect.Effect<Rpc, never, Metrics | Scope.Scope> =>
+  Effect.gen(function* () {
+    const metrics = yield* Metrics;
+    /** Background fibers that stop when the scope closes. */
+    const fibers = yield* FiberSet.make();
 
     const buckets: Bucket[] = transports.map(
       ({ request, hostname }, index) =>
@@ -781,7 +839,7 @@ export const createRpc = ({
           let webSocketErrorCount = 0;
 
           while (true) {
-            if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
+            if (subscribe === undefined || webSocketErrorCount >= RETRY_COUNT) {
               yield* Effect.logDebug({
                 msg: "Created JSON-RPC polling subscription",
                 chain: chain.name,
@@ -818,10 +876,7 @@ export const createRpc = ({
             // Note: The subscription only ends by failing, or when the stream ends.
             const result = yield* Effect.scoped(
               Effect.gen(function* () {
-                const transport = yield* makeWebSocketTransport(chain.ws!, {
-                  chain,
-                  timeout: 10_000,
-                });
+                const transport = yield* subscribe;
                 const subscription = yield* transport
                   .subscribe(["newHeads"])
                   .pipe(

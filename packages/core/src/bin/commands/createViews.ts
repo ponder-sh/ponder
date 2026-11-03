@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { createBuild } from "@/build/index.js";
-import { makeDb } from "@/database/db.js";
+import { Db, makeDb, makeDbTransports } from "@/database/db.js";
 import {
   getPonderMetaTable,
   PONDER_CHECKPOINT_TABLE_NAME,
@@ -58,19 +58,21 @@ export function createViews({
     const preBuild = yield* build
       .preCompile(configResult)
       .pipe(failBuild("pre-compile"));
+
+    const db = yield* makeDb(
+      yield* makeDbTransports({
+        // Note: `namespace` is not used in this command
+        namespace: {
+          schema: cliOptions.schema!,
+          viewsSchema: undefined,
+        },
+        preBuild,
+        schemaBuild: { schema: {} },
+      }),
+    );
     yield* build
       .databaseDiagnostic({ preBuild })
-      .pipe(failBuild("diagnostic", 75));
-
-    const db = yield* makeDb({
-      // Note: `namespace` is not used in this command
-      namespace: {
-        schema: cliOptions.schema!,
-        viewsSchema: undefined,
-      },
-      preBuild,
-      schemaBuild: { schema: {} },
-    });
+      .pipe(failBuild("diagnostic", 75), Effect.provideService(Db, db));
 
     const endClock = yield* startClockEffect;
 
