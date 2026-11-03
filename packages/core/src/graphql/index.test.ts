@@ -2814,6 +2814,33 @@ test("snake case table and column names with where clause", async () => {
   });
 });
 
+test("filter string only on text columns", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.varchar(),
+    address: t.hex(),
+    createdAt: t.timestamp(),
+    createdAtString: t.timestamp({ mode: "string" }),
+    day: t.date({ mode: "string" }),
+    uuid: t.uuid(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const fields = Object.keys(
+    (graphqlSchema.getType("petFilter") as any).getFields(),
+  );
+  for (const column of ["id", "name", "address"]) {
+    expect(fields).toContain(`${column}_contains`);
+  }
+  for (const column of ["createdAt", "createdAtString", "day", "uuid"]) {
+    expect(fields).toContain(`${column}_in`);
+    expect(fields).not.toContain(`${column}_contains`);
+    expect(fields).not.toContain(`${column}_starts_with`);
+  }
+});
+
 test("singular with hex primary key uses case insensitive where", async () => {
   const account = onchainTable("account", (t) => ({
     address: t.hex().primaryKey(),
