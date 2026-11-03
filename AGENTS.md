@@ -21,7 +21,7 @@
 - Core unit tests have no global setup and each file runs in isolation. Shared fixtures are static: `packages/core/src/_test/abis.ts` (committed ABIs), `constants.ts`, and `utils.ts` (`createTestCommon()`, `createStubRpc()`, `EventCallback` builders, `withStubbedEnv()`). Code that needs RPC takes a stub; GraphQL tests use the `drizzle-orm/pg-proxy` harness in `packages/core/src/graphql/index.test.ts` to record SQL and serve canned rows.
 - Prefer inline snapshots (`toMatchInlineSnapshot()`, `toThrowErrorMatchingInlineSnapshot()`) over hand-written expected values. Fill them with `-u`, then review every snapshot against the intended behavior before accepting it: a snapshot records current behavior, including bugs. Keep snapshots stable by leaving out version strings and other volatile values. Keep relational assertions, such as `expect(copy).toEqual(original)`, as they are.
 - `packages/utils/src/_test/*` contains live RPC-provider tests that require `RPC_URL_*` values from `packages/utils/.env.example`; avoid broad utils/root test runs unless those env vars and network access are intended.
-- `simulation-test` and `benchmark` use Bun scripts and external Postgres/RPC env from their `.env.example` files. Their `DATABASE_URL` should omit a database name; scripts append app-specific database names.
+- `simulation-test` uses Bun and a Postgres server, and `benchmark` uses Bun with external Postgres/RPC env from its `.env.example`. Their `DATABASE_URL` should omit a database name; scripts append their own database names.
 
 ## Memory Profiling
 - Profile memory while running an example app, such as `feature-multichain`. Run it for several minutes so finalization occurs; temporarily comment out chains when necessary to keep the workload practical.
