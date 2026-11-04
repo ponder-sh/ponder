@@ -412,6 +412,21 @@ export const getLogsRetryHelper = ({
     }
   }
 
+  // arbitrum
+  match = sError.match(
+    /query spans \d+ blocks \(\d+ to \d+\), but only (\d+) are allowed/,
+  );
+  if (match !== null) {
+    const ranges = chunk({ params, range: BigInt(match[1]!) - 1n });
+    if (isRangeUnchanged(params, ranges) === false) {
+      return {
+        shouldRetry: true,
+        ranges,
+        isSuggestedRange: true,
+      } as const;
+    }
+  }
+
   // catch-all
   if (
     // valtitude
