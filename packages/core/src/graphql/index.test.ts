@@ -1798,6 +1798,58 @@ test("filter and/or", async () => {
   ]);
 });
 
+test("filter or with multi-field branches", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+    weight: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1, weight: 0 },
+    { id: "id2", age: 0, weight: 1 },
+    { id: "id3", age: 1, weight: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id3" }]);
+
+  const result2 = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }, { id: "id1" }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result2.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result2.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id3" }]);
+});
+
 test("order by", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),

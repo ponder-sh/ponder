@@ -1060,8 +1060,9 @@ function buildWhereConditions(
         );
       }
 
-      const nestedConditions = rawValue.flatMap((subWhere) =>
-        buildWhereConditions(subWhere, columns),
+      // Conditions within a single filter object are combined with `AND`.
+      const nestedConditions = rawValue.map((subWhere) =>
+        and(...buildWhereConditions(subWhere, columns)),
       );
 
       if (nestedConditions.length > 0) {
