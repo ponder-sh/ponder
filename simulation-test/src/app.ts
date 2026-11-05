@@ -202,10 +202,15 @@ const filterConfig = (
   }
 };
 
+/**
+ * @param rpcUrls The URL of the provider of each chain. Without one, the
+ * simulation injects the transports.
+ */
 export const generateConfig = (
   plan: Plan,
   app: AppPlan,
   databaseUrl: string,
+  rpcUrls: { [chainName: string]: string | string[] } = {},
 ) => {
   const chains = plan.chains.filter((c) => app.chains.includes(c.name));
   const byName = Object.fromEntries(chains.map((c) => [c.name, c]));
@@ -227,7 +232,7 @@ ${chains
   .map(
     (c) => `    ${c.name}: {
       id: ${c.id},
-      rpc: "http://${c.name}.simulation.invalid",
+      rpc: ${JSON.stringify(rpcUrls[c.name] ?? `http://${c.name}.simulation.invalid`)},
       pollingInterval: ${c.pollingInterval},
       reorgWindow: ${c.reorgWindow},
       cacheRpcRequests: ${app.cacheRpcRequests[c.name]},${app.ethGetLogsBlockRange[c.name] === undefined ? "" : `\n      ethGetLogsBlockRange: ${app.ethGetLogsBlockRange[c.name]},`}
@@ -386,11 +391,13 @@ export const writeApp = ({
   app,
   dir,
   databaseUrl,
+  rpcUrls,
 }: {
   plan: Plan;
   app: AppPlan;
   dir: string;
   databaseUrl: string;
+  rpcUrls?: { [chainName: string]: string | string[] };
 }) => {
   fs.mkdirSync(path.join(dir, "src", "api"), { recursive: true });
   const write = (file: string, content: string) => {
@@ -400,7 +407,7 @@ export const writeApp = ({
       return;
     fs.writeFileSync(target, content);
   };
-  write("ponder.config.ts", generateConfig(plan, app, databaseUrl));
+  write("ponder.config.ts", generateConfig(plan, app, databaseUrl, rpcUrls));
   write("ponder.schema.ts", generateSchema(plan, app));
   write("src/index.ts", generateIndexing(plan, app));
   write("src/api/index.ts", API);
