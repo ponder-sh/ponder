@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { start } from "../../packages/core/src/bin/commands/start.js";
+import { log, runPonder } from "./harness.js";
 
 let db = drizzle(process.env.DATABASE_URL!, { casing: "snake_case" });
 
@@ -47,23 +47,10 @@ process.env.DATABASE_URL = `${process.env.DATABASE_URL!}/benchmark_${APP_ID}`;
 process.env.DATABASE_SCHEMA = "benchmark";
 process.env.PONDER_TELEMETRY_DISABLED = "true";
 
-start({
-  cliOptions: {
-    ...program.optsWithGlobals(),
-    command: "start",
-    version: "0.0.0",
-    root: APP_DIR,
-    config: "ponder.config.ts",
-  },
+const ponder = runPonder({
+  cliOptions: { ...program.optsWithGlobals(), root: APP_DIR },
 });
-
-while (true) {
-  try {
-    const result = await fetch("http://localhost:42069/ready");
-    if (result.status === 200) break;
-  } catch {}
-  await new Promise((resolve) => setTimeout(resolve, 100));
-}
-
-// Note: `ponder start` runs its shutdown sequence and exits on SIGINT.
-process.kill(process.pid, "SIGINT");
+await ponder.ready;
+log({ msg: "Created app", app: APP_ID, database: `benchmark_${APP_ID}` });
+await ponder.stop();
+process.exit(0);
