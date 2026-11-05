@@ -126,6 +126,8 @@ const EPSILON = 0.1;
 const INITIAL_MAX_RPS = 20;
 const MIN_RPS = 3;
 const MAX_RPS = 500;
+/** Increase of the rps limit per saturated second, until the first rate limit. */
+const RPS_SLOW_START_FACTOR = 2;
 const RPS_INCREASE_FACTOR = 1.05;
 const RPS_DECREASE_FACTOR = 0.95;
 const RPS_INCREASE_QUALIFIER = 0.9;
@@ -152,6 +154,11 @@ type Bucket = {
   expectedLatency: number;
 
   rps: { count: number; timestamp: number }[];
+  /**
+   * The rps limit before its last doubling, while the rps limit doubles every
+   * saturated second (until the first rate limit), else `undefined`.
+   */
+  slowStartRpsLimit: number | undefined;
   /** Number of consecutive successful requests. */
   consecutiveSuccessfulRequests: number;
   /** Maximum requests per second (dynamic). */
@@ -354,6 +361,7 @@ export const createRpc = ({
           expectedLatency: 200,
 
           rps: [],
+          slowStartRpsLimit: INITIAL_MAX_RPS,
           consecutiveSuccessfulRequests: 0,
           rpsLimit: INITIAL_MAX_RPS,
 
@@ -484,25 +492,46 @@ export const createRpc = ({
 
     const increaseMaxRPS = (bucket: Bucket) =>
       Effect.gen(function* () {
-        if (bucket.rps.length < 10) return;
+        if (bucket.rpsLimit === MAX_RPS) return;
 
-        if (
-          bucket.consecutiveSuccessfulRequests <
-          bucket.rpsLimit * SUCCESS_MULTIPLIER
-        ) {
-          return;
-        }
-
-        for (const { count } of bucket.rps) {
-          if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
+        if (bucket.slowStartRpsLimit !== undefined) {
+          const timestamp = Math.floor((yield* Clock.currentTimeMillis) / 1000);
+          const previous = bucket.rps.find(
+            (r) => r.timestamp === timestamp - 1,
+          );
+          if (
+            previous === undefined ||
+            previous.count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER
+          ) {
             return;
           }
-        }
 
-        bucket.rpsLimit = Math.min(
-          bucket.rpsLimit * RPS_INCREASE_FACTOR,
-          MAX_RPS,
-        );
+          bucket.slowStartRpsLimit = bucket.rpsLimit;
+          bucket.rpsLimit = Math.min(
+            bucket.rpsLimit * RPS_SLOW_START_FACTOR,
+            MAX_RPS,
+          );
+        } else {
+          if (bucket.rps.length < 10) return;
+
+          if (
+            bucket.consecutiveSuccessfulRequests <
+            bucket.rpsLimit * SUCCESS_MULTIPLIER
+          ) {
+            return;
+          }
+
+          for (const { count } of bucket.rps) {
+            if (count < bucket.rpsLimit * RPS_INCREASE_QUALIFIER) {
+              return;
+            }
+          }
+
+          bucket.rpsLimit = Math.min(
+            bucket.rpsLimit * RPS_INCREASE_FACTOR,
+            MAX_RPS,
+          );
+        }
         bucket.consecutiveSuccessfulRequests = 0;
 
         yield* Effect.logDebug({
@@ -702,10 +731,12 @@ export const createRpc = ({
                 bucket.isActive = false;
                 bucket.isWarmingUp = false;
 
-                bucket.rpsLimit = Math.max(
-                  bucket.rpsLimit * RPS_DECREASE_FACTOR,
-                  MIN_RPS,
-                );
+                // Note: The first rate limit restores the limit before the
+                // last doubling of slow start, or keeps the initial limit.
+                bucket.rpsLimit =
+                  bucket.slowStartRpsLimit ??
+                  Math.max(bucket.rpsLimit * RPS_DECREASE_FACTOR, MIN_RPS);
+                bucket.slowStartRpsLimit = undefined;
                 bucket.consecutiveSuccessfulRequests = 0;
 
                 yield* Effect.logDebug({
