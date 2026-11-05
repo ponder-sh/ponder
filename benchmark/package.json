@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "benchmark": "bun run src/index.ts",
-    "create:app": "bun run src/create-app.ts"
+    "create:app": "bun run src/create-app.ts",
+    "live": "bun run src/live.ts"
   },
   "devDependencies": {
     "commander": "12.0.0",
