@@ -844,9 +844,13 @@ export async function refetchHistoricalEvents(params: {
   events: Event[];
   syncStore: SyncStore;
 }): Promise<Event[]> {
-  const events: Event[] = new Array(params.events.length);
+  const events = params.events.slice();
 
   for (const chain of params.indexingBuild.chains) {
+    // Note: The events of a chain without the rpc cache aren't in the
+    // sync-store, and they already have every column.
+    if (chain.cacheRpcRequests === false) continue;
+
     const { childAddresses } = params.perChainSync.get(chain)!;
 
     // Note: All filters are refetched, no matter if they are resolved or not.
