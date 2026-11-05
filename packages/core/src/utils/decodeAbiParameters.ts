@@ -97,15 +97,14 @@ function _decodeAbiParameter(
   formatAddress: (address: Hex) => Hex = checksumAddress,
 ): unknown {
   if (isAbiParameterFixedArray(param)) {
-    const _type = param.type;
     const [_, type, length] = param.type.match(FIXED_ARRAY_REGEX)!;
-    param.type = type!;
+    const child = { ...param, type: type! };
 
     if (length === "0") {
       throw new Error("Invalid data length.");
     }
 
-    if (isAbiParameterDeeplyStatic(param) === false) {
+    if (isAbiParameterDeeplyStatic(child) === false) {
       const _offset = cursor.offset;
       const _index = cursor.index;
 
@@ -118,12 +117,11 @@ function _decodeAbiParameter(
       for (let i = 0; i < Number.parseInt(length!, 10); ++i) {
         cursor.index = cursor.offset + i * 64;
 
-        value.push(_decodeAbiParameter(param, data, formatAddress));
+        value.push(_decodeAbiParameter(child, data, formatAddress));
       }
 
       cursor.offset = _offset;
       cursor.index = _index + 64;
-      param.type = _type;
 
       return value;
     }
@@ -133,10 +131,9 @@ function _decodeAbiParameter(
       if (data.length - cursor.index < 64) {
         throw new Error("Invalid data length.");
       }
-      value.push(_decodeAbiParameter(param, data, formatAddress));
+      value.push(_decodeAbiParameter(child, data, formatAddress));
     }
 
-    param.type = _type;
     return value;
   }
 
@@ -152,11 +149,10 @@ function _decodeAbiParameter(
     const length = readWord(data);
     cursor.index += 64;
 
-    const _type = param.type;
     const [_, type] = param.type.match(DYNAMIC_ARRAY_REGEX)!;
-    param.type = type!;
+    const child = { ...param, type: type! };
 
-    const deeplyStatic = isAbiParameterDeeplyStatic(param);
+    const deeplyStatic = isAbiParameterDeeplyStatic(child);
 
     const value: unknown[] = [];
     for (let i = 0; i < hexToNumber(length!); ++i) {
@@ -167,12 +163,11 @@ function _decodeAbiParameter(
         throw new Error("Invalid data length.");
       }
 
-      value.push(_decodeAbiParameter(param, data, formatAddress));
+      value.push(_decodeAbiParameter(child, data, formatAddress));
     }
 
     cursor.offset = _offset;
     cursor.index = _index + 64;
-    param.type = _type;
 
     return value;
   }
@@ -412,14 +407,8 @@ function isAbiParameterDeeplyStatic(param: AbiParameter): boolean {
   }
 
   if (isAbiParameterFixedArray(param)) {
-    const _type = param.type;
     const [_, type] = param.type.match(FIXED_ARRAY_REGEX)!;
-    param.type = type!;
-
-    const result = isAbiParameterDeeplyStatic(param);
-
-    param.type = _type;
-    return result;
+    return isAbiParameterDeeplyStatic({ ...param, type: type! });
   }
 
   return true;
