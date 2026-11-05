@@ -6,7 +6,9 @@ import {
   Exit,
   Fiber,
   Layer,
+  Logger,
   Random,
+  References,
   Scheduler,
   Scope,
 } from "effect";
@@ -24,7 +26,10 @@ import {
   makeDbTransports,
 } from "../../packages/core/src/database/db.js";
 import { ExternalIo } from "../../packages/core/src/internal/io.js";
-import type { LogLevel } from "../../packages/core/src/internal/logger.js";
+import {
+  createLogger,
+  type LogLevel,
+} from "../../packages/core/src/internal/logger.js";
 import {
   Metrics,
   MetricsService,
@@ -36,10 +41,10 @@ import {
 import { createRpc } from "../../packages/core/src/rpc/index.js";
 import { writeApp } from "./app.js";
 import { SimChain } from "./chain.js";
-import { checkDatabase } from "./check.js";
+import { checkDatabase, makeLivenessCheck } from "./check.js";
 import { makeSimClock } from "./clock.js";
 import { type DbStats, makeDbGate, makeSimDb } from "./db.js";
-import type { Plan } from "./plan.js";
+import type { AppPlan, Plan } from "./plan.js";
 import { Rng } from "./random.js";
 import { makeSimRpc, type RpcStats } from "./rpc.js";
 import { makeSimScheduler } from "./scheduler.js";
@@ -50,6 +55,11 @@ export type WorldResult = {
   virtualMs: number;
   wallMs: number;
   steps: number;
+  /**
+   * The virtual time (ms) from the start of each run of `plan.runs` until its
+   * app was ready, or `undefined` if it never was.
+   */
+  runs: { app: string; readyMs: number | undefined }[];
   chains: { name: string; head: number; reorgs: number }[];
   rpc: { hostname: string; stats: RpcStats }[];
   db: DbStats;
@@ -78,14 +88,12 @@ export const runWorld = async ({
   plan,
   databaseUrl,
   appsDir,
-  logger,
   logLevel,
 }: {
   plan: Plan;
   databaseUrl: string;
   appsDir: string;
-  /** The logger of Ponder and the simulation. */
-  logger: Layer.Layer<never>;
+  /** The log level of Ponder and the simulation. */
   logLevel: LogLevel;
 }): Promise<WorldResult> => {
   const wallStart = performance.now();
@@ -137,6 +145,47 @@ export const runWorld = async ({
   const clock = makeSimClock(plan.startTime, scheduler.schedule);
   const gate = makeDbGate();
   const simDb = makeSimDb({ plan, scheduler, gate });
+
+  // Readiness
+
+  /** The virtual time the app of the current run was ready. */
+  let readyAt: number | undefined;
+  /** The app of the current run. */
+  let currentApp: AppPlan | undefined;
+  const liveness = makeLivenessCheck(plan);
+  /**
+   * Records when the app logs that `/ready` returns 200, and its indexed live
+   * blocks for the liveness check. The date of a log is from the clock of its
+   * fiber, the virtual clock.
+   *
+   * @dev Watching the log, instead of requesting `/ready`, adds no statements.
+   */
+  const readyLogger = Logger.make(({ message, date }) => {
+    const [first] = message as [unknown];
+    if (
+      readyAt === undefined &&
+      typeof first === "object" &&
+      first !== null &&
+      "msg" in first &&
+      first.msg === "Started returning 200 responses" &&
+      "endpoint" in first &&
+      first.endpoint === "/ready"
+    ) {
+      readyAt = date.getTime();
+      liveness.onReady(currentApp!, readyAt);
+    }
+    if (
+      typeof first === "object" &&
+      first !== null &&
+      "msg" in first &&
+      first.msg === "Indexed block" &&
+      "chain" in first &&
+      typeof first.chain === "string"
+    ) {
+      liveness.onIndexedBlock(first.chain, date.getTime());
+    }
+  });
+  const runResults: WorldResult["runs"] = [];
 
   // The world
 
@@ -223,6 +272,14 @@ export const runWorld = async ({
       );
 
       yield* log("Started app", { run: index, app: app.id });
+      const startedAt = yield* Clock.currentTimeMillis;
+      readyAt = undefined;
+      currentApp = app;
+      const result: WorldResult["runs"][number] = {
+        app: app.id,
+        readyMs: undefined,
+      };
+      runResults.push(result);
       const scope = yield* Scope.make();
       const fiber = yield* Effect.forkDetach(
         start.pipe(
@@ -236,6 +293,7 @@ export const runWorld = async ({
         Fiber.await(fiber),
         sleepUntil(plan.startTime + run.stopAt).pipe(Effect.as(undefined)),
       );
+      if (readyAt !== undefined) result.readyMs = readyAt - startedAt;
       if (exit !== undefined) {
         return yield* Effect.fail(
           new PonderFailure(
@@ -246,6 +304,7 @@ export const runWorld = async ({
         );
       }
 
+      liveness.onStop(yield* Clock.currentTimeMillis);
       yield* log(run.stop === "kill" ? "Killed app" : "Stopped app", {
         run: index,
         app: app.id,
@@ -267,7 +326,13 @@ export const runWorld = async ({
   });
 
   const services = Layer.mergeAll(
-    logger,
+    Logger.layer([createLogger({ level: logLevel }), readyLogger]),
+    // Note: The ready log is at `info`. The logger of Ponder drops logs under
+    // `logLevel`.
+    Layer.succeed(
+      References.MinimumLogLevel,
+      logLevel === "debug" ? "Debug" : logLevel === "trace" ? "Trace" : "Info",
+    ),
     Layer.succeed(Clock.Clock, clock),
     Layer.succeed(Scheduler.Scheduler, scheduler),
     Layer.succeed(Random.Random, new Rng(plan.seed, "ponder").toRandom()),
@@ -310,6 +375,10 @@ export const runWorld = async ({
     );
   }
 
+  if (error === undefined && liveness.violation !== undefined) {
+    error = new PonderFailure(liveness.violation);
+  }
+
   if (error === undefined) {
     const violation = await checkDatabase({ plan, chains, databaseUrl });
     if (violation !== undefined) error = new PonderFailure(violation);
@@ -320,6 +389,7 @@ export const runWorld = async ({
     virtualMs: clock.currentTimeMillisUnsafe() - plan.startTime,
     wallMs: performance.now() - wallStart,
     steps: scheduler.steps(),
+    runs: runResults,
     chains: chains.map((c) => ({
       name: c.plan.name,
       head: c.head.number,

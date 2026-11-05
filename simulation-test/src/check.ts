@@ -280,3 +280,78 @@ const getChainCheckpoint = (plan: Plan, id: number, number: number) => {
     blockNumber: BigInt(number),
   });
 };
+
+/**
+ * Check that live indexing doesn't stall: once the app of a run is ready, each
+ * chain with a source without an end block indexes a block at least every
+ * `bound` ms of virtual time, until the run stops. With omnichain ordering, a
+ * block waits for the next block of every other live chain.
+ */
+export const makeLivenessCheck = (plan: Plan) => {
+  let run: { bound: number; lastIndexedAt: Map<string, number> } | undefined;
+  let violation: string | undefined;
+
+  const observe = (chain: string, at: number) => {
+    const gap = at - run!.lastIndexedAt.get(chain)!;
+    if (violation === undefined && gap > run!.bound) {
+      violation = `chain "${chain}" indexed no block for ${gap}ms until ${at - plan.startTime}ms, more than ${run!.bound}ms`;
+    }
+    run!.lastIndexedAt.set(chain, at);
+  };
+
+  return {
+    /** Start the check for `app`, which is ready at virtual time `at`. */
+    onReady: (app: AppPlan, at: number) => {
+      const chains = app.chains.filter((name) =>
+        getEndBlocks(app, name).includes(undefined),
+      );
+      run = {
+        bound: getLivenessBound(plan, app),
+        lastIndexedAt: new Map(chains.map((name) => [name, at])),
+      };
+    },
+    onIndexedBlock: (chain: string, at: number) => {
+      if (run?.lastIndexedAt.has(chain)) observe(chain, at);
+    },
+    /** End the check of the run, which stops at virtual time `at`. */
+    onStop: (at: number) => {
+      if (run === undefined) return;
+      for (const chain of run.lastIndexedAt.keys()) observe(chain, at);
+      run = undefined;
+    },
+    get violation() {
+      return violation;
+    },
+  };
+};
+
+/**
+ * The longest time between two indexed blocks of a chain of `app`: two blocks
+ * of the slowest chain, a poll, and the lag of a provider, with time for
+ * requests, or a minute with faults, which are retried with a backoff.
+ */
+const getLivenessBound = (plan: Plan, app: AppPlan) => {
+  const chains = plan.chains.filter((chain) => app.chains.includes(chain.name));
+  const isFaulty =
+    plan.database.transactionErrorRate > 0 ||
+    plan.scheduler.jumpRate > 0 ||
+    chains.some((chain) =>
+      chain.rpcs.some(
+        (rpc) =>
+          rpc.errorRate > 0 ||
+          rpc.rateLimit !== undefined ||
+          rpc.dropRate > 0 ||
+          rpc.disconnectRate > 0,
+      ),
+    );
+  return (
+    Math.max(
+      ...chains.map(
+        (chain) =>
+          2 * chain.blockTime * 1_000 +
+          chain.pollingInterval +
+          Math.max(...chain.rpcs.map((rpc) => rpc.lag)),
+      ),
+    ) + (isFaulty ? 60_000 : 10_000)
+  );
+};
