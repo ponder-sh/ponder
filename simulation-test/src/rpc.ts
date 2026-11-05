@@ -237,6 +237,8 @@ export const makeSimRpc = ({
   };
 
   const latency = () => rng.int(plan.latency.min, plan.latency.max);
+  /** Sleeps `ms`, without yielding when it is 0, as for a local provider. */
+  const sleep = (ms: number) => (ms > 0 ? Effect.sleep(ms) : Effect.void);
 
   const handle = (view: ChainView, body: RequestBody): unknown => {
     const params = (body.params ?? []) as any[];
@@ -528,7 +530,7 @@ export const makeSimRpc = ({
 
         if (isAllowed(start) === false) {
           stats.rateLimited++;
-          yield* Effect.sleep(rng.int(1, plan.latency.min + 1));
+          yield* sleep(rng.int(1, plan.latency.min + 1));
           return yield* Effect.fail(
             new RpcHttpError({
               method: body.method,
@@ -540,7 +542,7 @@ export const makeSimRpc = ({
         }
 
         const total = latency();
-        yield* Effect.sleep(Math.floor(total / 2));
+        yield* sleep(Math.floor(total / 2));
 
         if (rng.bool(plan.errorRate)) {
           stats.errors++;
@@ -553,7 +555,7 @@ export const makeSimRpc = ({
           response = handle(chain.view(now - plan.lag), body as RequestBody);
         } catch (error) {
           if (error instanceof MethodError) {
-            yield* Effect.sleep(Math.ceil(total / 2));
+            yield* sleep(Math.ceil(total / 2));
             return yield* Effect.fail(
               new RpcResponseError({
                 method: body.method,
@@ -566,7 +568,7 @@ export const makeSimRpc = ({
           return yield* Effect.die(error);
         }
 
-        yield* Effect.sleep(
+        yield* sleep(
           Math.ceil(total / 2) +
             Math.floor((size(response) * plan.latencyPerResult) / 100),
         );
@@ -582,7 +584,7 @@ export const makeSimRpc = ({
     RpcTransportError,
     Scope.Scope
   > = Effect.gen(function* () {
-    yield* Effect.sleep(latency());
+    yield* sleep(latency());
     if (rng.bool(plan.errorRate)) {
       return yield* Effect.fail(
         new RpcNetworkError({
@@ -608,7 +610,7 @@ export const makeSimRpc = ({
               }),
             );
           }
-          yield* Effect.sleep(latency());
+          yield* sleep(latency());
 
           const incoming = yield* Queue.unbounded<SimBlock>();
           const outgoing = yield* Queue.unbounded<unknown, RpcTransportError>();
@@ -625,7 +627,7 @@ export const makeSimRpc = ({
               const block = yield* Queue.take(incoming);
               const now = yield* Clock.currentTimeMillis;
               const at = block.minedAt + plan.lag + latency();
-              if (at > now) yield* Effect.sleep(at - now);
+              if (at > now) yield* sleep(at - now);
               if (rng.bool(plan.disconnectRate)) {
                 yield* Queue.fail(
                   outgoing,
