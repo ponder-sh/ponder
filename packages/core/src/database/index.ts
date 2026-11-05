@@ -929,7 +929,7 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
           common.logger.info({
             msg: "Detected crash recovery",
             build_id: buildId,
-            last_active: `${formatEta(Date.now() - previousApp.heartbeat_at)}s`,
+            last_active: formatEta(Date.now() - previousApp.heartbeat_at),
             schema: namespace.schema,
           });
 
