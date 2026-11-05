@@ -131,6 +131,8 @@ const RPS_SLOW_START_FACTOR = 2;
 const RPS_INCREASE_FACTOR = 1.05;
 const RPS_DECREASE_FACTOR = 0.95;
 const RPS_INCREASE_QUALIFIER = 0.9;
+/** Burst of the rps limit, in seconds of requests. */
+const RPS_BURST = 0.1;
 const SUCCESS_MULTIPLIER = 5;
 
 type Bucket = {
@@ -163,6 +165,13 @@ type Bucket = {
   consecutiveSuccessfulRequests: number;
   /** Maximum requests per second (dynamic). */
   rpsLimit: number;
+  /**
+   * Requests the bucket may send now. Refills at `rpsLimit` per second, up to
+   * `RPS_BURST` seconds of requests, so that a saturated bucket sends evenly.
+   */
+  tokens: number;
+  /** Time of the last refill of `tokens`, in milliseconds. */
+  tokensAt: number;
 
   request: RpcTransport["request"];
 };
@@ -195,21 +204,12 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
 const isAvailable = (bucket: Bucket, now: number) => {
   if (bucket.isActive === false) return false;
 
-  const timestamp = Math.floor(now / 1000);
-  const currentRPS = bucket.rps.find((r) => r.timestamp === timestamp);
-
-  if (currentRPS && currentRPS.count + 1 > bucket.rpsLimit) {
-    return false;
-  }
-
-  if (bucket.rps.length > 0 && bucket.rps[0]!.timestamp < timestamp) {
-    const elapsed = timestamp - bucket.rps[0]!.timestamp;
-    const totalCount = bucket.rps.reduce((acc, rps) => acc + rps.count, 0);
-
-    if (totalCount > bucket.rpsLimit * (1 + elapsed)) {
-      return false;
-    }
-  }
+  bucket.tokens = Math.min(
+    Math.max(1, bucket.rpsLimit * RPS_BURST),
+    bucket.tokens + ((now - bucket.tokensAt) * bucket.rpsLimit) / 1000,
+  );
+  bucket.tokensAt = now;
+  if (bucket.tokens < 1) return false;
 
   if (bucket.isWarmingUp && bucket.activeConnections > 3) {
     return false;
@@ -339,6 +339,7 @@ export const createRpc = ({
 } & RpcTransports): Effect.Effect<Rpc, never, Metrics | Scope.Scope> =>
   Effect.gen(function* () {
     const metrics = yield* Metrics;
+    const startTime = yield* Clock.currentTimeMillis;
     /** Background fibers that stop when the scope closes. */
     const fibers = yield* FiberSet.make();
 
@@ -364,6 +365,8 @@ export const createRpc = ({
           slowStartRpsLimit: INITIAL_MAX_RPS,
           consecutiveSuccessfulRequests: 0,
           rpsLimit: INITIAL_MAX_RPS,
+          tokens: Math.max(1, INITIAL_MAX_RPS * RPS_BURST),
+          tokensAt: startTime,
 
           request,
         }) satisfies Bucket,
@@ -465,6 +468,7 @@ export const createRpc = ({
             Math.floor((yield* Random.next) * availableBuckets.length)
           ]!;
         randomBucket.activeConnections++;
+        randomBucket.tokens--;
         return randomBucket;
       }
 
@@ -487,6 +491,7 @@ export const createRpc = ({
       }, availableBuckets[0]!);
 
       fastestBucket.activeConnections++;
+      fastestBucket.tokens--;
       return fastestBucket;
     });
 
