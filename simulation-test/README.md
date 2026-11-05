@@ -1,6 +1,6 @@
 # Simulation Test
 
-A deterministic simulation of Ponder: a seed generates the chains, RPC providers, apps, and faults, and the same seed reproduces the same run.
+A deterministic simulation of Ponder: a seed generates the chains, RPC providers, apps, and faults, and the same seed reproduces the same run. A plan can also be read from a JSON file, such as `plans/live.json`, a fast chain with a typical app.
 
 Requires Bun and a Postgres server in `DATABASE_URL` (no database name; defaults to `postgresql://postgres@localhost:5432`).
 
@@ -10,7 +10,8 @@ cd simulation-test
 pnpm test                                # a random seed
 SEED=abc pnpm test                       # reproduce a seed
 SEED=abc pnpm test -- --log-level debug  # with logs
-SEED=abc pnpm test -- --plan             # print the plan
+SEED=abc pnpm test -- --print-plan       # print the plan
+pnpm test -- --plan plans/live.json      # a plan from a file
 ```
 
 Each simulation runs for a planned duration of virtual time. Chains mine a block every block time until then, and the runs of the apps stop at their planned times, gracefully or like a killed process. An app that exits before its run stops fails the simulation.
