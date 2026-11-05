@@ -78,7 +78,6 @@ const result = await runWorld({
   plan,
   databaseUrl: `${serverUrl}/${database}`,
   appsDir,
-  logger: layerLogger({ level: logLevel }),
   logLevel,
 });
 
@@ -89,6 +88,17 @@ log("info", {
   steps: result.steps,
   lock_waits: result.lockWaits,
 });
+for (const [i, run] of result.runs.entries()) {
+  log("info", {
+    msg: "Simulated app run",
+    run: i,
+    app: run.app,
+    ready:
+      run.readyMs === undefined
+        ? "never"
+        : `${(run.readyMs / 1_000).toFixed(3)}s`,
+  });
+}
 for (const chain of result.chains) {
   log("info", { msg: "Simulated chain", ...chain });
 }
