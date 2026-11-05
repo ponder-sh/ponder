@@ -6,7 +6,6 @@ import {
   BlockNotFoundError,
   type Hex,
   hexToNumber,
-  type LogTopic,
   toEventSelector,
   toFunctionSelector,
 } from "viem";
@@ -486,7 +485,7 @@ export async function buildIndexingFunctions({
 
     const filteredEventSelectors = new Map<
       Hex,
-      ReturnType<typeof buildTopics>[number]
+      ReturnType<typeof buildTopics>
     >();
 
     if (source.filter) {
@@ -528,7 +527,12 @@ export async function buildIndexingFunctions({
           );
         }
 
-        filteredEventSelectors.set(topic0, { topic0, topic1, topic2, topic3 });
+        if (filteredEventSelectors.has(topic0) === false) {
+          filteredEventSelectors.set(topic0, []);
+        }
+        filteredEventSelectors
+          .get(topic0)!
+          .push({ topic0, topic1, topic2, topic3 });
       }
     }
 
@@ -583,57 +587,49 @@ export async function buildIndexingFunctions({
         (f) => f.name === eventName,
       )!;
 
-      let topic1: LogTopic;
-      let topic2: LogTopic;
-      let topic3: LogTopic;
-
       const eventSelector = toEventSelector(abiEvent);
 
-      if (filteredEventSelectors.has(eventSelector)) {
-        topic1 = filteredEventSelectors.get(eventSelector)!.topic1;
-        topic2 = filteredEventSelectors.get(eventSelector)!.topic2;
-        topic3 = filteredEventSelectors.get(eventSelector)!.topic3;
-      } else {
-        topic1 = null;
-        topic2 = null;
-        topic3 = null;
+      const topics = filteredEventSelectors.get(eventSelector) ?? [
+        { topic0: eventSelector, topic1: null, topic2: null, topic3: null },
+      ];
+
+      for (const { topic1, topic2, topic3 } of topics) {
+        const filter = {
+          type: "log",
+          chainId: chain.id,
+          sourceId: source.name,
+          address,
+          topic0: eventSelector,
+          topic1,
+          topic2,
+          topic3,
+          fromBlock,
+          toBlock,
+          hasTransactionReceipt: source.includeTransactionReceipts ?? false,
+          include: defaultLogFilterInclude.concat(
+            source.includeTransactionReceipts
+              ? defaultTransactionReceiptInclude.map(
+                  (value) => `transactionReceipt.${value}` as const,
+                )
+              : [],
+          ),
+        } satisfies LogFilter;
+
+        const eventCallback = {
+          filter,
+          name: eventName,
+          fn: indexingFunction.fn,
+          chain,
+          type: "contract",
+          abiItem: abiEvent,
+          metadata: {
+            safeName: logEventName,
+            abi: source.abi,
+          },
+        } satisfies EventCallback;
+
+        perChainEventCallbacks.get(chain.id)!.push(eventCallback);
       }
-
-      const filter = {
-        type: "log",
-        chainId: chain.id,
-        sourceId: source.name,
-        address,
-        topic0: eventSelector,
-        topic1,
-        topic2,
-        topic3,
-        fromBlock,
-        toBlock,
-        hasTransactionReceipt: source.includeTransactionReceipts ?? false,
-        include: defaultLogFilterInclude.concat(
-          source.includeTransactionReceipts
-            ? defaultTransactionReceiptInclude.map(
-                (value) => `transactionReceipt.${value}` as const,
-              )
-            : [],
-        ),
-      } satisfies LogFilter;
-
-      const eventCallback = {
-        filter,
-        name: eventName,
-        fn: indexingFunction.fn,
-        chain,
-        type: "contract",
-        abiItem: abiEvent,
-        metadata: {
-          safeName: logEventName,
-          abi: source.abi,
-        },
-      } satisfies EventCallback;
-
-      perChainEventCallbacks.get(chain.id)!.push(eventCallback);
     }
 
     for (const functionEventName of registeredCallTraceEvents) {
