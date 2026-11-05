@@ -1139,6 +1139,12 @@ export const createSyncStore = ({
           internalTransaction.type = "deposit";
           internalTransaction.gasPrice = undefined;
           internalTransaction.accessList = undefined;
+          if (transaction.maxFeePerGas === null) {
+            internalTransaction.maxFeePerGas = undefined;
+          }
+          if (transaction.maxPriorityFeePerGas === null) {
+            internalTransaction.maxPriorityFeePerGas = undefined;
+          }
         } else {
           if (transaction.gasPrice === null) {
             internalTransaction.gasPrice = undefined;
