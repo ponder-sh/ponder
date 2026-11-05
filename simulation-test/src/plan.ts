@@ -30,7 +30,7 @@ export type Plan = {
 export type ChainPlan = {
   id: number;
   name: string;
-  /** Seconds between blocks. */
+  /** Seconds between blocks, which can be a fraction of a second. */
   blockTime: number;
   /** Timestamp (s) of block 0. */
   genesisTimestamp: number;
@@ -39,8 +39,11 @@ export type ChainPlan = {
    * every `blockTime` seconds after that, until the end of the simulation.
    */
   historicalBlocks: number;
-  /** Relative number of transactions per block. */
-  activity: number;
+  /**
+   * Transaction counts. Each block has a count picked at random from the
+   * list, so `[0, 10, 10]` gives two in three blocks 10 transactions.
+   */
+  activity: number[];
   /** Probability that mining a block reorgs the latest blocks first. */
   reorgRate: number;
   /** Maximum depth of a reorg, in blocks. */
@@ -216,6 +219,7 @@ export const makePlan = (seed: string): Plan => {
     const r = rng.fork(`chain:${i}`);
     const blockTime = r.pick([1, 2, 2, 12, 12, 5]);
     const historicalBlocks = r.int(20, 600);
+    const maxTransactions = r.pick([3, 8, 16]);
     const reorgWindow = r.pick([0, 30, 60, 180]);
     const maxReorgDepth =
       reorgWindow === 0
@@ -230,7 +234,7 @@ export const makePlan = (seed: string): Plan => {
         historicalBlocks * blockTime -
         r.int(0, blockTime - 1),
       historicalBlocks,
-      activity: r.float(0.2, 2),
+      activity: Array.from({ length: 8 }, () => r.int(0, maxTransactions)),
       reorgRate: maxReorgDepth === 0 ? 0 : r.pick([0, 0.02, 0.05, 0.15]),
       maxReorgDepth,
       reorgWindow,
