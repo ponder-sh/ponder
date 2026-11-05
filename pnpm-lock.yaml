@@ -196,6 +196,9 @@ importers:
       drizzle-orm:
         specifier: 0.41.0
         version: 0.41.0(@electric-sql/pglite@0.2.13)(@opentelemetry/api@1.7.0)(@types/pg@8.10.9)(bun-types@1.2.14)(gel@2.0.2(supports-color@7.2.0))(pg@8.16.2)
+      effect:
+        specifier: 4.0.5
+        version: 4.0.5
       pg:
         specifier: ^8.16.2
         version: 8.16.2
