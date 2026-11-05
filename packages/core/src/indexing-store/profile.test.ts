@@ -638,3 +638,41 @@ test("recordProfilePattern() string concat hint", () => {
     }
   `);
 });
+
+test("recordProfilePattern() log event without transaction", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
+  const event = {
+    type: "log",
+    chain: getChain(),
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    eventCallback: eventCallbacks[0]!,
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: undefined,
+      log: {} as LogEvent["event"]["log"],
+      transaction: undefined as unknown as LogEvent["event"]["transaction"],
+      block: { timestamp: 1n } as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const schema = {
+    account: onchainTable("account", (p) => ({
+      address: p.hex().primaryKey(),
+      balance: p.bigint().notNull(),
+    })),
+  };
+
+  const primaryKeyCache = new Map<Table, [string, Column][]>();
+
+  primaryKeyCache.set(schema.account, [["address", schema.account.address]]);
+
+  const pattern = recordProfilePattern(
+    event,
+    schema.account,
+    { address: zeroAddress },
+    [],
+    primaryKeyCache,
+  );
+
+  expect(pattern).toBeUndefined();
+});
