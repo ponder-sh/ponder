@@ -80,6 +80,19 @@ export const getPrimaryKeyCache = (tables: Table[]) => {
   return cache;
 };
 
+/** The value that the database returns for the non-null `value` of `column`. */
+const roundtrip = (column: Column, value: unknown): unknown => {
+  if (column instanceof PgArray && Array.isArray(value)) {
+    return value.map((v) => roundtrip(column.baseColumn, v));
+  }
+  if (column.columnType === "PgTimestamp") return value;
+  // Note: The drivers parse JSON, and `mapFromDriverValue` doesn't.
+  if (column.columnType === "PgJson" || column.columnType === "PgJsonb") {
+    return JSON.parse(column.mapToDriverValue(value) as string);
+  }
+  return column.mapFromDriverValue(column.mapToDriverValue(value));
+};
+
 export const normalizeColumn = (
   column: Column,
   value: unknown,
@@ -93,23 +106,7 @@ export const normalizeColumn = (
   if (column.mapToDriverValue === undefined) return value;
 
   try {
-    if (Array.isArray(value) && column instanceof PgArray) {
-      return value.map((v) => {
-        if (column.baseColumn.columnType === "PgTimestamp") {
-          return v;
-        }
-
-        return column.baseColumn.mapFromDriverValue(
-          column.baseColumn.mapToDriverValue(v),
-        );
-      });
-    }
-
-    if (column.columnType === "PgTimestamp") {
-      return value;
-    }
-
-    return column.mapFromDriverValue(column.mapToDriverValue(value));
+    return roundtrip(column, value);
   } catch (e) {
     if (
       (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
