@@ -119,10 +119,10 @@ export type Transaction = Prettify<
     | {
         /** Transaction type. */
         type: Hex;
-        gasPrice?: never;
-        accessList?: never;
-        maxFeePerGas?: never;
-        maxPriorityFeePerGas?: never;
+        gasPrice?: bigint;
+        accessList?: AccessList;
+        maxFeePerGas?: bigint;
+        maxPriorityFeePerGas?: bigint;
       }
   )
 >;
