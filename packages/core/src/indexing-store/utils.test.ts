@@ -13,6 +13,28 @@ test("normalize smallint", () => {
   expect(result).toBe(value);
 });
 
+test("normalizeUpdateSet $onUpdateFn", () => {
+  const table = onchainTable("account", (t) => ({
+    address: t
+      .hex()
+      .primaryKey()
+      .$onUpdateFn(() => "0x1"),
+    balance: t.bigint(),
+    updatedAt: t.bigint().$onUpdateFn(() => 10n),
+    version: t.integer().$onUpdateFn(() => 1),
+  }));
+
+  expect(
+    normalizeUpdateSet(table, { balance: 5n, version: 2 }),
+  ).toMatchInlineSnapshot(`
+    {
+      "balance": 5n,
+      "updatedAt": 10n,
+      "version": 2,
+    }
+  `);
+});
+
 test("normalizeUpdateSet", () => {
   const table = onchainTable("account", (t) => ({
     address: t.hex().primaryKey(),
