@@ -1,5 +1,13 @@
 # ponder
 
+## 0.18.5
+
+### Patch Changes
+
+- [#2447](https://github.com/ponder-sh/ponder/pull/2447) [`f900797`](https://github.com/ponder-sh/ponder/commit/f9007977e5960ffac670670cac4e6da2ba9d07fc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - Improved backfill speed for block ranges with many blocks and sparse events.
+- Updated dependencies [[`f900797`](https://github.com/ponder-sh/ponder/commit/f9007977e5960ffac670670cac4e6da2ba9d07fc)]:
+  - @ponder/utils@0.3.1
+
 ## 0.18.4
 
 ### Patch Changes
