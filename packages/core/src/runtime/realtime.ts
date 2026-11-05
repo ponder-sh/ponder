@@ -120,6 +120,16 @@ export const getRealtimeEventsOmnichain = (params: {
       let executedEvents: Event[] = [];
       /** Events that have not been executed. */
       let pendingEvents: Event[] = params.pendingEvents;
+      // Note: Executed events are only indexed again after a reorg of
+      // another chain, because the events of the reorged chain are dropped.
+      // With one live chain, only the events of other chains are kept.
+      const liveChainIds = new Set(
+        Array.from(params.perChainSync)
+          .filter(([, { syncProgress }]) => syncProgress.isEnd() === false)
+          .map(([chain]) => chain.id),
+      );
+      const isExecutedEventKept = (event: Event) =>
+        liveChainIds.size > 1 || liveChainIds.has(event.chain.id) === false;
       /** Closest-to-tip finalized checkpoint across all chains. */
       let finalizedCheckpoint = ZERO_CHECKPOINT_STRING;
 
@@ -166,7 +176,9 @@ export const getRealtimeEventsOmnichain = (params: {
                   pendingEvents = pendingEvents
                     .concat(decodedEvents)
                     .filter((e) => e.checkpoint > checkpoint);
-                  executedEvents = executedEvents.concat(readyEvents);
+                  for (const event of readyEvents) {
+                    if (isExecutedEventKept(event)) executedEvents.push(event);
+                  }
 
                   const blockEvent: RealtimeEvent = {
                     type: "block",
@@ -306,6 +318,8 @@ export const getRealtimeEventsMultichain = (params: {
       let executedEvents: Event[] = [];
       /** Events that have not been executed. */
       let pendingEvents: Event[] = [];
+      // Note: See `getRealtimeEventsOmnichain`. All events are of live chains.
+      const isExecutedEventKept = chainEvents.length > 1;
 
       return mergeUnordered(chainEvents, { bufferSize: 1 }).pipe(
         Stream.mapEffect(
@@ -354,7 +368,9 @@ export const getRealtimeEventsMultichain = (params: {
                     .concat(pendingEvents)
                     .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
                   pendingEvents = [];
-                  executedEvents = executedEvents.concat(readyEvents);
+                  if (isExecutedEventKept) {
+                    for (const event of readyEvents) executedEvents.push(event);
+                  }
 
                   return {
                     type: "block",
