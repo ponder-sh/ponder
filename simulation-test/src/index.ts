@@ -3,13 +3,16 @@ import path from "node:path";
 import { Effect } from "effect";
 import pg from "pg";
 import { type LogLevel, layerLogger } from "@/internal/logger.js";
-import { makePlan } from "./plan.js";
+import { makePlan, type Plan } from "./plan.js";
 import { PonderFailure, runWorld } from "./world.js";
 
 /**
  * Run one simulation.
  *
- * Usage: `SEED=<seed> bun run src/index.ts [--log-level debug] [--plan]`
+ * Usage: `SEED=<seed> bun run src/index.ts [--plan <file>]
+ * [--log-level debug] [--print-plan]`
+ *
+ * Without `--plan`, the plan is generated at random from the seed.
  */
 const args = process.argv.slice(2);
 const flag = (name: string) => {
@@ -17,11 +20,20 @@ const flag = (name: string) => {
   return i === -1 ? undefined : (args[i + 1] ?? "");
 };
 
-const seed = process.env.SEED ?? crypto.randomUUID().slice(0, 8);
+const planFile = flag("--plan");
+const plan: Plan =
+  planFile === undefined
+    ? makePlan(process.env.SEED ?? crypto.randomUUID().slice(0, 8))
+    : JSON.parse(fs.readFileSync(planFile, "utf8"));
+const seed = plan.seed;
 const logLevel = (flag("--log-level") ??
   process.env.LOG_LEVEL ??
   "warn") as LogLevel;
-const plan = makePlan(seed);
+
+if (args.includes("--print-plan")) {
+  console.log(JSON.stringify(plan, null, 2));
+  process.exit(0);
+}
 
 // Note: Ponder logs at `logLevel`. The summary of the simulation logs at
 // `info`, or below if `logLevel` is lower.
@@ -47,6 +59,7 @@ const log = (level: "info" | "error", fields: Record<string, unknown>) =>
 
 log("info", {
   msg: "Started simulation",
+  plan: planFile ?? "random",
   seed,
   end: `${plan.duration / 1_000}s`,
   chains: plan.chains.map((c) => c.name).join(","),
@@ -55,7 +68,6 @@ log("info", {
     .map((r) => `${plan.apps[r.app]!.id}@${r.stopAt / 1_000}s:${r.stop}`)
     .join(","),
 });
-if (args.includes("--plan")) console.log(JSON.stringify(plan, null, 2));
 
 const appsDir = path.join(import.meta.dirname, "..", ".apps", seed);
 fs.mkdirSync(appsDir, { recursive: true });
@@ -114,7 +126,10 @@ if (result.error) {
         ? "Simulation failed"
         : "Simulation errored",
     database,
-    reproduce: `SEED=${seed} bun run test`,
+    reproduce:
+      planFile === undefined
+        ? `SEED=${seed} bun run test`
+        : `bun run test --plan ${planFile}`,
     error: result.error,
   });
   await admin.end();
