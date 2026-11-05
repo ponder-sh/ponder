@@ -997,3 +997,46 @@ test("recordProfilePattern() cache immutable", () => {
     }
   `);
 });
+
+test("recordProfilePattern() log event without transaction", () => {
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
+  const event = {
+    type: "log",
+    chain: getChain(),
+    checkpoint: ZERO_CHECKPOINT_STRING,
+    eventCallback: eventCallbacks[0]!,
+    event: {
+      id: ZERO_CHECKPOINT_STRING,
+      args: undefined,
+      log: {} as LogEvent["event"]["log"],
+      transaction: undefined as unknown as LogEvent["event"]["transaction"],
+      block: { number: 5n } as BlockEvent["event"]["block"],
+    },
+  } satisfies LogEvent;
+
+  const pattern = recordProfilePattern({
+    event,
+    args: {
+      address: zeroAddress,
+      abi: [getAbiItem({ abi: erc20ABI, name: "balanceOf" })],
+      functionName: "balanceOf",
+      args: [ALICE],
+    },
+    hints: [],
+  });
+
+  expect(pattern!.pattern.address).toMatchInlineSnapshot(`
+    {
+      "type": "constant",
+      "value": "0x0000000000000000000000000000000000000000",
+    }
+  `);
+  expect(pattern!.pattern.args).toMatchInlineSnapshot(`
+    [
+      {
+        "type": "constant",
+        "value": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      },
+    ]
+  `);
+});

@@ -152,17 +152,20 @@ export const recordProfilePattern = ({
         break;
       }
 
-      if (eq(event.event.transaction.from, args.address)) {
-        resultAddress = { type: "derived", value: ["transaction", "from"] };
-        break;
-      }
+      // Note: `transaction` is undefined for some logs, such as on ZKsync.
+      if (event.event.transaction !== undefined) {
+        if (eq(event.event.transaction.from, args.address)) {
+          resultAddress = { type: "derived", value: ["transaction", "from"] };
+          break;
+        }
 
-      if (
-        event.event.transaction.to &&
-        eq(event.event.transaction.to, args.address)
-      ) {
-        resultAddress = { type: "derived", value: ["transaction", "to"] };
-        break;
+        if (
+          event.event.transaction.to &&
+          eq(event.event.transaction.to, args.address)
+        ) {
+          resultAddress = { type: "derived", value: ["transaction", "to"] };
+          break;
+        }
       }
 
       if (
@@ -487,27 +490,39 @@ export const recordProfilePattern = ({
           continue;
         }
 
-        if (eq(event.event.transaction.hash, arg)) {
-          resultArgs.push({ type: "derived", value: ["transaction", "hash"] });
-          continue;
-        }
+        // Note: `transaction` is undefined for some logs, such as on ZKsync.
+        if (event.event.transaction !== undefined) {
+          if (eq(event.event.transaction.hash, arg)) {
+            resultArgs.push({
+              type: "derived",
+              value: ["transaction", "hash"],
+            });
+            continue;
+          }
 
-        if (eq(event.event.transaction.from, arg)) {
-          resultArgs.push({ type: "derived", value: ["transaction", "from"] });
-          continue;
-        }
+          if (eq(event.event.transaction.from, arg)) {
+            resultArgs.push({
+              type: "derived",
+              value: ["transaction", "from"],
+            });
+            continue;
+          }
 
-        if (event.event.transaction.to && eq(event.event.transaction.to, arg)) {
-          resultArgs.push({ type: "derived", value: ["transaction", "to"] });
-          continue;
-        }
+          if (
+            event.event.transaction.to &&
+            eq(event.event.transaction.to, arg)
+          ) {
+            resultArgs.push({ type: "derived", value: ["transaction", "to"] });
+            continue;
+          }
 
-        if (eq(event.event.transaction.transactionIndex, arg)) {
-          resultArgs.push({
-            type: "derived",
-            value: ["transaction", "transactionIndex"],
-          });
-          continue;
+          if (eq(event.event.transaction.transactionIndex, arg)) {
+            resultArgs.push({
+              type: "derived",
+              value: ["transaction", "transactionIndex"],
+            });
+            continue;
+          }
         }
 
         if (
