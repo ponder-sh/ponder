@@ -894,6 +894,7 @@ export const createIndexingCache = ({
           if (cache.get(table)!.isCacheComplete === false) continue;
 
           totalBytes -= cache.get(table)!.bytes;
+          const rowCount = cache.get(table)!.cache.size;
 
           cache.get(table)!.bytes = 0;
           cache.get(table)!.cache.clear();
@@ -904,7 +905,7 @@ export const createIndexingCache = ({
           common.logger.debug({
             msg: "Evicted cached database rows",
             table: getTableName(table),
-            row_count: cache.get(table)!.cache.size,
+            row_count: rowCount,
           });
 
           if (totalBytes < common.options.indexingCacheMaxBytes) break;
