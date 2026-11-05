@@ -187,3 +187,18 @@ test("buildPre() database with postgres uses pool config", async () => {
     },
   });
 });
+
+test("buildPre() throws for an invalid ordering", () => {
+  const config = createConfig({
+    // @ts-expect-error
+    ordering: "",
+    chains: { mainnet: { id: 1, rpc: "https://rpc.com" } },
+    contracts: { a: { chain: "mainnet", abi: [] } },
+  });
+
+  expect(() =>
+    buildPre({ config, options, logger }),
+  ).toThrowErrorMatchingInlineSnapshot(
+    `[Error: Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got ''.]`,
+  );
+});
