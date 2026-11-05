@@ -1,0 +1,133 @@
+{
+  "seed": "backfill",
+  "startTime": 1735689600000,
+  "duration": 600000,
+  "chains": [
+    {
+      "id": 1,
+      "name": "mainnet",
+      "blockTime": 2,
+      "genesisTimestamp": 1735669600,
+      "historicalBlocks": 10000,
+      "activity": [5, 10, 15],
+      "reorgRate": 0,
+      "maxReorgDepth": 0,
+      "reorgWindow": 180,
+      "pollingInterval": 1000,
+      "subscribe": false,
+      "rpcs": [
+        {
+          "latency": {
+            "min": 20,
+            "max": 80
+          },
+          "latencyPerResult": 1,
+          "errorRate": 0,
+          "getLogs": {
+            "maxLogs": 10000,
+            "suggestsRange": true
+          },
+          "lag": 0,
+          "blockReceipts": true,
+          "dropRate": 0,
+          "disconnectRate": 0
+        }
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "id": "app0",
+      "ordering": "omnichain",
+      "chains": ["mainnet"],
+      "cacheRpcRequests": {
+        "mainnet": true
+      },
+      "ethGetLogsBlockRange": {},
+      "contracts": [
+        {
+          "name": "Token",
+          "kind": "token",
+          "events": ["Transfer", "Approval"],
+          "chains": {
+            "mainnet": {
+              "filter": "none",
+              "includeTransactionReceipts": false,
+              "includeCallTraces": false,
+              "address": {
+                "kind": "list",
+                "tokens": [0, 1, 2]
+              }
+            }
+          },
+          "functions": [],
+          "setup": false
+        },
+        {
+          "name": "Factory",
+          "kind": "factory",
+          "events": ["PoolCreated"],
+          "chains": {
+            "mainnet": {
+              "filter": "none",
+              "includeTransactionReceipts": false,
+              "includeCallTraces": false,
+              "address": {
+                "kind": "single",
+                "token": 0
+              }
+            }
+          },
+          "functions": [],
+          "setup": false
+        },
+        {
+          "name": "Pool",
+          "kind": "pool",
+          "events": ["Swap", "Sync"],
+          "chains": {
+            "mainnet": {
+              "filter": "none",
+              "includeTransactionReceipts": false,
+              "includeCallTraces": false,
+              "address": {
+                "kind": "factory",
+                "event": "PoolCreated",
+                "filterAddress": true
+              }
+            }
+          },
+          "functions": [],
+          "setup": false
+        }
+      ],
+      "accounts": [],
+      "blocks": [],
+      "indexing": {
+        "dbRate": 0.5,
+        "clientRate": 0,
+        "fieldRate": 0.3,
+        "sql": false
+      }
+    }
+  ],
+  "runs": [
+    {
+      "app": 0,
+      "stopAt": 600000,
+      "stop": "graceful"
+    }
+  ],
+  "database": {
+    "poolMax": 30,
+    "transactionErrorRate": 0,
+    "latency": {
+      "min": 0,
+      "max": 0
+    }
+  },
+  "scheduler": {
+    "jumpRate": 0,
+    "jumps": [1]
+  }
+}

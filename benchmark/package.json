@@ -5,7 +5,8 @@
   "scripts": {
     "benchmark": "bun run src/index.ts",
     "create:app": "bun run src/create-app.ts",
-    "live": "bun run src/live.ts"
+    "live": "bun run src/live.ts",
+    "backfill": "bun run src/backfill.ts"
   },
   "devDependencies": {
     "commander": "12.0.0",
