@@ -628,7 +628,7 @@ test("syncTransactionToInternal() includes the properties of other transaction t
     maxPriorityFeePerGas: "0x3",
   } as unknown as SyncTransaction;
 
-  const result = ["0x0", "0x1", "0x2", "0x7e"].map((type) => {
+  const result = ["0x0", "0x1", "0x2", "0x7e", "0x3"].map((type) => {
     const internal = syncTransactionToInternal({
       transaction: { ...transaction, type } as SyncTransaction,
     });
@@ -676,6 +676,13 @@ test("syncTransactionToInternal() includes the properties of other transaction t
         "maxFeePerGas": 2n,
         "maxPriorityFeePerGas": 3n,
         "type": "deposit",
+      },
+      {
+        "accessList": [],
+        "gasPrice": 1n,
+        "maxFeePerGas": 2n,
+        "maxPriorityFeePerGas": 3n,
+        "type": "0x3",
       },
     ]
   `);

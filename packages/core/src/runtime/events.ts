@@ -846,6 +846,17 @@ export const syncTransactionToInternal = ({
             }
           : {
               type: transaction.type,
+              gasPrice: transaction.gasPrice
+                ? // @ts-ignore
+                  hexToBigInt(transaction.gasPrice)
+                : undefined,
+              accessList: transaction.accessList,
+              maxFeePerGas: transaction.maxFeePerGas
+                ? hexToBigInt(transaction.maxFeePerGas)
+                : undefined,
+              maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
+                ? hexToBigInt(transaction.maxPriorityFeePerGas)
+                : undefined,
             }),
 });
 
