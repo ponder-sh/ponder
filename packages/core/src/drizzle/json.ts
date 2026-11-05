@@ -71,14 +71,9 @@ export class PgJson<
     }
   }
 
-  override mapFromDriverValue(value: T["data"] | string): T["data"] {
-    if (typeof value === "string") {
-      try {
-        return JSON.parse(value);
-      } catch {
-        return value as T["data"];
-      }
-    }
+  // Note: The drivers (node-postgres, PGlite) parse JSON, so a string is a
+  // JSON string value. Parsing it again would turn "1" into 1.
+  override mapFromDriverValue(value: T["data"]): T["data"] {
     return value;
   }
 }
@@ -146,14 +141,9 @@ export class PgJsonb<
     }
   }
 
-  override mapFromDriverValue(value: T["data"] | string): T["data"] {
-    if (typeof value === "string") {
-      try {
-        return JSON.parse(value);
-      } catch {
-        return value as T["data"];
-      }
-    }
+  // Note: The drivers (node-postgres, PGlite) parse JSON, so a string is a
+  // JSON string value. Parsing it again would turn "1" into 1.
+  override mapFromDriverValue(value: T["data"]): T["data"] {
     return value;
   }
 }
