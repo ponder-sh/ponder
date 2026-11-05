@@ -8,7 +8,7 @@ import {
   type SQLWrapper,
   type Table,
 } from "drizzle-orm";
-import { PgArray } from "drizzle-orm/pg-core";
+import { PgArray, type PgTable } from "drizzle-orm/pg-core";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import {
   BigIntSerializationError,
@@ -18,14 +18,27 @@ import { prettyPrint } from "@/utils/print.js";
 
 const tableColumnCache = new WeakMap<
   Table,
-  { columns: Record<string, Column>; entries: [string, Column][] }
+  {
+    columns: Record<string, Column>;
+    entries: [string, Column][];
+    onUpdateEntries: [string, Column][];
+  }
 >();
 
 const getCachedTableColumns = (table: Table) => {
   let cached = tableColumnCache.get(table);
   if (cached === undefined) {
     const columns = getTableColumns(table);
-    cached = { columns, entries: Object.entries(columns) };
+    const entries = Object.entries(columns);
+    const primaryKeys = getPrimaryKeyColumns(table as PgTable).map(
+      ({ js }) => js,
+    );
+    const onUpdateEntries = entries.filter(
+      ([columnName, column]) =>
+        column.onUpdateFn !== undefined &&
+        primaryKeys.includes(columnName) === false,
+    );
+    cached = { columns, entries, onUpdateEntries };
     tableColumnCache.set(table, cached);
   }
   return cached;
@@ -146,13 +159,18 @@ export const normalizeUpdateSet = (
   table: Table,
   row: { [key: string]: unknown },
 ) => {
-  const { columns } = getCachedTableColumns(table);
+  const { columns, onUpdateEntries } = getCachedTableColumns(table);
   // Note: `row` is a plain object, so `for...in` only visits own keys.
   for (const columnName in row) {
     const value = row[columnName];
     const column = columns[columnName];
     if (value === undefined || column === undefined) continue;
     row[columnName] = normalizeColumn(column, value, true);
+  }
+  for (const [columnName, column] of onUpdateEntries) {
+    if (row[columnName] === undefined) {
+      row[columnName] = normalizeColumn(column, undefined, true);
+    }
   }
   return row;
 };
