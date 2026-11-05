@@ -83,10 +83,18 @@ export function buildPre({
     }
   }
 
-  return {
-    databaseConfig,
-    ordering: config.ordering ?? "multichain",
-  };
+  const ordering = config.ordering ?? "multichain";
+  if (
+    ordering !== "omnichain" &&
+    ordering !== "multichain" &&
+    ordering !== "experimental_isolated"
+  ) {
+    throw new Error(
+      `Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got '${String(ordering)}'.`,
+    );
+  }
+
+  return { databaseConfig, ordering };
 }
 
 export function safeBuildPre({
