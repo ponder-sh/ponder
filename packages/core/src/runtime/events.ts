@@ -807,16 +807,23 @@ export const syncTransactionToInternal = ({
     ? {
         type: "legacy",
         gasPrice: hexToBigInt(transaction.gasPrice),
+        accessList: undefined,
+        maxFeePerGas: undefined,
+        maxPriorityFeePerGas: undefined,
       }
     : transaction.type === "0x1"
       ? {
           type: "eip2930",
           gasPrice: hexToBigInt(transaction.gasPrice),
           accessList: transaction.accessList,
+          maxFeePerGas: undefined,
+          maxPriorityFeePerGas: undefined,
         }
       : transaction.type === "0x2"
         ? {
             type: "eip1559",
+            gasPrice: undefined,
+            accessList: undefined,
             maxFeePerGas: hexToBigInt(transaction.maxFeePerGas),
             maxPriorityFeePerGas: hexToBigInt(transaction.maxPriorityFeePerGas),
           }
@@ -824,6 +831,8 @@ export const syncTransactionToInternal = ({
           transaction.type === "0x7e"
           ? {
               type: "deposit",
+              gasPrice: undefined,
+              accessList: undefined,
               // @ts-expect-error
               maxFeePerGas: transaction.maxFeePerGas
                 ? // @ts-ignore
