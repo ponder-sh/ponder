@@ -190,6 +190,15 @@ importers:
 
   benchmark:
     devDependencies:
+      '@types/bun':
+        specifier: ^1.2.14
+        version: 1.2.14
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      '@types/pg':
+        specifier: ^8.10.9
+        version: 8.10.9
       commander:
         specifier: ^12.0.0
         version: 12.0.0
@@ -205,6 +214,9 @@ importers:
       ponder:
         specifier: workspace:*
         version: link:../packages/core
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
   docs:
     dependencies:
