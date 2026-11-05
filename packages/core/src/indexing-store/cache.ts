@@ -1,4 +1,5 @@
 import {
+  eq,
   getTableColumns,
   getTableName,
   isTable,
@@ -87,6 +88,8 @@ export type IndexingCache = {
 };
 
 const SAMPLING_RATE = 10;
+/** A table is reloaded if its rows are at most this fraction of the cache budget. */
+const RELOAD_FRACTION = 4;
 const PREDICTION_THRESHOLD = 0.25;
 const LOW_BATCH_THRESHOLD = 20;
 
@@ -172,6 +175,17 @@ type Cache = Map<
     bytes: number;
     /** Number of times `get` missed the cached and read from the database. */
     diskReads: number;
+    /** `true` if the table was read, with `get` or `delete`. */
+    isRead: boolean;
+    /**
+     * Estimated size in bytes of the rows that were inserted while the table
+     * was complete and never read. These rows are not cached, so that tables
+     * that are only written (e.g. one row per event) don't hold every row in
+     * memory.
+     */
+    unreadBytes: number;
+    /** `true` if the next `prefetch` reads the whole table (see `markRead`). */
+    isReloadPending: boolean;
   }
 >;
 /**
@@ -355,6 +369,9 @@ export const createIndexingCache = ({
         isCacheComplete: crashRecoveryCheckpoint === undefined,
         bytes: 0,
         diskReads: 0,
+        isRead: false,
+        unreadBytes: 0,
+        isReloadPending: false,
       });
       insertBuffer.set(table, new Map());
       updateBuffer.set(table, new Map());
@@ -375,8 +392,31 @@ export const createIndexingCache = ({
         ),
       );
 
+    /**
+     * Mark `table` as read. If rows were inserted before without being cached,
+     * the table is incomplete, and it is reloaded by the next `prefetch` if it
+     * is small.
+     */
+    const markRead = (table: Table) => {
+      const tableCache = cache.get(table)!;
+      if (tableCache.isRead) return;
+      tableCache.isRead = true;
+      if (
+        tableCache.isCacheComplete === false ||
+        tableCache.unreadBytes === 0
+      ) {
+        return;
+      }
+      tableCache.isCacheComplete = false;
+      tableCache.isReloadPending =
+        tableCache.unreadBytes <=
+        options.indexingCacheMaxBytes / RELOAD_FRACTION;
+    };
+
     const indexingCache: IndexingCache = {
       get({ table, key }) {
+        markRead(table);
+
         if (
           event &&
           eventCount[event.eventCallback.name]! % SAMPLING_RATE === 1
@@ -489,6 +529,7 @@ export const createIndexingCache = ({
       },
       delete: ({ table, key }) =>
         Effect.gen(function* () {
+          markRead(table);
           const ck = getCacheKey(table, key, primaryKeyCache);
 
           const inInsertBuffer = insertBuffer.get(table)!.delete(ck);
@@ -534,17 +575,13 @@ export const createIndexingCache = ({
               if (insertValues.length > 0) {
                 const endClock = yield* startClockEffect;
 
+                const insertRows = insertValues.map(({ row }) => row);
+
                 if (insertValues.length > LOW_BATCH_THRESHOLD) {
-                  yield* copy(
-                    table,
-                    insertValues.map(({ row }) => row),
-                  );
+                  yield* copy(table, insertRows);
                 } else {
                   yield* client.query(
-                    (db) =>
-                      db
-                        .insert(table)
-                        .values(insertValues.map(({ row }) => row)),
+                    (db) => db.insert(table).values(insertRows),
                     context,
                   );
                 }
@@ -554,17 +591,26 @@ export const createIndexingCache = ({
                   yield* endClock,
                 );
 
-                let bytes = 0;
-                for (const [key, entry] of insertBuffer.get(table)!) {
-                  if (
-                    shouldRecordBytes &&
-                    tableCache.cache.has(key) === false
-                  ) {
-                    bytes += getBytes(entry.row) + getBytes(key);
+                if (tableCache.isRead) {
+                  let bytes = 0;
+                  for (const [key, entry] of insertBuffer.get(table)!) {
+                    if (
+                      shouldRecordBytes &&
+                      tableCache.cache.has(key) === false
+                    ) {
+                      bytes += getBytes(entry.row) + getBytes(key);
+                    }
+                    tableCache.cache.set(key, entry.row);
                   }
-                  tableCache.cache.set(key, entry.row);
+                  tableCache.bytes += bytes;
+                } else if (shouldRecordBytes) {
+                  // Note: The size of the rows is estimated from one row.
+                  const row = insertRows[0]!;
+                  tableCache.unreadBytes +=
+                    insertRows.length *
+                    (getBytes(row) +
+                      getBytes(getCacheKey(table, row, primaryKeyCache)));
                 }
-                tableCache.bytes += bytes;
                 insertBuffer.get(table)!.clear();
 
                 yield* Effect.yieldNow;
@@ -842,6 +888,50 @@ export const createIndexingCache = ({
             logAnnotations: { action: "prefetch_database_rows" },
           };
 
+          // Note: The buffered rows were flushed before `prefetch`, so the
+          // database has the newest rows.
+          yield* Effect.forEach(
+            tables.filter((table) => cache.get(table)!.isReloadPending),
+            (table) =>
+              Effect.gen(function* () {
+                const endClock = yield* startClockEffect;
+
+                // Note: With isolated ordering, the table has the rows of
+                // every chain.
+                const rows = yield* client.query(
+                  (db) =>
+                    chainId === undefined
+                      ? db.select().from(table)
+                      : db
+                          .select()
+                          .from(table)
+                          .where(eq(getTableColumns(table).chainId!, chainId)),
+                  context,
+                );
+
+                const tableCache = cache.get(table)!;
+                tableCache.cache.clear();
+                tableCache.spillover.clear();
+                tableCache.prefetched.clear();
+                tableCache.bytes = 0;
+                for (const row of rows) {
+                  const ck = getCacheKey(table, row, primaryKeyCache);
+                  tableCache.cache.set(ck, row);
+                  tableCache.bytes += getBytes(row) + getBytes(ck);
+                }
+                tableCache.isCacheComplete = true;
+                tableCache.isReloadPending = false;
+
+                yield* Effect.logDebug({
+                  msg: "Reloaded database rows",
+                  table: getTableName(table),
+                  row_count: rows.length,
+                  duration: yield* endClock,
+                });
+              }),
+            { concurrency: "unbounded", discard: true },
+          );
+
           let totalBytes = 0;
           for (const table of tables) {
             totalBytes += cache.get(table)!.bytes;
@@ -996,6 +1086,7 @@ export const createIndexingCache = ({
       invalidate() {
         for (const tableCache of cache.values()) {
           tableCache.isCacheComplete = false;
+          tableCache.isReloadPending = false;
         }
       },
       clear() {
