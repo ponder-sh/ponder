@@ -131,13 +131,23 @@ export class SimChain {
     this.factory = getFactory(plan.id);
 
     for (let n = 0; n < plan.historicalBlocks; n++) {
-      this.push(this.generate(n, 0, this.timestamp(n) * 1000));
+      this.push(this.generate(n, 0, this.time(n)));
     }
   }
 
-  /** The timestamp (seconds) of block `number`. */
+  /** The time (unix ms) when block `number` is mined. */
+  time(number: number) {
+    return Math.round(
+      (this.plan.genesisTimestamp + number * this.plan.blockTime) * 1000,
+    );
+  }
+
+  /**
+   * The timestamp (seconds) of block `number`. Blocks mined in the same
+   * second have the same timestamp.
+   */
   timestamp(number: number) {
-    return this.plan.genesisTimestamp + number * this.plan.blockTime;
+    return Math.floor(this.time(number) / 1000);
   }
 
   get head(): SimBlock {
@@ -196,11 +206,7 @@ export class SimChain {
     const pools = [...(parent?.pools ?? [])];
     const transactions: SimTransaction[] = [];
 
-    const count = rng.weighted([
-      [0, 0.2],
-      [rng.int(1, 3), 0.5],
-      [rng.int(4, 8), 0.3 * this.plan.activity],
-    ] as const);
+    const count = rng.pick(this.plan.activity);
 
     let logIndex = 0;
     for (let index = 0; index < count; index++) {

@@ -177,12 +177,8 @@ export const runWorld = async ({
   const mine = (chain: SimChain) =>
     Effect.gen(function* () {
       const rng = new Rng(plan.seed, `miner:${chain.plan.id}`);
-      for (
-        let n = chain.plan.historicalBlocks;
-        chain.timestamp(n) * 1000 <= endTime;
-        n++
-      ) {
-        yield* sleepUntil(chain.timestamp(n) * 1000);
+      for (let n = chain.plan.historicalBlocks; chain.time(n) <= endTime; n++) {
+        yield* sleepUntil(chain.time(n));
         const now = yield* Clock.currentTimeMillis;
         if (rng.bool(chain.plan.reorgRate)) {
           const depth = rng.int(1, chain.plan.maxReorgDepth);
