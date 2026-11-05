@@ -1,25 +1,7 @@
-import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Effect, Fiber, Layer, Logger, References } from "effect";
-import { startApp } from "../../packages/core/src/bin/commands/start.js";
-import { createLogger } from "../../packages/core/src/internal/logger.js";
-import {
-  Metrics,
-  MetricsService,
-} from "../../packages/core/src/internal/metrics.js";
-import {
-  buildOptions,
-  Options,
-} from "../../packages/core/src/internal/options.js";
-
-const packageJson = JSON.parse(
-  readFileSync(
-    new URL("../../packages/core/package.json", import.meta.url),
-    "utf8",
-  ),
-) as { version: string };
+import { log, runPonder } from "./harness.js";
 
 const APP_ID = process.argv[2];
 const APP_DIR = `./apps/${APP_ID}`;
@@ -56,62 +38,17 @@ process.env.PONDER_TELEMETRY_DISABLED = "true";
 process.env.DATABASE_URL = DATABASE_URL;
 process.env.DATABASE_SCHEMA = SCHEMA;
 
-const cliOptions = {
-  ...program.optsWithGlobals(),
-  command: "start" as const,
-  version: packageJson.version,
-  root: APP_DIR,
-  config: "ponder.config.ts",
-};
-const options = buildOptions({ cliOptions });
+const startTimestamp = Date.now();
+const ponder = runPonder({
+  cliOptions: { ...program.optsWithGlobals(), root: APP_DIR },
+});
+const endTimestamp = await ponder.ready;
 
-/** Resolves to the time (unix ms) of the log that `/ready` returns 200. */
-const ready = Promise.withResolvers<number>();
-const readyLogger = Logger.make(({ message, date }) => {
-  const [first] = message as [unknown];
-  if (
-    typeof first === "object" &&
-    first !== null &&
-    "msg" in first &&
-    first.msg === "Started returning 200 responses" &&
-    "endpoint" in first &&
-    first.endpoint === "/ready"
-  ) {
-    ready.resolve(date.getTime());
-  }
+log({
+  msg: "Completed benchmark",
+  app: APP_ID,
+  duration_ms: endTimestamp - startTimestamp,
 });
 
-const services = Layer.mergeAll(
-  Layer.succeed(Options, options),
-  Layer.succeed(Metrics, new MetricsService()),
-  Logger.layer([
-    createLogger({ level: options.logLevel, mode: options.logFormat }),
-    readyLogger,
-  ]),
-  // Note: The ready log is at `info`. The logger of Ponder drops logs under
-  // the log level.
-  Layer.succeed(
-    References.MinimumLogLevel,
-    options.logLevel === "debug"
-      ? "Debug"
-      : options.logLevel === "trace"
-        ? "Trace"
-        : "Info",
-  ),
-);
-
-const startTimestamp = Date.now();
-
-const fiber = Effect.runFork(
-  Effect.scoped(startApp({ cliOptions })).pipe(Effect.provide(services)),
-);
-fiber.addObserver(() => ready.reject(new Error("Ponder exited")));
-
-const endTimestamp = await ready.promise;
-
-console.log(`${APP_ID} took ${endTimestamp - startTimestamp}ms`);
-
-console.log("Stopping app");
-
-await Effect.runPromise(Fiber.interrupt(fiber));
+await ponder.stop();
 process.exit(0);
