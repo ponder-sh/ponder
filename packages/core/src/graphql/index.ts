@@ -30,6 +30,7 @@ import {
   One,
   or,
   SQL,
+  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -859,6 +860,18 @@ async function executePluralQuery(
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
 
+  // Returns `true` if any record matches the filters and `condition`.
+  // Note: The inclusive cursor condition in the opposite direction matches
+  // exactly the records on the other side of a missing cursor record,
+  // because the order by clause always includes the primary key.
+  const rowExists = (condition: SQL | undefined) =>
+    qb.raw
+      .select({ exists: sql`1` })
+      .from(relation)
+      .where(and(...whereConditions, condition, ...extraConditions))
+      .limit(1)
+      .then((rows) => rows.length > 0);
+
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
     const [rows, totalCount] = await Promise.all([
@@ -916,28 +929,22 @@ async function executePluralQuery(
       totalCountPromise,
     ]);
 
-    if (rows.length === 0) {
-      return {
-        items: rows,
-        totalCount,
-        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-      };
-    }
-
     // If the cursor of the first returned record equals the `after` cursor,
     // `hasPreviousPage` is true. Remove that record.
-    if (encodeCursor(orderBySchema, rows[0]!) === after) {
+    if (rows.length > 0 && encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
     } else {
-      // Otherwise, remove the last record.
-      rows.pop();
+      // The cursor record may be missing if it was deleted or no longer
+      // matches the filter. Check for any records before the cursor.
+      hasPreviousPage = await rowExists(
+        buildCursorCondition(columns, orderBySchema, "before", cursorObject),
+      );
     }
 
-    // Now if the length of the records is still equal to limit + 1,
-    // there is a next page.
-    if (rows.length === limit + 1) {
-      rows.pop();
+    // Any records beyond `limit` mean there is a next page.
+    if (rows.length > limit) {
+      rows.splice(limit);
       hasNextPage = true;
     }
 
@@ -979,28 +986,25 @@ async function executePluralQuery(
     totalCountPromise,
   ]);
 
-  if (rows.length === 0) {
-    return {
-      items: rows,
-      totalCount,
-      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
-    };
-  }
-
   // If the cursor of the last returned record equals the `before` cursor,
   // `hasNextPage` is true. Remove that record.
-  if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
+  if (
+    rows.length > 0 &&
+    encodeCursor(orderBySchema, rows[rows.length - 1]!) === before
+  ) {
     rows.pop();
     hasNextPage = true;
   } else {
-    // Otherwise, remove the first record.
-    rows.shift();
+    // The cursor record may be missing if it was deleted or no longer
+    // matches the filter. Check for any records after the cursor.
+    hasNextPage = await rowExists(
+      buildCursorCondition(columns, orderBySchema, "after", cursorObject),
+    );
   }
 
-  // Now if the length of the records is equal to limit + 1, we know
-  // there is a previous page.
-  if (rows.length === limit + 1) {
-    rows.shift();
+  // Any records beyond `limit` mean there is a previous page.
+  if (rows.length > limit) {
+    rows.splice(0, rows.length - limit);
     hasPreviousPage = true;
   }
 
