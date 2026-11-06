@@ -119,6 +119,8 @@ const INITIAL_REACTIVATION_DELAY = 100;
 const MAX_REACTIVATION_DELAY = 5_000;
 const BACKOFF_FACTOR = 1.5;
 const LATENCY_WINDOW_SIZE = 500;
+/** Maximum age (ms) of a latency in the window. */
+const LATENCY_WINDOW_DURATION = 30_000;
 /** Hurdle rate for switching to a faster bucket. */
 const LATENCY_HURDLE_RATE = 0.1;
 /** Exploration rate. */
@@ -148,7 +150,7 @@ type Bucket = {
   isWarmingUp: boolean;
 
   latencyMetadata: {
-    latencies: { value: number; success: boolean }[];
+    latencies: { value: number; success: boolean; timestamp: number }[];
 
     successfulLatencies: number;
     latencySum: number;
@@ -176,14 +178,34 @@ type Bucket = {
   request: RpcTransport["request"];
 };
 
-const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
-  bucket.latencyMetadata.latencies.push({ value: latency, success });
+/**
+ * Add the latency of a request to the window of `bucket`.
+ *
+ * @param now The current time in milliseconds.
+ */
+const addLatency = (
+  bucket: Bucket,
+  latency: number,
+  success: boolean,
+  now: number,
+) => {
+  bucket.latencyMetadata.latencies.push({
+    value: latency,
+    success,
+    timestamp: now,
+  });
   bucket.latencyMetadata.latencySum += latency;
   if (success) {
     bucket.latencyMetadata.successfulLatencies++;
   }
 
-  if (bucket.latencyMetadata.latencies.length > LATENCY_WINDOW_SIZE) {
+  // Note: A bucket that receives few requests, such as after an outage, must
+  // not be judged by old requests.
+  while (
+    bucket.latencyMetadata.latencies.length > LATENCY_WINDOW_SIZE ||
+    bucket.latencyMetadata.latencies[0]!.timestamp <
+      now - LATENCY_WINDOW_DURATION
+  ) {
     const record = bucket.latencyMetadata.latencies.shift()!;
     bucket.latencyMetadata.latencySum -= record.value;
     if (record.success) {
@@ -192,8 +214,10 @@ const addLatency = (bucket: Bucket, latency: number, success: boolean) => {
   }
 
   bucket.expectedLatency =
-    bucket.latencyMetadata.latencySum /
-    bucket.latencyMetadata.successfulLatencies;
+    bucket.latencyMetadata.successfulLatencies === 0
+      ? Number.POSITIVE_INFINITY
+      : bucket.latencyMetadata.latencySum /
+        bucket.latencyMetadata.successfulLatencies;
 };
 
 /**
@@ -672,7 +696,12 @@ export const createRpc = ({
                 duration,
               );
 
-              addLatency(bucket, duration, true);
+              addLatency(
+                bucket,
+                duration,
+                true,
+                yield* Clock.currentTimeMillis,
+              );
 
               bucket.consecutiveSuccessfulRequests++;
               yield* increaseMaxRPS(bucket);
@@ -723,7 +752,12 @@ export const createRpc = ({
               }
             }
 
-            addLatency(bucket, yield* endClock, false);
+            addLatency(
+              bucket,
+              yield* endClock,
+              false,
+              yield* Clock.currentTimeMillis,
+            );
 
             if (
               // @ts-expect-error
