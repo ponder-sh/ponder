@@ -11,9 +11,7 @@ import { oraPromise } from "ora";
 import pico from "picocolors";
 import prettier from "prettier";
 import { default as prompts } from "prompts";
-// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
-// @ts-expect-error
-import rootPackageJson from "../package.json";
+import rootPackageJson from "../package.json" with { type: "json" };
 
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { mergeAbis } from "./helpers/mergeAbis.js";
