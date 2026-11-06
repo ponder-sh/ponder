@@ -1106,9 +1106,11 @@ function buildWhereConditions(
       }
 
       // Conditions within a single filter object are combined with `AND`.
-      const nestedConditions = rawValue.map((subWhere) =>
-        and(...buildWhereConditions(subWhere, columns)),
-      );
+      // Note: An empty filter object matches every row.
+      const nestedConditions = rawValue.map((subWhere) => {
+        const subConditions = buildWhereConditions(subWhere, columns);
+        return subConditions.length === 0 ? sql`true` : and(...subConditions);
+      });
 
       if (nestedConditions.length > 0) {
         conditions.push(
