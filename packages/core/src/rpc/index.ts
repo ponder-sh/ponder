@@ -814,7 +814,14 @@ export const createRpc = ({
               return yield* Effect.fail(error);
             }
 
-            const duration = BASE_DURATION * 2 ** i;
+            // Note: The backoff gives the failed bucket time to recover, so the
+            // first retry skips it if another bucket is available.
+            const now = yield* Clock.currentTimeMillis;
+            const duration =
+              i === 0 &&
+              buckets.some((b) => b !== bucket && isAvailable(b, now))
+                ? 0
+                : BASE_DURATION * 2 ** i;
             yield* log(
               Effect.logWarning({
                 msg: "Received JSON-RPC error",
