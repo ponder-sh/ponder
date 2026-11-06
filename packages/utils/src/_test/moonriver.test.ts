@@ -1,6 +1,6 @@
+import { expect, test } from "bun:test";
 import { InternalRpcError, numberToHex } from "viem";
 import { moonriver } from "viem/chains";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -39,7 +39,7 @@ test("moonriver block range", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InternalRpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "block range is too wide (maximum 1024)",
   );
 

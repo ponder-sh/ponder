@@ -31,8 +31,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest",
-    "test:typecheck": "vitest --typecheck.only",
+    "test": "bun test --parallel",
     "typecheck": "bun check"
   },
   "peerDependencies": {
@@ -49,7 +48,7 @@
     "superjson": "2.2.2"
   },
   "devDependencies": {
-    "tsup": "8.0.1",
-    "vitest": "5.0.2"
+    "@types/bun": "1.4.4",
+    "tsup": "8.0.1"
   }
 }

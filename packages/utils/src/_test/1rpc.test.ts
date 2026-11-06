@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { InvalidInputRpcError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("1rpc block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidInputRpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "eth_getLogs is limited to a 1000 blocks range",
   );
 

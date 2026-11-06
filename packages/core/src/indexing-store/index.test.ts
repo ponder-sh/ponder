@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { zeroAddress } from "viem";
-import { expect, test } from "vitest";
 import { createTestCommon } from "@/_test/utils.js";
 import type { QB } from "@/database/queryBuilder.js";
 import { onchainTable } from "@/drizzle/onchain.js";
@@ -53,9 +53,11 @@ test("update", async () => {
   await db.insert(account).values({ address: zeroAddress, balance: 1n });
   await db.update(account, { address: zeroAddress }).set({ name: "a" });
 
-  expect(
-    await db.find(account, { address: zeroAddress }),
-  ).toMatchInlineSnapshot(`
+  // Spread the copy-on-write proxy: `bun test` snapshots a Proxy with
+  // `JSON.stringify`, which throws on bigints.
+  expect({
+    ...(await db.find(account, { address: zeroAddress })),
+  }).toMatchInlineSnapshot(`
     {
       "address": "0x0000000000000000000000000000000000000000",
       "balance": 1n,

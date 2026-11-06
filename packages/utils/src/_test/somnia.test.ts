@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex, RpcRequestError } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("somnia block range", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcRequestError);
-  expect(JSON.stringify(error)).includes("block range exceeds 1000");
+  expect(JSON.stringify(error)).toContain("block range exceeds 1000");
 
   const retry = getLogsRetryHelper({
     params,

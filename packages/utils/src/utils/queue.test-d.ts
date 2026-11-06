@@ -1,4 +1,4 @@
-import { assertType, test } from "vitest";
+import { expectTypeOf, test } from "bun:test";
 import { createQueue } from "./queue.js";
 
 test("add type", () => {
@@ -7,5 +7,5 @@ test("add type", () => {
     worker: (_arg: "a" | "b" | "c") => Promise.resolve(),
   });
 
-  assertType<(task: "a" | "b" | "c") => Promise<void>>(queue.add);
+  expectTypeOf(queue.add).toExtend<(task: "a" | "b" | "c") => Promise<void>>();
 });

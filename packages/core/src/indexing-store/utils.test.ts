@@ -1,7 +1,12 @@
+import { expect, test, vi } from "bun:test";
 import { zeroAddress } from "viem";
-import { expect, test, vi } from "vitest";
 import { ALICE } from "@/_test/constants.js";
 import { onchainTable } from "@/drizzle/onchain.js";
+import {
+  BigIntSerializationError,
+  NonRetryableUserError,
+  NotNullConstraintError,
+} from "@/internal/errors.js";
 import { validateUpdateSet } from "./index.js";
 import {
   getPrimaryKeyCache,
@@ -140,15 +145,21 @@ test("normalizeRow() notNull", () => {
     balance: t.bigint().notNull(),
   }));
 
+  expect(() => normalizeRow(table, { address: zeroAddress }, false)).toThrow(
+    NotNullConstraintError,
+  );
   expect(() =>
     normalizeRow(table, { address: zeroAddress }, false),
   ).toThrowErrorMatchingInlineSnapshot(
-    `[NotNullConstraintError: Column 'account.balance' violates not-null constraint.]`,
+    `"Column 'account.balance' violates not-null constraint."`,
   );
   expect(() =>
     normalizeRow(table, { address: zeroAddress, balance: null }, false),
+  ).toThrow(NotNullConstraintError);
+  expect(() =>
+    normalizeRow(table, { address: zeroAddress, balance: null }, false),
   ).toThrowErrorMatchingInlineSnapshot(
-    `[NotNullConstraintError: Column 'account.balance' violates not-null constraint.]`,
+    `"Column 'account.balance' violates not-null constraint."`,
   );
 });
 
@@ -160,8 +171,11 @@ test("normalizeColumn() json bigint", () => {
 
   expect(() =>
     normalizeColumn(table.metadata, { balance: 10n }, false),
+  ).toThrow(BigIntSerializationError);
+  expect(() =>
+    normalizeColumn(table.metadata, { balance: 10n }, false),
   ).toThrowErrorMatchingInlineSnapshot(
-    `[BigIntSerializationError: Do not know how to serialize a BigInt]`,
+    `"JSON.stringify cannot serialize BigInt."`,
   );
 });
 
@@ -186,8 +200,11 @@ test("validateUpdateSet() primary key", () => {
 
   expect(() =>
     validateUpdateSet(table, { address: ALICE }, prev, cache),
+  ).toThrow(NonRetryableUserError);
+  expect(() =>
+    validateUpdateSet(table, { address: ALICE }, prev, cache),
   ).toThrowErrorMatchingInlineSnapshot(
-    `[NonRetryableUserError: Primary key column 'address' cannot be updated]`,
+    `"Primary key column 'address' cannot be updated"`,
   );
 
   // Note: Setting the primary key to its current value is a no-op.

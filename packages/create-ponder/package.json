@@ -20,8 +20,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
-    "test:bun": "bun test",
+    "test": "bun test --parallel",
     "typecheck": "bun check"
   },
   "dependencies": {
@@ -38,6 +37,7 @@
     "viem": "2.35.0"
   },
   "devDependencies": {
+    "@types/bun": "1.4.4",
     "@types/fs-extra": "11.0.4",
     "@types/node": "22.20.1",
     "@types/prompts": "2.4.9",
@@ -45,8 +45,7 @@
     "abitype": "0.10.3",
     "dotenv": "16.4.5",
     "rimraf": "5.0.5",
-    "tsup": "8.0.1",
-    "vitest": "5.0.2"
+    "tsup": "8.0.1"
   },
   "engines": {
     "node": ">=22.12"

@@ -15,7 +15,6 @@
     "lint": "biome check .",
     "lint:fix": "biome check . --write",
     "test": "bun run --parallel --no-exit-on-error --workspaces --if-present test",
-    "test:bun": "bun run --parallel --no-exit-on-error --workspaces --if-present test:bun",
     "typecheck": "bun --filter './packages/*' typecheck",
     "version-packages": "changeset version && bun install"
   },

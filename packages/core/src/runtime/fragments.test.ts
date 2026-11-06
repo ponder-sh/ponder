@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { zeroHash } from "viem";
-import { expect, test } from "vitest";
 import {
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,

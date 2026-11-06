@@ -1,3 +1,4 @@
+import { expect, test } from "bun:test";
 import {
   type Address,
   encodeEventTopics,
@@ -12,7 +13,6 @@ import {
   zeroAddress,
   zeroHash,
 } from "viem";
-import { expect, test } from "vitest";
 import { erc20ABI, factoryABI } from "@/_test/abis.js";
 import { ALICE, BOB, EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import {

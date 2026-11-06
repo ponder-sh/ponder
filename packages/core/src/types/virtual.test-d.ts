@@ -1,5 +1,5 @@
+import { expectTypeOf, test } from "bun:test";
 import { type Abi, type Address, type Hex, parseAbiItem } from "viem";
-import { assertType, test } from "vitest";
 import { createConfig } from "@/config/index.js";
 import { onchainTable } from "@/drizzle/onchain.js";
 import type { Db } from "./db.js";
@@ -110,8 +110,8 @@ test("FormatEventNames", () => {
     | "contract:Event1()"
     | "contract:Event1(bytes32)";
 
-  assertType<a>({} as any as eventNames);
-  assertType<eventNames>({} as any as a);
+  expectTypeOf<eventNames>().toExtend<a>();
+  expectTypeOf<a>().toExtend<eventNames>();
 });
 
 test("FormatEventNames with semi-weak abi", () => {
@@ -130,8 +130,8 @@ test("FormatEventNames with semi-weak abi", () => {
     | "contract:Event1()"
     | "contract:Event1(bytes32)";
 
-  assertType<a>({} as any as eventNames);
-  assertType<eventNames>({} as any as a);
+  expectTypeOf<eventNames>().toExtend<a>();
+  expectTypeOf<a>().toExtend<eventNames>();
 });
 
 test("FormatEventNames with weak abi", () => {
@@ -144,8 +144,8 @@ test("FormatEventNames with weak abi", () => {
     {}
   >;
 
-  assertType<a>({} as any as "contract:setup");
-  assertType<"contract:setup">({} as any as a);
+  expectTypeOf<"contract:setup">().toExtend<a>();
+  expectTypeOf<a>().toExtend<"contract:setup">();
 });
 
 test("FormatEventNames with functions", () => {
@@ -167,8 +167,8 @@ test("FormatEventNames with functions", () => {
     | "contract.func1()"
     | "contract.func1(bytes32)";
 
-  assertType<a>({} as any as eventNames);
-  assertType<eventNames>({} as any as a);
+  expectTypeOf<eventNames>().toExtend<a>();
+  expectTypeOf<a>().toExtend<eventNames>();
 });
 
 test("FormatEventName with accounts", () => {
@@ -179,19 +179,19 @@ test("FormatEventName with accounts", () => {
     {}
   >;
 
-  assertType<a>(
+  expectTypeOf(
     {} as any as
       | "account:transfer:from"
       | "account:transfer:to"
       | "account:transaction:from"
       | "account:transaction:to",
-  );
-  assertType<
+  ).toExtend<a>();
+  expectTypeOf<a>().toExtend<
     | "account:transfer:from"
     | "account:transfer:to"
     | "account:transaction:from"
     | "account:transaction:to"
-  >({} as any as a);
+  >();
 });
 
 test("FormatEventName with blocks", () => {
@@ -202,16 +202,16 @@ test("FormatEventName with blocks", () => {
     { block: { interval: 2; startBlock: 1; chain: "mainnet" } }
   >;
 
-  assertType<a>({} as any as "block:block");
-  assertType<"block:block">({} as any as a);
+  expectTypeOf<"block:block">().toExtend<a>();
+  expectTypeOf<a>().toExtend<"block:block">();
 });
 
 test("Context db", () => {
   type a = Virtual.Context<typeof config, typeof schema, "c1:Event0">["db"];
   //   ^?
 
-  assertType<a>({} as any as Db<typeof schema>);
-  assertType<Db<typeof schema>>({} as any as a);
+  expectTypeOf<Db<typeof schema>>().toExtend<a>();
+  expectTypeOf<a>().toExtend<Db<typeof schema>>();
 });
 
 test("Context single chain", () => {
@@ -220,8 +220,8 @@ test("Context single chain", () => {
 
   type expectedChain = { name: "mainnet"; id: 1 };
 
-  assertType<a>({} as any as expectedChain);
-  assertType<expectedChain>({} as any as a);
+  expectTypeOf<expectedChain>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedChain>();
 });
 
 test("Context multi chain", () => {
@@ -236,8 +236,8 @@ test("Context multi chain", () => {
     | { name: "mainnet"; id: 1 }
     | { name: "optimism"; id: 10 };
 
-  assertType<a>({} as any as expectedChain);
-  assertType<expectedChain>({} as any as a);
+  expectTypeOf<expectedChain>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedChain>();
 });
 
 test("Context block chain", () => {
@@ -246,8 +246,8 @@ test("Context block chain", () => {
 
   type expectedChain = { name: "mainnet"; id: 1 };
 
-  assertType<a>({} as any as expectedChain);
-  assertType<expectedChain>({} as any as a);
+  expectTypeOf<expectedChain>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedChain>();
 });
 
 test("Context client", () => {
@@ -267,7 +267,7 @@ test("Context client", () => {
     | "getBalance"
     | "getEnsName";
 
-  assertType<keyof a>({} as any as expectedFunctions);
+  expectTypeOf<expectedFunctions>().toExtend<keyof a>();
 });
 
 test("Context contracts", () => {
@@ -283,17 +283,17 @@ test("Context contracts", () => {
   type expectedEndBlock = undefined;
   type expectedAddress = "0x69";
 
-  assertType<a["abi"]>({} as any as expectedAbi);
-  assertType<expectedAbi>({} as any as a["abi"]);
+  expectTypeOf<expectedAbi>().toExtend<a["abi"]>();
+  expectTypeOf<a["abi"]>().toExtend<expectedAbi>();
 
-  assertType<a["startBlock"]>({} as any as expectedStartBlock);
-  assertType<expectedStartBlock>({} as any as a["startBlock"]);
+  expectTypeOf<expectedStartBlock>().toExtend<a["startBlock"]>();
+  expectTypeOf<a["startBlock"]>().toExtend<expectedStartBlock>();
 
-  assertType<a["endBlock"]>({} as any as expectedEndBlock);
-  assertType<expectedEndBlock>({} as any as a["endBlock"]);
+  expectTypeOf<expectedEndBlock>().toExtend<a["endBlock"]>();
+  expectTypeOf<a["endBlock"]>().toExtend<expectedEndBlock>();
 
-  assertType<a["address"]>({} as any as expectedAddress);
-  assertType<expectedAddress>({} as any as a["address"]);
+  expectTypeOf<expectedAddress>().toExtend<a["address"]>();
+  expectTypeOf<a["address"]>().toExtend<expectedAddress>();
 });
 
 test("Context chain without event", () => {
@@ -314,8 +314,8 @@ test("Context chain without event", () => {
         id: 10;
       };
 
-  assertType<a>({} as any as expectedChain);
-  assertType<expectedChain>({} as any as a);
+  expectTypeOf<expectedChain>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedChain>();
 });
 
 test("Event", () => {
@@ -333,8 +333,8 @@ test("Event", () => {
     transaction: Transaction;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event transaction receipt", () => {
@@ -350,8 +350,8 @@ test("Event transaction receipt", () => {
     transactionReceipt?: TransactionReceipt;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event with unnamed parameters", () => {
@@ -366,8 +366,8 @@ test("Event with unnamed parameters", () => {
     transaction: Transaction;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event with functions", () => {
@@ -383,8 +383,8 @@ test("Event with functions", () => {
     transaction: Transaction;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event with functions and no inputs or outputs", () => {
@@ -400,8 +400,8 @@ test("Event with functions and no inputs or outputs", () => {
     transaction: Transaction;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event with account transaction", () => {
@@ -415,8 +415,8 @@ test("Event with account transaction", () => {
     transactionReceipt: TransactionReceipt;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event with account transfer", () => {
@@ -435,8 +435,8 @@ test("Event with account transfer", () => {
     trace: Trace;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Event with block", () => {
@@ -448,8 +448,8 @@ test("Event with block", () => {
     block: Block;
   };
 
-  assertType<a>({} as any as expectedEvent);
-  assertType<expectedEvent>({} as any as a);
+  expectTypeOf<expectedEvent>().toExtend<a>();
+  expectTypeOf<a>().toExtend<expectedEvent>();
 });
 
 test("Registry", () => {

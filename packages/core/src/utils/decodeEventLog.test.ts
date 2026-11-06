@@ -1,5 +1,5 @@
+import { describe, expect, test } from "bun:test";
 import { toEventSelector } from "viem";
-import { describe, expect, test } from "vitest";
 import { decodeEventLog } from "./decodeEventLog.js";
 
 test("named args: Transfer(address,address,uint256)", () => {

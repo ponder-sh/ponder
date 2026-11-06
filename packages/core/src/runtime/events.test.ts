@@ -1,3 +1,4 @@
+import { expect, test } from "bun:test";
 import {
   encodeEventTopics,
   type Hex,
@@ -8,7 +9,6 @@ import {
   zeroHash,
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
-import { expect, test } from "vitest";
 import { erc20ABI } from "@/_test/abis.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import {

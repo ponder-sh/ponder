@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex, RpcRequestError } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("cloudflare block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcRequestError);
-  expect(JSON.stringify(error)).includes("Max range: 800");
+  expect(JSON.stringify(error)).toContain("Max range: 800");
 
   const retry = getLogsRetryHelper({
     params,

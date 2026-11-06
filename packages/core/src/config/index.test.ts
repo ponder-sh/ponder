@@ -1,5 +1,5 @@
+import { expectTypeOf, test } from "bun:test";
 import { type Abi, parseAbiItem } from "viem";
-import { expectTypeOf, test } from "vitest";
 import { factory } from "./address.js";
 import { createConfig } from "./index.js";
 

@@ -59,9 +59,6 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
-
-      - name: Test (types)
-        run: bun --filter "ponder" test:typecheck
  
   bundle:
     name: Bundle
@@ -111,7 +108,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Test
-        run: bun --filter "ponder" test --run
+        run: bun --filter "ponder" test
 
 
   test-create-ponder:

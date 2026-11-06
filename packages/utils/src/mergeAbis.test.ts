@@ -1,5 +1,5 @@
+import { expect, expectTypeOf, test } from "bun:test";
 import { parseAbi, parseAbiItem } from "abitype";
-import { expect, expectTypeOf, test } from "vitest";
 
 import { mergeAbis } from "./mergeAbis.js";
 

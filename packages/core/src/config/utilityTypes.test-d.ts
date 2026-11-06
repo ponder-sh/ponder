@@ -1,6 +1,6 @@
+import { expectTypeOf, test } from "bun:test";
 import type { AbiEvent, AbiFunction, ParseAbiItem } from "abitype";
 import type { Abi } from "viem";
-import { assertType, test } from "vitest";
 import type {
   ExtractAbiEvents,
   ExtractAbiFunctions,
@@ -22,22 +22,22 @@ type Func1Overloaded = ParseAbiItem<"function func1(bytes32)">;
 test("ExtractAbiEvents", () => {
   type a = ExtractAbiEvents<readonly [Event0, Event1, Event1Overloaded, Func0]>;
   //   ^?
-  assertType<Event0 | Event1 | Event1Overloaded>({} as unknown as a);
-  assertType<a>({} as unknown as Event0 | Event1 | Event1Overloaded);
+  expectTypeOf<a>().toExtend<Event0 | Event1 | Event1Overloaded>();
+  expectTypeOf<Event0 | Event1 | Event1Overloaded>().toExtend<a>();
 });
 
 test("ExtractAbiEvents semi-weak abi", () => {
   type a = ExtractAbiEvents<(Event0 | Event1 | Event1Overloaded | Func0)[]>;
   //   ^?
-  assertType<Event0 | Event1 | Event1Overloaded>({} as unknown as a);
-  assertType<a>({} as unknown as Event0 | Event1 | Event1Overloaded);
+  expectTypeOf<a>().toExtend<Event0 | Event1 | Event1Overloaded>();
+  expectTypeOf<Event0 | Event1 | Event1Overloaded>().toExtend<a>();
 });
 
 test("ExtractAbiEvents no events", () => {
   type a = ExtractAbiEvents<readonly [Func0]>;
   //   ^?
-  assertType<AbiEvent>({} as unknown as a);
-  assertType<a>({} as unknown as AbiEvent);
+  expectTypeOf<a>().toExtend<AbiEvent>();
+  expectTypeOf<AbiEvent>().toExtend<a>();
 });
 
 test("ExtractAbiFunctions", () => {
@@ -45,22 +45,22 @@ test("ExtractAbiFunctions", () => {
     // ^?
     readonly [Func0, Func1, Func1Overloaded, Event0]
   >;
-  assertType<Func0 | Func1 | Func1Overloaded>({} as unknown as a);
-  assertType<a>({} as unknown as Func0 | Func1 | Func1Overloaded);
+  expectTypeOf<a>().toExtend<Func0 | Func1 | Func1Overloaded>();
+  expectTypeOf<Func0 | Func1 | Func1Overloaded>().toExtend<a>();
 });
 
 test("ExtractAbiFunctions semi-weak abi", () => {
   type a = ExtractAbiFunctions<(Func0 | Func1 | Func1Overloaded | Event0)[]>;
   //   ^?
-  assertType<Func0 | Func1 | Func1Overloaded>({} as unknown as a);
-  assertType<a>({} as unknown as Func0 | Func1 | Func1Overloaded);
+  expectTypeOf<a>().toExtend<Func0 | Func1 | Func1Overloaded>();
+  expectTypeOf<Func0 | Func1 | Func1Overloaded>().toExtend<a>();
 });
 
 test("ExtractAbiFunctions no events", () => {
   type a = ExtractAbiFunctions<readonly [Event0]>;
   //   ^?
-  assertType<AbiFunction>({} as unknown as a);
-  assertType<a>({} as unknown as AbiFunction);
+  expectTypeOf<a>().toExtend<AbiFunction>();
+  expectTypeOf<AbiFunction>().toExtend<a>();
 });
 
 test("ParseAbiEvent no overloaded events ", () => {
@@ -70,8 +70,8 @@ test("ParseAbiEvent no overloaded events ", () => {
     "Event0"
   >;
 
-  assertType<Event0>({} as unknown as a);
-  assertType<a>({} as unknown as Event0);
+  expectTypeOf<a>().toExtend<Event0>();
+  expectTypeOf<Event0>().toExtend<a>();
 });
 
 test("ParseAbiEvent overloaded events", () => {
@@ -81,8 +81,8 @@ test("ParseAbiEvent overloaded events", () => {
     "Event1(bytes32 indexed)"
   >;
 
-  assertType<Event1Overloaded>({} as unknown as a);
-  assertType<a>({} as unknown as Event1Overloaded);
+  expectTypeOf<a>().toExtend<Event1Overloaded>();
+  expectTypeOf<Event1Overloaded>().toExtend<a>();
 });
 
 test("ParseAbiEvent with semi-weak abi", () => {
@@ -92,8 +92,8 @@ test("ParseAbiEvent with semi-weak abi", () => {
     "Event0"
   >;
 
-  assertType<Event0>({} as unknown as a);
-  assertType<a>({} as unknown as Event0);
+  expectTypeOf<a>().toExtend<Event0>();
+  expectTypeOf<Event0>().toExtend<a>();
 });
 
 test("ParseAbiEvent with weak abi", () => {
@@ -103,8 +103,8 @@ test("ParseAbiEvent with weak abi", () => {
     "Event0"
   >;
 
-  assertType<AbiEvent>({} as unknown as a);
-  assertType<a>({} as unknown as AbiEvent);
+  expectTypeOf<a>().toExtend<AbiEvent>();
+  expectTypeOf<AbiEvent>().toExtend<a>();
 });
 
 test("ParseAbiEvent no matching events", () => {
@@ -114,8 +114,8 @@ test("ParseAbiEvent no matching events", () => {
     "Event2"
   >;
 
-  assertType<AbiEvent>({} as unknown as a);
-  assertType<a>({} as unknown as AbiEvent);
+  expectTypeOf<a>().toExtend<AbiEvent>();
+  expectTypeOf<AbiEvent>().toExtend<a>();
 });
 
 test("ParseAbiFunction no overloaded events ", () => {
@@ -125,8 +125,8 @@ test("ParseAbiFunction no overloaded events ", () => {
     "func0()"
   >;
 
-  assertType<Func0>({} as unknown as a);
-  assertType<a>({} as unknown as Func0);
+  expectTypeOf<a>().toExtend<Func0>();
+  expectTypeOf<Func0>().toExtend<a>();
 });
 
 test("ParseAbiFunction overloaded events", () => {
@@ -136,8 +136,8 @@ test("ParseAbiFunction overloaded events", () => {
     "func1()"
   >;
 
-  assertType<Func1>({} as unknown as a);
-  assertType<a>({} as unknown as Func1);
+  expectTypeOf<a>().toExtend<Func1>();
+  expectTypeOf<Func1>().toExtend<a>();
 });
 
 test("ParseAbiFunction with semi-weak abi", () => {
@@ -147,8 +147,8 @@ test("ParseAbiFunction with semi-weak abi", () => {
     "func0()"
   >;
 
-  assertType<Func0>({} as unknown as a);
-  assertType<a>({} as unknown as Func0);
+  expectTypeOf<a>().toExtend<Func0>();
+  expectTypeOf<Func0>().toExtend<a>();
 });
 
 test("ParseAbiFunction with weak abi", () => {
@@ -158,8 +158,8 @@ test("ParseAbiFunction with weak abi", () => {
     "func0()"
   >;
 
-  assertType<AbiFunction>({} as unknown as a);
-  assertType<a>({} as unknown as AbiFunction);
+  expectTypeOf<a>().toExtend<AbiFunction>();
+  expectTypeOf<AbiFunction>().toExtend<a>();
 });
 
 test("ParseAbiFunction no matching events", () => {
@@ -169,16 +169,16 @@ test("ParseAbiFunction no matching events", () => {
     "func2()"
   >;
 
-  assertType<AbiFunction>({} as unknown as a);
-  assertType<a>({} as unknown as AbiFunction);
+  expectTypeOf<a>().toExtend<AbiFunction>();
+  expectTypeOf<AbiFunction>().toExtend<a>();
 });
 
 test("FormatAbiEvent no overloaded events", () => {
   type a = FormatAbiEvent<readonly [Event0, Event1], Event0>;
   //   ^?
 
-  assertType<"Event0">({} as unknown as a);
-  assertType<a>({} as unknown as "Event0");
+  expectTypeOf<a>().toExtend<"Event0">();
+  expectTypeOf<"Event0">().toExtend<a>();
 });
 
 test("FormatAbiEvent overloaded events", () => {
@@ -188,24 +188,24 @@ test("FormatAbiEvent overloaded events", () => {
     Event1Overloaded
   >;
 
-  assertType<"Event1(bytes32 indexed)">({} as unknown as a);
-  assertType<a>({} as unknown as "Event1(bytes32 indexed)");
+  expectTypeOf<a>().toExtend<"Event1(bytes32 indexed)">();
+  expectTypeOf({} as unknown as "Event1(bytes32 indexed)").toExtend<a>();
 });
 
 test("FormatAbiEvent with semi-weak abi", () => {
   type a = FormatAbiEvent<readonly (Event0 | Event1)[], Event0>;
   //   ^?
 
-  assertType<"Event0">({} as unknown as a);
-  assertType<a>({} as unknown as "Event0");
+  expectTypeOf<a>().toExtend<"Event0">();
+  expectTypeOf<"Event0">().toExtend<a>();
 });
 
 test("FormatAbiEvent with weak abi", () => {
   type a = FormatAbiEvent<Abi, Event0>;
   //   ^?
 
-  assertType<"Event0">({} as unknown as a);
-  assertType<a>({} as unknown as "Event0");
+  expectTypeOf<a>().toExtend<"Event0">();
+  expectTypeOf<"Event0">().toExtend<a>();
 });
 
 test("FormatAbiEvent with no matching events", () => {
@@ -215,16 +215,16 @@ test("FormatAbiEvent with no matching events", () => {
     Event0
   >;
 
-  assertType<never>({} as unknown as a);
-  assertType<a>({} as unknown as never);
+  expectTypeOf<a>().toExtend<never>();
+  expectTypeOf<never>().toExtend<a>();
 });
 
 test("FormatAbiFunction no overloaded events", () => {
   type a = FormatAbiFunction<readonly [Func0, Func1], Func0>;
   //   ^?
 
-  assertType<"func0()">({} as unknown as a);
-  assertType<a>({} as unknown as "func0()");
+  expectTypeOf<a>().toExtend<"func0()">();
+  expectTypeOf({} as unknown as "func0()").toExtend<a>();
 });
 
 test("FormatAbiFunction overloaded events", () => {
@@ -234,24 +234,24 @@ test("FormatAbiFunction overloaded events", () => {
     Func1Overloaded
   >;
 
-  assertType<"func1(bytes32)">({} as unknown as a);
-  assertType<a>({} as unknown as "func1(bytes32)");
+  expectTypeOf<a>().toExtend<"func1(bytes32)">();
+  expectTypeOf({} as unknown as "func1(bytes32)").toExtend<a>();
 });
 
 test("FormatAbiFunction with semi-weak abi", () => {
   type a = FormatAbiFunction<readonly (Func0 | Func1)[], Func0>;
   //   ^?
 
-  assertType<"func0()">({} as unknown as a);
-  assertType<a>({} as unknown as "func0()");
+  expectTypeOf<a>().toExtend<"func0()">();
+  expectTypeOf({} as unknown as "func0()").toExtend<a>();
 });
 
 test("FormatAbiFunction with weak abi", () => {
   type a = FormatAbiFunction<Abi, Func0>;
   //   ^?
 
-  assertType<"func0()">({} as unknown as a);
-  assertType<a>({} as unknown as "func0()");
+  expectTypeOf<a>().toExtend<"func0()">();
+  expectTypeOf({} as unknown as "func0()").toExtend<a>();
 });
 
 test("FormatAbiFunction with no matching events", () => {
@@ -261,8 +261,8 @@ test("FormatAbiFunction with no matching events", () => {
     Func0
   >;
 
-  assertType<never>({} as unknown as a);
-  assertType<a>({} as unknown as never);
+  expectTypeOf<a>().toExtend<never>();
+  expectTypeOf<never>().toExtend<a>();
 });
 
 test("SafeEventNames no overloaded events", () => {
@@ -270,8 +270,8 @@ test("SafeEventNames no overloaded events", () => {
     // ^?
     readonly [Event0, Event1, Func0]
   >;
-  assertType<"Event0" | "Event1">({} as unknown as a);
-  assertType<a>({} as unknown as "Event0" | "Event1");
+  expectTypeOf<a>().toExtend<"Event0" | "Event1">();
+  expectTypeOf<"Event0" | "Event1">().toExtend<a>();
 });
 
 test("SafeEventNames overloaded events", () => {
@@ -279,12 +279,12 @@ test("SafeEventNames overloaded events", () => {
     // ^?
     readonly [Event0, Event1, Event1Overloaded, Func0]
   >;
-  assertType<"Event0" | "Event1()" | "Event1(bytes32 indexed)">(
-    {} as unknown as a,
-  );
-  assertType<a>(
+  expectTypeOf<a>().toExtend<
+    "Event0" | "Event1()" | "Event1(bytes32 indexed)"
+  >();
+  expectTypeOf(
     {} as unknown as "Event0" | "Event1()" | "Event1(bytes32 indexed)",
-  );
+  ).toExtend<a>();
 });
 
 test("SafeEventNames semi-weak abi", () => {
@@ -292,15 +292,15 @@ test("SafeEventNames semi-weak abi", () => {
     // ^?
     (Event0 | Event1 | Func0)[]
   >;
-  assertType<"Event0" | "Event1">({} as unknown as a);
-  assertType<a>({} as unknown as "Event0" | "Event1");
+  expectTypeOf<a>().toExtend<"Event0" | "Event1">();
+  expectTypeOf<"Event0" | "Event1">().toExtend<a>();
 });
 
 test("SafeEventNames weak abi", () => {
   type a = SafeEventNames<Abi>;
   //   ^?
-  assertType<string>({} as unknown as a);
-  assertType<a>({} as unknown as string);
+  expectTypeOf<a>().toExtend<string>();
+  expectTypeOf<string>().toExtend<a>();
 });
 
 test("SafeFunctionNames no overloaded events", () => {
@@ -308,8 +308,8 @@ test("SafeFunctionNames no overloaded events", () => {
     // ^?
     readonly [Func0, Func1, Event0]
   >;
-  assertType<"func0()" | "func1()">({} as unknown as a);
-  assertType<a>({} as unknown as "func0()" | "func1()");
+  expectTypeOf<a>().toExtend<"func0()" | "func1()">();
+  expectTypeOf({} as unknown as "func0()" | "func1()").toExtend<a>();
 });
 
 test("SafeFunctionNames overloaded events", () => {
@@ -317,8 +317,10 @@ test("SafeFunctionNames overloaded events", () => {
     // ^?
     readonly [Func0, Func1, Func1Overloaded, Event0]
   >;
-  assertType<"func0()" | "func1()" | "func1(bytes32)">({} as unknown as a);
-  assertType<a>({} as unknown as "func0()" | "func1()" | "func1(bytes32)");
+  expectTypeOf<a>().toExtend<"func0()" | "func1()" | "func1(bytes32)">();
+  expectTypeOf(
+    {} as unknown as "func0()" | "func1()" | "func1(bytes32)",
+  ).toExtend<a>();
 });
 
 test("SafeFunctionNames semi-weak abi", () => {
@@ -326,13 +328,13 @@ test("SafeFunctionNames semi-weak abi", () => {
     // ^?
     (Func0 | Func1 | Event0)[]
   >;
-  assertType<"func0()" | "func1()">({} as unknown as a);
-  assertType<a>({} as unknown as "func0()" | "func1()");
+  expectTypeOf<a>().toExtend<"func0()" | "func1()">();
+  expectTypeOf({} as unknown as "func0()" | "func1()").toExtend<a>();
 });
 
 test("SafeFunctionNames weak abi", () => {
   type a = SafeFunctionNames<Abi>;
   //   ^?
-  assertType<`${string}()`>({} as unknown as a);
-  assertType<a>({} as unknown as `${string}()`);
+  expectTypeOf<a>().toExtend<`${string}()`>();
+  expectTypeOf({} as unknown as `${string}()`).toExtend<a>();
 });

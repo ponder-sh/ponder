@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "bun:test";
 import { getPrimaryKeyColumns } from "./index.js";
 import { onchainTable, primaryKey } from "./onchain.js";
 

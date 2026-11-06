@@ -1,6 +1,6 @@
+import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { createClient } from "@ponder/client";
-import { expect, test } from "vitest";
 import { eq, onchainTable, relations } from "@/index.js";
 import {
   getSQLQueryRelations,

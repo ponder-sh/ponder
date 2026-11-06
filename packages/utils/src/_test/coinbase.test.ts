@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { LimitExceededRpcError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -37,7 +37,7 @@ test("coinbase block range", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(LimitExceededRpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "please limit the query to at most 1000 blocks",
   );
 

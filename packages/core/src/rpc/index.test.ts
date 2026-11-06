@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { expect, test } from "bun:test";
+import type { LogTopic } from "viem";
 import { sanitizeLogTopics } from "./index.js";
 
 const topic0 =
@@ -22,7 +23,7 @@ test("sanitizeLogTopics preserves null wildcards before a topic", () => {
 });
 
 test("sanitizeLogTopics does not mutate the input", () => {
-  const topics = [topic0, null, null] as const;
+  const topics: LogTopic[] = [topic0, null, null];
 
   expect(sanitizeLogTopics(topics)).toStrictEqual([topic0]);
   expect(topics).toStrictEqual([topic0, null, null]);

@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex, RpcError } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -37,7 +37,7 @@ test("zksync block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes("Try with this block range ");
+  expect(JSON.stringify(error)).toContain("Try with this block range ");
 
   const retry = getLogsRetryHelper({
     params,

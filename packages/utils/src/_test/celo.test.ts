@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getRequest } from "./utils.js";
 
 const request = getRequest("https://forno.celo.org");

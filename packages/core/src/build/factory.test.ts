@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { getEventSelector, parseAbiItem } from "viem";
-import { expect, test } from "vitest";
 import { buildLogFactory } from "./factory.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(

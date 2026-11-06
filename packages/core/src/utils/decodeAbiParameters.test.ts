@@ -1,3 +1,4 @@
+import { describe, expect, expectTypeOf, test } from "bun:test";
 import {
   type Address,
   encodeAbiParameters,
@@ -6,7 +7,6 @@ import {
   parseAbiParameters,
   zeroAddress,
 } from "viem";
-import { describe, expect, expectTypeOf, test } from "vitest";
 import { decodeAbiParameters } from "./decodeAbiParameters.js";
 import { toLowerCase } from "./lowercase.js";
 
@@ -2230,7 +2230,7 @@ test("data size too small", () => {
       [{ type: "uint256" }, { type: "uint256" }],
       "0x0000000000000000000000000000000000000000000000000000000000010f2c",
     ),
-  ).toThrowErrorMatchingInlineSnapshot(`[Error: Invalid data length.]`);
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
 });
 
 test("invalid type", () => {

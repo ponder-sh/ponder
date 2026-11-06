@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { getAbiItem, zeroAddress } from "viem";
-import { expect, test } from "vitest";
 import { erc20ABI } from "@/_test/abis.js";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";

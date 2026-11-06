@@ -1,5 +1,5 @@
+import { expect, expectTypeOf, test } from "bun:test";
 import { type Hex, numberToHex } from "viem";
-import { expect, expectTypeOf, test } from "vitest";
 import { replaceBigInts } from "./replaceBigInts.js";
 
 test("scalar", () => {

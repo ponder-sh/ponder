@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "bun:test";
 import { partition } from "@/utils/partition.js";
 
 test("partition", () => {

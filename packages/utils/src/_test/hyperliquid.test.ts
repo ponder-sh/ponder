@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex, RpcError } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -35,7 +35,7 @@ test.skip("hyperliquid block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes("query exceeds max block range 50");
+  expect(JSON.stringify(error)).toContain("query exceeds max block range 50");
 
   const retry = getLogsRetryHelper({
     params,
