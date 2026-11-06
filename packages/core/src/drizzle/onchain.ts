@@ -169,7 +169,7 @@ export function json(): PgJsonBuilderInitial<"">;
 export function json<name extends string>(
   name: name,
 ): PgJsonBuilderInitial<name>;
-export function json(name?: string) {
+export function json(name?: string): unknown {
   return new PgJsonBuilder(name ?? "");
 }
 
@@ -177,7 +177,7 @@ export function jsonb(): PgJsonbBuilderInitial<"">;
 export function jsonb<name extends string>(
   name: name,
 ): PgJsonbBuilderInitial<name>;
-export function jsonb(name?: string) {
+export function jsonb(name?: string): unknown {
   return new PgJsonbBuilder(name ?? "");
 }
 
@@ -514,7 +514,11 @@ function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
     <TName extends string>(
       name?: TName,
     ): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
-      new PgEnumColumnBuilder(name ?? ("" as TName), enumInstance),
+      // TypeScript 7 doesn't infer the builder's config from `TName` and `T`.
+      new PgEnumColumnBuilder(
+        name ?? ("" as TName),
+        enumInstance as any,
+      ) as unknown as PgEnumColumnBuilderInitial<TName, Writable<T>>,
     {
       enumName,
       enumValues: values,
