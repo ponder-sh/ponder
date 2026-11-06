@@ -62,6 +62,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
+  type SelectionNode,
 } from "graphql";
 import superjson from "superjson";
 import type { QB } from "@/database/queryBuilder.js";
@@ -1374,19 +1375,33 @@ function getColumnTsName(column: Column) {
 }
 
 /**
- * Returns `true` if the query includes a specific field.
- * Does not consider nested selections; only works one "layer" deep.
+ * Returns `true` if the query includes a specific field, including selections
+ * made through inline fragments and fragment spreads.
+ * Does not consider nested fields; only works one "layer" deep.
  */
 function selectionIncludesField(
   info: GraphQLResolveInfo,
   fieldName: string,
 ): boolean {
-  for (const fieldNode of info.fieldNodes) {
-    for (const selection of fieldNode.selectionSet?.selections ?? []) {
-      if (selection.kind === "Field" && selection.name.value === fieldName) {
-        return true;
+  const includes = (selections: readonly SelectionNode[]): boolean =>
+    selections.some((selection) => {
+      switch (selection.kind) {
+        case "Field":
+          return selection.name.value === fieldName;
+        case "InlineFragment":
+          return includes(selection.selectionSet.selections);
+        case "FragmentSpread": {
+          const fragment = info.fragments[selection.name.value];
+          return (
+            fragment !== undefined && includes(fragment.selectionSet.selections)
+          );
+        }
+        default:
+          return false;
       }
-    }
-  }
-  return false;
+    });
+
+  return info.fieldNodes.some((fieldNode) =>
+    includes(fieldNode.selectionSet?.selections ?? []),
+  );
 }
