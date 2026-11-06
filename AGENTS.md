@@ -1,20 +1,20 @@
 # AGENTS.md
 
 ## Repository Shape
-- This is a pnpm `12.15.0` workspace; install with `pnpm install --frozen-lockfile` to match CI. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`) and sets up exact Node, pnpm, Bun, and Foundry versions inline in each workflow job where needed. Core unit tests need none of Bun, Foundry, or Postgres. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
-- Workspace packages are `packages/*`, `docs`, `examples/**`, `simulation-test`, and `benchmark`.
+- This is a Bun `1.4.4` workspace (`workspaces` in the root `package.json`, `bun.lock`, install settings in `bunfig.toml`); install with `bun install --frozen-lockfile` to match CI. Every dependency version is pinned exactly, including internal workspace dependencies (Bun links a workspace package when the pinned version matches); do not use ranges, `workspace:` or `catalog:`. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`) and sets up exact Node, Bun, and Foundry versions inline in each workflow job where needed. Core unit tests need neither Foundry nor Postgres. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
+- Workspace packages are `packages/*`, `docs`, `examples/*`, `examples/*/*`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
 - `packages/core` and `packages/react` build with custom `build.ts` scripts. `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.
 - Core source uses `@/*` path aliases. The core build rewrites these aliases in `dist/esm` and `dist/types`, so do not replace source aliases just to satisfy package output.
 
 ## Commands
-- Build publishable packages: `pnpm build`.
-- Lint and format use Biome: `pnpm lint`, `pnpm format`, `pnpm lint:fix`.
-- Root typecheck covers `packages/**` only: `pnpm typecheck`.
-- Focused package checks: `pnpm --filter ponder typecheck`, `pnpm --filter @ponder/client typecheck`, `pnpm --filter @ponder/utils typecheck`, `pnpm --filter create-ponder typecheck`.
-- Focused tests: `CI=1 pnpm --filter ponder test src/path.test.ts`, `CI=1 pnpm --filter @ponder/client test src/index.test.ts`, `pnpm --filter create-ponder test`.
-- Type-level Vitest suites use separate scripts where present: `pnpm --filter ponder test:typecheck`, `pnpm --filter @ponder/client test:typecheck`, `pnpm --filter @ponder/react test:typecheck`.
-- `pnpm test` runs all workspace test scripts in parallel with `--no-bail`; several package scripts are plain `vitest`, so set `CI=1` for one-shot local runs and prefer `--filter` to avoid unrelated network-heavy suites.
+- Build publishable packages: `bun run build`.
+- Lint and format use Biome: `bun run lint`, `bun run format`, `bun run lint:fix`.
+- Root typecheck covers `packages/**` only: `bun run typecheck`.
+- Focused package checks: `bun --filter ponder typecheck`, `bun --filter @ponder/client typecheck`, `bun --filter @ponder/utils typecheck`, `bun --filter create-ponder typecheck`.
+- Focused tests: `CI=1 bun --filter ponder test src/path.test.ts`, `CI=1 bun --filter @ponder/client test src/index.test.ts`, `bun --filter create-ponder test`.
+- Type-level Vitest suites use separate scripts where present: `bun --filter ponder test:typecheck`, `bun --filter @ponder/client test:typecheck`, `bun --filter @ponder/react test:typecheck`.
+- `bun run test` runs all workspace test scripts in parallel with `--no-exit-on-error`; use `bun run test`, not `bun test`, which is Bun's own test runner; several package scripts are plain `vitest`, so set `CI=1` for one-shot local runs and prefer `--filter` to avoid unrelated network-heavy suites.
 
 ## Tests And Environment
 - Core has two kinds of tests. Vitest unit tests cover discrete, usually pure and synchronous logic (see `packages/core/src/sync-realtime/bloom.test.ts`). Behavior across modules is covered by the deterministic simulation in `simulation-test`. Do not add core tests that need Anvil, Postgres, PGlite, the network, or a running Ponder app; extend the simulation instead.
@@ -31,14 +31,14 @@
 
 ## Generated Or Copied Files
 - `packages/create-ponder` build copies root `examples/` into `packages/create-ponder/templates`, excludes multi-app examples (`with-nextjs`, `with-foundry`, `with-trpc`, `with-client`, `with-offchain`), renames dotfiles, and blanks RPC URLs in generated `_dot_env.local` files.
-- Biome intentionally ignores `docs/`, `dist/`, generated folders, `.ponder`, cache/out directories, Solidity files, and `pnpm-lock.yaml`.
+- Biome intentionally ignores `docs/`, `dist/`, generated folders, `.ponder`, cache/out directories, Solidity files, and `bun.lock`.
 
 ## Docs, Examples, Releases
-- Docs are a Vocs app in `docs`; use `pnpm --filter ponder-docs dev` or `pnpm --filter ponder-docs build`.
-- CI separately verifies the Next.js frontend example with `pnpm --filter ponder-examples-with-nextjs-frontend build` after `pnpm build`.
+- Docs are a Vocs app in `docs`; use `bun --filter ponder-docs dev` or `bun --filter ponder-docs build`.
+- CI separately verifies the Next.js frontend example with `bun --filter ponder-examples-with-nextjs-frontend build` after `bun run build`.
 
 ## Changesets
-- Changesets are fixed for `ponder`, `create-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `pnpm changeset`. Public API or bug-fix PRs normally need a patch changeset.
+- Changesets are fixed for `ponder`, `create-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `bun changeset`. Public API or bug-fix PRs normally need a patch changeset.
 - Write changesets in the same voice as `packages/core/CHANGELOG.md`: concise, user-facing, past tense, and focused on observable behavior.
 - Start with the outcome, not the implementation. Prefer phrasing like "Fixed a bug that caused...", "Fixed a regression introduced in `v0.16.0` that caused...", "Improved...", "Added...", "Updated...", or "Removed...".
 - Include concrete symptoms when helpful, especially exact error messages in backticks. Use patterns like "Fixed the error `...`" or "that caused `...`".

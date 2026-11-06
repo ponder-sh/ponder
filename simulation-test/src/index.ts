@@ -79,7 +79,7 @@ export const UUID = process.env.UUID ?? crypto.randomUUID();
 export const PORT = process.env.PORT ?? 42069;
 
 if (APP_ID === undefined) {
-  throw new Error("App ID is required. Example: 'pnpm test [app id]'");
+  throw new Error("App ID is required. Example: 'bun run test [app id]'");
 }
 
 // app state
@@ -1476,7 +1476,7 @@ const onBuild = async (app: PonderApp) => {
 
 process.on("exit", (code) => {
   if (code !== 0) {
-    console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+    console.log(`\nRecreate with 'SEED=${SEED} bun run test ${APP_ID}'`);
   }
 });
 
@@ -1613,7 +1613,7 @@ const compareTables = async (
         ];
       }),
     );
-    console.log(`\nRecreate with 'SEED=${SEED} pnpm test ${APP_ID}'`);
+    console.log(`\nRecreate with 'SEED=${SEED} bun run test ${APP_ID}'`);
     process.exit(1);
   }
 };

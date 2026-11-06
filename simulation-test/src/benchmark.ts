@@ -12,7 +12,7 @@ const APP_DIR = `./apps/${APP_ID}`;
 const UUID = process.env.UUID ?? crypto.randomUUID();
 
 if (APP_ID === undefined) {
-  throw new Error("App ID is required. Example: 'pnpm benchmark [app id]'");
+  throw new Error("App ID is required. Example: 'bun run benchmark [app id]'");
 }
 
 // 1. Create database

@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "forge-std": "github:foundry-rs/forge-std"
+    "forge-std": "github:foundry-rs/forge-std#9964d28dd139cbceb8a7c7c3e182c29cd9888bfd"
   }
 }

@@ -10,23 +10,23 @@ To setup a local database from scratch, there are two steps.
 
 First, run migrations to create metadata and rpc cache tables used by all apps / tests.
 
-```pnpm migrate```
+```bun run migrate```
 
 Then, create the "ground-truth" tables for an app.
 
-```pnpm create:app [app id]```
+```bun run create:app [app id]```
 
 ### Run test
 
-```pnpm test [app id]```
+```bun run test [app id]```
 
 Specify a seed for reproducing an exact test input.
 
-```SEED=[seed] pnpm test [app id]```
+```SEED=[seed] bun run test [app id]```
 
 CLI flags are supported and passed through to Ponder.
 
-```pnpm test [app id] -- -v```
+```bun run test [app id] -- -v```
 
 ## Notable seeds
 

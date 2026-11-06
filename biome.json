@@ -15,7 +15,7 @@
       "!**/.ponder",
       "!**/docs/",
       "!**/benchmarks/apps/subgraph-*",
-      "!**/pnpm-lock.yaml",
+      "!**/bun.lock",
       "!**/*.sol",
       "!**/tsconfig.base.json"
     ]
