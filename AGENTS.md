@@ -10,7 +10,7 @@
 ## Commands
 - Build publishable packages: `bun run build`.
 - Lint and format use Biome: `bun run lint`, `bun run format`, `bun run lint:fix`.
-- Root typecheck covers `packages/**` only: `bun run typecheck`.
+- Typecheck with `bun run typecheck`, which runs `bun check` in each `packages/*` package. `bun check` behaves like TypeScript 7 and rejects options TypeScript 7 removed (e.g. `baseUrl`), while builds use `tsc` from the pinned `typescript` 5.x; code must pass both. Examples keep `tsc` because create-ponder ships them as templates.
 - Focused package checks: `bun --filter ponder typecheck`, `bun --filter @ponder/client typecheck`, `bun --filter @ponder/utils typecheck`, `bun --filter create-ponder typecheck`.
 - Focused tests: `CI=1 bun --filter ponder test src/path.test.ts`, `CI=1 bun --filter @ponder/client test src/index.test.ts`, `bun --filter create-ponder test`.
 - Type-level Vitest suites use separate scripts where present: `bun --filter ponder test:typecheck`, `bun --filter @ponder/client test:typecheck`, `bun --filter @ponder/react test:typecheck`.

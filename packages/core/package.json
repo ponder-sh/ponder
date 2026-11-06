@@ -41,7 +41,7 @@
     "build": "bun ./build.ts",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun check"
   },
   "peerDependencies": {
     "hono": ">=4.5",

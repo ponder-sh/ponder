@@ -292,8 +292,7 @@ test("getCachedBlock() with factory", async () => {
     toBlock: 20,
   } satisfies LogFilter;
 
-  // @ts-expect-error
-  let cachedIntervals: CachedIntervals = new Map([
+  let cachedIntervals: CachedIntervals = new Map<any, any>([
     [filter, [{ fragment: {} as Fragment, intervals: [[10, 20]] }]],
     [filter.address, []],
   ]);
@@ -305,8 +304,7 @@ test("getCachedBlock() with factory", async () => {
 
   expect(cachedBlock).toBe(1);
 
-  // @ts-expect-error
-  cachedIntervals = new Map([
+  cachedIntervals = new Map<any, any>([
     [
       filter,
       [
@@ -547,8 +545,7 @@ test("getRequiredIntervalsWithFilters() with factory", async () => {
   const fragments = getFragments(filter);
   const factoryFragments = getFactoryFragments(filter.address);
 
-  // @ts-expect-error
-  const cachedIntervals: CachedIntervals = new Map([
+  const cachedIntervals: CachedIntervals = new Map<any, any>([
     [filter, [{ fragment: fragments[0]!.fragment, intervals: [[10, 24]] }]],
     [filter.address, [{ fragment: factoryFragments[0]!, intervals: [[3, 5]] }]],
   ]);
@@ -638,8 +635,7 @@ test("getRequiredIntervalsWithFilters() with factory and missing parent", async 
 
   const [fragmentX, fragmentY] = getFactoryFragments(filter.address);
 
-  // @ts-expect-error
-  const cachedIntervals: CachedIntervals = new Map([
+  const cachedIntervals: CachedIntervals = new Map<any, any>([
     [
       filter,
       getFragments(filter).map(({ fragment }) => ({ fragment, intervals: [] })),
@@ -686,8 +682,7 @@ test("getRequiredIntervals() with factory", async () => {
     toBlock: 20,
   } satisfies LogFilter;
 
-  // @ts-expect-error
-  let cachedIntervals: CachedIntervals = new Map([
+  let cachedIntervals: CachedIntervals = new Map<any, any>([
     [filter, [{ fragment: {} as Fragment, intervals: [[10, 18]] }]],
     [
       filter.address as Factory,
@@ -710,8 +705,7 @@ test("getRequiredIntervals() with factory", async () => {
     ]
   `);
 
-  // @ts-expect-error
-  cachedIntervals = new Map([
+  cachedIntervals = new Map<any, any>([
     [filter, [{ fragment: {} as Fragment, intervals: [[10, 18]] }]],
     [filter.address, [{ fragment: {} as Fragment, intervals: [[2, 4]] }]],
   ]);

@@ -12,7 +12,7 @@
     "build": "bun ./build.ts",
     "test": "vitest",
     "test:typecheck": "vitest --typecheck.only",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun check"
   },
   "files": [
     "dist/**",
