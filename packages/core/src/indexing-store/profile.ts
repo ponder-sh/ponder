@@ -306,9 +306,10 @@ const matchEventParameters = (
         }
       }
 
-      // Note: explicitly skip profiling result if it is an array
+      // Note: explicitly skip profiling result if it is an array or a single value
       if (
-        event.event.result !== undefined &&
+        typeof event.event.result === "object" &&
+        event.event.result !== null &&
         Array.isArray(event.event.result) === false
       ) {
         for (const argKey of Object.keys(event.event.result)) {
