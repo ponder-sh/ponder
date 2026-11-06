@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { HttpRequestError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("quicknode block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(HttpRequestError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "eth_getLogs is limited to a 10,000 range",
   );
 

@@ -1,3 +1,4 @@
+import { vi } from "bun:test";
 import {
   type Address,
   getAbiItem,
@@ -5,7 +6,6 @@ import {
   toFunctionSelector,
 } from "viem";
 import { mainnet } from "viem/chains";
-import { vi } from "vitest";
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Common } from "@/internal/common.js";

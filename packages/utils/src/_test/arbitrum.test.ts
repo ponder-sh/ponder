@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { InvalidInputRpcError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -36,7 +36,7 @@ test("arbitrum response size", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidInputRpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "logs matched by query exceeds limit of 10000",
   );
 

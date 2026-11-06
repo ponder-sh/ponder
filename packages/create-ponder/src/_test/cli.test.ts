@@ -1,16 +1,19 @@
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { rimrafSync } from "rimraf";
-import { beforeEach, expect, test } from "vitest";
 import { run } from "@/index.js";
 
 const tempDir = path.join(os.tmpdir(), randomUUID());
 
 beforeEach(() => {
   mkdirSync(tempDir, { recursive: true });
-  return () => rimrafSync(tempDir);
+});
+
+afterEach(() => {
+  rimrafSync(tempDir);
 });
 
 test("create empty", async () => {

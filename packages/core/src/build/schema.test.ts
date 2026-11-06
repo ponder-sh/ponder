@@ -1,3 +1,4 @@
+import { expect, test } from "bun:test";
 import { count, sql, sum } from "drizzle-orm";
 import {
   type AnyPgColumn,
@@ -7,7 +8,6 @@ import {
   primaryKey,
   serial,
 } from "drizzle-orm/pg-core";
-import { expect, test } from "vitest";
 import {
   bigint,
   hex,

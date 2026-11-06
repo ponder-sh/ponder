@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { type Hex, hexToBytes } from "viem";
-import { expect, test } from "vitest";
 import { EMPTY_LOG_FILTER } from "@/_test/constants.js";
 import type { FactoryId, LogFactory, LogFilter } from "@/internal/types.js";
 import {

@@ -1,5 +1,5 @@
+import { test } from "bun:test";
 import { sql } from "@ponder/client";
-import { test } from "vitest";
 import { usePonderQuery } from "./hook.js";
 
 test("usePonderQuery", () => {

@@ -1,5 +1,5 @@
+import { expect, test, vi } from "bun:test";
 import type { Transport } from "viem";
-import { expect, test, vi } from "vitest";
 import { loadBalance } from "./loadBalance.js";
 
 const createMockTransport = () => {

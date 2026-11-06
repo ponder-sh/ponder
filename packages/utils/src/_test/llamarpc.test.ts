@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { InvalidParamsRpcError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI, WETH } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("llamarpc response size", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidParamsRpcError);
-  expect(JSON.stringify(error)).includes("query exceeds max results 20000");
+  expect(JSON.stringify(error)).toContain("query exceeds max results 20000");
 
   const retry = getLogsRetryHelper({
     params,

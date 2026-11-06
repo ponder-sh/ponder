@@ -1,7 +1,7 @@
+import { expect, test } from "bun:test";
 import { relations } from "drizzle-orm";
 import { getTableConfig, pgEnum, pgTable } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { expect, test } from "vitest";
 import { setDatabaseSchema } from "./index.js";
 
 test("setDatabaseSchema table", () => {

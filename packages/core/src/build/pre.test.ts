@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import path from "node:path";
-import { expect, test } from "vitest";
 import { withStubbedEnv } from "@/_test/utils.js";
 import { createLogger } from "@/internal/logger.js";
 import type { Options } from "@/internal/options.js";
@@ -201,6 +201,6 @@ test("buildPre() throws for an invalid ordering", () => {
   expect(() =>
     buildPre({ config, options, logger }),
   ).toThrowErrorMatchingInlineSnapshot(
-    `[Error: Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got ''.]`,
+    `"Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got ''."`,
   );
 });

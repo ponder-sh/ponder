@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { zeroAddress } from "viem";
-import { expect, test } from "vitest";
 import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
 import { getCopyText } from "./cache.js";
 

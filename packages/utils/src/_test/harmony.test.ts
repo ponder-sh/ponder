@@ -1,6 +1,6 @@
+import { expect, test } from "bun:test";
 import { InvalidInputRpcError, numberToHex } from "viem";
 import { harmonyOne } from "viem/chains";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -36,7 +36,7 @@ test("harmony block range", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidInputRpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "query must be smaller than size 1024",
   );
 

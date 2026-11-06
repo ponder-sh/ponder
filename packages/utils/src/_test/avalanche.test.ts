@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { InvalidInputRpcError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("avalanche block range", async () => {
   );
 
   expect(error).toBeInstanceOf(InvalidInputRpcError);
-  expect(JSON.stringify(error?.details)).includes("maximum is set to 2048");
+  expect(JSON.stringify(error?.details)).toContain("maximum is set to 2048");
 
   const retry = getLogsRetryHelper({ params, error });
 

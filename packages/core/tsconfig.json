@@ -3,6 +3,8 @@
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": [],
   "compilerOptions": {
+    // `bun:test` types for the test files. TypeScript 6+ only loads the `@types` packages listed here.
+    "types": ["node", "bun"],
     "paths": {
       "@/*": ["./src/*"],
       "@ponder/client": ["../client/src"],

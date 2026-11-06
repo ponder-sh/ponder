@@ -1,6 +1,6 @@
+import { expect, test } from "bun:test";
 import util from "node:util";
 import { toBytes, zeroAddress } from "viem";
-import { expect, test } from "vitest";
 import { copy, copyOnWrite } from "./copy.js";
 
 test("copyOnWrite", () => {

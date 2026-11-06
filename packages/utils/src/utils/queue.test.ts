@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { expect, test, vi } from "bun:test";
 import { promiseWithResolvers } from "./promiseWithResolvers.js";
 import { createQueue } from "./queue.js";
 

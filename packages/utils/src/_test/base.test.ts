@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("base block range", { timeout: 15_000 }, async () => {
     params,
   }).catch((error) => error);
 
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "no backend is currently healthy to serve traffic",
   );
 

@@ -1,6 +1,6 @@
+import { expect, test, vi } from "bun:test";
 import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
-import { expect, test, vi } from "vitest";
-import type { SyncBlock, SyncTransaction } from "@/internal/types.js";
+import type { SyncBlock, SyncLog, SyncTransaction } from "@/internal/types.js";
 import type { RequestParameters, Rpc } from "@/rpc/index.js";
 import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
@@ -100,7 +100,7 @@ const hash =
   "0x1111111111111111111111111111111111111111111111111111111111111111" as const;
 const address = "0x2222222222222222222222222222222222222222" as const;
 
-const log = {
+const log: SyncLog = {
   blockNumber: "0x1",
   logIndex: "0x0",
   blockHash: hash,
@@ -109,6 +109,7 @@ const log = {
   data: "0x",
   transactionHash: hash,
   transactionIndex: "0x0",
+  removed: false,
 };
 
 test("eth_getLogs chunks address arrays and merges responses in order", async () => {
@@ -116,8 +117,16 @@ test("eth_getLogs chunks address arrays and merges responses in order", async ()
     { length: 51 },
     (_, index) => `0x${index.toString(16).padStart(40, "0")}` as Address,
   );
-  const firstLog = { ...log, address: addresses[0], blockNumber: "0x2" };
-  const secondLog = { ...log, address: addresses[50], logIndex: "0x1" };
+  const firstLog: SyncLog = {
+    ...log,
+    address: addresses[0]!,
+    blockNumber: "0x2",
+  };
+  const secondLog: SyncLog = {
+    ...log,
+    address: addresses[50]!,
+    logIndex: "0x1",
+  };
   const requests: Extract<RequestParameters, { method: "eth_getLogs" }>[] = [];
   const rpcRequest = vi.fn(
     async (request: Extract<RequestParameters, { method: "eth_getLogs" }>) => {
@@ -146,7 +155,7 @@ test("eth_getLogs chunks address arrays and merges responses in order", async ()
   expect(requests).toHaveLength(2);
   expect(requests.map((request) => request.params[0].address)).toStrictEqual([
     addresses.slice(0, 50),
-    [addresses[50]],
+    [addresses[50]!],
   ]);
   expect(params[0].address).toStrictEqual(addresses);
 });

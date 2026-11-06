@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { HttpRequestError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -37,7 +37,7 @@ test("hyperliquid block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(HttpRequestError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "allowed block range threshold exceeded",
   );
 
@@ -64,7 +64,7 @@ test("hyperliquid response size", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(HttpRequestError);
-  expect(JSON.stringify(error)).includes("query exceeds max results 20000");
+  expect(JSON.stringify(error)).toContain("query exceeds max results 20000");
 
   const retry = getLogsRetryHelper({
     params,

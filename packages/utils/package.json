@@ -34,8 +34,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest",
-    "test:bun": "bun test",
+    "test": "bun test --parallel",
     "typecheck": "bun check"
   },
   "peerDependencies": {
@@ -48,10 +47,10 @@
     }
   },
   "devDependencies": {
+    "@types/bun": "1.4.4",
     "@types/node": "22.20.1",
     "abitype": "1.2.3",
     "dotenv": "16.4.5",
-    "tsup": "8.0.1",
-    "vitest": "5.0.2"
+    "tsup": "8.0.1"
   }
 }

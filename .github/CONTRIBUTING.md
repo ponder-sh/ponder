@@ -88,30 +88,27 @@ After the build completes, Bun links packages across the project for development
 
 Ponder has two kinds of tests:
 
-- **Unit tests** cover discrete, usually pure and synchronous logic, such as checkpoint encoding, interval math, and filter matching. They use [vitest](https://vitest.dev/guide) and need no database, RPC, or network access.
+- **Unit tests** cover discrete, usually pure and synchronous logic, such as checkpoint encoding, interval math, and filter matching. They use [`bun test`](https://bun.com/docs/test) and need no database, RPC, or network access.
 - **Simulation tests** cover behavior across modules, such as sync, indexing, reorgs, and crash recovery, with a deterministic simulation. See [`simulation-test`](../simulation-test/README.md).
 
 ### Running unit tests
 
 ```bash
-# Run the `ponder` unit tests in watch mode
+# Run the `ponder` unit tests, as CI does
 bun --filter ponder test
 
-# Run once, as CI does
-CI=1 bun --filter ponder test
-
 # Run a single test file
-CI=1 bun --filter ponder test src/utils/interval.test.ts
+bun --filter ponder test src/utils/interval.test.ts
 
-# Run the type-level tests
-bun --filter ponder test:typecheck
+# Typecheck, including the type-level tests (`*.test-d.ts`)
+bun --filter ponder typecheck
 ```
 
 ### Writing unit tests
 
 When adding new features or fixing bugs, add test cases that cover the new or updated behavior.
 
-- Prefer [inline snapshots](https://vitest.dev/guide/snapshot#inline-snapshots) (`toMatchInlineSnapshot()`) over hand-written expected values. Run the test with `-u` to fill them in, then review the result.
+- Prefer [inline snapshots](https://bun.com/docs/test/snapshots) (`toMatchInlineSnapshot()`) over hand-written expected values. Run the test with `-u` to fill them in, then review the result.
 - Don't add unit tests that need Anvil, Postgres, PGlite, the network, or a running Ponder app. Extend the simulation instead.
 - Shared fixtures live in `packages/core/src/_test/`.
 

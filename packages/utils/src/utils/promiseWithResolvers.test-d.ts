@@ -1,12 +1,12 @@
-import { assertType, test } from "vitest";
+import { expectTypeOf, test } from "bun:test";
 import { promiseWithResolvers } from "./promiseWithResolvers.js";
 
 test("resolve type", () => {
   const { resolve } = promiseWithResolvers<number>();
-  assertType<(arg: number) => void>(resolve);
+  expectTypeOf(resolve).toExtend<(arg: number) => void>();
 });
 
 test("promise type", () => {
   const { promise } = promiseWithResolvers<number>();
-  assertType<Promise<number>>(promise);
+  expectTypeOf(promise).toExtend<Promise<number>>();
 });

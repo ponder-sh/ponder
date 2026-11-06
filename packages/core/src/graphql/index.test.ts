@@ -1,3 +1,4 @@
+import { expect, test } from "bun:test";
 import { count, relations } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import {
@@ -9,7 +10,6 @@ import {
   parse,
   printType,
 } from "graphql";
-import { expect, test } from "vitest";
 import type { QB } from "@/database/queryBuilder.js";
 import {
   onchainEnum,
@@ -3096,7 +3096,7 @@ test("view limit/offset pagination", async () => {
 
 // BUG: The singular field takes an enum primary key column as `String!`,
 // though the column and its filter use the GraphQL enum type.
-test.fails("enum primary key argument uses the enum type", () => {
+test.failing("enum primary key argument uses the enum type", () => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable(
     "table",
@@ -3118,7 +3118,7 @@ test.fails("enum primary key argument uses the enum type", () => {
 });
 
 // BUG: A view's `count()` column is exposed as `JSON`, though it is a number.
-test.fails("view aggregate column is not typed JSON", () => {
+test.failing("view aggregate column is not typed JSON", () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
     name: t.text().notNull(),
@@ -3138,7 +3138,7 @@ test.fails("view aggregate column is not typed JSON", () => {
 });
 
 // BUG: The dataloader batches a null foreign key into the relation lookup.
-test.fails("one relation with a null foreign key is not looked up", async () => {
+test.failing("one relation with a null foreign key is not looked up", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
     name: t.text(),

@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { parseAbiParameter } from "viem";
-import { expect, test } from "vitest";
 import {
   getBytesConsumedByParam,
   getNestedParamOffset,

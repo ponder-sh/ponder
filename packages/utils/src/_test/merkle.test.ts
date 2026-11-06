@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex, RpcError } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI, WETH } from "./utils.js";
 
@@ -37,7 +37,7 @@ test("merkle block range 10k", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "eth_getLogs range is too large, max is 10k blocks",
   );
 
@@ -93,7 +93,7 @@ test("merkle block range 1k", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "eth_getLogs range is too large, max is 1k blocks",
   );
 

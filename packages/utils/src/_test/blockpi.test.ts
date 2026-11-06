@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { InvalidParamsRpcError, numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI } from "./utils.js";
 
@@ -36,7 +36,7 @@ test("blockpi block range", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(InvalidParamsRpcError);
-  expect(JSON.stringify(error)).includes(
+  expect(JSON.stringify(error)).toContain(
     "eth_getLogs is limited to 1024 block range",
   );
 

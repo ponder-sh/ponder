@@ -1,6 +1,6 @@
+import { expect, test } from "bun:test";
 import { LimitExceededRpcError, numberToHex } from "viem";
 import { aurora } from "viem/chains";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -36,7 +36,7 @@ test("aurora block range", { timeout: 15_000 }, async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(LimitExceededRpcError);
-  expect(JSON.stringify(error)).includes("up to a 2000 block range");
+  expect(JSON.stringify(error)).toContain("up to a 2000 block range");
 
   const retry = getLogsRetryHelper({
     params,

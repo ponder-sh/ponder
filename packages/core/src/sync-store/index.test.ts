@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "bun:test";
 import { getFilterBlockRange } from "./index.js";
 
 test("getFilterBlockRange() merges filter and pagination bounds", () => {

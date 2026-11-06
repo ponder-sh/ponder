@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { getRequest, type Params } from "./utils.js";
 
@@ -35,7 +35,7 @@ test("swell block range", async () => {
     params,
   }).catch((error) => error);
 
-  expect(JSON.stringify(error)).includes("block range greater than 1000 max");
+  expect(JSON.stringify(error)).toContain("block range greater than 1000 max");
 
   const retry = getLogsRetryHelper({
     params,

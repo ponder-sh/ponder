@@ -1,5 +1,5 @@
+import { expect, test } from "bun:test";
 import { numberToHex, RpcError } from "viem";
-import { expect, test } from "vitest";
 import { getLogsRetryHelper } from "../getLogsRetryHelper.js";
 import { fromBlock, getRequest, type Params, UNI, WETH } from "./utils.js";
 
@@ -51,7 +51,7 @@ test("alchemy block range", async () => {
   }).catch((error) => error);
 
   expect(error).toBeInstanceOf(RpcError);
-  expect(JSON.stringify(error)).includes("this block range should work");
+  expect(JSON.stringify(error)).toContain("this block range should work");
 
   const retry = getLogsRetryHelper({
     params,

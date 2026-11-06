@@ -29,7 +29,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Test
-        run: bun --filter "ponder" test --run
+        run: bun --filter "ponder" test
 
   test-create-ponder:
     name: Test [create-ponder]

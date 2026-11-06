@@ -1,5 +1,5 @@
+import { test } from "bun:test";
 import { type AbiEvent, parseAbiItem } from "abitype";
-import { test } from "vitest";
 import { factory } from "./address.js";
 
 const event0 = parseAbiItem(

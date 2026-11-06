@@ -1,6 +1,6 @@
+import { expect, test } from "bun:test";
 import { type Address, parseAbiItem, zeroAddress } from "viem";
 import { mainnet } from "viem/chains";
-import { expect, test } from "vitest";
 import { createStubRpc, createTestCommon } from "@/_test/utils.js";
 import { factory } from "@/config/address.js";
 import { createConfig } from "@/config/index.js";

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "bun:test";
 import type { Filter } from "@/internal/types.js";
 import type { IntervalWithFilter } from "@/runtime/index.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
