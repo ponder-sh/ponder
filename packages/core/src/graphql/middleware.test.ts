@@ -223,6 +223,59 @@ test("graphQLMiddleware throws error for token limit", async () => {
   );
 });
 
+test("graphQLMiddleware returns input errors in production", async () => {
+  const schema = {
+    table: onchainTable("table", (t) => ({
+      id: t.text().primaryKey(),
+    })),
+  };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+
+  globalThis.PONDER_DATABASE = database;
+
+  const nodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  let app: Hono;
+  try {
+    app = new Hono().use(
+      "/graphql",
+      graphql({ schema, db: database.readonlyQB.raw }),
+    );
+  } finally {
+    process.env.NODE_ENV = nodeEnv;
+  }
+
+  const request = async (query: string) => {
+    const response = await app.request("/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+
+  let body = await request(`{ tables(limit: 2000) { items { id } } }`);
+  expect(body.errors[0].message).toBe(
+    "Invalid limit. Got 2000, expected <=1000.",
+  );
+
+  body = await request(
+    `{ tables(after: "abc", before: "abc") { items { id } } }`,
+  );
+  expect(body.errors[0].message).toBe(
+    "Cannot specify both before and after cursors.",
+  );
+
+  body = await request(`{ tables(orderBy: "abc") { items { id } } }`);
+  expect(body.errors[0].message).toBe(
+    'Unknown column "abc" used in orderBy argument',
+  );
+});
+
 test("graphQLMiddleware throws error for depth limit", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
