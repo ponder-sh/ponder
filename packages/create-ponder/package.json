@@ -19,7 +19,7 @@
     "create-ponder": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "bun ./build.ts",
     "test": "bun test --parallel",
     "typecheck": "bun check"
   },
@@ -44,8 +44,7 @@
     "@types/validate-npm-package-name": "4.0.2",
     "abitype": "0.10.3",
     "dotenv": "16.4.5",
-    "rimraf": "5.0.5",
-    "tsup": "8.0.1"
+    "rimraf": "5.0.5"
   },
   "engines": {
     "node": ">=22.12"

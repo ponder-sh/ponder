@@ -4,8 +4,8 @@
 - This is a Bun `1.4.4` workspace (`workspaces` in the root `package.json`, `bun.lock`, install settings in `bunfig.toml`); install with `bun install --frozen-lockfile` to match CI. Every dependency version is pinned exactly, including internal workspace dependencies (Bun links a workspace package when the pinned version matches); do not use ranges, `workspace:` or `catalog:`. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`) and sets up exact Node, Bun, and Foundry versions inline in each workflow job where needed. Core unit tests need neither Foundry nor Postgres. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
 - Workspace packages are `packages/*`, `docs`, `examples/*`, `examples/*/*`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
-- `packages/core` and `packages/react` build with custom `build.ts` scripts. `packages/client`, `packages/utils`, and `packages/create-ponder` build with tsup.
-- Core source uses `@/*` path aliases. The core build rewrites these aliases in `dist/esm` and `dist/types`, so do not replace source aliases just to satisfy package output.
+- `packages/core` builds with a custom `build.ts` (tsc, then rewrites `@/` aliases in `dist`). `packages/create-ponder` bundles its CLI with `Bun.build` in `build.ts` and copies `examples/` into `templates/`. `packages/client`, `packages/utils`, and `packages/react` build with `tsc --project tsconfig.build.json`; utils also emits a CommonJS bundle with `bun build`. Note: `bun build --outfile` with `--sourcemap` writes nothing (Bun 1.4.4), so use `--outdir` with `--entry-naming`.
+- Core source uses `@/*` path aliases; the other packages use relative imports and have no `paths`. The core build rewrites these aliases in `dist/esm` and `dist/types`, so do not replace source aliases just to satisfy package output.
 
 ## Commands
 - Build publishable packages: `bun run build`.

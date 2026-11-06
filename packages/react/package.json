@@ -9,7 +9,7 @@
     "directory": "packages/react"
   },
   "scripts": {
-    "build": "bun ./build.ts",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "typecheck": "bun check"
   },
   "files": [
@@ -54,10 +54,6 @@
     "@types/bun": "1.4.4",
     "@types/node": "22.20.1",
     "@types/react": "18.2.37",
-    "chokidar": "4.0.3",
-    "execa": "8.0.1",
-    "picocolors": "1.1.1",
-    "react": "18.2.0",
-    "rimraf": "5.0.5"
+    "react": "18.2.0"
   }
 }

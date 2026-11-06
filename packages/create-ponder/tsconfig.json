@@ -34,9 +34,6 @@
     ],
 
     // Skip type checking for node modules
-    "skipLibCheck": true,
-
-    // File path alias support
-    "paths": { "@/*": ["./src/*"] }
+    "skipLibCheck": true
   }
 }

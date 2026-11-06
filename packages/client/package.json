@@ -30,7 +30,7 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "test": "bun test --parallel",
     "typecheck": "bun check"
   },
@@ -48,7 +48,6 @@
     "superjson": "2.2.2"
   },
   "devDependencies": {
-    "@types/bun": "1.4.4",
-    "tsup": "8.0.1"
+    "@types/bun": "1.4.4"
   }
 }

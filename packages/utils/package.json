@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json && bun build src/index.ts --target=node --format=cjs --packages=external --sourcemap=linked --outdir=dist --entry-naming='[name].cjs'",
     "test": "bun test --parallel",
     "typecheck": "bun check"
   },
@@ -50,7 +50,6 @@
     "@types/bun": "1.4.4",
     "@types/node": "22.20.1",
     "abitype": "1.2.3",
-    "dotenv": "16.4.5",
-    "tsup": "8.0.1"
+    "dotenv": "16.4.5"
   }
 }

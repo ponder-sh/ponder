@@ -4,7 +4,7 @@ import { mkdirSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { rimrafSync } from "rimraf";
-import { run } from "@/index.js";
+import { run } from "../index.js";
 
 const tempDir = path.join(os.tmpdir(), randomUUID());
 
