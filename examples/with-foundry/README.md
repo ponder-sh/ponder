@@ -27,11 +27,11 @@ forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 --
 Generate ABIs:
 
 ```shell
-pnpm wagmi generate
+bunx wagmi generate
 ```
 
 Start the Ponder development server:
 
 ```shell
-pnpm ponder dev
+bunx ponder dev
 ```

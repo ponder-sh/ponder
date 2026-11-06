@@ -7,9 +7,9 @@
     "create:app": "bun run src/create-app.ts"
   },
   "devDependencies": {
-    "commander": "^12.0.0",
+    "commander": "12.0.0",
     "drizzle-orm": "0.41.0",
-    "pg": "^8.16.2",
-    "ponder": "workspace:*"
+    "pg": "8.16.2",
+    "ponder": "0.18.6"
   }
 }

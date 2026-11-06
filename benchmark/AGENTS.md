@@ -7,9 +7,9 @@
 - The suite is a performance harness, not a correctness test. It does not compare table contents, enforce a performance threshold, or store results.
 
 ## Prerequisites
-- Use the repository toolchain from the root `AGENTS.md`: pnpm `12.10.1`, Node `>=22`, and Bun for this package's scripts.
-- Install workspace dependencies from the repository root with `pnpm install --frozen-lockfile`.
-- Build the publishable packages before benchmarking with `pnpm build`.
+- Use the repository toolchain from the root `AGENTS.md`: Bun `1.4.4` for installs and this package's scripts, and Node `>=22`.
+- Install workspace dependencies from the repository root with `bun install --frozen-lockfile`.
+- Build the publishable packages before benchmarking with `bun run build`.
 - Provide a Postgres server base URL in `DATABASE_URL`. It must omit the app database name and have no trailing slash because the scripts append `/benchmark_[app id]`, for example `postgresql://postgres@localhost:55432`.
 - Set `PGDATABASE=postgres` when the base URL does not name a maintenance database.
 - Provide the RPC variables required by the selected app. Copy `benchmark/.env.example` to `benchmark/.env.local`, reuse values from `simulation-test/.env.local`, or export them in the shell. Bun loads `benchmark/.env.local` automatically.
@@ -22,10 +22,10 @@
 
 ## Database Setup
 - Each app uses a database named `benchmark_[app id]`, such as `benchmark_reth`.
-- `pnpm create:app [app id]` creates that database and runs the app to completion once. This populates both the output tables in `benchmark` and reusable historical data in `ponder_sync`.
-- `pnpm create:app` is not idempotent: it fails if the app database already exists.
+- `bun run create:app [app id]` creates that database and runs the app to completion once. This populates both the output tables in `benchmark` and reusable historical data in `ponder_sync`.
+- `bun run create:app` is not idempotent: it fails if the app database already exists.
 - Initial setup from live RPC can be very expensive. A fresh local `reth` setup estimated hours to fetch its 4.6-million-block range; `uniswap` covers four large ranges and is more expensive.
-- A timed `pnpm benchmark` run requires the app database to exist. It drops and recreates only `benchmark`; it intentionally retains `ponder_sync` so indexing can be replayed without fetching historical RPC data again.
+- A timed `bun run benchmark` run requires the app database to exist. It drops and recreates only `benchmark`; it intentionally retains `ponder_sync` so indexing can be replayed without fetching historical RPC data again.
 - For rough planning on the verified local setup, the `reth` benchmark took about 17 to 20 seconds with a complete cache. Without historical sync data, the initial `reth` sync was projected to take roughly two hours. Unsynced time depends heavily on RPC limits and latency and is database preparation, not a comparable benchmark result.
 
 ## Running
@@ -33,7 +33,7 @@
 - Run a visible warmup first so logs confirm that all required historical data is cached:
 
 ```bash
-pnpm benchmark reth --log-level info
+bun run benchmark reth --log-level info
 ```
 
 - A valid cached run prints `Skipped fetching backfill JSON-RPC data (cache contains all required data)` and `cache_rate=100%` for every chain.
@@ -41,10 +41,10 @@ pnpm benchmark reth --log-level info
 - Use quieter logs for measured repetitions after confirming the cache is complete:
 
 ```bash
-pnpm benchmark reth --log-level warn
+bun run benchmark reth --log-level warn
 ```
 
-- Pass Ponder CLI options directly after the app ID. Do not insert an extra `--`; Commander treats it as the end of options, so `pnpm benchmark reth -- --log-level warn` leaves the default info logging enabled.
+- Pass Ponder CLI options directly after the app ID. Do not insert an extra `--`; Commander treats it as the end of options, so `bun run benchmark reth -- --log-level warn` leaves the default info logging enabled.
 - Run at least one warmup followed by three measured repetitions. For more stable comparisons, use five or more repetitions and report the median plus the minimum and maximum.
 - Do not run workloads concurrently. Besides competing for CPU, memory, disk, and Postgres, runs of the same app mutate the same schema.
 
@@ -57,7 +57,7 @@ pnpm benchmark reth --log-level warn
 - Prefer distributions over one-off numbers. A regression is a repeatable shift in the median, not one slow sample; inspect individual indexing batch times and system/database load when variance grows.
 
 ## Troubleshooting
-- `database "benchmark_[app id]" does not exist`: restore a populated database or run `pnpm create:app [app id]` before benchmarking.
+- `database "benchmark_[app id]" does not exist`: restore a populated database or run `bun run create:app [app id]` before benchmarking.
 - `database "benchmark_[app id]" already exists` from `create:app`: the command is not a refresh operation. Keep the existing database if its cache is complete, or explicitly replace only an isolated local copy.
 - Low cache rate or a long RPC estimate: the local `ponder_sync` data is incomplete. Stop treating the run as a benchmark and restore a complete snapshot or finish the one-time sync.
 - `ECONNREFUSED` for Postgres: start the local server and confirm that `DATABASE_URL` uses its exposed port.
@@ -66,7 +66,7 @@ pnpm benchmark reth --log-level warn
 - If a process is interrupted, confirm it exited before rerunning. The next benchmark drops `benchmark`, but concurrent or orphaned processes can contend for the schema and port.
 
 ## Safety Notes
-- Every `pnpm benchmark [app id]` run destroys and recreates the `benchmark` schema in `benchmark_[app id]`. Never use a database whose `benchmark` schema must be preserved.
+- Every `bun run benchmark [app id]` run destroys and recreates the `benchmark` schema in `benchmark_[app id]`. Never use a database whose `benchmark` schema must be preserved.
 - Preserve `ponder_sync`; it is the expensive historical cache that makes benchmark runs repeatable and fast.
 - Do not benchmark directly against Railway unless explicitly asked. Dump remote data read-only and run against an isolated local restore.
 - Do not commit `.env.local`, database URLs, RPC URLs, dumps, or credentials.

@@ -7,9 +7,9 @@
 - The goal is to catch regressions in sync, indexing, realtime, crash recovery, and database behavior before they reach users.
 
 ## Prerequisites
-- Use the repository toolchain from the root `AGENTS.md`: pnpm `12.10.1`, Node `>=22`, and Bun for this package's scripts.
-- Install workspace dependencies from the repository root with `pnpm install`.
-- Build the publishable packages before running simulations with `pnpm build`; the simulation apps depend on the workspace `ponder` package.
+- Use the repository toolchain from the root `AGENTS.md`: Bun `1.4.4` for installs and this package's scripts, and Node `>=22`.
+- Install workspace dependencies from the repository root with `bun install`.
+- Build the publishable packages before running simulations with `bun run build`; the simulation apps depend on the workspace `ponder` package.
 - Provide a Postgres server connection in `DATABASE_URL`. The URL should omit the app/run database name because scripts append database names themselves, for example `postgresql://postgres@localhost:55432`.
 - Provide RPC URLs used by the app under test. Current env names are `PONDER_RPC_URL_1`, `PONDER_RPC_URL_10`, `PONDER_RPC_URL_130`, and `PONDER_RPC_URL_8453`.
 - Copy `simulation-test/.env.example` to `simulation-test/.env.local` for local runs, or export the variables in your shell.
@@ -34,12 +34,12 @@ sudo docker run -d \
 - Verify readiness with `sudo docker exec simulation-test-postgres pg_isready -U postgres -d postgres`.
 
 ## Database Setup
-- `pnpm migrate` applies the root simulation-test migrations. These create shared `metadata` and `rpc_cache` tables on the base database connection.
-- `pnpm create:app [app id]` creates a Postgres database named exactly `[app id]` and runs that app once with `DATABASE_SCHEMA=expected` to populate template data.
-- `pnpm test [app id]` expects a template database named `[app id]` to already exist.
+- `bun run migrate` applies the root simulation-test migrations. These create shared `metadata` and `rpc_cache` tables on the base database connection.
+- `bun run create:app [app id]` creates a Postgres database named exactly `[app id]` and runs that app once with `DATABASE_SCHEMA=expected` to populate template data.
+- `bun run test [app id]` expects a template database named `[app id]` to already exist.
 - Each test run creates a UUID database with `CREATE DATABASE "<uuid>" TEMPLATE "<app id>"`, runs the simulation there, then marks the root `metadata` row as successful if validation passes.
 - `src/cleanup-database.ts` drops only successful UUID databases recorded in `metadata`. Failed run databases are left behind for debugging unless manually removed.
-- `pnpm create:app [app id]` is not idempotent; do not run it against shared infrastructure unless you intend to create or replace that app template database.
+- `bun run create:app [app id]` is not idempotent; do not run it against shared infrastructure unless you intend to create or replace that app template database.
 
 ## Populating Local Data
 - Prefer copying data from the Railway Postgres instance instead of rebuilding templates and RPC cache from live RPC. Railway has a fully synced database, and dumping it avoids expensive and rate-limited RPC backfills.
@@ -57,7 +57,7 @@ pg_restore --no-owner --dbname="$LOCAL_DATABASE_URL/reference-erc20" /tmp/refere
 ```
 
 - The shared root database also contains `rpc_cache`. Copying it locally is useful when debugging cache behavior or when app templates do not already include enough sync data.
-- If Railway is unreachable, the fallback is to run `pnpm create:app [app id]` locally. This repopulates template data and cache just in time from live RPC as the app runs, but it should not be the default path for large apps or routine setup.
+- If Railway is unreachable, the fallback is to run `bun run create:app [app id]` locally. This repopulates template data and cache just in time from live RPC as the app runs, but it should not be the default path for large apps or routine setup.
 - Verified local fallback for `reference-erc20`:
 
 ```bash
@@ -65,17 +65,17 @@ set -a; source .env.local; set +a
 export DATABASE_URL="postgresql://postgres@localhost:55432"
 export PGDATABASE=postgres
 export PGSSLMODE=disable
-pnpm migrate
-pnpm create:app reference-erc20
+bun run migrate
+bun run create:app reference-erc20
 ```
 
 ## Running
-- From `simulation-test`, run one fuzz simulation with `pnpm test [app id]`.
-- Reproduce a specific run with `SEED=[seed] pnpm test [app id]`.
+- From `simulation-test`, run one fuzz simulation with `bun run test [app id]`.
+- Reproduce a specific run with `SEED=[seed] bun run test [app id]`.
 - A fixed `SEED` must produce the same simulation parameters and the same test behavior every time. If a seed sometimes passes and sometimes fails with the same template data, treat that as a simulation harness bug unless there is a clear external cause.
 - `UUID` only controls the temporary database name for a run. Set it when you need a predictable database name for inspection, but do not reuse a UUID until the old database has been dropped.
-- Pass Ponder CLI logging flags after `--`, for example `pnpm test [app id] -- -v` or `pnpm test [app id] -- --log-level debug`.
-- Run `pnpm benchmark [app id]` to clone the app template and time a normal app run without the validation/fault-injection harness.
+- Pass Ponder CLI logging flags after `--`, for example `bun run test [app id] -- -v` or `bun run test [app id] -- --log-level debug`.
+- Run `bun run benchmark [app id]` to clone the app template and time a normal app run without the validation/fault-injection harness.
 - The available app IDs are the directories under `simulation-test/apps/`.
 - `the-compact` and `basepaint` are treated as cached apps by the harness and skip uncached block deletion.
 - `super-assessment` is special: its seeded config is generated dynamically, and its expected tables are built during the simulation run.
@@ -87,7 +87,7 @@ export DATABASE_URL="postgresql://postgres@localhost:55432"
 export PGDATABASE=postgres
 export PGSSLMODE=disable
 export CI=true
-SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
+SEED="reference-erc20-local-smoke" bun run test reference-erc20 -- --log-level info
 ```
 
 ## Interpreting Results
@@ -96,7 +96,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - A validation failure usually means Ponder indexed data differently from the known-good expected tables for that app template and seed.
 - A simulated RPC or DB error is not automatically a test failure; Ponder is expected to recover from many injected transient failures.
 - Treat any CI job cancelled because of a timeout as a test failure.
-- On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] pnpm test [app id]`.
+- On non-zero exit, the runner prints a reproduction command in the form `SEED=[seed] bun run test [app id]`.
 - Exit code `1` is a validation or Ponder failure. Exit code `2` (`INFRA ERROR`) is a problem in the test infrastructure: the template does not have the latest sync schema.
 - `CACHE_RPC_REQUESTS: false` runs Ponder with `chains[*].cacheRpcRequests: false` (in-memory sync). In-memory sync does not use the template's sync data, so it fetches all data through the simulated RPC on every start and crash recovery restart. It is only picked for apps with small block ranges (`IN_MEMORY_SYNC_APPS` in `src/index.ts`).
 - Successful runs set `metadata.success = true` and are eligible for cleanup. Failed runs usually remain in Postgres for inspection.
@@ -109,7 +109,7 @@ SEED="reference-erc20-local-smoke" pnpm test reference-erc20 -- --log-level info
 - Each job has a 15 minute timeout. A healthy job takes less than 5 minutes.
 - One-off reproductions in CI use `.github/workflows/simulation-test-single.yml`, which accepts an app and seed.
 - CI runs on self-hosted runners and uses GitHub secrets for `DATABASE_URL` and RPC URLs. Current workflow env sets `PGDATABASE=railway`, indicating the shared Postgres service is Railway-backed.
-- Simulation workflows set up Node, pnpm, and Bun inline and do not install Foundry. They do not need it, and skipping it avoids self-hosted runner glibc/toolchain failures during setup.
+- Simulation workflows set up Node and Bun inline and do not install Foundry. They do not need it, and skipping it avoids self-hosted runner glibc/toolchain failures during setup.
 - The cleanup job runs after the fuzz jobs and calls `bun run src/cleanup-database.ts` to delete successful UUID databases.
 - Monitor failures in GitHub Actions first, then use the printed seed and UUID plus the `metadata` table and remaining run database for deeper inspection.
 - If Railway is unreachable from an AWS/dev instance but works from a laptop, ask DevOps to check whether outbound TCP to the Railway Postgres proxy host and port is allowed from that instance.

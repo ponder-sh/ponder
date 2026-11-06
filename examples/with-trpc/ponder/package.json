@@ -10,16 +10,16 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@hono/trpc-server": "^0.3.2",
-    "ponder": "workspace:*",
-    "@trpc/server": "^10.45.2",
-    "hono": "^4.5.0",
+    "@hono/trpc-server": "0.3.2",
+    "ponder": "0.18.6",
+    "@trpc/server": "10.45.2",
+    "hono": "4.5.0",
     "viem": "2.35.0",
-    "zod": "^3.23.8"
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.4.0"
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=22.12"

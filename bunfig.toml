@@ -1,0 +1,10 @@
+[install]
+# One flat node_modules tree. The isolated linker gives each package its own
+# copy of a dependency per peer-dependency set, which splits `drizzle-orm`
+# between `ponder` and `@ponder/client` and breaks their shared types.
+linker = "hoisted"
+# `bun add` writes exact versions. Every dependency in the repo is pinned.
+exact = true
+# Don't install missing peer dependencies, which would pull in unpinned
+# versions (e.g. a second `hono`). Workspaces declare the peers they need.
+peer = false

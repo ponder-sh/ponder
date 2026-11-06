@@ -1,28 +1,40 @@
 {
   "private": true,
+  "workspaces": [
+    "benchmark",
+    "docs",
+    "simulation-test",
+    "examples/*",
+    "examples/*/*",
+    "packages/*",
+    "tmp/*"
+  ],
   "scripts": {
-    "bench:ponder:ci": "pnpm --filter \"./benchmarks\" bench:ponder:ci",
-    "bench:subgraph:ci": "pnpm --filter \"./benchmarks\" bench:subgraph:ci",
-    "build": "pnpm --filter \"./packages/**\" --recursive build",
+    "build": "bun --filter './packages/*' build",
     "format": "biome format . --write",
     "lint": "biome check .",
-    "lint:fix": "pnpm lint --write",
-    "test": "pnpm --parallel --no-bail test",
-    "test:bun": "pnpm --parallel --no-bail test:bun",
-    "typecheck": "pnpm --filter \"./packages/**\" --recursive typecheck"
+    "lint:fix": "biome check . --write",
+    "test": "bun run --parallel --no-exit-on-error --workspaces --if-present test",
+    "test:bun": "bun run --parallel --no-exit-on-error --workspaces --if-present test:bun",
+    "typecheck": "bun --filter './packages/*' typecheck",
+    "version-packages": "changeset version && bun install"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.4",
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.3",
-    "drizzle-kit": "^0.30.6",
+    "drizzle-kit": "0.30.6",
     "hono": "4.5.0",
     "typescript": "5.4.5",
     "viem": "2.35.0"
   },
-  "packageManager": "pnpm@12.15.0",
+  "trustedDependencies": [
+    "@biomejs/biome",
+    "esbuild"
+  ],
+  "packageManager": "bun@1.4.4",
   "engines": {
     "node": ">=22",
-    "pnpm": ">=12"
+    "bun": ">=1.4.4"
   }
 }
