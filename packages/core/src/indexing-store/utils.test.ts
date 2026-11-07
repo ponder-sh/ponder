@@ -102,15 +102,35 @@ test("normalize json", () => {
     }
     expect(
       normalizeColumn(column, { a: undefined, b: new Date(0) }, false),
-    ).toStrictEqual({ b: "1970-01-01T00:00:00.000Z" });
+    ).toMatchInlineSnapshot(`
+      {
+        "b": "1970-01-01T00:00:00.000Z",
+      }
+    `);
   }
 
   expect(
     normalizeColumn(table.metadatas, ["1", { a: 1 }], false),
-  ).toStrictEqual(["1", { a: 1 }]);
+  ).toMatchInlineSnapshot(`
+    [
+      "1",
+      {
+        "a": 1,
+      },
+    ]
+  `);
   expect(
     normalizeColumn(table.metadatas2, [[{ a: 1 }, "1"]], false),
-  ).toStrictEqual([[{ a: 1 }, "1"]]);
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        {
+          "a": 1,
+        },
+        "1",
+      ],
+    ]
+  `);
 });
 
 test("normalizeRow() default, $default, $onUpdateFn", () => {

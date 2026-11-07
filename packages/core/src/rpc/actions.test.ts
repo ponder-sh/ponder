@@ -716,5 +716,7 @@ test("validateLogsAndBlock rejects mismatched block hashes", () => {
       logsRequest,
       blockRequest,
     ),
-  ).toThrow("has a 'log.blockHash'");
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Inconsistent RPC response data. The log with 'logIndex' 0x0 (0) has a 'log.blockHash' of 0x2222222222222222222222222222222222222222222222222222222222222222, but the associated block has a 'block.hash' of 0x1111111111111111111111111111111111111111111111111111111111111111."`,
+  );
 });

@@ -592,7 +592,7 @@ describe("GitHub repros", () => {
             "0x00000000000000000000000070e8a65d014918798ba424110d5df658cde1cc58",
           ],
         }),
-      ).toThrowError("Invalid data length.");
+      ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
     });
   });
 

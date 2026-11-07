@@ -146,11 +146,13 @@ test("decodeEvents() log", async () => {
   ]) as [LogEvent];
 
   expect(events).toHaveLength(1);
-  expect(events[0].event.args).toMatchObject({
-    from: zeroAddress,
-    to: ALICE.toLowerCase(),
-    amount: parseEther("1"),
-  });
+  expect(events[0].event.args).toMatchInlineSnapshot(`
+    {
+      "amount": 1000000000000000000n,
+      "from": "0x0000000000000000000000000000000000000000",
+      "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    }
+  `);
 });
 
 test("decodeEvents() log error", async () => {
@@ -212,9 +214,11 @@ test("decodeEvents() block", async () => {
   ]) as [BlockEvent];
 
   expect(events).toHaveLength(1);
-  expect(events[0].event.block).toMatchObject({
-    number: 1n,
-  });
+  expect(events[0].event.block).toMatchInlineSnapshot(`
+    {
+      "number": 1n,
+    }
+  `);
 });
 
 test("decodeEvents() transfer", async () => {
@@ -251,11 +255,13 @@ test("decodeEvents() transfer", async () => {
   ]) as [TransferEvent];
 
   expect(events).toHaveLength(1);
-  expect(events[0].event.transfer).toMatchObject({
-    from: ALICE,
-    to: BOB,
-    value: parseEther("1"),
-  });
+  expect(events[0].event.transfer).toMatchInlineSnapshot(`
+    {
+      "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "value": 1000000000000000000n,
+    }
+  `);
 });
 
 test("decodeEvents() transaction", async () => {
@@ -325,7 +331,12 @@ test("decodeEvents() trace", async () => {
   ]) as [TraceEvent];
 
   expect(events).toHaveLength(1);
-  expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
+  expect(events[0].event.args).toMatchInlineSnapshot(`
+    [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      1000000000000000000n,
+    ]
+  `);
   expect(events[0].event.result).toBe(true);
 });
 
@@ -373,7 +384,12 @@ test("decodeEvents() trace w/o output", async () => {
   ]) as [TraceEvent];
 
   expect(events).toHaveLength(1);
-  expect(events[0].event.args).toStrictEqual([BOB, parseEther("1")]);
+  expect(events[0].event.args).toMatchInlineSnapshot(`
+    [
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      1000000000000000000n,
+    ]
+  `);
   expect(events[0].event.result).toBe(undefined);
 });
 
@@ -465,11 +481,15 @@ test("buildEvents() transaction matches receipt by transaction index", async () 
   expect(events[0]!.transaction!.transactionIndex).toBe(1);
   expect(events[0]!.transactionReceipt).toBe(receipts[1]);
 
-  expect(() => build([receipt(1, "success")])).toThrow(
-    "Missing transaction receipt for block 1 and transaction index 0",
+  expect(() =>
+    build([receipt(1, "success")]),
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Failed to build events from block data. Missing transaction receipt for block 1 and transaction index 0 for chain ID 1"`,
   );
-  expect(() => build([receipt(0, "success")])).toThrow(
-    "Missing transaction receipt for block 1 and transaction index 1",
+  expect(() =>
+    build([receipt(0, "success")]),
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Failed to build events from block data. Missing transaction receipt for block 1 and transaction index 1 for chain ID 1"`,
   );
 });
 

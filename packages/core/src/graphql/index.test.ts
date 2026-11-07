@@ -1982,7 +1982,7 @@ test("negative limit and offset", async () => {
       },
     ]
   `);
-  expect(queries).toStrictEqual([]);
+  expect(queries).toMatchInlineSnapshot(`[]`);
 });
 
 test("cursor pagination descending", async () => {

@@ -9,5 +9,5 @@ test("promiseAllSettledWithThrow", async () => {
       new Promise((_, reject) => setTimeout(() => reject(new Error("1")), 10)),
       new Promise((_, reject) => setTimeout(() => reject(new Error("2")), 20)),
     ]),
-  ).rejects.toThrowError("1");
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`"1"`);
 });

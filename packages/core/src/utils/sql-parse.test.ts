@@ -98,9 +98,9 @@ test("validateAllowableSQLQuery() cache identity", async () => {
   expect(firstHash).not.toBe(secondHash);
 
   await validateAllowableSQLQuery(first);
-  await expect(validateAllowableSQLQuery(second)).rejects.toThrow(
-    "System tables not supported",
-  );
+  await expect(
+    validateAllowableSQLQuery(second),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`"System tables not supported"`);
 });
 
 test("validateAllowableSQLQuery() select into", async () => {

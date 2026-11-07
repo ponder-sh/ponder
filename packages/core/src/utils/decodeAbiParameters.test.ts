@@ -2275,7 +2275,7 @@ test("error: recursive decode array", () => {
       [{ type: "uint256[][][][][][][][][][]" }],
       `0x${payload}`,
     ),
-  ).toThrowError("Recursive read limit exceeded.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Recursive read limit exceeded."`);
 });
 
 test("zst", () => {
@@ -2284,37 +2284,37 @@ test("zst", () => {
 
   expect(() =>
     decodeAbiParameters([{ type: "uint256[0][4294967295]" }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters([{ type: "uint32[0][4294967295]" }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters([{ type: "uint256[4294967295][4294967295]" }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters([{ type: "uint32[4294967295][4294967295]" }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters([{ type: "uint256[0][]" }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters([{ type: "uint256[0][]" }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters([{ type: "tuple[]", components: [] }], payload),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters(
       [{ type: "tuple[]", components: [{ type: "tuple", components: [] }] }],
       payload,
     ),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters(
       [{ type: "tuple[]", components: [{ type: "uint32[0]" }] }],
       payload,
     ),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(() =>
     decodeAbiParameters(
       [
@@ -2325,7 +2325,7 @@ test("zst", () => {
       ],
       payload,
     ),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
 });
 
 test("error leaves params unchanged", () => {
@@ -2337,7 +2337,7 @@ test("error leaves params unchanged", () => {
       params,
       `0x${"20".padStart(64, "0")}${"02".padStart(64, "0")}`,
     ),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(params[0].type).toBe("uint256[][]");
 });
 
@@ -2350,7 +2350,7 @@ test("recursive 2", () => {
   ]);
   expect(() =>
     decodeAbiParameters(arr10, `0x${mainPtr.slice(2).repeat(10 + 1)}`),
-  ).toThrowError("Recursive read limit exceeded.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Recursive read limit exceeded."`);
 });
 
 test("error: does not mutate params", () => {
@@ -2359,7 +2359,7 @@ test("error: does not mutate params", () => {
 
   expect(() =>
     decodeAbiParameters(params, data.slice(0, -64) as Hex),
-  ).toThrowError("Invalid data length.");
+  ).toThrowErrorMatchingInlineSnapshot(`"Invalid data length."`);
   expect(params.map((param) => param.type)).toMatchInlineSnapshot(`
     [
       "uint256[][]",

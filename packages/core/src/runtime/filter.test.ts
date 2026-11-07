@@ -5,7 +5,6 @@ import {
   encodeFunctionData,
   getAbiItem,
   type Hex,
-  numberToHex,
   padHex,
   parseEther,
   toEventSelector,
@@ -360,11 +359,26 @@ test("mergeLogFiltersToRequests merges filters with different topic1 values into
     1000,
   );
 
-  expect(mergedRequests).toHaveLength(1);
-  expect(mergedRequests[0]!.params[0]).toMatchObject({
-    address: ADDRESS_A,
-    topics: [transfer, [TOPIC1_ALICE, TOPIC1_BOB]],
-  });
+  expect(
+    mergedRequests.map((request) => request.params),
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        {
+          "address": "0x1111111111111111111111111111111111111111",
+          "fromBlock": "0x1",
+          "toBlock": "0x64",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            [
+              "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              "0x00000000000000000000000070997970C51812dc3A010C7d01b50e0d17dc79C8",
+            ],
+          ],
+        },
+      ],
+    ]
+  `);
 });
 
 test("mergeLogFiltersToRequests merges filters with different addresses into one request", () => {
@@ -405,11 +419,25 @@ test("mergeLogFiltersToRequests merges filters with different addresses into one
     1000,
   );
 
-  expect(mergedRequests).toHaveLength(1);
-  expect(mergedRequests[0]!.params[0]).toMatchObject({
-    address: [ADDRESS_A, ADDRESS_B],
-    topics: [transfer],
-  });
+  expect(
+    mergedRequests.map((request) => request.params),
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        {
+          "address": [
+            "0x1111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222",
+          ],
+          "fromBlock": "0x1",
+          "toBlock": "0x64",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        },
+      ],
+    ]
+  `);
 });
 
 test("mergeLogFiltersToRequests does not merge disjoint intervals into an overly wide request", () => {
@@ -452,19 +480,32 @@ test("mergeLogFiltersToRequests does not merge disjoint intervals into an overly
     1000,
   );
 
-  expect(mergedRequests).toHaveLength(2);
-  expect(mergedRequests.map((request) => request.params[0])).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        fromBlock: numberToHex(1),
-        toBlock: numberToHex(100),
-      }),
-      expect.objectContaining({
-        fromBlock: numberToHex(100_000),
-        toBlock: numberToHex(100_100),
-      }),
-    ]),
-  );
+  expect(
+    mergedRequests.map((request) => request.params),
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        {
+          "address": "0x1111111111111111111111111111111111111111",
+          "fromBlock": "0x1",
+          "toBlock": "0x64",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        },
+      ],
+      [
+        {
+          "address": "0x1111111111111111111111111111111111111111",
+          "fromBlock": "0x186a0",
+          "toBlock": "0x18704",
+          "topics": [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          ],
+        },
+      ],
+    ]
+  `);
 });
 
 const REQUEST_ADDRESS_A = "0x000000000000000000000000000000000000000a";
@@ -504,10 +545,22 @@ test("mergeLogFiltersToBlockRequest returns one log filter", () => {
 
   expect(
     mergeLogFiltersToBlockRequest({ logFilters: [filter], factories: [] }),
-  ).toStrictEqual({
-    address: [REQUEST_ADDRESS_A],
-    topics: [[REQUEST_TOPIC_A], null, [REQUEST_TOPIC_B]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": [
+        "0x000000000000000000000000000000000000000a",
+      ],
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ],
+        null,
+        [
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest unions addresses and topics", () => {
@@ -529,13 +582,24 @@ test("mergeLogFiltersToBlockRequest unions addresses and topics", () => {
       logFilters: [filterA, filterB],
       factories: [],
     }),
-  ).toStrictEqual({
-    address: [REQUEST_ADDRESS_A, REQUEST_ADDRESS_B],
-    topics: [
-      [REQUEST_TOPIC_A, REQUEST_TOPIC_B],
-      [REQUEST_TOPIC_C, REQUEST_TOPIC_A],
-    ],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": [
+        "0x000000000000000000000000000000000000000a",
+        "0x000000000000000000000000000000000000000b",
+      ],
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ],
+        [
+          "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest matches all values if one input matches all values", () => {
@@ -556,10 +620,17 @@ test("mergeLogFiltersToBlockRequest matches all values if one input matches all 
       logFilters: [filterA, filterB],
       factories: [],
     }),
-  ).toStrictEqual({
-    address: undefined,
-    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_B]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": undefined,
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest matches all addresses for a factory log filter", () => {
@@ -574,10 +645,17 @@ test("mergeLogFiltersToBlockRequest matches all addresses for a factory log filt
       logFilters: [filter],
       factories: [REQUEST_FACTORY],
     }),
-  ).toStrictEqual({
-    address: undefined,
-    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_C]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": undefined,
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest includes factories without log filters", () => {
@@ -586,10 +664,18 @@ test("mergeLogFiltersToBlockRequest includes factories without log filters", () 
       logFilters: [],
       factories: [REQUEST_FACTORY],
     }),
-  ).toStrictEqual({
-    address: [REQUEST_ADDRESS_B],
-    topics: [[REQUEST_TOPIC_C]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": [
+        "0x000000000000000000000000000000000000000b",
+      ],
+      "topics": [
+        [
+          "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest unions factory and log filter addresses", () => {
@@ -605,10 +691,20 @@ test("mergeLogFiltersToBlockRequest unions factory and log filter addresses", ()
       logFilters: [filter],
       factories: [REQUEST_FACTORY],
     }),
-  ).toStrictEqual({
-    address: [REQUEST_ADDRESS_A, REQUEST_ADDRESS_B],
-    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_C]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": [
+        "0x000000000000000000000000000000000000000a",
+        "0x000000000000000000000000000000000000000b",
+      ],
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest matches all addresses for a factory without an address", () => {
@@ -623,10 +719,17 @@ test("mergeLogFiltersToBlockRequest matches all addresses for a factory without 
       logFilters: [filter],
       factories: [{ ...REQUEST_FACTORY, address: undefined }],
     }),
-  ).toStrictEqual({
-    address: undefined,
-    topics: [[REQUEST_TOPIC_A, REQUEST_TOPIC_C]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": undefined,
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        ],
+      ],
+    }
+  `);
 });
 
 test("mergeLogFiltersToBlockRequest ignores inputs with an empty address list", () => {
@@ -657,7 +760,16 @@ test("mergeLogFiltersToBlockRequest matches all addresses above ADDRESS_CHUNK_SI
 
   expect(
     mergeLogFiltersToBlockRequest({ logFilters: [filter], factories: [] }),
-  ).toStrictEqual({ address: undefined, topics: [[REQUEST_TOPIC_A]] });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": undefined,
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ],
+      ],
+    }
+  `);
 
   expect(
     mergeLogFiltersToBlockRequest({
@@ -681,15 +793,30 @@ test("mergeLogFiltersToBlockRequest matches all topics above ADDRESS_CHUNK_SIZE"
 
   expect(
     mergeLogFiltersToBlockRequest({ logFilters: [filter], factories: [] }),
-  ).toStrictEqual({
-    address: [REQUEST_ADDRESS_A],
-    topics: [[REQUEST_TOPIC_A]],
-  });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": [
+        "0x000000000000000000000000000000000000000a",
+      ],
+      "topics": [
+        [
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ],
+      ],
+    }
+  `);
 
   expect(
     mergeLogFiltersToBlockRequest({
       logFilters: topics.map((topic0) => ({ ...filter, topic0, topic1: null })),
       factories: [],
     }),
-  ).toStrictEqual({ address: [REQUEST_ADDRESS_A], topics: undefined });
+  ).toMatchInlineSnapshot(`
+    {
+      "address": [
+        "0x000000000000000000000000000000000000000a",
+      ],
+      "topics": undefined,
+    }
+  `);
 });

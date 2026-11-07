@@ -17,8 +17,8 @@ test("buildLogFactory throws if provided parameter not found in inputs", () => {
       fromBlock: undefined,
       toBlock: undefined,
     }),
-  ).toThrowError(
-    "Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId'].",
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Factory event parameter not found in factory event signature. Got 'fakeParameter', expected one of ['deployer', 'name', 'llamaCore', 'llamaExecutor', 'llamaPolicy', 'chainId']."`,
   );
 });
 

@@ -12,20 +12,34 @@ test("scalar", () => {
 test("array", () => {
   const out = replaceBigInts([5n], numberToHex);
 
-  expect(out).toStrictEqual(["0x5"]);
+  expect(out).toMatchInlineSnapshot(`
+    [
+      "0x5",
+    ]
+  `);
   expectTypeOf<readonly [Hex]>(out);
 });
 
 test("readonly array", () => {
   const out = replaceBigInts([5n] as const, numberToHex);
 
-  expect(out).toStrictEqual(["0x5"]);
+  expect(out).toMatchInlineSnapshot(`
+    [
+      "0x5",
+    ]
+  `);
   expectTypeOf<readonly [Hex]>(out);
 });
 
 test("object", () => {
   const out = replaceBigInts({ kevin: { kevin: 5n } }, numberToHex);
 
-  expect(out).toStrictEqual({ kevin: { kevin: "0x5" } });
+  expect(out).toMatchInlineSnapshot(`
+    {
+      "kevin": {
+        "kevin": "0x5",
+      },
+    }
+  `);
   expectTypeOf<{ kevin: { kevin: Hex } }>(out);
 });
