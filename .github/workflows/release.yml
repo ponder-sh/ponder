@@ -74,13 +74,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Version snapshot
+        run: |
+          snapshot=$(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
+          echo "SNAPSHOT=$snapshot" >> "$GITHUB_ENV"
+          pnpm changeset version --snapshot $snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build after versioning: `create-ponder` bundles its `package.json` version.
       - name: Build
         run: pnpm build
 
       - name: Publish snapshot to npm
-        run: |
-          snapshot=$(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
-          pnpm changeset version --snapshot $snapshot
-          pnpm changeset publish --no-git-tag --tag $snapshot
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm changeset publish --no-git-tag --tag "$SNAPSHOT"

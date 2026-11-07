@@ -621,7 +621,8 @@ export const decodeEvents = (
       eventCallback.filter.type === "trace"
     ) {
       let decodedData: { args: readonly unknown[]; functionName: string };
-      let decodedResult: readonly unknown[];
+      // A function with one output decodes to that value, not an array.
+      let decodedResult: unknown;
       try {
         decodedData = decodeFunctionData({
           abi: [eventCallback.abiItem as AbiFunction],
@@ -807,16 +808,23 @@ export const syncTransactionToInternal = ({
     ? {
         type: "legacy",
         gasPrice: hexToBigInt(transaction.gasPrice),
+        accessList: undefined,
+        maxFeePerGas: undefined,
+        maxPriorityFeePerGas: undefined,
       }
     : transaction.type === "0x1"
       ? {
           type: "eip2930",
           gasPrice: hexToBigInt(transaction.gasPrice),
           accessList: transaction.accessList,
+          maxFeePerGas: undefined,
+          maxPriorityFeePerGas: undefined,
         }
       : transaction.type === "0x2"
         ? {
             type: "eip1559",
+            gasPrice: undefined,
+            accessList: undefined,
             maxFeePerGas: hexToBigInt(transaction.maxFeePerGas),
             maxPriorityFeePerGas: hexToBigInt(transaction.maxPriorityFeePerGas),
           }
@@ -824,6 +832,8 @@ export const syncTransactionToInternal = ({
           transaction.type === "0x7e"
           ? {
               type: "deposit",
+              gasPrice: undefined,
+              accessList: undefined,
               // @ts-expect-error
               maxFeePerGas: transaction.maxFeePerGas
                 ? // @ts-ignore
@@ -837,6 +847,17 @@ export const syncTransactionToInternal = ({
             }
           : {
               type: transaction.type,
+              gasPrice: transaction.gasPrice
+                ? // @ts-ignore
+                  hexToBigInt(transaction.gasPrice)
+                : undefined,
+              accessList: transaction.accessList,
+              maxFeePerGas: transaction.maxFeePerGas
+                ? hexToBigInt(transaction.maxFeePerGas)
+                : undefined,
+              maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
+                ? hexToBigInt(transaction.maxPriorityFeePerGas)
+                : undefined,
             }),
 });
 

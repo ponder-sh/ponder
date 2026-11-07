@@ -1,5 +1,31 @@
 # ponder
 
+## 0.18.6
+
+### Patch Changes
+
+- [#2450](https://github.com/ponder-sh/ponder/pull/2450) [`98a50b5`](https://github.com/ponder-sh/ponder/commit/98a50b5f050f5df92a8fb9efb8cca0548a814f41) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused a log that failed to decode to change how later logs of the same event were decoded when the event has an array parameter.
+
+- [#2456](https://github.com/ponder-sh/ponder/pull/2456) [`9a20a02`](https://github.com/ponder-sh/ponder/commit/9a20a0263d64f64214d14197a8a4a8e01954e755) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused a `p.json()` or `p.jsonb()` column value that is a string containing JSON, such as `"1"`, `"true"`, or `'{"a":1}'`, to be returned parsed by GraphQL, `@ponder/client`, and database reads, while the indexing cache returned the string.
+
+- [#2459](https://github.com/ponder-sh/ponder/pull/2459) [`d6a876a`](https://github.com/ponder-sh/ponder/commit/d6a876a7b35e6ef90d0ffeee2079e33a5c608159) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused some `context.db` and `context.client` calls to fail with `TypeError: Cannot read properties of undefined` in indexing functions of logs without a transaction, such as on ZKsync.
+
+- [#2455](https://github.com/ponder-sh/ponder/pull/2455) [`d35fabe`](https://github.com/ponder-sh/ponder/commit/d35fabe8973ccf8b09929c522fd9ad1b54d8f003) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused the error `TypeError: undefined is not an object (evaluating 'event.event')` (or `Cannot read properties of undefined (reading 'event')`) during the backfill when a chain with `cacheRpcRequests: false` was indexed, and an indexing function read an event property for the first time.
+
+- [#2452](https://github.com/ponder-sh/ponder/pull/2452) [`ac01f82`](https://github.com/ponder-sh/ponder/commit/ac01f827aa28775fc2c9aecb2052b4b9175483b0) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused indexing to fail with `InvalidEventAccessError` when an indexing function read a property of `event.transaction` that belongs to another transaction type, such as `gasPrice` on an EIP-1559 transaction. This affected live indexing and chains with `cacheRpcRequests: false`. These properties are now `undefined`.
+
+- [#2453](https://github.com/ponder-sh/ponder/pull/2453) [`6e1b286`](https://github.com/ponder-sh/ponder/commit/6e1b2862edca8663562773fde200025233bb23b7) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused indexing to fail with `InvalidEventAccessError` when an indexing function read `gasPrice`, `accessList`, `maxFeePerGas`, or `maxPriorityFeePerGas` of a transaction with a type other than legacy, EIP-2930, EIP-1559, or deposit, such as a blob or EIP-7702 transaction. This affected live indexing and chains with `cacheRpcRequests: false`.
+
+- [#2451](https://github.com/ponder-sh/ponder/pull/2451) [`ef9aaf8`](https://github.com/ponder-sh/ponder/commit/ef9aaf8925fb9f9e1035bcb4ddd11f76b44dc6e1) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused `context.db.update()` and `onConflictDoUpdate()` to ignore columns defined with `.$onUpdateFn()`. These columns are now set to the value returned by the function when the update doesn't set them.
+
+## 0.18.5
+
+### Patch Changes
+
+- [#2447](https://github.com/ponder-sh/ponder/pull/2447) [`f900797`](https://github.com/ponder-sh/ponder/commit/f9007977e5960ffac670670cac4e6da2ba9d07fc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - Improved backfill speed for block ranges with many blocks and sparse events.
+- Updated dependencies [[`f900797`](https://github.com/ponder-sh/ponder/commit/f9007977e5960ffac670670cac4e6da2ba9d07fc)]:
+  - @ponder/utils@0.3.1
+
 ## 0.18.4
 
 ### Patch Changes

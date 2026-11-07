@@ -47,6 +47,7 @@ import {
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLError,
   type GraphQLFieldConfig,
   type GraphQLFieldConfigMap,
   GraphQLFloat,
@@ -806,6 +807,12 @@ async function executePluralQuery(
 
   if (limit > MAX_LIMIT) {
     throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
+  }
+  if (limit < 0) {
+    throw new GraphQLError(`Invalid limit. Got ${limit}, expected >=0.`);
+  }
+  if (offset < 0) {
+    throw new GraphQLError(`Invalid offset. Got ${offset}, expected >=0.`);
   }
 
   const orderBySchema = buildOrderBySchema(relation, args);

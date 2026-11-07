@@ -8,7 +8,7 @@ import {
   type SQLWrapper,
   type Table,
 } from "drizzle-orm";
-import { PgArray } from "drizzle-orm/pg-core";
+import { PgArray, type PgTable } from "drizzle-orm/pg-core";
 import { getPrimaryKeyColumns } from "@/drizzle/index.js";
 import {
   BigIntSerializationError,
@@ -18,14 +18,27 @@ import { prettyPrint } from "@/utils/print.js";
 
 const tableColumnCache = new WeakMap<
   Table,
-  { columns: Record<string, Column>; entries: [string, Column][] }
+  {
+    columns: Record<string, Column>;
+    entries: [string, Column][];
+    onUpdateEntries: [string, Column][];
+  }
 >();
 
 const getCachedTableColumns = (table: Table) => {
   let cached = tableColumnCache.get(table);
   if (cached === undefined) {
     const columns = getTableColumns(table);
-    cached = { columns, entries: Object.entries(columns) };
+    const entries = Object.entries(columns);
+    const primaryKeys = getPrimaryKeyColumns(table as PgTable).map(
+      ({ js }) => js,
+    );
+    const onUpdateEntries = entries.filter(
+      ([columnName, column]) =>
+        column.onUpdateFn !== undefined &&
+        primaryKeys.includes(columnName) === false,
+    );
+    cached = { columns, entries, onUpdateEntries };
     tableColumnCache.set(table, cached);
   }
   return cached;
@@ -67,6 +80,19 @@ export const getPrimaryKeyCache = (tables: Table[]) => {
   return cache;
 };
 
+/** The value that the database returns for the non-null `value` of `column`. */
+const roundtrip = (column: Column, value: unknown): unknown => {
+  if (column instanceof PgArray && Array.isArray(value)) {
+    return value.map((v) => roundtrip(column.baseColumn, v));
+  }
+  if (column.columnType === "PgTimestamp") return value;
+  // Note: The drivers parse JSON, and `mapFromDriverValue` doesn't.
+  if (column.columnType === "PgJson" || column.columnType === "PgJsonb") {
+    return JSON.parse(column.mapToDriverValue(value) as string);
+  }
+  return column.mapFromDriverValue(column.mapToDriverValue(value));
+};
+
 export const normalizeColumn = (
   column: Column,
   value: unknown,
@@ -80,26 +106,15 @@ export const normalizeColumn = (
   if (column.mapToDriverValue === undefined) return value;
 
   try {
-    if (Array.isArray(value) && column instanceof PgArray) {
-      return value.map((v) => {
-        if (column.baseColumn.columnType === "PgTimestamp") {
-          return v;
-        }
-
-        return column.baseColumn.mapFromDriverValue(
-          column.baseColumn.mapToDriverValue(v),
-        );
-      });
-    }
-
-    if (column.columnType === "PgTimestamp") {
-      return value;
-    }
-
-    return column.mapFromDriverValue(column.mapToDriverValue(value));
+    return roundtrip(column, value);
   } catch (e) {
     if (
-      (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
+      // node error message
+      (e as Error)?.message?.includes(
+        "Do not know how to serialize a BigInt",
+      ) ||
+      // bun error message
+      (e as Error)?.message?.includes("cannot serialize BigInt")
     ) {
       const error = new BigIntSerializationError((e as Error).message);
       error.meta.push(
@@ -146,13 +161,18 @@ export const normalizeUpdateSet = (
   table: Table,
   row: { [key: string]: unknown },
 ) => {
-  const { columns } = getCachedTableColumns(table);
+  const { columns, onUpdateEntries } = getCachedTableColumns(table);
   // Note: `row` is a plain object, so `for...in` only visits own keys.
   for (const columnName in row) {
     const value = row[columnName];
     const column = columns[columnName];
     if (value === undefined || column === undefined) continue;
     row[columnName] = normalizeColumn(column, value, true);
+  }
+  for (const [columnName, column] of onUpdateEntries) {
+    if (row[columnName] === undefined) {
+      row[columnName] = normalizeColumn(column, undefined, true);
+    }
   }
   return row;
 };

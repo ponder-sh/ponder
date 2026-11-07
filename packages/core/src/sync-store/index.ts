@@ -1139,6 +1139,27 @@ export const createSyncStore = ({
           internalTransaction.type = "deposit";
           internalTransaction.gasPrice = undefined;
           internalTransaction.accessList = undefined;
+          if (transaction.maxFeePerGas === null) {
+            internalTransaction.maxFeePerGas = undefined;
+          }
+          if (transaction.maxPriorityFeePerGas === null) {
+            internalTransaction.maxPriorityFeePerGas = undefined;
+          }
+        } else {
+          if (transaction.gasPrice === null) {
+            internalTransaction.gasPrice = undefined;
+          }
+          if (transaction.accessList === null) {
+            internalTransaction.accessList = undefined;
+          } else if (transaction.accessList !== undefined) {
+            internalTransaction.accessList = JSON.parse(transaction.accessList);
+          }
+          if (transaction.maxFeePerGas === null) {
+            internalTransaction.maxFeePerGas = undefined;
+          }
+          if (transaction.maxPriorityFeePerGas === null) {
+            internalTransaction.maxPriorityFeePerGas = undefined;
+          }
         }
       }
 

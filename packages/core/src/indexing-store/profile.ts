@@ -251,20 +251,29 @@ const matchEventParameters = (
         return { type: "derived", value: ["block", "miner"] };
       }
 
-      if (eq(event.event.transaction.hash, value)) {
-        return { type: "derived", value: ["transaction", "hash"] };
-      }
+      // Note: `transaction` is undefined for some logs, such as on ZKsync.
+      if (event.event.transaction !== undefined) {
+        if (eq(event.event.transaction.hash, value)) {
+          return { type: "derived", value: ["transaction", "hash"] };
+        }
 
-      if (eq(event.event.transaction.from, value)) {
-        return { type: "derived", value: ["transaction", "from"] };
-      }
+        if (eq(event.event.transaction.from, value)) {
+          return { type: "derived", value: ["transaction", "from"] };
+        }
 
-      if (event.event.transaction.to && eq(event.event.transaction.to, value)) {
-        return { type: "derived", value: ["transaction", "to"] };
-      }
+        if (
+          event.event.transaction.to &&
+          eq(event.event.transaction.to, value)
+        ) {
+          return { type: "derived", value: ["transaction", "to"] };
+        }
 
-      if (eq(event.event.transaction.transactionIndex, value)) {
-        return { type: "derived", value: ["transaction", "transactionIndex"] };
+        if (eq(event.event.transaction.transactionIndex, value)) {
+          return {
+            type: "derived",
+            value: ["transaction", "transactionIndex"],
+          };
+        }
       }
 
       if (
@@ -297,9 +306,10 @@ const matchEventParameters = (
         }
       }
 
-      // Note: explicitly skip profiling result if it is an array
+      // Note: explicitly skip profiling result if it is an array or a single value
       if (
-        event.event.result !== undefined &&
+        typeof event.event.result === "object" &&
+        event.event.result !== null &&
         Array.isArray(event.event.result) === false
       ) {
         for (const argKey of Object.keys(event.event.result)) {

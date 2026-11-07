@@ -1894,6 +1894,36 @@ test("recursive 2", () => {
   ).toThrowError("Recursive read limit exceeded.");
 });
 
+test("error: does not mutate params", () => {
+  const params = parseAbiParameters("uint256[][], uint256[2][]");
+  const data = encodeAbiParameters(params, [[[1n]], [[2n, 3n]]]);
+
+  expect(() =>
+    decodeAbiParameters(params, data.slice(0, -64) as Hex),
+  ).toThrowError("Invalid data length.");
+  expect(params.map((param) => param.type)).toMatchInlineSnapshot(`
+    [
+      "uint256[][]",
+      "uint256[2][]",
+    ]
+  `);
+  expect(decodeAbiParameters(params, data)).toMatchInlineSnapshot(`
+    [
+      [
+        [
+          1n,
+        ],
+      ],
+      [
+        [
+          2n,
+          3n,
+        ],
+      ],
+    ]
+  `);
+});
+
 test("struct: (uint256, string, uint256)", () => {
   const params = parseAbiParameters("(uint256 x, string, address z)");
   const data = encodeAbiParameters(params, [[2n, "hi", zeroAddress]]);

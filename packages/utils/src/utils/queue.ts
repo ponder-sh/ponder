@@ -82,6 +82,9 @@ export const createQueue = <returnType, taskType = void>({
     "frequency" | "concurrency"
   > = _parameters;
   let queue: InnerQueue<returnType, taskType>[number][] = [];
+  // Note: Tasks are read by index because `Array.prototype.shift` is O(n).
+  // The array is compacted once half of it has been read.
+  let head = 0;
   let pending = 0;
   let timestamp = 0;
   let requests = 0;
@@ -117,7 +120,11 @@ export const createQueue = <returnType, taskType = void>({
         : true) &&
       queue.length > 0
     ) {
-      const { task, resolve, reject } = queue.shift()!;
+      const { task, resolve, reject } = queue[head++]!;
+      if (head * 2 >= queue.length) {
+        queue = queue.slice(head);
+        head = 0;
+      }
 
       requests++;
       pending++;
@@ -162,7 +169,7 @@ export const createQueue = <returnType, taskType = void>({
   };
 
   return {
-    size: () => queue.length,
+    size: () => queue.length - head,
     pending: () => {
       if (browser) {
         return new Promise<number>((resolve) =>
@@ -187,6 +194,7 @@ export const createQueue = <returnType, taskType = void>({
     },
     clear: () => {
       queue = [] as InnerQueue<returnType, taskType>[number][];
+      head = 0;
       clearTimeout(timer);
       timer = undefined;
     },

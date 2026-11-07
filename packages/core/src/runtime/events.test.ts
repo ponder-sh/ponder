@@ -5,6 +5,7 @@ import {
   parseEther,
   toHex,
   zeroAddress,
+  zeroHash,
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
 import { beforeEach, expect, test } from "vitest";
@@ -26,6 +27,7 @@ import type {
   InternalTransactionReceipt,
   LogEvent,
   RawEvent,
+  SyncTransaction,
   TraceEvent,
   TransferEvent,
 } from "@/internal/types.js";
@@ -33,7 +35,12 @@ import {
   decodeCheckpoint,
   ZERO_CHECKPOINT_STRING,
 } from "@/utils/checkpoint.js";
-import { buildEvents, decodeEvents, splitEvents } from "./events.js";
+import {
+  buildEvents,
+  decodeEvents,
+  splitEvents,
+  syncTransactionToInternal,
+} from "./events.js";
 
 beforeEach(setupCommon);
 
@@ -598,4 +605,85 @@ test("buildEvents() trace index ignores traces that match no filter", async () =
   expect(
     exact.map((event) => decodeCheckpoint(event.checkpoint).eventIndex),
   ).toStrictEqual([0n, 1n, 0n]);
+});
+
+test("syncTransactionToInternal() includes the properties of other transaction types", () => {
+  const transaction = {
+    blockHash: zeroHash,
+    blockNumber: "0x1",
+    from: ALICE,
+    gas: "0x5208",
+    hash: zeroHash,
+    input: "0x",
+    nonce: "0x0",
+    r: "0x1",
+    s: "0x1",
+    to: BOB,
+    transactionIndex: "0x0",
+    v: "0x1",
+    value: "0x0",
+    gasPrice: "0x1",
+    accessList: [],
+    maxFeePerGas: "0x2",
+    maxPriorityFeePerGas: "0x3",
+  } as unknown as SyncTransaction;
+
+  const result = ["0x0", "0x1", "0x2", "0x7e", "0x3"].map((type) => {
+    const internal = syncTransactionToInternal({
+      transaction: { ...transaction, type } as SyncTransaction,
+    });
+    return Object.fromEntries(
+      (
+        [
+          "type",
+          "gasPrice",
+          "accessList",
+          "maxFeePerGas",
+          "maxPriorityFeePerGas",
+        ] as const
+      )
+        .filter((key) => key in internal)
+        .map((key) => [key, internal[key]]),
+    );
+  });
+
+  expect(result).toMatchInlineSnapshot(`
+    [
+      {
+        "accessList": undefined,
+        "gasPrice": 1n,
+        "maxFeePerGas": undefined,
+        "maxPriorityFeePerGas": undefined,
+        "type": "legacy",
+      },
+      {
+        "accessList": [],
+        "gasPrice": 1n,
+        "maxFeePerGas": undefined,
+        "maxPriorityFeePerGas": undefined,
+        "type": "eip2930",
+      },
+      {
+        "accessList": undefined,
+        "gasPrice": undefined,
+        "maxFeePerGas": 2n,
+        "maxPriorityFeePerGas": 3n,
+        "type": "eip1559",
+      },
+      {
+        "accessList": undefined,
+        "gasPrice": undefined,
+        "maxFeePerGas": 2n,
+        "maxPriorityFeePerGas": 3n,
+        "type": "deposit",
+      },
+      {
+        "accessList": [],
+        "gasPrice": 1n,
+        "maxFeePerGas": 2n,
+        "maxPriorityFeePerGas": 3n,
+        "type": "0x3",
+      },
+    ]
+  `);
 });
