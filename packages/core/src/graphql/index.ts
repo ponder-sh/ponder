@@ -685,7 +685,13 @@ const GraphQLViewPageInfo = new GraphQLObjectType({
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",
   serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value as any),
+  parseValue: (value) => {
+    try {
+      return BigInt(value as any);
+    } catch (error) {
+      throw new GraphQLError((error as Error).message);
+    }
+  },
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
       return BigInt(value.value);
@@ -1105,7 +1111,7 @@ function buildWhereConditions(
     // Validate that the column name is present in the table.
     const column = columns[columnName];
     if (column === undefined) {
-      throw new Error(
+      throw new GraphQLError(
         `Invalid query: Where clause contains unknown column ${columnName}`,
       );
     }

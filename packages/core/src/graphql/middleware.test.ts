@@ -227,6 +227,7 @@ test("graphQLMiddleware returns input errors in production", async () => {
   const schema = {
     table: onchainTable("table", (t) => ({
       id: t.text().primaryKey(),
+      amount: t.bigint(),
     })),
   };
 
@@ -254,7 +255,6 @@ test("graphQLMiddleware returns input errors in production", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
-    expect(response.status).toBe(200);
     return response.json();
   };
 
@@ -273,6 +273,25 @@ test("graphQLMiddleware returns input errors in production", async () => {
   body = await request(`{ tables(orderBy: "abc") { items { id } } }`);
   expect(body.errors[0].message).toBe(
     'Unknown column "abc" used in orderBy argument',
+  );
+
+  body = await request(`{ tables(where: { amount: 123 }) { items { id } } }`);
+  expect(body.errors[0].message).toBe(
+    'Expected value of type "BigInt", found 123; Invalid value kind provided for field of type BigInt: IntValue. Expected: StringValue',
+  );
+
+  const response = await app.request("/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query:
+        "query ($amount: BigInt) { tables(where: { amount: $amount }) { items { id } } }",
+      variables: { amount: "abc" },
+    }),
+  });
+  body = await response.json();
+  expect(body.errors[0].message).toBe(
+    'Variable "$amount" got invalid value "abc"; Cannot convert abc to a BigInt',
   );
 });
 

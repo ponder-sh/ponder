@@ -65,6 +65,9 @@ export const graphql = (
 
       return { qb: globalThis.PONDER_DATABASE.readonlyQB, getDataLoader };
     },
+    // When enabled, only `GraphQLError` instances reach the client; any other
+    // error is replaced with "Unexpected error.". Throw `GraphQLError` for input
+    // errors, and never include internal details in a `GraphQLError` message.
     maskedErrors: process.env.NODE_ENV === "production",
     logging: false,
     graphiql: false,
