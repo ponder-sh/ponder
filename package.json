@@ -24,7 +24,7 @@
     "@changesets/cli": "3.0.3",
     "drizzle-kit": "0.30.6",
     "hono": "4.5.0",
-    "typescript": "5.4.5",
+    "typescript": "5.9.3",
     "viem": "2.35.0"
   },
   "trustedDependencies": [
