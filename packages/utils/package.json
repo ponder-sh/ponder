@@ -5,7 +5,6 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
@@ -28,12 +27,11 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.cjs"
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
-    "build": "rm -rf dist && tsc --project tsconfig.build.json && bun build src/index.ts --target=node --format=cjs --packages=external --sourcemap=linked --outdir=dist --entry-naming='[name].cjs'",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "test": "bun test --parallel",
     "typecheck": "bun check"
   },
