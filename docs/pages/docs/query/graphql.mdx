@@ -81,7 +81,11 @@ type Query {
 
 ## Filtering
 
-Use the `where` argument to filter for records that match certain criteria. The `where` argument type includes filter options for every column defined on a table. Here are the filter options available for each column type.
+Use the `where` argument to filter for records that match certain criteria. The `where` argument type includes filter options for every column defined on a table.
+
+A `null` filter value clears the filter: `where: null`, null entries in `AND` or `OR`, and null operator values such as `age_gt: null` or `age_in: null` are treated as omitted. Equality is explicit: `field: null` matches SQL NULL, and `field_not: null` matches non-NULL values, including array columns. This applies to a null operator value, not null elements inside a list.
+
+Here are the filter options available for each column type.
 
 | Filter option              | Available for column types    | _Include records where \{column\}..._     |
 | :------------------------- | :---------------------------- | :---------------------------------------- |
