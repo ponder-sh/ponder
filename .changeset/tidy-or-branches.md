@@ -2,4 +2,4 @@
 "ponder": patch
 ---
 
-Fixed a bug where GraphQL `OR` filters combined the fields of each branch with `OR` instead of `AND`.
+Fixed a bug that caused GraphQL OR filters to match extra rows when a branch contained multiple fields.
