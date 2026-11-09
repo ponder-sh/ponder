@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Repository Shape
-- This is a Bun `1.4.4` workspace (`workspaces` in the root `package.json`, `bun.lock`, install settings in `bunfig.toml`); install with `bun install --frozen-lockfile` to match CI. Every dependency version is pinned exactly, including internal workspace dependencies (Bun links a workspace package when the pinned version matches); do not use ranges, `workspace:` or `catalog:`. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`) and sets up exact Node, Bun, and Foundry versions inline in each workflow job where needed. Core unit tests need neither Foundry nor Postgres. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
+- This is a Bun `1.4.4` workspace (`workspaces` in the root `package.json`, `bun.lock`, install settings in `bunfig.toml`); install with `bun install --frozen-lockfile` to match CI. Every dependency version is pinned exactly, including internal workspace dependencies (Bun links a workspace package when the pinned version matches); do not use ranges, `workspace:` or `catalog:`. Node must be `>=22`; CI pins runner images (`ubuntu-24.04`, `windows-2025`) and sets up exact Bun and Foundry versions inline in each workflow job. CI runs scripts that call Node-shebang tools (`tsc`, `changeset`) with `bun run --bun` and installs Node only where Node itself is the point: the Next.js example build and npm publishing in `release.yml`. Core unit tests need neither Foundry nor Postgres. Repo settings require every third-party action to be pinned to a full-length commit SHA (with the version tag in a trailing comment).
 - Workspace packages are `packages/*`, `docs`, `examples/*`, `examples/*/*`, `simulation-test`, and `benchmark`.
 - `packages/core` publishes the `ponder` npm package. Public exports start in `packages/core/src/index.ts`; the CLI bin starts in `packages/core/src/bin/ponder.ts`.
 - Every package builds with `rm -rf dist && tsc --project tsconfig.build.json` into a flat, ESM-only `dist/` (`.js`, `.d.ts`, and their maps side by side, mirroring `src/`); published `files` also include `src/**/*.ts` so the maps resolve. Each `tsconfig.json` extends `tsconfig.base.json` (typecheck, includes tests) and each `tsconfig.build.json` extends `tsconfig.json` (emit, excludes tests). Additions: `packages/core` copies `src/sync-store/sql` into `dist` (migrations read it at runtime); `packages/create-ponder` emits no declarations and runs `copyTemplates.ts` after tsc. For watch mode, run `tsc --project tsconfig.build.json --watch`.
@@ -36,7 +36,7 @@
 
 ## Docs, Examples, Releases
 - Docs are a Vocs app in `docs`; use `bun --filter ponder-docs dev` or `bun --filter ponder-docs build`.
-- CI separately verifies the Next.js frontend example with `bun --filter ponder-examples-with-nextjs-frontend build` after `bun run build`.
+- CI separately verifies the Next.js frontend example with `bun --filter ponder-examples-with-nextjs-frontend build` (on Node) after `bun run --bun build`.
 
 ## Changesets
 - Changesets are fixed for `ponder`, `create-ponder`, `@ponder/client`, and `@ponder/react`; docs/examples are ignored. Create changesets with `bun changeset`. Public API or bug-fix PRs normally need a patch changeset.

@@ -36,7 +36,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build
-        run: bun run build
+        run: bun run --bun build
 
       - name: Publish to npm
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -86,7 +86,7 @@ jobs:
 
       # Build after versioning: `create-ponder` bundles its `package.json` version.
       - name: Build
-        run: bun run build
+        run: bun run --bun build
 
       - name: Publish snapshot to npm
         run: bun changeset publish --no-git-tag --tag "$SNAPSHOT"
