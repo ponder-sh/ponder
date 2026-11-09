@@ -109,7 +109,12 @@ export const normalizeColumn = (
     return roundtrip(column, value);
   } catch (e) {
     if (
-      (e as Error)?.message?.includes("Do not know how to serialize a BigInt")
+      // node error message
+      (e as Error)?.message?.includes(
+        "Do not know how to serialize a BigInt",
+      ) ||
+      // bun error message
+      (e as Error)?.message?.includes("cannot serialize BigInt")
     ) {
       const error = new BigIntSerializationError((e as Error).message);
       error.meta.push(

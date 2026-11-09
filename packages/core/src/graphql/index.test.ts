@@ -4,6 +4,7 @@ import {
   execute,
   type GraphQLType,
   parse,
+  validate,
 } from "graphql";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -1090,6 +1091,52 @@ test("plural with one relation uses dataloader", async () => {
   expect(petSelectSpy).toHaveBeenCalledTimes(1);
 });
 
+test("total count in fragments", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets {
+        ... on petPage {
+          totalCount
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
+
+  result = await query(`
+    query {
+      pets {
+        ...Outer
+      }
+    }
+    fragment Outer on petPage {
+      ...PetCount
+    }
+    fragment PetCount on petPage {
+      totalCount
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
+});
+
 test("filter input type", async () => {
   const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
   const table = onchainTable("table", (t) => ({
@@ -1300,6 +1347,24 @@ test("filter universal", async () => {
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }] },
   });
+});
+
+test("numeric literal validation", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    num: t.numeric(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const errors = validate(
+    graphqlSchema,
+    parse(`query { pets(where: { num: 5 }) { items { id } } }`),
+  );
+  expect(errors[0]?.message).toBe(
+    'Expected value of type "Numeric", found 5; Invalid value kind provided for field of type Numeric: IntValue. Expected: StringValue',
+  );
 });
 
 test("filter null equality", async () => {
@@ -1798,6 +1863,58 @@ test("filter and/or", async () => {
   ]);
 });
 
+test("filter or with multi-field branches", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+    weight: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1, weight: 0 },
+    { id: "id2", age: 0, weight: 1 },
+    { id: "id3", age: 1, weight: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id3" }]);
+
+  const result2 = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }, { id: "id1" }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result2.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result2.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id3" }]);
+});
+
 test("order by", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1921,6 +2038,67 @@ test("order by", async () => {
   });
 });
 
+test("order direction validation", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: 2 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "ASC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "DESC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "up") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderDirection. Got "up", expected "asc" or "desc".',
+  );
+});
+
 test("limit", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1981,6 +2159,52 @@ test("limit", async () => {
   `);
   expect(result.errors?.[0]?.message).toBe(
     "Invalid limit. Got 1005, expected <=1000.",
+  );
+});
+
+test("negative limit and offset", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const schema = { person };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  for (let i = 0; i < 5; i++) {
+    await database.userQB.raw.insert(schema.person).values({ id: String(i) });
+  }
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      persons(limit: -2) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid limit. Got -2, expected >=0.",
+  );
+
+  result = await query(`
+    query {
+      persons(offset: -1) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid offset. Got -1, expected >=0.",
   );
 });
 

@@ -63,6 +63,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
+  type SelectionNode,
 } from "graphql";
 import superjson from "superjson";
 import type { QB } from "@/database/queryBuilder.js";
@@ -705,7 +706,7 @@ const GraphQLNumeric = new GraphQLScalarType({
       return String(value.value);
     } else {
       throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
+        `Invalid value kind provided for field of type Numeric: ${value.kind}. Expected: StringValue`,
       );
     }
   },
@@ -809,6 +810,12 @@ async function executePluralQuery(
     throw new GraphQLError(
       `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
     );
+  }
+  if (limit < 0) {
+    throw new GraphQLError(`Invalid limit. Got ${limit}, expected >=0.`);
+  }
+  if (offset < 0) {
+    throw new GraphQLError(`Invalid offset. Got ${offset}, expected >=0.`);
   }
 
   const orderBySchema = buildOrderBySchema(relation, args);
@@ -1063,8 +1070,9 @@ function buildWhereConditions(
         );
       }
 
-      const nestedConditions = rawValue.flatMap((subWhere) =>
-        buildWhereConditions(subWhere, columns),
+      // Conditions within a single filter object are combined with `AND`.
+      const nestedConditions = rawValue.map((subWhere) =>
+        and(...buildWhereConditions(subWhere, columns)),
       );
 
       if (nestedConditions.length > 0) {
@@ -1209,7 +1217,12 @@ function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
   // If the user-provided order by does not include the ALL of the ID columns,
   // add any missing ID columns to the end of the order by clause (asc).
   // This ensures a consistent sort order to unblock cursor pagination.
-  const userDirection = args.orderDirection ?? "asc";
+  const userDirection = (args.orderDirection ?? "asc").toLowerCase();
+  if (userDirection !== "asc" && userDirection !== "desc") {
+    throw new GraphQLError(
+      `Invalid orderDirection. Got "${args.orderDirection}", expected "asc" or "desc".`,
+    );
+  }
   const userColumns: [string, "asc" | "desc"][] =
     args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
 
@@ -1377,19 +1390,33 @@ function getColumnTsName(column: Column) {
 }
 
 /**
- * Returns `true` if the query includes a specific field.
- * Does not consider nested selections; only works one "layer" deep.
+ * Returns `true` if the query includes a specific field, including selections
+ * made through inline fragments and fragment spreads.
+ * Does not consider nested fields; only works one "layer" deep.
  */
 function selectionIncludesField(
   info: GraphQLResolveInfo,
   fieldName: string,
 ): boolean {
-  for (const fieldNode of info.fieldNodes) {
-    for (const selection of fieldNode.selectionSet?.selections ?? []) {
-      if (selection.kind === "Field" && selection.name.value === fieldName) {
-        return true;
+  const includes = (selections: readonly SelectionNode[]): boolean =>
+    selections.some((selection) => {
+      switch (selection.kind) {
+        case "Field":
+          return selection.name.value === fieldName;
+        case "InlineFragment":
+          return includes(selection.selectionSet.selections);
+        case "FragmentSpread": {
+          const fragment = info.fragments[selection.name.value];
+          return (
+            fragment !== undefined && includes(fragment.selectionSet.selections)
+          );
+        }
+        default:
+          return false;
       }
-    }
-  }
-  return false;
+    });
+
+  return info.fieldNodes.some((fieldNode) =>
+    includes(fieldNode.selectionSet?.selections ?? []),
+  );
 }
