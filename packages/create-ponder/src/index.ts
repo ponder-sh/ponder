@@ -457,10 +457,10 @@ function addBunFlagToScripts(scripts: Record<string, string>) {
     Number(_nodeVersion[1]),
     Number(_nodeVersion[2]),
   ];
-  if (nodeVersion[0]! < 18 || (nodeVersion[0] === 18 && nodeVersion[1]! < 14))
+  if (nodeVersion[0]! < 22 || (nodeVersion[0] === 22 && nodeVersion[1]! < 12))
     throw new Error(
       pico.red(
-        `Node version:${process.version} does not meet the >=18.14 requirement`,
+        `Node version:${process.version} does not meet the >=22.12 requirement`,
       ),
     );
 
