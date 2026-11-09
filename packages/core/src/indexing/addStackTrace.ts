@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { codeFrameColumns } from "@babel/code-frame";
 import { parse as parseStackTrace, type StackFrame } from "stacktrace-parser";
-import type { Options } from "@/internal/options.js";
+import type { Options } from "../internal/options.js";
 
 // Note: this currently works for both indexing functions and api
 // routes only because the api route dir is a subdir of the indexing function

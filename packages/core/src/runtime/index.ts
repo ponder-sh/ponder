@@ -1,5 +1,5 @@
 import { type Address, hexToNumber, numberToHex, toHex } from "viem";
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import type {
   Chain,
   Factory,
@@ -8,27 +8,15 @@ import type {
   Fragment,
   LightBlock,
   SyncBlock,
-} from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import type { Rpc } from "@/rpc/index.js";
-import {
-  getFilterFactories,
-  getFilterFromBlock,
-  getFilterToBlock,
-  isAddressFactory,
-} from "@/runtime/filter.js";
-import {
-  getFactoryFragments,
-  getFragments,
-  recoverFactory,
-  recoverFilter,
-} from "@/runtime/fragments.js";
-import type { SyncStore } from "@/sync-store/index.js";
+} from "../internal/types.js";
+import { eth_getBlockByNumber } from "../rpc/actions.js";
+import type { Rpc } from "../rpc/index.js";
+import type { SyncStore } from "../sync-store/index.js";
 import {
   blockToCheckpoint,
   encodeCheckpoint,
   MAX_CHECKPOINT,
-} from "@/utils/checkpoint.js";
+} from "../utils/checkpoint.js";
 import {
   type Interval,
   intervalBounds,
@@ -37,7 +25,19 @@ import {
   intervalIntersectionMany,
   intervalUnion,
   sortIntervals,
-} from "@/utils/interval.js";
+} from "../utils/interval.js";
+import {
+  getFilterFactories,
+  getFilterFromBlock,
+  getFilterToBlock,
+  isAddressFactory,
+} from "./filter.js";
+import {
+  getFactoryFragments,
+  getFragments,
+  recoverFactory,
+  recoverFilter,
+} from "./fragments.js";
 
 export type SyncProgress = {
   start: SyncBlock | LightBlock;

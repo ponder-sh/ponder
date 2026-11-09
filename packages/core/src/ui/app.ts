@@ -3,8 +3,8 @@ import type {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
-} from "@/internal/metrics.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
+} from "../internal/metrics.js";
+import { formatEta, formatPercentage } from "../utils/format.js";
 
 export type UiState = {
   port: number;

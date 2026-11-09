@@ -6,13 +6,13 @@ import {
   toFunctionSelector,
 } from "viem";
 import { mainnet } from "viem/chains";
-import { buildLogFactory } from "@/build/factory.js";
-import { factory } from "@/config/address.js";
-import type { Common } from "@/internal/common.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
+import { buildLogFactory } from "../build/factory.js";
+import { factory } from "../config/address.js";
+import type { Common } from "../internal/common.js";
+import { createLogger } from "../internal/logger.js";
+import { MetricsService } from "../internal/metrics.js";
+import { buildOptions } from "../internal/options.js";
+import { createShutdown } from "../internal/shutdown.js";
 import type {
   Chain,
   Contract,
@@ -22,8 +22,8 @@ import type {
   IndexingFunctions,
   SetupCallback,
   TransactionFilter,
-} from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
+} from "../internal/types.js";
+import type { Rpc } from "../rpc/index.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -31,8 +31,8 @@ import {
   defaultTransactionFilterInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-} from "@/runtime/filter.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../runtime/filter.js";
+import { toLowerCase } from "../utils/lowercase.js";
 import { erc20ABI, factoryABI, pairABI } from "./abis.js";
 
 export function createTestCommon(): Common {

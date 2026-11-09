@@ -1,7 +1,7 @@
 import { expectTypeOf, test } from "bun:test";
 import { type Abi, type Address, type Hex, parseAbiItem } from "viem";
-import { createConfig } from "@/config/index.js";
-import { onchainTable } from "@/drizzle/onchain.js";
+import { createConfig } from "../config/index.js";
+import { onchainTable } from "../drizzle/onchain.js";
 import type { Db } from "./db.js";
 import type {
   Block,

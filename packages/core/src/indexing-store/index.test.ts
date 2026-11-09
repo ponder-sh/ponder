@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { zeroAddress } from "viem";
-import { createTestCommon } from "@/_test/utils.js";
-import type { QB } from "@/database/queryBuilder.js";
-import { onchainTable } from "@/drizzle/onchain.js";
-import type { IndexingErrorHandler, Schema } from "@/internal/types.js";
+import { createTestCommon } from "../_test/utils.js";
+import type { QB } from "../database/queryBuilder.js";
+import { onchainTable } from "../drizzle/onchain.js";
+import type { IndexingErrorHandler, Schema } from "../internal/types.js";
 import { createIndexingCache } from "./cache.js";
 import { createIndexingStore } from "./index.js";
 

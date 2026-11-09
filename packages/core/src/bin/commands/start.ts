@@ -1,12 +1,11 @@
 import { satisfies } from "semver";
-import { runCodegen } from "@/bin/utils/codegen.js";
-import { createBuild } from "@/build/index.js";
-import { createDatabase, type Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
+import { createBuild } from "../../build/index.js";
+import { createDatabase, type Database } from "../../database/index.js";
+import type { Common } from "../../internal/common.js";
+import { createLogger } from "../../internal/logger.js";
+import { MetricsService } from "../../internal/metrics.js";
+import { buildOptions } from "../../internal/options.js";
+import { createShutdown } from "../../internal/shutdown.js";
 import type {
   ApiBuild,
   CrashRecoveryCheckpoint,
@@ -14,12 +13,13 @@ import type {
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
-} from "@/internal/types.js";
-import { runMultichain } from "@/runtime/multichain.js";
-import { runOmnichain } from "@/runtime/omnichain.js";
-import { createServer } from "@/server/index.js";
+} from "../../internal/types.js";
+import { runMultichain } from "../../runtime/multichain.js";
+import { runOmnichain } from "../../runtime/omnichain.js";
+import { createServer } from "../../server/index.js";
 import { isolatedController } from "../isolatedController.js";
 import type { CliOptions } from "../ponder.js";
+import { runCodegen } from "../utils/codegen.js";
 import { createExit } from "../utils/exit.js";
 
 export type PonderApp = {

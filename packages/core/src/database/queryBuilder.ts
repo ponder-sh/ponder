@@ -8,7 +8,7 @@ import type {
   PgTransactionConfig,
 } from "drizzle-orm/pg-core";
 import type pg from "pg";
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import {
   BaseError,
   BigIntSerializationError,
@@ -18,12 +18,12 @@ import {
   NotNullConstraintError,
   ShutdownError,
   UniqueConstraintError,
-} from "@/internal/errors.js";
-import type { Logger } from "@/internal/logger.js";
-import type { Schema } from "@/internal/types.js";
-import type { Drizzle } from "@/types/db.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+} from "../internal/errors.js";
+import type { Logger } from "../internal/logger.js";
+import type { Schema } from "../internal/types.js";
+import type { Drizzle } from "../types/db.js";
+import { startClock } from "../utils/timer.js";
+import { wait } from "../utils/wait.js";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;

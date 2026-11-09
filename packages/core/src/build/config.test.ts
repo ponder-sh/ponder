@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { type Address, parseAbiItem, zeroAddress } from "viem";
 import { mainnet } from "viem/chains";
-import { createStubRpc, createTestCommon } from "@/_test/utils.js";
-import { factory } from "@/config/address.js";
-import { createConfig } from "@/config/index.js";
-import type { EventCallback, IndexingBuild } from "@/internal/types.js";
-import { hyperliquidEvm } from "@/utils/chains.js";
+import { createStubRpc, createTestCommon } from "../_test/utils.js";
+import { factory } from "../config/address.js";
+import { createConfig } from "../config/index.js";
+import type { EventCallback, IndexingBuild } from "../internal/types.js";
+import { hyperliquidEvm } from "../utils/chains.js";
 import {
   buildConfig,
   buildIndexingFunctions,

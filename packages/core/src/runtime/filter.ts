@@ -22,19 +22,19 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
-import { ADDRESS_CHUNK_SIZE } from "@/rpc/actions.js";
-import { type RequestParameters, sanitizeLogTopics } from "@/rpc/index.js";
-import type { ChildAddresses, IntervalWithFilter } from "@/runtime/index.js";
+} from "../internal/types.js";
+import { ADDRESS_CHUNK_SIZE } from "../rpc/actions.js";
+import { type RequestParameters, sanitizeLogTopics } from "../rpc/index.js";
 import type {
   Block,
   Log,
   Trace,
   Transaction,
   TransactionReceipt,
-} from "@/types/eth.js";
-import type { Interval } from "@/utils/interval.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../types/eth.js";
+import type { Interval } from "../utils/interval.js";
+import { toLowerCase } from "../utils/lowercase.js";
+import type { ChildAddresses, IntervalWithFilter } from "./index.js";
 
 /** Returns true if `address` is an address filter. */
 export const isAddressFactory = (

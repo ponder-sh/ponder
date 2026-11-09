@@ -7,8 +7,8 @@ import type {
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
-} from "@/internal/types.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../internal/types.js";
+import { toLowerCase } from "../utils/lowercase.js";
 import type * as ponderSyncSchema from "./schema.js";
 
 export const encodeBlock = ({

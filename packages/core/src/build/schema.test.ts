@@ -14,7 +14,7 @@ import {
   onchainEnum,
   onchainTable,
   onchainView,
-} from "@/index.js";
+} from "../index.js";
 import { buildSchema } from "./schema.js";
 
 test("buildSchema() success", () => {

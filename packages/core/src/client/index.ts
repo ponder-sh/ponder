@@ -17,18 +17,18 @@ import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import type * as pg from "pg";
 import superjson from "superjson";
-import type { PonderApp6 } from "@/database/index.js";
-import { getLiveQueryChannelName } from "@/drizzle/onchain.js";
-import type { Schema } from "@/internal/types.js";
-import type { ReadonlyDrizzle } from "@/types/db.js";
+import type { PonderApp6 } from "../database/index.js";
+import { getLiveQueryChannelName } from "../drizzle/onchain.js";
+import type { Schema } from "../internal/types.js";
+import type { ReadonlyDrizzle } from "../types/db.js";
 import {
   type PromiseWithResolvers,
   promiseWithResolvers,
-} from "@/utils/promiseWithResolvers.js";
+} from "../utils/promiseWithResolvers.js";
 import {
   getSQLQueryRelations,
   validateAllowableSQLQuery,
-} from "@/utils/sql-parse.js";
+} from "../utils/sql-parse.js";
 
 type QueryString = string;
 type QueryResult = unknown;

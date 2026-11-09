@@ -25,14 +25,14 @@ import {
   webSocket,
 } from "viem";
 import { WebSocket } from "ws";
-import type { Common } from "@/internal/common.js";
-import type { Logger } from "@/internal/logger.js";
-import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
-import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
-import { createQueue } from "@/utils/queue.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+import type { Common } from "../internal/common.js";
+import type { Logger } from "../internal/logger.js";
+import type { Chain, SyncBlock, SyncBlockHeader } from "../internal/types.js";
 import type { DebugRpcSchema } from "../utils/debug.js";
+import { createQueue } from "../utils/queue.js";
+import { startClock } from "../utils/timer.js";
+import { wait } from "../utils/wait.js";
+import { eth_getBlockByNumber, standardizeBlock } from "./actions.js";
 import { getHttpRpcClient } from "./http.js";
 
 export type RpcSchema = [

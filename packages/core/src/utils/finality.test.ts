@@ -1,6 +1,6 @@
 import { expect, test, vi } from "bun:test";
-import type { Chain } from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
+import type { Chain } from "../internal/types.js";
+import type { Rpc } from "../rpc/index.js";
 import { getFinalizedBlock, isAsyncExecutionChain } from "./finality.js";
 
 test("isAsyncExecutionChain()", () => {

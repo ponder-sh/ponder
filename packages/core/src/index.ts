@@ -6,17 +6,17 @@ export {
   rateLimit,
   replaceBigInts,
 } from "@ponder/utils";
-export { factory } from "@/config/address.js";
-export { createConfig } from "@/config/index.js";
+export { factory } from "./config/address.js";
+export { createConfig } from "./config/index.js";
 export type {
   Block,
   Log,
   Transaction,
   TransactionReceipt,
-} from "@/types/eth.js";
-export type { Virtual } from "@/types/virtual.js";
+} from "./types/eth.js";
+export type { Virtual } from "./types/virtual.js";
 
-import type { Config } from "@/config/index.js";
+import type { Config } from "./config/index.js";
 import type { Prettify } from "./types/utils.js";
 
 export type ContractConfig = Prettify<Config["contracts"][string]>;
@@ -108,17 +108,17 @@ export {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-export { client } from "@/client/index.js";
-export type { AddressConfig, Factory } from "@/config/address.js";
-export type { GetEventFilter } from "@/config/eventFilter.js";
-export type { CreateConfigReturnType } from "@/config/index.js";
+export { client } from "./client/index.js";
+export type { AddressConfig, Factory } from "./config/address.js";
+export type { GetEventFilter } from "./config/eventFilter.js";
+export type { CreateConfigReturnType } from "./config/index.js";
 export type {
   BuildExtraConfigColumns,
   OnchainEnum,
   OnchainTable,
   PgColumnsBuilders,
   PrimaryKeyBuilder,
-} from "@/drizzle/onchain.js";
+} from "./drizzle/onchain.js";
 export {
   bigint,
   hex,
@@ -126,11 +126,11 @@ export {
   onchainTable,
   onchainView,
   primaryKey,
-} from "@/drizzle/onchain.js";
-export { graphql } from "@/graphql/middleware.js";
-export type { ReadonlyDrizzle } from "@/types/db.js";
+} from "./drizzle/onchain.js";
+export { graphql } from "./graphql/middleware.js";
+export type { ReadonlyDrizzle } from "./types/db.js";
 export {
   type Checkpoint,
   decodeCheckpoint,
   encodeCheckpoint,
-} from "@/utils/checkpoint.js";
+} from "./utils/checkpoint.js";

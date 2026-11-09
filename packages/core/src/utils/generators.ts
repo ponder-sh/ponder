@@ -1,4 +1,4 @@
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import { promiseWithResolvers } from "./promiseWithResolvers.js";
 import { startClock } from "./timer.js";
 
 /**

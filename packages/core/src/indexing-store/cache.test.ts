@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { zeroAddress } from "viem";
-import { onchainEnum, onchainTable } from "@/drizzle/onchain.js";
+import { onchainEnum, onchainTable } from "../drizzle/onchain.js";
 import { getCopyText } from "./cache.js";
 
 const COPY_ESCAPES: Record<string, string> = {

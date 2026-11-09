@@ -1,12 +1,12 @@
 import { expect, test, vi } from "bun:test";
 import { zeroAddress } from "viem";
-import { ALICE } from "@/_test/constants.js";
-import { onchainTable } from "@/drizzle/onchain.js";
+import { ALICE } from "../_test/constants.js";
+import { onchainTable } from "../drizzle/onchain.js";
 import {
   BigIntSerializationError,
   NonRetryableUserError,
   NotNullConstraintError,
-} from "@/internal/errors.js";
+} from "../internal/errors.js";
 import { validateUpdateSet } from "./index.js";
 import {
   getPrimaryKeyCache,

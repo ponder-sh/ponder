@@ -1,9 +1,8 @@
 import { expect, test, vi } from "bun:test";
 import { type Address, type Hex, hexToNumber, numberToHex } from "viem";
-import type { SyncBlock, SyncLog, SyncTransaction } from "@/internal/types.js";
-import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
+import type { SyncBlock, SyncLog, SyncTransaction } from "../internal/types.js";
+import { zeroLogsBloom } from "../sync-realtime/bloom.js";
+import { drainAsyncGenerator } from "../utils/generators.js";
 import {
   debug_traceBlockByNumber,
   eth_getLogs,
@@ -12,6 +11,7 @@ import {
   standardizeTransactions,
   validateLogsAndBlock,
 } from "./actions.js";
+import type { RequestParameters, Rpc } from "./index.js";
 
 test("debug trace actions rebuild traceAddress from the call tree", async () => {
   const frame = (overrides: Record<string, unknown> = {}) => ({

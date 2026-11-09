@@ -7,9 +7,9 @@ import type {
 } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
-import type { PrimaryKeyBuilder } from "@/drizzle/onchain.js";
-import { onchain } from "@/drizzle/onchain.js";
-import type { Schema } from "@/internal/types.js";
+import type { PrimaryKeyBuilder } from "../drizzle/onchain.js";
+import { onchain } from "../drizzle/onchain.js";
+import type { Schema } from "../internal/types.js";
 import type { PonderTypeError, Prettify } from "./utils.js";
 
 export type Drizzle<TSchema extends Schema = { [name: string]: never }> =

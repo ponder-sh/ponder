@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { getAbiItem, zeroAddress } from "viem";
-import { erc20ABI } from "@/_test/abis.js";
-import { ALICE, BOB } from "@/_test/constants.js";
-import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
-import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { erc20ABI } from "../_test/abis.js";
+import { ALICE, BOB } from "../_test/constants.js";
+import { getBlocksIndexingBuild, getChain } from "../_test/utils.js";
+import type { BlockEvent, LogEvent, TraceEvent } from "../internal/types.js";
+import { ZERO_CHECKPOINT_STRING } from "../utils/checkpoint.js";
 import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() with undefined log event args", () => {

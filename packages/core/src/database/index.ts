@@ -21,23 +21,23 @@ import {
   getPartitionName,
   getReorgSequenceName,
   getReorgTableName,
-} from "@/drizzle/onchain.js";
-import type { Common } from "@/internal/common.js";
-import { MigrationError, UniqueConstraintError } from "@/internal/errors.js";
+} from "../drizzle/onchain.js";
+import type { Common } from "../internal/common.js";
+import { MigrationError, UniqueConstraintError } from "../internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
-} from "@/internal/types.js";
-import * as PONDER_SYNC from "@/sync-store/schema.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
-import { formatEta } from "@/utils/format.js";
-import { createPool, createReadonlyPool } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+} from "../internal/types.js";
+import * as PONDER_SYNC from "../sync-store/schema.js";
+import { decodeCheckpoint } from "../utils/checkpoint.js";
+import { formatEta } from "../utils/format.js";
+import { createPool, createReadonlyPool } from "../utils/pg.js";
+import { createPglite } from "../utils/pglite.js";
+import { startClock } from "../utils/timer.js";
+import { wait } from "../utils/wait.js";
 import {
   crashRecovery,
   createLiveQueryProcedures,

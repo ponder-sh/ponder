@@ -11,7 +11,7 @@ import {
   toEventSelector,
   toFunctionSelector,
 } from "viem";
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import type {
   BlockFilter,
   Chain,
@@ -34,21 +34,21 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 import type {
   Block,
   Trace,
   Transaction,
   TransactionReceipt,
-} from "@/types/eth.js";
+} from "../types/eth.js";
 import {
   EVENT_TYPES,
   encodeCheckpoint,
   MAX_CHECKPOINT,
   ZERO_CHECKPOINT,
-} from "@/utils/checkpoint.js";
-import { decodeEventLog } from "@/utils/decodeEventLog.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../utils/checkpoint.js";
+import { decodeEventLog } from "../utils/decodeEventLog.js";
+import { toLowerCase } from "../utils/lowercase.js";
 import {
   isAddressFactory,
   isAddressMatched,

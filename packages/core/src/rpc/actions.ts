@@ -15,7 +15,7 @@ import {
   zeroAddress,
   zeroHash,
 } from "viem";
-import { RpcProviderError } from "@/internal/errors.js";
+import { RpcProviderError } from "../internal/errors.js";
 import type {
   LightBlock,
   SyncBlock,
@@ -24,11 +24,11 @@ import type {
   SyncTrace,
   SyncTransaction,
   SyncTransactionReceipt,
-} from "@/internal/types.js";
-import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import { zeroLogsBloom } from "@/sync-realtime/bloom.js";
-import { chunk } from "@/utils/chunk.js";
-import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "@/utils/pg.js";
+} from "../internal/types.js";
+import { zeroLogsBloom } from "../sync-realtime/bloom.js";
+import { chunk } from "../utils/chunk.js";
+import { PG_BIGINT_MAX, PG_INTEGER_MAX } from "../utils/pg.js";
+import type { RequestParameters, Rpc } from "./index.js";
 
 export const ADDRESS_CHUNK_SIZE = 50;
 

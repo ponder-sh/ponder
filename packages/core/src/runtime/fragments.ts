@@ -13,9 +13,9 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
-import { dedupe } from "@/utils/dedupe.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../internal/types.js";
+import { dedupe } from "../utils/dedupe.js";
+import { toLowerCase } from "../utils/lowercase.js";
 import { isAddressFactory } from "./filter.js";
 
 export const isFragmentAddressFactory = (

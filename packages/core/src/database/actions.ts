@@ -11,8 +11,8 @@ import {
   type View,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import { getColumnCasing, getReorgTable } from "@/drizzle/kit/index.js";
+import { getPrimaryKeyColumns } from "../drizzle/index.js";
+import { getColumnCasing, getReorgTable } from "../drizzle/kit/index.js";
 import {
   getLiveQueryChannelName,
   getLiveQueryNotifyProcedureName,
@@ -26,14 +26,17 @@ import {
   getReorgTableName,
   getReorgTriggerName,
   getViewsLiveQueryNotifyTriggerName,
-} from "@/drizzle/onchain.js";
-import type { Logger } from "@/internal/logger.js";
+} from "../drizzle/onchain.js";
+import type { Logger } from "../internal/logger.js";
 import type {
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
-} from "@/internal/types.js";
-import { decodeCheckpoint, MAX_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+} from "../internal/types.js";
+import {
+  decodeCheckpoint,
+  MAX_CHECKPOINT_STRING,
+} from "../utils/checkpoint.js";
 import {
   getPonderCheckpointTable,
   PONDER_CHECKPOINT_TABLE_NAME,

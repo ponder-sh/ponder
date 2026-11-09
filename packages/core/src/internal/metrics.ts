@@ -4,8 +4,8 @@ import prometheus from "prom-client";
 import {
   type PromiseWithResolvers,
   promiseWithResolvers,
-} from "@/utils/promiseWithResolvers.js";
-import { truncate } from "@/utils/truncate.js";
+} from "../utils/promiseWithResolvers.js";
+import { truncate } from "../utils/truncate.js";
 import type { IndexingBuild, PreBuild, SchemaBuild } from "./types.js";
 
 const sometimesIODurationMs = [

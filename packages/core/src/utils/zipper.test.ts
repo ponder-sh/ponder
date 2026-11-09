@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { zipper, zipperMany } from "@/utils/zipper.js";
+import { zipper, zipperMany } from "./zipper.js";
 
 test("zipper", () => {
   const result = zipper([1, 3, 5], [2, 4, 6]);

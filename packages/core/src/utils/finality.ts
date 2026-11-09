@@ -1,7 +1,7 @@
 import { hexToNumber, numberToHex } from "viem";
-import type { Chain, LightBlock } from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import type { Rpc } from "@/rpc/index.js";
+import type { Chain, LightBlock } from "../internal/types.js";
+import { eth_getBlockByNumber } from "../rpc/actions.js";
+import type { Rpc } from "../rpc/index.js";
 
 export const DEFAULT_REORG_WINDOW = 180;
 

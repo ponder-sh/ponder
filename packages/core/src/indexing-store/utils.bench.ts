@@ -1,5 +1,5 @@
 import { bench, run } from "mitata";
-import { onchainTable } from "@/index.js";
+import { onchainTable } from "../index.js";
 import {
   getCacheKey,
   getPrimaryKeyCache,

@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { type PGliteOptions as Options, PGlite } from "@electric-sql/pglite";
-import type { Prettify } from "@/types/utils.js";
+import type { Prettify } from "../types/utils.js";
 
 export type PGliteOptions = Prettify<Options & { dataDir: string }>;
 

@@ -6,8 +6,8 @@ import {
   type HttpRpcClientOptions,
   stringify,
 } from "viem/utils";
-import type { Common } from "@/internal/common.js";
-import type { Chain } from "@/internal/types.js";
+import type { Common } from "../internal/common.js";
+import type { Chain } from "../internal/types.js";
 
 export type RpcRequest = {
   jsonrpc?: "2.0" | undefined;

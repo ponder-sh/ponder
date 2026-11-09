@@ -10,10 +10,10 @@ import {
   toEventSelector,
   toFunctionSelector,
 } from "viem";
-import type { Factory } from "@/config/address.js";
-import type { Config } from "@/config/index.js";
-import type { Common } from "@/internal/common.js";
-import { BuildError } from "@/internal/errors.js";
+import type { Factory } from "../config/address.js";
+import type { Config } from "../config/index.js";
+import type { Common } from "../internal/common.js";
+import { BuildError } from "../internal/errors.js";
 import type {
   BlockFilter,
   Chain,
@@ -29,9 +29,9 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import { createRpc, type Rpc } from "@/rpc/index.js";
+} from "../internal/types.js";
+import { eth_getBlockByNumber } from "../rpc/actions.js";
+import { createRpc, type Rpc } from "../rpc/index.js";
 import {
   defaultBlockFilterInclude,
   defaultLogFilterInclude,
@@ -39,12 +39,12 @@ import {
   defaultTransactionFilterInclude,
   defaultTransactionReceiptInclude,
   defaultTransferFilterInclude,
-} from "@/runtime/filter.js";
-import { buildTopics, toSafeName } from "@/utils/abi.js";
-import { hyperliquidEvm, chains as viemChains } from "@/utils/chains.js";
-import { dedupe } from "@/utils/dedupe.js";
-import { DEFAULT_REORG_WINDOW, getFinalizedBlock } from "@/utils/finality.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../runtime/filter.js";
+import { buildTopics, toSafeName } from "../utils/abi.js";
+import { hyperliquidEvm, chains as viemChains } from "../utils/chains.js";
+import { dedupe } from "../utils/dedupe.js";
+import { DEFAULT_REORG_WINDOW, getFinalizedBlock } from "../utils/finality.js";
+import { toLowerCase } from "../utils/lowercase.js";
 import { buildLogFactory } from "./factory.js";
 
 const flattenSources = <

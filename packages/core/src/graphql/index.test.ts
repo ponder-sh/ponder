@@ -10,15 +10,15 @@ import {
   parse,
   printType,
 } from "graphql";
-import type { QB } from "@/database/queryBuilder.js";
+import type { QB } from "../database/queryBuilder.js";
 import {
   onchainEnum,
   onchainTable,
   onchainView,
   primaryKey,
-} from "@/drizzle/onchain.js";
-import type { Schema } from "@/internal/types.js";
-import { EVENT_TYPES, encodeCheckpoint } from "@/utils/checkpoint.js";
+} from "../drizzle/onchain.js";
+import type { Schema } from "../internal/types.js";
+import { EVENT_TYPES, encodeCheckpoint } from "../utils/checkpoint.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**

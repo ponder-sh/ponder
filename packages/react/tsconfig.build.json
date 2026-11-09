@@ -10,6 +10,8 @@
     // Source files don't use Bun APIs; only the test files need `bun:test` types.
     "types": ["node"],
     "incremental": false,
+    // Resolve `@ponder/client` from its built package, not the source mapping in `tsconfig.json`.
+    "paths": {},
     "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,

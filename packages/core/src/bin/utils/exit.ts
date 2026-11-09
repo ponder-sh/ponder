@@ -1,8 +1,8 @@
 import os from "node:os";
 import readline from "node:readline";
-import type { Common } from "@/internal/common.js";
-import { NonRetryableUserError, ShutdownError } from "@/internal/errors.js";
-import type { Options } from "@/internal/options.js";
+import type { Common } from "../../internal/common.js";
+import { NonRetryableUserError, ShutdownError } from "../../internal/errors.js";
+import type { Options } from "../../internal/options.js";
 
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
 

@@ -35,7 +35,7 @@
     }
   },
   "scripts": {
-    "build": "bun ./build.ts",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json && cp -r src/sync-store/sql dist/sync-store/sql",
     "test": "bun test --parallel",
     "typecheck": "bun check"
   },
@@ -91,10 +91,7 @@
     "@types/pg-copy-streams": "1.2.5",
     "@types/semver": "7.5.8",
     "@types/ws": "8.18.1",
-    "chokidar": "4.0.3",
-    "execa": "8.0.1",
-    "mitata": "1.0.34",
-    "rimraf": "5.0.5"
+    "mitata": "1.0.34"
   },
   "engines": {
     "node": ">=22.12"

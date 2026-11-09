@@ -7,8 +7,8 @@ import {
   numberToHex,
   zeroHash,
 } from "viem";
-import type { Common } from "@/internal/common.js";
-import { ShutdownError } from "@/internal/errors.js";
+import type { Common } from "../internal/common.js";
+import { ShutdownError } from "../internal/errors.js";
 import type {
   BlockFilter,
   Chain,
@@ -28,7 +28,7 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 import {
   debug_traceBlockByHash,
   eth_getBlockByHash,
@@ -39,8 +39,8 @@ import {
   validateReceiptsAndBlock,
   validateTracesAndBlock,
   validateTransactionsAndBlock,
-} from "@/rpc/actions.js";
-import type { Rpc } from "@/rpc/index.js";
+} from "../rpc/actions.js";
+import type { Rpc } from "../rpc/index.js";
 import {
   getChildAddress,
   getFilterFactories,
@@ -54,16 +54,16 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
   mergeLogFiltersToBlockRequest,
-} from "@/runtime/filter.js";
+} from "../runtime/filter.js";
 import {
   getFactoryFragmentId,
   getFactoryFragmentIds,
-} from "@/runtime/fragments.js";
-import type { SyncProgress } from "@/runtime/index.js";
-import { isAsyncExecutionChain } from "@/utils/finality.js";
-import { createLock } from "@/utils/mutex.js";
-import { range } from "@/utils/range.js";
-import { startClock } from "@/utils/timer.js";
+} from "../runtime/fragments.js";
+import type { SyncProgress } from "../runtime/index.js";
+import { isAsyncExecutionChain } from "../utils/finality.js";
+import { createLock } from "../utils/mutex.js";
+import { range } from "../utils/range.js";
+import { startClock } from "../utils/timer.js";
 import {
   getFactoryBloom,
   getLogFilterBloom,

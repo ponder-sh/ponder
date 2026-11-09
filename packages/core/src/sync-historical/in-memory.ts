@@ -6,7 +6,7 @@ import {
   toHex,
   zeroHash,
 } from "viem";
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import type {
   Chain,
   Factory,
@@ -15,7 +15,7 @@ import type {
   SyncLog,
   SyncTrace,
   SyncTransaction,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 import {
   debug_traceBlockByNumber,
   eth_getBlockByNumber,
@@ -25,15 +25,15 @@ import {
   validateReceiptsAndBlock,
   validateTracesAndBlock,
   validateTransactionsAndBlock,
-} from "@/rpc/actions.js";
-import { type Rpc, sanitizeLogTopics } from "@/rpc/index.js";
+} from "../rpc/actions.js";
+import { type Rpc, sanitizeLogTopics } from "../rpc/index.js";
 import {
   syncBlockToInternal,
   syncLogToInternal,
   syncTraceToInternal,
   syncTransactionReceiptToInternal,
   syncTransactionToInternal,
-} from "@/runtime/events.js";
+} from "../runtime/events.js";
 import {
   getChildAddress,
   getFilterFactories,
@@ -46,16 +46,16 @@ import {
   isTraceFilterMatched,
   isTransactionFilterMatched,
   isTransferFilterMatched,
-} from "@/runtime/filter.js";
+} from "../runtime/filter.js";
 import type {
   ChildAddresses,
   IntervalWithFactory,
   IntervalWithFilter,
-} from "@/runtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
-import { type Interval, intervalBounds } from "@/utils/interval.js";
-import { startClock } from "@/utils/timer.js";
+} from "../runtime/index.js";
+import type { SyncStore } from "../sync-store/index.js";
+import { drainAsyncGenerator } from "../utils/generators.js";
+import { type Interval, intervalBounds } from "../utils/interval.js";
+import { startClock } from "../utils/timer.js";
 
 type BlockData = Awaited<ReturnType<SyncStore["getEventData"]>>;
 

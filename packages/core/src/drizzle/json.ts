@@ -9,7 +9,10 @@ import {
   PgColumn,
   PgColumnBuilder,
 } from "drizzle-orm/pg-core";
-import { type BaseError, BigIntSerializationError } from "@/internal/errors.js";
+import {
+  type BaseError,
+  BigIntSerializationError,
+} from "../internal/errors.js";
 
 export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
   name: TName;

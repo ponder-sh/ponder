@@ -6,8 +6,8 @@ import {
   EMPTY_TRACE_FILTER,
   EMPTY_TRANSACTION_FILTER,
   EMPTY_TRANSFER_FILTER,
-} from "@/_test/constants.js";
-import type { Filter, Fragment, FragmentAddress } from "@/internal/types.js";
+} from "../_test/constants.js";
+import type { Filter, Fragment, FragmentAddress } from "../internal/types.js";
 import {
   decodeFragment,
   encodeFragment,

@@ -9,17 +9,17 @@ import { Hono } from "hono";
 import superjson from "superjson";
 import { hexToNumber } from "viem";
 import { createServer, createServerModuleRunner, normalizePath } from "vite";
-import type { CliOptions } from "@/bin/ponder.js";
-import type { Config } from "@/config/index.js";
-import type { Database } from "@/database/index.js";
-import { createQB } from "@/database/queryBuilder.js";
-import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
-import type { Common } from "@/internal/common.js";
+import type { CliOptions } from "../bin/ponder.js";
+import type { Config } from "../config/index.js";
+import type { Database } from "../database/index.js";
+import { createQB } from "../database/queryBuilder.js";
+import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "../drizzle/onchain.js";
+import type { Common } from "../internal/common.js";
 import {
   BuildError,
   NonRetryableUserError,
   RetryableError,
-} from "@/internal/errors.js";
+} from "../internal/errors.js";
 import type {
   ApiBuild,
   IndexingBuild,
@@ -28,13 +28,13 @@ import type {
   PreBuild,
   Schema,
   SchemaBuild,
-} from "@/internal/types.js";
-import { PONDER_SYNC_SCHEMAS } from "@/sync-store/schema.js";
-import { createPool, getDatabaseName } from "@/utils/pg.js";
-import { createPglite } from "@/utils/pglite.js";
-import { getNextAvailablePort } from "@/utils/port.js";
-import type { Result } from "@/utils/result.js";
-import { startClock } from "@/utils/timer.js";
+} from "../internal/types.js";
+import { PONDER_SYNC_SCHEMAS } from "../sync-store/schema.js";
+import { createPool, getDatabaseName } from "../utils/pg.js";
+import { createPglite } from "../utils/pglite.js";
+import { getNextAvailablePort } from "../utils/port.js";
+import type { Result } from "../utils/result.js";
+import { startClock } from "../utils/timer.js";
 import { safeBuildConfig, safeBuildIndexingFunctions } from "./config.js";
 import { vitePluginPonder } from "./plugin.js";
 import { safeBuildPre } from "./pre.js";

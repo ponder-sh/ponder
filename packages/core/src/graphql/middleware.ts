@@ -4,9 +4,9 @@ import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { type GraphQLSchema, printSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { graphiQLHtml } from "@/graphql/graphiql.html.js";
-import type { Schema } from "@/internal/types.js";
-import type { ReadonlyDrizzle } from "@/types/db.js";
+import type { Schema } from "../internal/types.js";
+import type { ReadonlyDrizzle } from "../types/db.js";
+import { graphiQLHtml } from "./graphiql.html.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**
@@ -17,7 +17,7 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  * @example
  * import { db } from "ponder:api";
  * import schema from "ponder:schema";
- * import { graphql } from "@/index.js";
+ * import { graphql } from "../index.js";
  * import { Hono } from "hono";
  *
  * const app = new Hono();

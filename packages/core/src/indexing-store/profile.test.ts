@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import type { Column, Table } from "drizzle-orm";
 import { zeroAddress } from "viem";
-import { getBlocksIndexingBuild, getChain } from "@/_test/utils.js";
-import { onchainTable } from "@/drizzle/onchain.js";
-import type { BlockEvent, LogEvent, TraceEvent } from "@/internal/types.js";
-import { ZERO_CHECKPOINT_STRING } from "@/utils/checkpoint.js";
+import { getBlocksIndexingBuild, getChain } from "../_test/utils.js";
+import { onchainTable } from "../drizzle/onchain.js";
+import type { BlockEvent, LogEvent, TraceEvent } from "../internal/types.js";
+import { ZERO_CHECKPOINT_STRING } from "../utils/checkpoint.js";
 import { recordProfilePattern, recoverProfilePattern } from "./profile.js";
 
 test("recordProfilePattern() no pattern", () => {

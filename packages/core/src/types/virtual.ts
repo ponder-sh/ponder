@@ -1,13 +1,14 @@
-import type { Config } from "@/config/index.js";
+import type { Config } from "../config/index.js";
 import type {
   FormatEventArgs,
   FormatFunctionArgs,
   FormatFunctionResult,
   SafeEventNames,
   SafeFunctionNames,
-} from "@/config/utilityTypes.js";
-import type { ReadonlyClient } from "@/indexing/client.js";
-import type { Schema } from "@/internal/types.js";
+} from "../config/utilityTypes.js";
+import type { ReadonlyClient } from "../indexing/client.js";
+import type { Schema } from "../internal/types.js";
+import type { Db } from "./db.js";
 import type {
   Block,
   Log,
@@ -15,8 +16,7 @@ import type {
   Transaction,
   TransactionReceipt,
   Transfer,
-} from "@/types/eth.js";
-import type { Db } from "./db.js";
+} from "./eth.js";
 import type { Prettify } from "./utils.js";
 
 export namespace Virtual {

@@ -9,12 +9,12 @@ import {
   type Table,
 } from "drizzle-orm";
 import { PgArray, type PgTable } from "drizzle-orm/pg-core";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
+import { getPrimaryKeyColumns } from "../drizzle/index.js";
 import {
   BigIntSerializationError,
   NotNullConstraintError,
-} from "@/internal/errors.js";
-import { prettyPrint } from "@/utils/print.js";
+} from "../internal/errors.js";
+import { prettyPrint } from "../utils/print.js";
 
 const tableColumnCache = new WeakMap<
   Table,

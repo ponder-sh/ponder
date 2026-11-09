@@ -1,6 +1,6 @@
 import type { Column, Table } from "drizzle-orm";
-import type { Event } from "@/internal/types.js";
-import { orderObject } from "@/utils/order.js";
+import type { Event } from "../internal/types.js";
+import { orderObject } from "../utils/order.js";
 import type { ProfilePattern, Row } from "./cache.js";
 import { getCacheKey } from "./utils.js";
 

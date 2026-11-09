@@ -1,6 +1,6 @@
 import { count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
-import { createBuild } from "@/build/index.js";
+import { createBuild } from "../../build/index.js";
 import {
   createDatabase,
   getPonderMetaTable,
@@ -16,18 +16,18 @@ import {
   type PonderApp6,
   TABLES,
   VIEWS,
-} from "@/database/index.js";
+} from "../../database/index.js";
 import {
   getLiveQueryNotifyProcedureName,
   getLiveQueryProcedureName,
   getReorgProcedureName,
   getReorgTableName,
-} from "@/drizzle/onchain.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
-import { startClock } from "@/utils/timer.js";
+} from "../../drizzle/onchain.js";
+import { createLogger } from "../../internal/logger.js";
+import { MetricsService } from "../../internal/metrics.js";
+import { buildOptions } from "../../internal/options.js";
+import { createShutdown } from "../../internal/shutdown.js";
+import { startClock } from "../../utils/timer.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 

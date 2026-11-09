@@ -3,25 +3,28 @@ import url from "node:url";
 import v8 from "node:v8";
 import { Worker } from "node:worker_threads";
 import { isTable, isView, sql } from "drizzle-orm";
-import { createIndexes, createViews } from "@/database/actions.js";
-import { type Database, getPonderMetaTable } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
+import { createIndexes, createViews } from "../database/actions.js";
+import { type Database, getPonderMetaTable } from "../database/index.js";
+import type { Common } from "../internal/common.js";
 import {
   NonRetryableUserError,
   nonRetryableUserErrorNames,
-} from "@/internal/errors.js";
-import { AggregateMetricsService, getAppProgress } from "@/internal/metrics.js";
+} from "../internal/errors.js";
+import {
+  AggregateMetricsService,
+  getAppProgress,
+} from "../internal/metrics.js";
 import type {
   CrashRecoveryCheckpoint,
   IndexingBuild,
   NamespaceBuild,
   PreBuild,
   SchemaBuild,
-} from "@/internal/types.js";
-import { runIsolated } from "@/runtime/isolated.js";
-import { chunk } from "@/utils/chunk.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
-import { startClock } from "@/utils/timer.js";
+} from "../internal/types.js";
+import { runIsolated } from "../runtime/isolated.js";
+import { chunk } from "../utils/chunk.js";
+import { formatEta, formatPercentage } from "../utils/format.js";
+import { startClock } from "../utils/timer.js";
 import type { isolatedWorker } from "./isolatedWorker.js";
 
 const __filename = url.fileURLToPath(import.meta.url);

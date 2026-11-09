@@ -1,6 +1,6 @@
 import { type Address, hexToNumber } from "viem";
-import type { Database } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
+import type { Database } from "../database/index.js";
+import type { Common } from "../internal/common.js";
 import type {
   Chain,
   Event,
@@ -11,8 +11,28 @@ import type {
   IndexingBuild,
   SyncBlock,
   SyncBlockHeader,
-} from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
+} from "../internal/types.js";
+import type { Rpc } from "../rpc/index.js";
+import {
+  createRealtimeSync,
+  type RealtimeSyncEvent,
+} from "../sync-realtime/index.js";
+import { createSyncStore } from "../sync-store/index.js";
+import {
+  blockToCheckpoint,
+  encodeCheckpoint,
+  min,
+  ZERO_CHECKPOINT_STRING,
+} from "../utils/checkpoint.js";
+import {
+  bufferAsyncGenerator,
+  createCallbackGenerator,
+  mergeAsyncGenerators,
+} from "../utils/generators.js";
+import { type Interval, intervalIntersection } from "../utils/interval.js";
+import { promiseAllSettledWithThrow } from "../utils/promiseAllSettledWithThrow.js";
+import { promiseWithResolvers } from "../utils/promiseWithResolvers.js";
+import { startClock } from "../utils/timer.js";
 import {
   buildEvents,
   decodeEvents,
@@ -21,27 +41,7 @@ import {
   syncTraceToInternal,
   syncTransactionReceiptToInternal,
   syncTransactionToInternal,
-} from "@/runtime/events.js";
-import {
-  createRealtimeSync,
-  type RealtimeSyncEvent,
-} from "@/sync-realtime/index.js";
-import { createSyncStore } from "@/sync-store/index.js";
-import {
-  blockToCheckpoint,
-  encodeCheckpoint,
-  min,
-  ZERO_CHECKPOINT_STRING,
-} from "@/utils/checkpoint.js";
-import {
-  bufferAsyncGenerator,
-  createCallbackGenerator,
-  mergeAsyncGenerators,
-} from "@/utils/generators.js";
-import { type Interval, intervalIntersection } from "@/utils/interval.js";
-import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
-import { startClock } from "@/utils/timer.js";
+} from "./events.js";
 import { getFilterFactories } from "./filter.js";
 import type { ChildAddresses, SyncProgress } from "./index.js";
 import { getOmnichainCheckpoint } from "./omnichain.js";

@@ -65,13 +65,13 @@ import {
   GraphQLString,
 } from "graphql";
 import superjson from "superjson";
-import type { QB } from "@/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import type { OnchainTable } from "@/drizzle/onchain.js";
-import { normalizeColumn } from "@/indexing-store/utils.js";
-import type { Schema, Status } from "@/internal/types.js";
-import { decodeCheckpoint } from "@/utils/checkpoint.js";
-import { never } from "@/utils/never.js";
+import type { QB } from "../database/queryBuilder.js";
+import { getPrimaryKeyColumns } from "../drizzle/index.js";
+import type { OnchainTable } from "../drizzle/onchain.js";
+import { normalizeColumn } from "../indexing-store/utils.js";
+import type { Schema, Status } from "../internal/types.js";
+import { decodeCheckpoint } from "../utils/checkpoint.js";
+import { never } from "../utils/never.js";
 import { GraphQLJSON } from "./json.js";
 
 type Parent = Record<string, any>;

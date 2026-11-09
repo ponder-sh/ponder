@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { withStubbedEnv } from "@/_test/utils.js";
+import { withStubbedEnv } from "../_test/utils.js";
 import { getDatabaseName } from "./pg.js";
 
 test("getDatabaseName() prioritizes connectionString values", () => {

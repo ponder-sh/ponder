@@ -12,14 +12,14 @@ import {
   zeroAddress,
   zeroHash,
 } from "viem";
-import { erc20ABI, factoryABI } from "@/_test/abis.js";
-import { ALICE, BOB, EMPTY_LOG_FILTER } from "@/_test/constants.js";
+import { erc20ABI, factoryABI } from "../_test/abis.js";
+import { ALICE, BOB, EMPTY_LOG_FILTER } from "../_test/constants.js";
 import {
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
-} from "@/_test/utils.js";
+} from "../_test/utils.js";
 import type {
   BlockFilter,
   Factory,
@@ -33,10 +33,9 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
-import { ADDRESS_CHUNK_SIZE } from "@/rpc/actions.js";
-import type { IntervalWithFilter } from "@/runtime/index.js";
-import { toLowerCase } from "@/utils/lowercase.js";
+} from "../internal/types.js";
+import { ADDRESS_CHUNK_SIZE } from "../rpc/actions.js";
+import { toLowerCase } from "../utils/lowercase.js";
 import {
   getChildAddress,
   isBlockFilterMatched,
@@ -48,6 +47,7 @@ import {
   mergeLogFiltersToBlockRequest,
   mergeLogFiltersToRequests,
 } from "./filter.js";
+import type { IntervalWithFilter } from "./index.js";
 
 const ERC20_ADDRESS: Address = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
 const FACTORY_ADDRESS: Address = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";

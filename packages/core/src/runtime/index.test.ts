@@ -4,13 +4,13 @@ import {
   ALICE,
   EMPTY_BLOCK_FILTER,
   EMPTY_LOG_FILTER,
-} from "@/_test/constants.js";
+} from "../_test/constants.js";
 import {
   createStubRpc,
   createTestCommon,
   getBlocksIndexingBuild,
   getChain,
-} from "@/_test/utils.js";
+} from "../_test/utils.js";
 import type {
   BlockFilter,
   Event,
@@ -18,12 +18,12 @@ import type {
   Filter,
   Fragment,
   LogFilter,
-} from "@/internal/types.js";
-import { eth_getBlockByNumber } from "@/rpc/actions.js";
-import { encodeCheckpoint } from "@/utils/checkpoint.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
-import type { Interval } from "@/utils/interval.js";
-import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+} from "../internal/types.js";
+import { eth_getBlockByNumber } from "../rpc/actions.js";
+import { encodeCheckpoint } from "../utils/checkpoint.js";
+import { drainAsyncGenerator } from "../utils/generators.js";
+import type { Interval } from "../utils/interval.js";
+import { promiseWithResolvers } from "../utils/promiseWithResolvers.js";
 import { getFactoryFragments, getFragments } from "./fragments.js";
 import { mergeAsyncGeneratorsWithEventOrder } from "./historical.js";
 import {

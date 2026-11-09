@@ -1,7 +1,7 @@
 import pc from "picocolors";
 import { type DestinationStream, type LevelWithSilent, pino } from "pino";
-import type { Prettify } from "@/types/utils.js";
-import { formatEta } from "@/utils/format.js";
+import type { Prettify } from "../types/utils.js";
+import { formatEta } from "../utils/format.js";
 
 export type LogMode = "pretty" | "json";
 export type LogLevel = Prettify<LevelWithSilent>;

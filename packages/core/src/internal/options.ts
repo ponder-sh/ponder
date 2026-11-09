@@ -2,7 +2,7 @@ import path from "node:path";
 import v8 from "node:v8";
 import type { LevelWithSilent } from "pino";
 import { parse, type SemVer } from "semver";
-import type { CliOptions } from "@/bin/ponder.js";
+import type { CliOptions } from "../bin/ponder.js";
 
 export type Options = {
   command: "dev" | "start" | "serve" | "codegen" | "list" | "prune";

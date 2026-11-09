@@ -1,6 +1,6 @@
 import type { Abi } from "viem";
-import type { Event } from "@/internal/types.js";
-import { orderObject } from "@/utils/order.js";
+import type { Event } from "../internal/types.js";
+import { orderObject } from "../utils/order.js";
 import type { PonderActions, ProfilePattern, Request } from "./client.js";
 
 export const getProfilePatternKey = (pattern: ProfilePattern): string => {

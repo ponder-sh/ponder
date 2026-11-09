@@ -1,15 +1,14 @@
 import util from "node:util";
 import type { Abi, Address } from "viem";
-import type { CachedViemClient } from "@/indexing/client.js";
-import type { IndexingCache } from "@/indexing-store/cache.js";
-import type { IndexingStore } from "@/indexing-store/index.js";
-import type { Common } from "@/internal/common.js";
+import type { IndexingCache } from "../indexing-store/cache.js";
+import type { IndexingStore } from "../indexing-store/index.js";
+import type { Common } from "../internal/common.js";
 import {
   BaseError,
   IndexingFunctionError,
   InvalidEventAccessError,
   ShutdownError,
-} from "@/internal/errors.js";
+} from "../internal/errors.js";
 import type {
   Chain,
   Contract,
@@ -23,7 +22,7 @@ import type {
   UserLog,
   UserTrace,
   UserTransaction,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 import {
   defaultBlockFilterInclude,
   defaultBlockInclude,
@@ -40,25 +39,25 @@ import {
   requiredTransactionFilterInclude,
   requiredTransactionReceiptInclude,
   requiredTransferFilterInclude,
-} from "@/runtime/filter.js";
-import type { Db } from "@/types/db.js";
+} from "../runtime/filter.js";
+import type { Db } from "../types/db.js";
 import type {
   Block,
   Trace,
   Transaction,
   TransactionReceipt,
-} from "@/types/eth.js";
-import type { DeepPartial } from "@/types/utils.js";
+} from "../types/eth.js";
+import type { DeepPartial } from "../types/utils.js";
 import {
   decodeCheckpoint,
   encodeCheckpoint,
   ZERO_CHECKPOINT,
-} from "@/utils/checkpoint.js";
-import { dedupe } from "@/utils/dedupe.js";
-import { prettyPrint } from "@/utils/print.js";
-import { startClock } from "@/utils/timer.js";
+} from "../utils/checkpoint.js";
+import { dedupe } from "../utils/dedupe.js";
+import { prettyPrint } from "../utils/print.js";
+import { startClock } from "../utils/timer.js";
 import { addStackTrace } from "./addStackTrace.js";
-import type { ReadonlyClient } from "./client.js";
+import type { CachedViemClient, ReadonlyClient } from "./client.js";
 
 declare global {
   var DISABLE_EVENT_PROXY: boolean;

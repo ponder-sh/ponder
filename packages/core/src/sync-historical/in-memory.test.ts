@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import type { Filter } from "@/internal/types.js";
-import type { IntervalWithFilter } from "@/runtime/index.js";
-import { drainAsyncGenerator } from "@/utils/generators.js";
-import type { Interval } from "@/utils/interval.js";
+import type { Filter } from "../internal/types.js";
+import type { IntervalWithFilter } from "../runtime/index.js";
+import { drainAsyncGenerator } from "../utils/generators.js";
+import type { Interval } from "../utils/interval.js";
 import { mergeGeneratorIntervals } from "./in-memory.js";
 
 const createIntervalGenerators = (

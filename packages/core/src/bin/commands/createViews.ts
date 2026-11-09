@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { createBuild } from "@/build/index.js";
+import { createBuild } from "../../build/index.js";
 import {
   createDatabase,
   getPonderMetaTable,
@@ -13,19 +13,19 @@ import {
   type PonderApp5,
   type PonderApp6,
   SCHEMATA,
-} from "@/database/index.js";
+} from "../../database/index.js";
 import {
   getLiveQueryChannelName,
   getLiveQueryNotifyProcedureName,
   getLiveQueryNotifyProcedureSql,
   getViewsLiveQueryNotifyTriggerName,
-} from "@/drizzle/onchain.js";
-import { sql } from "@/index.js";
-import { createLogger } from "@/internal/logger.js";
-import { MetricsService } from "@/internal/metrics.js";
-import { buildOptions } from "@/internal/options.js";
-import { createShutdown } from "@/internal/shutdown.js";
-import { startClock } from "@/utils/timer.js";
+} from "../../drizzle/onchain.js";
+import { sql } from "../../index.js";
+import { createLogger } from "../../internal/logger.js";
+import { MetricsService } from "../../internal/metrics.js";
+import { buildOptions } from "../../internal/options.js";
+import { createShutdown } from "../../internal/shutdown.js";
+import { startClock } from "../../utils/timer.js";
 import type { CliOptions } from "../ponder.js";
 import { createExit } from "../utils/exit.js";
 

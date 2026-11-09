@@ -9,7 +9,7 @@ import {
   toHex,
   zeroHash,
 } from "viem";
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import type {
   BlockFilter,
   Chain,
@@ -24,7 +24,7 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 import {
   debug_traceBlockByNumber,
   eth_getBlockByNumber,
@@ -34,8 +34,8 @@ import {
   validateReceiptsAndBlock,
   validateTracesAndBlock,
   validateTransactionsAndBlock,
-} from "@/rpc/actions.js";
-import type { RequestParameters, Rpc } from "@/rpc/index.js";
+} from "../rpc/actions.js";
+import type { RequestParameters, Rpc } from "../rpc/index.js";
 import {
   getChildAddress,
   isAddressFactory,
@@ -48,23 +48,23 @@ import {
   isTransactionFilterMatched,
   isTransferFilterMatched,
   mergeLogFiltersToRequests,
-} from "@/runtime/filter.js";
-import { getFactoryFragmentId } from "@/runtime/fragments.js";
+} from "../runtime/filter.js";
+import { getFactoryFragmentId } from "../runtime/fragments.js";
 import type {
   IntervalWithFactory,
   IntervalWithFilter,
-} from "@/runtime/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import { dedupe } from "@/utils/dedupe.js";
+} from "../runtime/index.js";
+import type { SyncStore } from "../sync-store/index.js";
+import { dedupe } from "../utils/dedupe.js";
 import {
   getChunks,
   type Interval,
   intervalBounds,
   intervalRange,
-} from "@/utils/interval.js";
-import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
-import { createQueue } from "@/utils/queue.js";
-import { startClock } from "@/utils/timer.js";
+} from "../utils/interval.js";
+import { promiseAllSettledWithThrow } from "../utils/promiseAllSettledWithThrow.js";
+import { createQueue } from "../utils/queue.js";
+import { startClock } from "../utils/timer.js";
 
 export type HistoricalSync = {
   /**

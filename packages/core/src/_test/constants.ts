@@ -5,7 +5,7 @@ import type {
   TraceFilter,
   TransactionFilter,
   TransferFilter,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 
 // Test accounts
 export const ACCOUNTS = [

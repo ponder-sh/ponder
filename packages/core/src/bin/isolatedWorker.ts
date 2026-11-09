@@ -1,15 +1,15 @@
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
-import { createBuild } from "@/build/index.js";
-import { createDatabase } from "@/database/index.js";
-import type { Common } from "@/internal/common.js";
-import { createLogger } from "@/internal/logger.js";
-import { IsolatedMetricsService } from "@/internal/metrics.js";
-import { createShutdown } from "@/internal/shutdown.js";
+import { createBuild } from "../build/index.js";
+import { createDatabase } from "../database/index.js";
+import type { Common } from "../internal/common.js";
+import { createLogger } from "../internal/logger.js";
+import { IsolatedMetricsService } from "../internal/metrics.js";
+import { createShutdown } from "../internal/shutdown.js";
 import type {
   CrashRecoveryCheckpoint,
   NamespaceBuild,
-} from "@/internal/types.js";
-import { runIsolated } from "@/runtime/isolated.js";
+} from "../internal/types.js";
+import { runIsolated } from "../runtime/isolated.js";
 
 if (isMainThread) {
   throw new Error("'isolatedWorker.ts' must be run in a worker thread");

@@ -9,15 +9,15 @@ import {
   zeroHash,
 } from "viem";
 import { encodeFunctionData, encodeFunctionResult } from "viem/utils";
-import { erc20ABI } from "@/_test/abis.js";
-import { ALICE, BOB } from "@/_test/constants.js";
+import { erc20ABI } from "../_test/abis.js";
+import { ALICE, BOB } from "../_test/constants.js";
 import {
   createTestCommon,
   getAccountsIndexingBuild,
   getBlocksIndexingBuild,
   getChain,
   getErc20IndexingBuild,
-} from "@/_test/utils.js";
+} from "../_test/utils.js";
 import type {
   BlockEvent,
   Event,
@@ -30,11 +30,11 @@ import type {
   SyncTransaction,
   TraceEvent,
   TransferEvent,
-} from "@/internal/types.js";
+} from "../internal/types.js";
 import {
   decodeCheckpoint,
   ZERO_CHECKPOINT_STRING,
-} from "@/utils/checkpoint.js";
+} from "../utils/checkpoint.js";
 import {
   buildEvents,
   decodeEvents,

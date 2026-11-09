@@ -11,8 +11,8 @@ import {
   type Hex,
   parseAbiItem,
 } from "viem";
-import { getDuplicateElements } from "@/utils/duplicates.js";
 import type { Config } from "../config/index.js";
+import { getDuplicateElements } from "./duplicates.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays

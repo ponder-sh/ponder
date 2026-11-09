@@ -1,25 +1,5 @@
 import childProcess from "node:child_process";
 import crypto from "node:crypto";
-import { type PonderApp, start } from "@ponder/bin/commands/start.js";
-import { createQB } from "@ponder/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@ponder/drizzle/index.js";
-import type {
-  EventCallback,
-  Factory,
-  FragmentAddress,
-} from "@ponder/internal/types.js";
-import { eth_getBlockByNumber } from "@ponder/rpc/actions.js";
-import { createRpc } from "@ponder/rpc/index.js";
-import {
-  decodeFragment,
-  getFactoryFragmentIds,
-  getFragments,
-  isFragmentAddressFactory,
-} from "@ponder/runtime/fragments.js";
-import * as PONDER_SYNC from "@ponder/sync-store/schema.js";
-import { decodeCheckpoint } from "@ponder/utils/checkpoint";
-import { getChunks, intervalUnion } from "@ponder/utils/interval.js";
-import { promiseWithResolvers } from "@ponder/utils/promiseWithResolvers.js";
 import { Command } from "commander";
 import {
   and,
@@ -51,6 +31,32 @@ import {
   type RpcBlock,
 } from "viem";
 import packageJson from "../../packages/core/package.json";
+import {
+  type PonderApp,
+  start,
+} from "../../packages/core/src/bin/commands/start.js";
+import { createQB } from "../../packages/core/src/database/queryBuilder.js";
+import { getPrimaryKeyColumns } from "../../packages/core/src/drizzle/index.js";
+import type {
+  EventCallback,
+  Factory,
+  FragmentAddress,
+} from "../../packages/core/src/internal/types.js";
+import { eth_getBlockByNumber } from "../../packages/core/src/rpc/actions.js";
+import { createRpc } from "../../packages/core/src/rpc/index.js";
+import {
+  decodeFragment,
+  getFactoryFragmentIds,
+  getFragments,
+  isFragmentAddressFactory,
+} from "../../packages/core/src/runtime/fragments.js";
+import * as PONDER_SYNC from "../../packages/core/src/sync-store/schema.js";
+import { decodeCheckpoint } from "../../packages/core/src/utils/checkpoint.js";
+import {
+  getChunks,
+  intervalUnion,
+} from "../../packages/core/src/utils/interval.js";
+import { promiseWithResolvers } from "../../packages/core/src/utils/promiseWithResolvers.js";
 
 import * as SUPER_ASSESSMENT from "../apps/super-assessment/schema.js";
 import { metadata } from "../schema.js";

@@ -10,9 +10,9 @@ import {
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
-import type { QB } from "@/database/queryBuilder.js";
-import { onchain } from "@/drizzle/onchain.js";
-import type { Common } from "@/internal/common.js";
+import type { QB } from "../database/queryBuilder.js";
+import { onchain } from "../drizzle/onchain.js";
+import type { Common } from "../internal/common.js";
 import {
   DbConnectionError,
   InvalidStoreAccessError,
@@ -23,18 +23,21 @@ import {
   RetryableError,
   UndefinedTableError,
   UniqueConstraintError,
-} from "@/internal/errors.js";
+} from "../internal/errors.js";
 import type {
   IndexingErrorHandler,
   Schema,
   SchemaBuild,
-} from "@/internal/types.js";
-import type { Db } from "@/types/db.js";
-import { copy, copyOnWrite } from "@/utils/copy.js";
-import { createLock } from "@/utils/mutex.js";
-import { prettyPrint } from "@/utils/print.js";
-import { getSQLQueryRelations, isReadonlySQLQuery } from "@/utils/sql-parse.js";
-import { startClock } from "@/utils/timer.js";
+} from "../internal/types.js";
+import type { Db } from "../types/db.js";
+import { copy, copyOnWrite } from "../utils/copy.js";
+import { createLock } from "../utils/mutex.js";
+import { prettyPrint } from "../utils/print.js";
+import {
+  getSQLQueryRelations,
+  isReadonlySQLQuery,
+} from "../utils/sql-parse.js";
+import { startClock } from "../utils/timer.js";
 import type { IndexingCache, Row } from "./cache.js";
 import { getPrimaryKeyCache, normalizeUpdateSet } from "./utils.js";
 

@@ -41,20 +41,20 @@ import {
   toHex,
   type Chain as ViemChain,
 } from "viem";
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import type {
   Chain,
   Event,
   IndexingBuild,
   SetupEvent,
-} from "@/internal/types.js";
-import type { RequestParameters, Rpc } from "@/rpc/index.js";
-import type { SyncStore } from "@/sync-store/index.js";
-import { dedupe } from "@/utils/dedupe.js";
-import { toLowerCase } from "@/utils/lowercase.js";
-import { orderObject } from "@/utils/order.js";
-import { startClock } from "@/utils/timer.js";
-import { wait } from "@/utils/wait.js";
+} from "../internal/types.js";
+import type { RequestParameters, Rpc } from "../rpc/index.js";
+import type { SyncStore } from "../sync-store/index.js";
+import { dedupe } from "../utils/dedupe.js";
+import { toLowerCase } from "../utils/lowercase.js";
+import { orderObject } from "../utils/order.js";
+import { startClock } from "../utils/timer.js";
+import { wait } from "../utils/wait.js";
 import {
   getProfilePatternKey,
   recordProfilePattern,

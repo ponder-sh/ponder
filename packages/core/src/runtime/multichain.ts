@@ -9,28 +9,28 @@ import {
   dropTriggers,
   finalizeMultichain,
   revertMultichain,
-} from "@/database/actions.js";
+} from "../database/actions.js";
 import {
   type Database,
   getPonderCheckpointTable,
   getPonderMetaTable,
-} from "@/database/index.js";
-import { getLiveQueryTempTableName } from "@/drizzle/onchain.js";
-import { createCachedViemClient } from "@/indexing/client.js";
+} from "../database/index.js";
+import { getLiveQueryTempTableName } from "../drizzle/onchain.js";
+import { createCachedViemClient } from "../indexing/client.js";
 import {
   createColumnAccessPattern,
   createIndexing,
   getEventCount,
-} from "@/indexing/index.js";
-import { createIndexingCache } from "@/indexing-store/cache.js";
-import { createIndexingStore } from "@/indexing-store/index.js";
-import type { Common } from "@/internal/common.js";
+} from "../indexing/index.js";
+import { createIndexingCache } from "../indexing-store/cache.js";
+import { createIndexingStore } from "../indexing-store/index.js";
+import type { Common } from "../internal/common.js";
 import {
   InvalidEventAccessError,
   NonRetryableUserError,
   type RetryableError,
-} from "@/internal/errors.js";
-import { getAppProgress } from "@/internal/metrics.js";
+} from "../internal/errors.js";
+import { getAppProgress } from "../internal/metrics.js";
 import type {
   Chain,
   CrashRecoveryCheckpoint,
@@ -40,22 +40,22 @@ import type {
   PreBuild,
   SchemaBuild,
   Seconds,
-} from "@/internal/types.js";
-import { splitEvents } from "@/runtime/events.js";
-import type { RealtimeSyncEvent } from "@/sync-realtime/index.js";
-import { createSyncStore } from "@/sync-store/index.js";
+} from "../internal/types.js";
+import type { RealtimeSyncEvent } from "../sync-realtime/index.js";
+import { createSyncStore } from "../sync-store/index.js";
 import {
   decodeCheckpoint,
   min,
   ZERO_CHECKPOINT_STRING,
-} from "@/utils/checkpoint.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
+} from "../utils/checkpoint.js";
+import { formatEta, formatPercentage } from "../utils/format.js";
 import {
   bufferAsyncGenerator,
   recordAsyncGenerator,
-} from "@/utils/generators.js";
-import { never } from "@/utils/never.js";
-import { startClock } from "@/utils/timer.js";
+} from "../utils/generators.js";
+import { never } from "../utils/never.js";
+import { startClock } from "../utils/timer.js";
+import { splitEvents } from "./events.js";
 import {
   getHistoricalEventsMultichain,
   refetchHistoricalEvents,

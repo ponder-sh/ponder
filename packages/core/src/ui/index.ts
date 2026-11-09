@@ -1,9 +1,9 @@
-import type { Common } from "@/internal/common.js";
+import type { Common } from "../internal/common.js";
 import {
   getAppProgress,
   getIndexingProgress,
   getSyncProgress,
-} from "@/internal/metrics.js";
+} from "../internal/metrics.js";
 import { buildUiLines, initialUiState } from "./app.js";
 import { patchWriteStreams } from "./patch.js";
 

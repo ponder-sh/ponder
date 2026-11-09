@@ -20,12 +20,12 @@ import {
 import {
   PONDER_CHECKPOINT_TABLE_NAME,
   PONDER_META_TABLE_NAME,
-} from "@/database/index.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import { getSql } from "@/drizzle/kit/index.js";
-import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "@/drizzle/onchain.js";
-import { BuildError } from "@/internal/errors.js";
-import type { PreBuild, Schema } from "@/internal/types.js";
+} from "../database/index.js";
+import { getPrimaryKeyColumns } from "../drizzle/index.js";
+import { getSql } from "../drizzle/kit/index.js";
+import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "../drizzle/onchain.js";
+import { BuildError } from "../internal/errors.js";
+import type { PreBuild, Schema } from "../internal/types.js";
 
 export const buildSchema = ({
   schema,

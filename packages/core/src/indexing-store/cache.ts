@@ -8,26 +8,26 @@ import {
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import copy from "pg-copy-streams";
-import type { QB } from "@/database/queryBuilder.js";
-import { getPrimaryKeyColumns } from "@/drizzle/index.js";
-import { getColumnCasing } from "@/drizzle/kit/index.js";
-import { getPartitionName } from "@/drizzle/onchain.js";
-import { addErrorMeta, toErrorMeta } from "@/indexing/index.js";
-import type { Common } from "@/internal/common.js";
+import type { QB } from "../database/queryBuilder.js";
+import { getPrimaryKeyColumns } from "../drizzle/index.js";
+import { getColumnCasing } from "../drizzle/kit/index.js";
+import { getPartitionName } from "../drizzle/onchain.js";
+import { addErrorMeta, toErrorMeta } from "../indexing/index.js";
+import type { Common } from "../internal/common.js";
 import {
   CopyFlushError,
   DelayedInsertError,
   ShutdownError,
-} from "@/internal/errors.js";
+} from "../internal/errors.js";
 import type {
   CrashRecoveryCheckpoint,
   Event,
   SchemaBuild,
-} from "@/internal/types.js";
-import { dedupe } from "@/utils/dedupe.js";
-import { prettyPrint } from "@/utils/print.js";
-import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
-import { startClock } from "@/utils/timer.js";
+} from "../internal/types.js";
+import { dedupe } from "../utils/dedupe.js";
+import { prettyPrint } from "../utils/print.js";
+import { promiseAllSettledWithThrow } from "../utils/promiseAllSettledWithThrow.js";
+import { startClock } from "../utils/timer.js";
 import {
   getProfilePatternKey,
   recordProfilePattern,

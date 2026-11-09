@@ -27,7 +27,7 @@ import {
   type PgColumnsBuilders as _PgColumnsBuilders,
   getPgColumnBuilders,
 } from "drizzle-orm/pg-core/columns/all";
-import type { PonderTypeError } from "@/types/utils.js";
+import type { PonderTypeError } from "../types/utils.js";
 import { PgBigintBuilder, type PgBigintBuilderInitial } from "./bigint.js";
 import { PgBytesBuilder, type PgBytesBuilderInitial } from "./bytes.js";
 import { PgHexBuilder, type PgHexBuilderInitial } from "./hex.js";
