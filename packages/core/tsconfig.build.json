@@ -1,22 +1,21 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*.ts"],
+  "extends": "./tsconfig.json",
   "exclude": [
     "src/**/*.test.ts",
-    "src/**/*.bench.ts",
     "src/**/*.test-d.ts",
+    "src/**/*.bench.ts",
     "src/_test"
   ],
   "compilerOptions": {
-    "outDir": "./dist/esm",
-    "declarationDir": "./dist/types",
+    // Source files don't use Bun APIs; only the test files need `bun:test` types.
+    "types": ["node"],
+    "incremental": false,
+    // Resolve workspace packages from their published types, not their sources.
+    "paths": { "@/*": ["./src/*"] },
+    "rootDir": "./src",
+    "outDir": "./dist",
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-
-    "rootDir": "src",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "sourceMap": true
   }
 }

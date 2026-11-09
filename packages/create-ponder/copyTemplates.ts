@@ -1,24 +1,8 @@
-import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import cpy from "cpy";
 
 const root = import.meta.dir;
-
-rmSync(path.join(root, "dist"), { recursive: true, force: true });
-
-// Bundle the CLI into `dist/index.js`, leaving npm dependencies external.
-const result = await Bun.build({
-  entrypoints: [path.join(root, "src/index.ts")],
-  outdir: path.join(root, "dist"),
-  target: "node",
-  format: "esm",
-  packages: "external",
-});
-
-if (!result.success) {
-  for (const log of result.logs) console.error(log);
-  process.exit(1);
-}
 
 const examplesPath = path.join(root, "../..", "examples");
 const targetPath = path.join(root, "templates");

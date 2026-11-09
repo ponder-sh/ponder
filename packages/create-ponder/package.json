@@ -12,6 +12,12 @@
   "files": [
     "dist",
     "templates",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/**/*.bench.ts",
+    "!src/_test/**/*",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],
@@ -19,7 +25,7 @@
     "create-ponder": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun ./build.ts",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json && bun ./copyTemplates.ts",
     "test": "bun test --parallel",
     "typecheck": "bun check"
   },

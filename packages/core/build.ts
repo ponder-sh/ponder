@@ -70,7 +70,7 @@ async function build() {
     }
 
     // tsc does not copy SQL files, which migrations load relative to the compiled module.
-    fs.cpSync("src/sync-store/sql", "dist/esm/sync-store/sql", {
+    fs.cpSync("src/sync-store/sql", "dist/sync-store/sql", {
       recursive: true,
     });
 
@@ -136,7 +136,7 @@ const importRegex = /from ['"](@\/[^'"]*)['"]/g;
 
 function replaceAliasedPaths() {
   try {
-    const directories = ["dist/esm", "dist/types"];
+    const directories = ["dist"];
 
     for (const dir of directories) {
       let replacementCount = 0;

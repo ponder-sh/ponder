@@ -11,11 +11,11 @@ import { oraPromise } from "ora";
 import pico from "picocolors";
 import prettier from "prettier";
 import { default as prompts } from "prompts";
-import rootPackageJson from "../package.json" with { type: "json" };
 
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { mergeAbis } from "./helpers/mergeAbis.js";
 import { notifyUpdate } from "./helpers/notifyUpdate.js";
+import { packageJson as rootPackageJson } from "./helpers/packageJson.js";
 import {
   ValidationError,
   validateProjectName,

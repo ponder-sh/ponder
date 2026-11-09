@@ -5,30 +5,29 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "typings": "./dist/index.d.ts",
   "files": [
     "dist",
-    "!dist/**/*.tsbuildinfo",
     "src/**/*.ts",
     "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
     "!src/**/*.bench.ts",
-    "!src/**/_test/**/*",
+    "!src/_test/**/*",
+    "CHANGELOG.md",
     "README.md",
-    "tsconfig.json",
     "LICENSE"
   ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ponder-sh/ponder",
-    "directory": "packages/utils"
-  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ponder-sh/ponder",
+    "directory": "packages/utils"
   },
   "scripts": {
     "build": "rm -rf dist && tsc --project tsconfig.build.json",

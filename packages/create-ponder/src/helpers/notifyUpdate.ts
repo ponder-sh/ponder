@@ -1,10 +1,9 @@
 import pico from "picocolors";
 import checkForUpdate from "update-check";
 
-import packageJson from "../../package.json" with { type: "json" };
-
 import type { CLIOptions } from "../index.js";
 import { getPackageManager } from "./getPackageManager.js";
+import { packageJson } from "./packageJson.js";
 
 const log = console.log;
 

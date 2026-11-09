@@ -15,18 +15,18 @@
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/**/*.test-d.ts",
+    "!src/**/*.bench.ts",
     "!src/_test/**/*",
+    "CHANGELOG.md",
     "README.md",
-    "tsconfig.json",
     "LICENSE"
   ],
-  "module": "./dist/index.js",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "typings": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
