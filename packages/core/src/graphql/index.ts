@@ -493,12 +493,12 @@ export function buildGraphQLSchema({
       context.runPromise(
         Effect.gen(function* () {
           // Note: This is done to avoid non-browser compatible dependencies
-          const checkpoints = (yield* context.db.query(
-            (db) =>
-              db.execute(
+          // Note: Both the Postgres and PGlite results have `rows`.
+          const checkpoints = (yield* tryQuery(
+            () =>
+              context.db.drizzle.execute(
                 "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-              ),
-            { label: "select_checkpoints" },
+              ) as PromiseLike<{ rows: unknown[] }>,
           )).rows as {
             chain_name: string;
             chain_id: string;
@@ -783,7 +783,13 @@ const innerType = (
   throw new Error(`Type ${type.toString()} is not implemented`);
 };
 
-/** Run the query that `query` returns, failing with the error it throws. */
+/**
+ * Run the query that `query` returns, failing with the error it throws.
+ *
+ * Note: GraphQL queries don't use `db.query`, which retries failed queries.
+ * A query that times out would hold a connection for minutes, and the client
+ * can retry the request instead.
+ */
 const tryQuery = <A>(query: () => PromiseLike<A>) =>
   Effect.tryPromise({
     try: async () => await query(),
@@ -853,14 +859,12 @@ const executePluralQuery = (
     let hasNextPage = false;
 
     const totalCountQuery = includeTotalCount
-      ? db
-          .query((db) =>
-            db
-              .select({ count: count() })
-              .from(relation)
-              .where(and(...whereConditions, ...extraConditions)),
-          )
-          .pipe(Effect.map((rows) => rows[0]?.count ?? null))
+      ? tryQuery(() =>
+          db.drizzle
+            .select({ count: count() })
+            .from(relation)
+            .where(and(...whereConditions, ...extraConditions)),
+        ).pipe(Effect.map((rows) => rows[0]?.count ?? null))
       : Effect.succeed(null);
 
     // Neither cursors are specified, apply the order conditions and execute.

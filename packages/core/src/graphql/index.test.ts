@@ -64,15 +64,8 @@ const createGraphQL = (
     },
     { casing: "snake_case", schema },
   );
-  const db = {
-    dialect: "postgres",
-    drizzle: raw,
-    query: (build: (db: typeof raw) => unknown) =>
-      Effect.tryPromise({
-        try: async () => await build(raw),
-        catch: (error) => error,
-      }),
-  } as unknown as DbClient;
+  // Note: GraphQL queries use `drizzle` directly, not `query`, which retries.
+  const db = { dialect: "postgres", drizzle: raw } as unknown as DbClient;
   const runPromise = Effect.runPromise;
 
   const graphqlSchema = buildGraphQLSchema({ schema });
