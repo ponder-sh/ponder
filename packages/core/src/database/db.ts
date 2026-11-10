@@ -1,14 +1,22 @@
-import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import type { PgTransactionConfig } from "drizzle-orm/pg-core";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import { Context, Effect, Result, type Scope, type Stream } from "effect";
-import type { Pool } from "pg";
+import type { Column, SQLWrapper } from "drizzle-orm";
+import * as drizzleOrm from "drizzle-orm";
+import { toSnakeCase } from "drizzle-orm/casing";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { drizzle as drizzleProxy } from "drizzle-orm/pg-proxy";
+import {
+  Context,
+  Effect,
+  Exit,
+  Result,
+  Scope,
+  Semaphore,
+  type Stream,
+} from "effect";
 import prometheus from "prom-client";
 import {
   BaseError,
   BigIntSerializationError,
   CheckConstraintError,
-  CopyFlushError,
   DbConnectionError,
   NonRetryableUserError,
   NotNullConstraintError,
@@ -18,21 +26,17 @@ import { externalIo } from "../internal/io.js";
 import { makeLogUnsafe } from "../internal/logger.js";
 import { Metrics } from "../internal/metrics.js";
 import { Options } from "../internal/options.js";
-import type {
-  NamespaceBuild,
-  PreBuild,
-  Schema,
-  SchemaBuild,
-} from "../internal/types.js";
-import * as PONDER_SYNC from "../sync-store/schema.js";
-import type { Drizzle } from "../types/db.js";
+import type { NamespaceBuild, PreBuild, Schema } from "../internal/types.js";
 import { createPool, createReadonlyPool } from "../utils/pg.js";
 import { createPglite } from "../utils/pglite.js";
 import { randomUUID } from "../utils/random.js";
 import { startClockEffect } from "../utils/timer.js";
 import {
+  type CompiledStatement,
+  DbError,
   type DbListenTransport,
   type DbTransport,
+  type DbTransportTransaction,
   makeNodePostgresTransport,
   makePgliteTransport,
 } from "./transport.js";
@@ -40,52 +44,205 @@ import {
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
 
-export type QueryOptions = {
-  /** Label for the logs and metrics of the query. */
-  label?: string;
-  /** Annotations for the logs of the query, such as `{ action: "migrate" }`. */
-  logAnnotations?: Record<string, unknown>;
+/** Postgres's limit of bind parameters in one statement. */
+export const MAX_QUERY_PARAMS = 65_535;
+
+const casingPerColumn = new WeakMap<Column, string>();
+
+/**
+ * Use the snake case name of each column object. drizzle caches the names of
+ * a table by its name, so a table that a reload changed would get stale names.
+ */
+const withColumnCasing = <T>(dialect: T): T => {
+  (
+    dialect as unknown as {
+      casing: { getColumnCasing: (column: Column) => string };
+    }
+  ).casing.getColumnCasing = (column) => {
+    if (column.keyAsName === false) return column.name;
+    let name = casingPerColumn.get(column);
+    if (name === undefined) {
+      name = toSnakeCase(column.name);
+      casingPerColumn.set(column, name);
+    }
+    return name;
+  };
+  return dialect;
 };
 
-export type TransactionOptions = QueryOptions & {
-  config?: PgTransactionConfig;
+const dialect = withColumnCasing(new PgDialect({ casing: "snake_case" }));
+
+/** Builds statements for `db.run`, with the relational queries of `schema`. It cannot run them. */
+export const makeBuilder = <TSchema extends Schema>(schema?: TSchema) => {
+  const db = drizzleProxy<TSchema>(
+    () => {
+      throw new Error("Statements from `builder` run with `db.run`");
+    },
+    { casing: "snake_case", schema },
+  );
+  withColumnCasing((db as unknown as { dialect: unknown }).dialect);
+  return db;
+};
+
+/** Builds statements for `db.run`. It cannot run them. */
+export const builder = makeBuilder();
+
+// Note: drizzle decodes rows with this, but doesn't type it.
+const { mapResultRow } = drizzleOrm as unknown as {
+  mapResultRow: (
+    fields: unknown,
+    row: unknown[],
+    joinsNotNullableMap: Record<string, boolean> | undefined,
+  ) => unknown;
+};
+
+type Prepared = {
+  queryString: string;
+  params: unknown[];
+  fields?: unknown;
+  joinsNotNullableMap?: Record<string, boolean>;
+  customResultMapper?: (rows: unknown[][]) => unknown;
+  typings?: string[];
+};
+
+/**
+ * Fix the SQL and parameters of `statement` now, so that a retry sends the
+ * same statement.
+ */
+export const compile = (statement: SQLWrapper): CompiledStatement => {
+  // Note: The prepared query has the fields that drizzle decodes rows with.
+  // Note: `db.execute` returns a statement whose `_prepare` returns itself.
+  const _prepared = (statement as { _prepare?: () => Prepared })._prepare?.();
+  const prepared = _prepared?.queryString === undefined ? undefined : _prepared;
+  const { sql, params, typings } = prepared
+    ? {
+        sql: prepared.queryString,
+        params: prepared.params,
+        typings: prepared.typings,
+      }
+    : dialect.sqlToQuery(statement.getSQL());
+
+  if (params.length > MAX_QUERY_PARAMS) {
+    throw new Error(
+      `Statement has ${params.length} parameters, more than the limit of ${MAX_QUERY_PARAMS}: ${sql.slice(0, 120)}`,
+    );
+  }
+
+  if (prepared?.customResultMapper !== undefined) {
+    const map = prepared.customResultMapper;
+    return {
+      sql,
+      params,
+      typings,
+      arrayMode: true,
+      decode: (rows) => map(rows as unknown[][]),
+    };
+  }
+  if (prepared?.fields !== undefined) {
+    const { fields, joinsNotNullableMap } = prepared;
+    return {
+      sql,
+      params,
+      typings,
+      arrayMode: true,
+      decode: (rows) =>
+        rows.map((row) =>
+          mapResultRow(fields, row as unknown[], joinsNotNullableMap),
+        ),
+    };
+  }
+  return { sql, params, typings };
+};
+
+/** A statement that copies `text`, in the Postgres text format, into `target`. */
+export const copyFrom = (target: string, text: string): CompiledStatement => ({
+  sql: `COPY ${target} FROM STDIN`,
+  params: [],
+  copy: text,
+});
+
+/** A raw SQL statement without parameters. */
+export const rawSql = (sql: string): CompiledStatement => ({ sql, params: [] });
+
+/**
+ * Split `rows` into batches whose statements stay under {@link MAX_QUERY_PARAMS},
+ * with `paramsPerRow` parameters for each row and `extraParams` for each statement.
+ */
+export const chunkRows = <T>(
+  rows: readonly T[],
+  paramsPerRow: number,
+  extraParams = 0,
+): T[][] => {
+  const size = Math.max(
+    1,
+    Math.floor((MAX_QUERY_PARAMS - extraParams) / Math.max(paramsPerRow, 1)),
+  );
+  const chunks: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    chunks.push(rows.slice(i, i + size));
+  }
+  return chunks;
+};
+
+export type Statement = SQLWrapper | CompiledStatement;
+
+type StatementResult<statement> = statement extends CompiledStatement
+  ? unknown[]
+  : statement extends PromiseLike<infer result>
+    ? result
+    : unknown[];
+
+export type RunOptions = {
+  /** Label for the logs and metrics of the statements. */
+  label?: string;
+  /** Annotations for the logs, such as `{ action: "migrate" }`. */
+  logAnnotations?: Record<string, unknown>;
+  /** In a transaction, a failure rolls back only these statements. */
+  savepoint?: boolean;
+};
+
+export type Run = {
+  <const statement extends Statement>(
+    statement: statement,
+    options?: RunOptions,
+  ): Effect.Effect<StatementResult<statement>, Error>;
+  <const statements extends readonly Statement[]>(
+    statements: statements,
+    options?: RunOptions,
+  ): Effect.Effect<
+    { -readonly [K in keyof statements]: StatementResult<statements[K]> },
+    Error
+  >;
+};
+
+/** Runs statements, either on its own or in a transaction. */
+export type DbRunner = {
+  dialect: DbTransport["dialect"];
+  /**
+   * Run one statement, or a list in one transaction, in order. The statements
+   * are compiled when `run` is called, so a retry sends the same ones.
+   */
+  run: Run;
 };
 
 /**
  * Database client for one role, with retries, logging, metrics, and error
  * parsing.
  */
-export type DbClient<TSchema extends Schema = Schema> = {
-  dialect: DbTransport["dialect"];
-  /** Drizzle database for building statements, such as subqueries. */
-  drizzle: Drizzle<TSchema>;
+export type DbClient = DbRunner & {
   /**
-   * Run the statement that `build` returns.
+   * Open a transaction, which rolls back when the scope closes before `commit`.
    *
-   * @dev Retries, except in a transaction. A failed statement in a transaction
-   * fails the transaction, which retries.
+   * @dev A failure that rolled back the transaction, such as a lost
+   * connection, opens a new one and runs the statements that succeeded again.
+   * The work between statements never runs again. On PGlite, each `run` is
+   * its own transaction.
    */
-  query<T>(
-    build: (db: Drizzle<TSchema>) => T,
-    options?: QueryOptions,
-  ): Effect.Effect<Awaited<T>, Error>;
-  /**
-   * Run `transaction` in a transaction. Retries run `transaction` again from
-   * the start.
-   *
-   * @dev On PGlite, `transaction` runs with the client itself, without a
-   * transaction, and doesn't retry.
-   */
-  transaction<T, R>(
-    transaction: (tx: DbClient<TSchema>) => Effect.Effect<T, Error, R>,
-    options?: TransactionOptions,
-  ): Effect.Effect<T, Error, R>;
-  /**
-   * Copy `text`, in the Postgres text format, into the table `target`.
-   *
-   * @dev Does not retry or log.
-   */
-  copy(target: string, text: string): Effect.Effect<void, CopyFlushError>;
+  begin: Effect.Effect<DbTransaction, Error, Scope.Scope>;
+};
+
+export type DbTransaction = DbRunner & {
+  commit: Effect.Effect<void, Error>;
 };
 
 /**
@@ -105,7 +262,7 @@ export class Db extends Context.Service<
     /** User queries from the API server. */
     readonly: DbClient;
     /** The `ponder_sync` schema. */
-    sync: DbClient<typeof PONDER_SYNC>;
+    sync: DbClient;
     /**
      * Listen for notifications on `channel` with an admin connection, until
      * the scope closes.
@@ -115,12 +272,13 @@ export class Db extends Context.Service<
      */
     listen(
       channel: string,
-    ): Effect.Effect<Stream.Stream<string, unknown>, unknown, Scope.Scope>;
+    ): Effect.Effect<Stream.Stream<string, Error>, Error, Scope.Scope>;
   }
 >()("ponder/Db") {}
 
 export const parseDbError = (error: any): Error => {
-  const stack = error.stack;
+  if (error instanceof DbError) error = error.cause;
+  const stack = error?.stack;
 
   if (error instanceof BaseError) {
     return error;
@@ -161,6 +319,8 @@ export const parseDbError = (error: any): Error => {
     error?.message?.includes("timeout exceeded when trying to connect")
   ) {
     error = new DbConnectionError(error.message);
+  } else if (error instanceof Error === false) {
+    error = new Error(String(error));
   }
 
   error.stack = stack;
@@ -169,39 +329,68 @@ export const parseDbError = (error: any): Error => {
 };
 
 /**
+ * Classes of SQLSTATE codes for failures that can succeed again: connection,
+ * transaction rollback, resources, operator intervention, and system errors.
+ */
+const TRANSIENT_CLASSES = ["08", "40", "53", "57", "58"];
+
+/** `true` if `error` is known to have not applied, and running it again can succeed. */
+const isRetryable = (error: DbError) => {
+  if (error.notApplied === false) return false;
+  if (parseDbError(error) instanceof NonRetryableUserError) return false;
+  const cause = error.cause as { code?: unknown; errno?: unknown } | undefined;
+  const code = [cause?.code, cause?.errno].find(
+    (code): code is string =>
+      typeof code === "string" && /^[0-9A-Z]{5}$/.test(code),
+  );
+  // Note: An error without a SQLSTATE comes from the driver, such as a lost connection.
+  if (code === undefined) return true;
+  return TRANSIENT_CLASSES.includes(code.slice(0, 2)) || code === "55P03";
+};
+
+const toList = (statements: Statement | readonly Statement[]) =>
+  (Array.isArray(statements) ? statements : [statements]).map((statement) =>
+    "getSQL" in statement
+      ? compile(statement)
+      : (statement as CompiledStatement),
+  );
+
+const decode = (
+  compiled: readonly CompiledStatement[],
+  results: unknown[][],
+  isList: boolean,
+) => {
+  const decoded = results.map((rows, i) =>
+    compiled[i]!.decode ? compiled[i]!.decode!(rows) : rows,
+  );
+  return isList ? decoded : decoded[0];
+};
+
+/**
  * Create a client for one role on `transport`.
  */
-export const makeDbClient = <
-  TSchema extends Schema = { [name: string]: never },
->(
-  transport: DbTransport<TSchema>,
+export const makeDbClient = (
+  transport: DbTransport,
   { metrics }: { metrics: Metrics["Service"] },
-): DbClient<TSchema> => {
+): DbClient => {
   const dialect = transport.dialect;
 
-  // Retry, logging, metrics, and error parsing wrapper
-  const retryLogMetricErrorWrap = <T, R>(
-    effect: Effect.Effect<T, unknown, R>,
-    {
-      label,
-      isTransaction,
-      isTransactionStatement,
-      logAnnotations,
-    }: {
-      label?: string;
-      isTransaction: boolean;
-      isTransactionStatement: boolean;
-      logAnnotations: Record<string, unknown> | undefined;
-    },
-  ): Effect.Effect<T, Error, R> => {
+  /**
+   * Run `attempt` until it succeeds, fails with an error that can't succeed
+   * again, or fails {@link RETRY_COUNT} times.
+   */
+  const retry = <T>(
+    attempt: Effect.Effect<T, DbError>,
+    { label, logAnnotations }: RunOptions,
+  ): Effect.Effect<T, Error> => {
     const log = (log: Effect.Effect<void>) =>
       logAnnotations ? Effect.annotateLogs(log, logAnnotations) : log;
 
     return Effect.gen(function* () {
-      // First error thrown is often the most useful
+      // Note: The first error is often the most useful.
       let firstError: Error | undefined;
 
-      for (let i = 0; i <= RETRY_COUNT; i++) {
+      for (let i = 0; ; i++) {
         const endClock = yield* startClockEffect;
         const id = (yield* randomUUID).slice(0, 8);
 
@@ -215,15 +404,17 @@ export const makeDbClient = <
           );
         }
 
-        const result = yield* Effect.result(effect);
+        const result = yield* Effect.result(attempt);
+
+        if (label) {
+          metrics.ponder_database_method_duration.observe(
+            { method: label },
+            yield* endClock,
+          );
+        }
 
         if (Result.isSuccess(result)) {
           if (label) {
-            metrics.ponder_database_method_duration.observe(
-              { method: label },
-              yield* endClock,
-            );
-
             yield* log(
               Effect.logTrace({
                 msg: "Completed database query",
@@ -233,59 +424,17 @@ export const makeDbClient = <
               }),
             );
           }
-
           return result.success;
         }
 
-        const error = parseDbError(result.failure);
-
         if (label) {
-          metrics.ponder_database_method_duration.observe(
-            { method: label },
-            yield* endClock,
-          );
-          metrics.ponder_database_method_error_total.inc({
-            method: label,
-          });
+          metrics.ponder_database_method_error_total.inc({ method: label });
         }
 
+        const error = parseDbError(result.failure);
         firstError ??= error;
 
-        // Two types of transaction environments
-        // 1. Inside callback (running user statements or control flow statements): Fail, retry
-        // later. We want the error bubbled up out of the callback, so the transaction is properly rolled back.
-        // 2. Outside callback (running entire transaction, user statements + control flow statements): Retry immediately.
-
-        if (isTransaction) {
-          if (error instanceof NonRetryableUserError) {
-            return yield* Effect.fail(error);
-          }
-        } else if (isTransactionStatement) {
-          // Transaction statements are not immediately retried, so the transaction will be properly rolled back.
-          yield* log(
-            Effect.logWarning({
-              msg: "Failed database query",
-              query: label,
-              query_id: id,
-              duration: yield* endClock,
-              error,
-            }),
-          );
-          return yield* Effect.fail(error);
-        } else if (error instanceof NonRetryableUserError) {
-          yield* log(
-            Effect.logWarning({
-              msg: "Failed database query",
-              query: label,
-              query_id: id,
-              duration: yield* endClock,
-              error,
-            }),
-          );
-          return yield* Effect.fail(error);
-        }
-
-        if (i === RETRY_COUNT) {
+        if (isRetryable(result.failure) === false || i === RETRY_COUNT) {
           yield* log(
             Effect.logWarning({
               msg: "Failed database query",
@@ -296,101 +445,116 @@ export const makeDbClient = <
               error,
             }),
           );
-          return yield* Effect.fail(firstError);
+          return yield* Effect.fail(i === RETRY_COUNT ? firstError : error);
         }
 
-        const duration = BASE_DURATION * 2 ** i;
+        const delay = BASE_DURATION * 2 ** i;
         yield* log(
           Effect.logWarning({
             msg: "Failed database query",
             query: label,
             query_id: id,
             retry_count: i,
-            retry_delay: duration,
+            retry_delay: delay,
             duration: yield* endClock,
             error,
           }),
         );
-        yield* Effect.sleep(duration);
+        yield* Effect.sleep(delay);
       }
-
-      return yield* Effect.die("unreachable");
     });
   };
 
-  const copy =
-    (transport: DbTransport<TSchema>): DbClient<TSchema>["copy"] =>
-    (target, text) =>
-      transport
-        .copy(target, text)
-        .pipe(
-          Effect.mapError(
-            (error) => new CopyFlushError((error as Error).message),
-          ),
-        );
+  const run = ((
+    statements: Statement | readonly Statement[],
+    options: RunOptions = {},
+  ) =>
+    Effect.suspend(() => {
+      const isList = Array.isArray(statements);
+      const compiled = toList(statements);
+      if (compiled.length === 0) return Effect.succeed([]);
+      return retry(transport.run(compiled), options).pipe(
+        Effect.map((results) => decode(compiled, results, isList)),
+      );
+    })) as Run;
 
-  // Note: We want to retry errors from `callback` but include
-  // the transaction control statements in `transport.transaction`.
-  const transaction =
-    (transport: DbTransport<TSchema>): DbClient<TSchema>["transaction"] =>
-    (callback, options) =>
-      retryLogMetricErrorWrap(
-        transport.transaction(
-          (tx) => callback(createTransactionClient(tx, options)),
-          options?.config,
+  const begin: DbClient["begin"] = Effect.gen(function* () {
+    const outer = yield* Scope.Scope;
+    const lock = yield* Semaphore.make(1);
+    /** The statements that succeeded, which a new transaction runs again. */
+    const log: { statements: CompiledStatement[]; savepoint: boolean }[] = [];
+    let current: { scope: Scope.Closeable; tx?: DbTransportTransaction };
+    let isOpen = false;
+    let isCommitted = false;
+
+    // Note: The scope of the previous transaction closes even when it failed
+    // to open, so that its connection returns to the pool.
+    const open = Effect.gen(function* () {
+      isOpen = false;
+      if (current !== undefined) yield* Scope.close(current.scope, Exit.void);
+      current = { scope: yield* Scope.fork(outer) };
+      const tx = yield* transport.begin.pipe(Scope.provide(current.scope));
+      current.tx = tx;
+      for (const { statements, savepoint } of log) {
+        yield* tx.run(statements, savepoint);
+      }
+      isOpen = true;
+    });
+
+    /** Run `f` in the open transaction, after opening a new one if it rolled back. */
+    const inTransaction = <T>(
+      f: (tx: DbTransportTransaction) => Effect.Effect<T, DbError>,
+    ) =>
+      Effect.suspend(() =>
+        isOpen ? f(current.tx!) : Effect.andThen(open, () => f(current.tx!)),
+      ).pipe(
+        Effect.tapError((error) =>
+          Effect.sync(() => {
+            if (error.aborted) isOpen = false;
+          }),
         ),
-        {
-          label: options?.label,
-          isTransaction: true,
-          isTransactionStatement: false,
-          logAnnotations: options?.logAnnotations,
-        },
       );
 
-  const createTransactionClient = (
-    tx: DbTransport<TSchema>,
-    transactionOptions: TransactionOptions | undefined,
-  ): DbClient<TSchema> => ({
-    dialect,
-    drizzle: tx.db,
-    // Note: `tx.query` should not retry errors, because the transaction will be aborted
-    query: (build, options) =>
-      retryLogMetricErrorWrap(tx.query(build), {
-        label: options?.label ?? transactionOptions?.label,
-        isTransaction: false,
-        isTransactionStatement: true,
-        logAnnotations:
-          options?.logAnnotations ?? transactionOptions?.logAnnotations,
-      }),
-    transaction: transaction(tx),
-    copy: copy(tx),
+    yield* retry(open, { label: "begin" });
+
+    const runInTransaction = ((
+      statements: Statement | readonly Statement[],
+      options: RunOptions = {},
+    ) =>
+      lock.withPermit(
+        Effect.suspend(() => {
+          if (isCommitted) {
+            return Effect.die(new Error("The transaction already committed"));
+          }
+          const isList = Array.isArray(statements);
+          const compiled = toList(statements);
+          if (compiled.length === 0) return Effect.succeed([]);
+          const savepoint = options.savepoint === true;
+          return retry(
+            inTransaction((tx) => tx.run(compiled, savepoint)),
+            options,
+          ).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => log.push({ statements: compiled, savepoint })),
+            ),
+            Effect.map((results) => decode(compiled, results, isList)),
+          );
+        }),
+      )) as Run;
+
+    return {
+      dialect,
+      run: runInTransaction,
+      commit: lock.withPermit(
+        retry(
+          inTransaction((tx) => tx.commit),
+          { label: "commit" },
+        ).pipe(Effect.tap(() => Effect.sync(() => (isCommitted = true)))),
+      ),
+    } satisfies DbTransaction;
   });
 
-  const client: DbClient<TSchema> = {
-    dialect,
-    drizzle: transport.db,
-    query: (build, options) =>
-      retryLogMetricErrorWrap(transport.query(build), {
-        label: options?.label,
-        isTransaction: false,
-        isTransactionStatement: false,
-        logAnnotations: options?.logAnnotations,
-      }),
-    transaction:
-      dialect === "postgres"
-        ? transaction(transport)
-        : // Note: PGlite runs `callback` with the client itself, without a transaction.
-          (callback, options) =>
-            retryLogMetricErrorWrap(callback(client), {
-              label: options?.label,
-              isTransaction: false,
-              isTransactionStatement: true,
-              logAnnotations: undefined,
-            }),
-    copy: copy(transport),
-  };
-
-  return client;
+  return { dialect, run, begin };
 };
 
 /**
@@ -401,17 +565,10 @@ export const makeDbClient = <
  */
 export type DbTransports = {
   dialect: DbTransport["dialect"];
-  admin: DbListenTransport<any>;
-  user: DbTransport<any>;
-  readonly: DbTransport<any>;
-  sync: DbTransport<typeof PONDER_SYNC>;
-};
-
-type PostgresDriver = {
-  admin: Pool;
-  sync: Pool;
-  user: Pool;
-  readonly: Pool;
+  admin: DbListenTransport;
+  user: DbTransport;
+  readonly: DbTransport;
+  sync: DbTransport;
 };
 
 /**
@@ -421,11 +578,9 @@ type PostgresDriver = {
 export const makeDbTransports = ({
   namespace,
   preBuild,
-  schemaBuild,
 }: {
   namespace: NamespaceBuild;
   preBuild: Pick<PreBuild, "databaseConfig">;
-  schemaBuild: Pick<SchemaBuild, "schema">;
 }): Effect.Effect<DbTransports, never, Options | Metrics | Scope.Scope> =>
   Effect.gen(function* () {
     const options = yield* Options;
@@ -438,17 +593,14 @@ export const makeDbTransports = ({
         Effect.sync(() => createPglite(databaseConfig.options)),
         (instance) => Effect.promise(() => instance.close()),
       );
-      const transport = <TSchema extends Schema>(schema: TSchema) =>
-        makePgliteTransport(
-          drizzlePglite(instance, { casing: "snake_case", schema }),
-        );
+      const transport = makePgliteTransport(instance);
 
       return {
         dialect: "pglite",
-        admin: transport(schemaBuild.schema),
-        user: transport(schemaBuild.schema),
-        readonly: transport(schemaBuild.schema),
-        sync: transport(PONDER_SYNC),
+        admin: transport,
+        user: transport,
+        readonly: transport,
+        sync: transport,
       };
     }
 
@@ -463,7 +615,7 @@ export const makeDbTransports = ({
 
     const poolConfig = preBuild.databaseConfig.poolConfig;
 
-    const d: PostgresDriver = yield* Effect.acquireRelease(
+    const pools = yield* Effect.acquireRelease(
       Effect.sync(() => ({
         admin: createPool(
           {
@@ -500,15 +652,10 @@ export const makeDbTransports = ({
           logUnsafe,
         ),
       })),
-      (d) =>
+      (pools) =>
         externalIo(
           Effect.promise(() =>
-            Promise.all([
-              d.admin.end(),
-              d.user.end(),
-              d.readonly.end(),
-              d.sync.end(),
-            ]),
+            Promise.all(Object.values(pools).map((pool) => pool.end())),
           ),
         ),
     );
@@ -521,14 +668,10 @@ export const makeDbTransports = ({
       labelNames: ["pool", "kind"] as const,
       registers: [metrics.registry],
       collect() {
-        this.set({ pool: "admin", kind: "idle" }, d.admin.idleCount);
-        this.set({ pool: "admin", kind: "total" }, d.admin.totalCount);
-        this.set({ pool: "sync", kind: "idle" }, d.sync.idleCount);
-        this.set({ pool: "sync", kind: "total" }, d.sync.totalCount);
-        this.set({ pool: "user", kind: "idle" }, d.user.idleCount);
-        this.set({ pool: "user", kind: "total" }, d.user.totalCount);
-        this.set({ pool: "readonly", kind: "idle" }, d.readonly.idleCount);
-        this.set({ pool: "readonly", kind: "total" }, d.readonly.totalCount);
+        for (const [name, pool] of Object.entries(pools)) {
+          this.set({ pool: name, kind: "idle" }, pool.idleCount);
+          this.set({ pool: name, kind: "total" }, pool.totalCount);
+        }
       },
     });
 
@@ -539,24 +682,18 @@ export const makeDbTransports = ({
       labelNames: ["pool"] as const,
       registers: [metrics.registry],
       collect() {
-        this.set({ pool: "admin" }, d.admin.waitingCount);
-        this.set({ pool: "sync" }, d.sync.waitingCount);
-        this.set({ pool: "user" }, d.user.waitingCount);
-        this.set({ pool: "readonly" }, d.readonly.waitingCount);
+        for (const [name, pool] of Object.entries(pools)) {
+          this.set({ pool: name }, pool.waitingCount);
+        }
       },
     });
 
-    const transport = <TSchema extends Schema>(pool: Pool, schema: TSchema) =>
-      makeNodePostgresTransport(
-        drizzleNodePg(pool, { casing: "snake_case", schema }),
-      );
-
     return {
       dialect: "postgres",
-      admin: transport(d.admin, schemaBuild.schema),
-      user: transport(d.user, schemaBuild.schema),
-      readonly: transport(d.readonly, schemaBuild.schema),
-      sync: transport(d.sync, PONDER_SYNC),
+      admin: makeNodePostgresTransport(pools.admin),
+      user: makeNodePostgresTransport(pools.user),
+      readonly: makeNodePostgresTransport(pools.readonly),
+      sync: makeNodePostgresTransport(pools.sync),
     };
   });
 
@@ -575,6 +712,9 @@ export const makeDb = (
       user: makeDbClient(transports.user, { metrics }),
       readonly: makeDbClient(transports.readonly, { metrics }),
       sync: makeDbClient(transports.sync, { metrics }),
-      listen: (channel) => transports.admin.listen(channel),
+      listen: (channel) =>
+        transports.admin
+          .listen(channel)
+          .pipe(Effect.mapError((error) => parseDbError(error))),
     });
   });
