@@ -56,6 +56,8 @@ type DatabaseConfig =
       kind: "postgres";
       /** Postgres database connection string. Default: `DATABASE_PRIVATE_URL` > `DATABASE_URL` environment variable. */
       connectionString?: string;
+      /** Postgres driver. `"bun"` uses `Bun.SQL`, and requires the Bun runtime. Default: `"node-postgres"`. */
+      driver?: "node-postgres" | "bun";
       /** Postgres pool configuration passed to `node-postgres`. */
       poolConfig?: {
         /** Maximum number of clients in the pool. Default: `30`. */

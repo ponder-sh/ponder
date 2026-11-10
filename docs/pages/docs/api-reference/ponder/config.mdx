@@ -65,6 +65,7 @@ export default createConfig({
 | **kind**             |                    `"postgres"`                     |                                                                           |
 | **connectionString** |                      `string`                       | **Default: `DATABASE_URL` env var**. Postgres database connection string. |
 | **poolConfig**       | [`PoolConfig`](https://node-postgres.com/apis/pool) | **Default: `{ max: 30 }`**. Pool configuration passed to `node-postgres`. |
+| **driver**           |             `"node-postgres" \| "bun"`              | **Default: `"node-postgres"`**. `"bun"` uses `Bun.SQL`, and requires the Bun runtime. It reads `max`, `ssl` and the connection fields of `poolConfig`. |
 
 ```ts [ponder.config.ts] {4-10}
 import { createConfig } from "ponder";

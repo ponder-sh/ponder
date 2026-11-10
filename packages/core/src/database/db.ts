@@ -40,6 +40,7 @@ import {
   makeNodePostgresTransport,
   makePgliteTransport,
 } from "./transport.js";
+import { makeBunPostgresTransport } from "./transport-bun.js";
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
@@ -614,6 +615,58 @@ export const makeDbTransports = ({
         : [equalMax, equalMax, equalMax];
 
     const poolConfig = preBuild.databaseConfig.poolConfig;
+
+    if (preBuild.databaseConfig.driver === "bun") {
+      const { SQL } = yield* Effect.promise(() => import("bun"));
+      const options = {
+        url: poolConfig.connectionString,
+        hostname: poolConfig.host,
+        port: poolConfig.port,
+        username: poolConfig.user,
+        password: poolConfig.password as string | undefined,
+        database: poolConfig.database,
+        tls: poolConfig.ssl,
+      };
+      const writer = {
+        synchronous_commit: "off",
+        idle_in_transaction_session_timeout: "3600000",
+      };
+      const transport = (max: number, settings: Record<string, string>) =>
+        makeBunPostgresTransport(SQL, {
+          options: { ...options, max } as Parameters<
+            typeof makeBunPostgresTransport
+          >[1]["options"],
+          settings,
+        });
+
+      return {
+        dialect: "postgres",
+        admin: yield* transport(internalMax, {
+          ...writer,
+          application_name: `${namespace.schema}_internal`,
+          // 10 minutes to accommodate slow sync store migrations.
+          statement_timeout: String(10 * 60 * 1000),
+        }),
+        user: yield* transport(userMax, {
+          ...writer,
+          application_name: `${namespace.schema}_user`,
+          statement_timeout: String(2 * 60 * 1000),
+        }),
+        readonly: yield* transport(readonlyMax, {
+          application_name: `${namespace.schema}_readonly`,
+          search_path: `"${namespace.schema}"`,
+          default_transaction_read_only: "on",
+          work_mem: "512MB",
+          lock_timeout: "500ms",
+          statement_timeout: String(30 * 1000),
+        }),
+        sync: yield* transport(syncMax, {
+          ...writer,
+          application_name: "ponder_sync",
+          statement_timeout: String(2 * 60 * 1000),
+        }),
+      };
+    }
 
     const pools = yield* Effect.acquireRelease(
       Effect.sync(() => ({

@@ -34,7 +34,11 @@ import type { RetryableError } from "./errors.js";
 
 export type DatabaseConfig =
   | { kind: "pglite"; options: PGliteOptions }
-  | { kind: "postgres"; poolConfig: Prettify<PoolConfig & { max: number }> };
+  | {
+      kind: "postgres";
+      driver: "node-postgres" | "bun";
+      poolConfig: Prettify<PoolConfig & { max: number }>;
+    };
 
 // Indexing
 

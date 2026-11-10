@@ -14,7 +14,7 @@
     "viem": "2.35.0"
   },
   "devDependencies": {
-    "@types/bun": "1.2.14",
+    "@types/bun": "1.4.4",
     "@types/node": "22.20.1",
     "@types/pg": "8.10.9",
     "typescript": "5.9.3"

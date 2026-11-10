@@ -61,7 +61,19 @@ export function buildPre({
         ssl: config.database.poolConfig?.ssl ?? false,
       } satisfies (DatabaseConfig & { kind: "postgres" })["poolConfig"];
 
-      databaseConfig = { kind: "postgres", poolConfig };
+      const driver = config.database.driver ?? "node-postgres";
+      if (driver !== "node-postgres" && driver !== "bun") {
+        throw new Error(
+          `Invalid database configuration: Expected 'driver' to be 'node-postgres' or 'bun', got '${String(driver)}'.`,
+        );
+      }
+      if (driver === "bun" && typeof Bun === "undefined") {
+        throw new Error(
+          "Invalid database configuration: 'driver: \"bun\"' requires the Bun runtime.",
+        );
+      }
+
+      databaseConfig = { kind: "postgres", driver, poolConfig };
     } else {
       databaseConfig = { kind: "pglite", options: { dataDir: pgliteDir } };
     }
@@ -77,7 +89,11 @@ export function buildPre({
     if (connectionString !== undefined) {
       const poolConfig = { connectionString, max: 30 };
 
-      databaseConfig = { kind: "postgres", poolConfig };
+      databaseConfig = {
+        kind: "postgres",
+        driver: "node-postgres",
+        poolConfig,
+      };
     } else {
       // Fall back to PGlite.
 

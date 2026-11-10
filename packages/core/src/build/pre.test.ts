@@ -166,6 +166,7 @@ test("buildPre() database with postgres uses pool config", () => {
 
   expect(databaseConfig).toMatchInlineSnapshot(`
     {
+      "driver": "node-postgres",
       "kind": "postgres",
       "poolConfig": {
         "connectionString": "postgres://username@localhost:5432/database",
