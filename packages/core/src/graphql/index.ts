@@ -931,7 +931,7 @@ async function executePluralQuery(
 
   if (after !== null) {
     // User specified an 'after' cursor.
-    const cursorObject = decodeCursor(after);
+    const cursorObject = decodeCursor(orderBySchema, after);
     const cursorCondition = buildCursorCondition(
       columns,
       orderBySchema,
@@ -991,7 +991,7 @@ async function executePluralQuery(
   }
 
   // User specified a 'before' cursor.
-  const cursorObject = decodeCursor(before!);
+  const cursorObject = decodeCursor(orderBySchema, before!);
   const cursorCondition = buildCursorCondition(
     columns,
     orderBySchema,
@@ -1301,8 +1301,37 @@ function encodeCursor(
   );
   return encodeRowFragment(cursorObject);
 }
-function decodeCursor(cursor: string): { [k: string]: unknown } {
-  return decodeRowFragment(cursor);
+function decodeCursor(
+  orderBySchema: [string, "asc" | "desc"][],
+  cursor: string,
+): { [k: string]: unknown } {
+  let cursorObject: unknown;
+  try {
+    cursorObject = decodeRowFragment(cursor);
+  } catch {
+    throw new GraphQLError("Invalid cursor.");
+  }
+
+  if (
+    typeof cursorObject !== "object" ||
+    cursorObject === null ||
+    Array.isArray(cursorObject)
+  ) {
+    throw new GraphQLError("Invalid cursor.");
+  }
+
+  // The cursor must contain exactly the columns of the order by clause.
+  const keys = Object.keys(cursorObject);
+  if (
+    keys.length !== orderBySchema.length ||
+    orderBySchema.some(([columnName]) => !keys.includes(columnName))
+  ) {
+    throw new GraphQLError(
+      "Invalid cursor. The cursor does not match the orderBy argument.",
+    );
+  }
+
+  return cursorObject as { [k: string]: unknown };
 }
 
 function encodeRowFragment(rowFragment: { [k: string]: unknown }): string {
