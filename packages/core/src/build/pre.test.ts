@@ -196,9 +196,7 @@ test("buildPre() throws for an invalid ordering", () => {
     contracts: { a: { chain: "mainnet", abi: [] } },
   });
 
-  expect(() =>
-    buildPre({ config, options, logger }),
-  ).toThrowErrorMatchingInlineSnapshot(
-    `[Error: Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got ''.]`,
+  expect(() => buildPre({ config, options, logger })).toThrowError(
+    "Invalid ordering: Expected 'omnichain', 'multichain', or 'experimental_isolated', got ''.",
   );
 });
