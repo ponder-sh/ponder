@@ -234,9 +234,7 @@ export function buildGraphQLSchema({
                   rowFragment[getColumnTsName(references[i]!)] =
                     parent[getColumnTsName(fields[i]!)];
                 }
-                const encodedId = encodeRowFragment(rowFragment);
-
-                return loader.load(encodedId);
+                return loader.load(rowFragment);
               },
             };
           } else if (is(relation, Many)) {
@@ -397,9 +395,7 @@ export function buildGraphQLSchema({
 
         // The `args` object here should be a valid `where` argument that
         // uses the `eq` shorthand for each primary key column.
-        const encodedId = encodeRowFragment(args);
-
-        return loader.load(encodedId);
+        return loader.load(args);
       },
     });
 
@@ -1316,7 +1312,7 @@ export function buildDataLoaderCache({
 }: Pick<Context, "db" | "runPromise">) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
-    DataLoader<string, any> | undefined
+    DataLoader<RowFragment, any, string> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
     const baseQuery = (db as DbClient<{ [key: string]: OnchainTable }>).drizzle
@@ -1329,18 +1325,16 @@ export function buildDataLoaderCache({
     let dataLoader = dataLoaderMap.get(table);
     if (dataLoader === undefined) {
       dataLoader = new DataLoader(
-        (encodedIds) =>
+        (rowFragments) =>
           runPromise(
             Effect.gen(function* () {
-              const decodedRowFragments = encodedIds.map(decodeRowFragment);
-
               const rows = yield* tryQuery(() =>
                 baseQuery.findMany({
                   where: buildRowFragmentsCondition(
-                    decodedRowFragments,
+                    rowFragments,
                     table.columns,
                   ),
-                  limit: encodedIds.length,
+                  limit: rowFragments.length,
                 }),
               );
 
@@ -1351,7 +1345,7 @@ export function buildDataLoaderCache({
               // so some comparisons will fail (eg for our PgHex column type).
               // To fix this, we need to normalize the values before doing the comparison.
               return (
-                decodedRowFragments
+                rowFragments
                   // Normalize the decoded row fragments
                   .map((fragment) =>
                     Object.fromEntries(
@@ -1371,13 +1365,36 @@ export function buildDataLoaderCache({
               );
             }),
           ),
-        { maxBatchSize: 1_000 },
+        { maxBatchSize: 1_000, cacheKeyFn: getRowFragmentKey },
       );
       dataLoaderMap.set(table, dataLoader);
     }
 
     return dataLoader;
   };
+}
+
+type RowFragment = { [column: string]: unknown };
+
+/**
+ * Returns the dataloader cache key of a row fragment, which is equal for two
+ * fragments with the same columns and values.
+ *
+ * Note: This is much faster than `encodeRowFragment`, which encodes with
+ * superjson and base64.
+ */
+function getRowFragmentKey(fragment: RowFragment): string {
+  const entries: string[] = [];
+  for (const [column, value] of Object.entries(fragment)) {
+    entries.push(
+      column,
+      typeof value,
+      typeof value === "object" && value !== null
+        ? superjson.stringify(value)
+        : String(value),
+    );
+  }
+  return JSON.stringify(entries);
 }
 
 /**
@@ -1388,7 +1405,7 @@ export function buildDataLoaderCache({
  * key, use `IN`, which is faster to build than `OR` and uses one index scan.
  */
 function buildRowFragmentsCondition(
-  fragments: { [column: string]: unknown }[],
+  fragments: readonly RowFragment[],
   columns: Record<string, Column>,
 ): SQL | undefined {
   const fragmentColumns = Object.keys(fragments[0] ?? {});
