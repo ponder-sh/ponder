@@ -79,6 +79,31 @@ type Query {
 
 :::
 
+## Column types
+
+Each column uses the GraphQL type that represents its value exactly. Columns without `.notNull()` are nullable, and array columns are lists of the element type, e.g. `t.text().array()` is `[String!]`.
+
+| Column type                                                        | GraphQL type           | Example value                |
+| :----------------------------------------------------------------- | :--------------------- | :--------------------------- |
+| `boolean`                                                          | `Boolean`              | `true`                       |
+| `smallint`, `integer`, `serial`                                    | `Int`                  | `1`                          |
+| `real`, `doublePrecision`, `int8({ mode: "number" })`, `numeric({ mode: "number" })` | `Float` | `1.5`                        |
+| `bigint`, `int8({ mode: "bigint" })`, `numeric({ mode: "bigint" })` | `BigInt`              | `"123"`                      |
+| `numeric`                                                          | `Numeric`              | `"1.5"`                      |
+| `text`, `varchar`, `char`, `hex`                                   | `String`               | `"0xa0b1"`                   |
+| `timestamp`                                                        | `DateTime`             | `"2024-01-01T00:00:00.000Z"` |
+| `date({ mode: "date" })`                                           | `Date`                 | `"2024-01-01"`               |
+| `timestamp({ mode: "string" })`, `date`, `time`, `interval`        | `String`               | `"2024-01-01"`               |
+| `uuid`, `inet`, `cidr`, `macaddr`, `macaddr8`, `bit`, `sparsevec`  | `String`               |                              |
+| `bytes`                                                            | `[Int!]`               | `[1, 2]`                     |
+| `vector`, `halfvec`, `geometry`, `point`, `line`                   | `[Float!]`             | `[1.5, 2]`                   |
+| `json`, `jsonb`, `point({ mode: "xy" })`, `line({ mode: "abc" })`, custom types | `JSON`    | `{ "x": 1 }`                 |
+| `onchainEnum`                                                      | The enum type          | `ACTIVE`                     |
+
+`BigInt` and `Numeric` values are strings, so they keep their precision. `BigInt` inputs also accept integer literals. `DateTime` inputs accept ISO 8601 strings (a date-time without an offset is UTC) and unix timestamps in milliseconds.
+
+In a view, a SQL expression such as `count().as("count")` uses the type of its `.mapWith()` decoder: a column uses the column's type, and `Number`, `String`, `Boolean`, and `BigInt` use `Float`, `String`, `Boolean`, and `BigInt`. Expressions without a decoder use `JSON`.
+
 ## Filtering
 
 Use the `where` argument to filter for records that match certain criteria. The `where` argument type includes filter options for every column defined on a table. Here are the filter options available for each column type.
