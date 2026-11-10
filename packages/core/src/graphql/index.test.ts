@@ -1892,18 +1892,16 @@ test("filter plural", async () => {
       {
         "params": [
           "{1,2,3}",
-          "{1,2,3}",
           51,
         ],
-        "sql": "select "id", "number" from "person" where ("person"."number" @> $1 and "person"."number" <@ $2) order by "person"."id" asc limit $3",
+        "sql": "select "id", "number" from "person" where "person"."number" = $1 order by "person"."id" asc limit $2",
       },
       {
         "params": [
           "{5}",
-          "{5}",
           51,
         ],
-        "sql": "select "id", "number" from "person" where not ("person"."number" @> $1 and "person"."number" <@ $2) order by "person"."id" asc limit $3",
+        "sql": "select "id", "number" from "person" where "person"."number" <> $1 order by "person"."id" asc limit $2",
       },
       {
         "params": [
@@ -1918,6 +1916,53 @@ test("filter plural", async () => {
           51,
         ],
         "sql": "select "id", "number" from "person" where not "person"."number" @> $1 order by "person"."id" asc limit $2",
+      },
+    ]
+  `);
+});
+
+test("filter plural equality is exact", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    tags: t.text().array(),
+  }));
+  const { query, queries } = createGraphQL({ pet });
+
+  // Note: Array equality compares element order and duplicates, so
+  // `["a", "b"]` doesn't match `["b", "a"]` or `["a", "a", "b"]`.
+  for (const where of [
+    `{ tags: ["a", "b"] }`,
+    `{ tags_not: ["a", "b"] }`,
+    "{ tags: [] }",
+  ]) {
+    const result = await query(`{ pets(where: ${where}) { items { id } } }`);
+    expect(result.errors).toBeUndefined();
+  }
+
+  expect(
+    queries.map(({ sql, params }) => ({
+      where: sql.match(/ where (.*) order by /)?.[1],
+      params: params.slice(0, -1),
+    })),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "params": [
+          "{"a","b"}",
+        ],
+        "where": ""pet"."tags" = $1",
+      },
+      {
+        "params": [
+          "{"a","b"}",
+        ],
+        "where": ""pet"."tags" <> $1",
+      },
+      {
+        "params": [
+          "{}",
+        ],
+        "where": ""pet"."tags" = $1",
       },
     ]
   `);

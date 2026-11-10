@@ -2,7 +2,6 @@ import DataLoader from "dataloader";
 import type { Column, TableRelationalConfig } from "drizzle-orm";
 import {
   and,
-  arrayContained,
   arrayContains,
   asc,
   count,
@@ -1094,38 +1093,14 @@ function buildWhereConditions(
 
     switch (conditionSuffix) {
       case "":
-        if (column.columnType === "PgArray") {
-          conditions.push(
-            and(
-              arrayContains(column, rawValue),
-              arrayContained(column, rawValue),
-            ),
-          );
-        } else {
-          if (rawValue === null) {
-            conditions.push(isNull(column));
-          } else {
-            conditions.push(eq(column, rawValue));
-          }
-        }
+        conditions.push(
+          rawValue === null ? isNull(column) : eq(column, rawValue),
+        );
         break;
       case "_not":
-        if (column.columnType === "PgArray") {
-          conditions.push(
-            not(
-              and(
-                arrayContains(column, rawValue),
-                arrayContained(column, rawValue),
-              )!,
-            ),
-          );
-        } else {
-          if (rawValue === null) {
-            conditions.push(isNotNull(column));
-          } else {
-            conditions.push(ne(column, rawValue));
-          }
-        }
+        conditions.push(
+          rawValue === null ? isNotNull(column) : ne(column, rawValue),
+        );
         break;
       case "_in":
         conditions.push(inArray(column, rawValue));
