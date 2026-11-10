@@ -30,6 +30,7 @@ import {
   One,
   or,
   SQL,
+  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -1156,12 +1157,17 @@ function buildWhereConditions(
     switch (conditionSuffix) {
       case "":
         if (column.columnType === "PgArray") {
-          conditions.push(
-            and(
-              arrayContains(column, rawValue),
-              arrayContained(column, rawValue),
-            ),
-          );
+          // Note: `arrayContains` and `arrayContained` don't support empty arrays.
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) = 0`);
+          } else {
+            conditions.push(
+              and(
+                arrayContains(column, rawValue),
+                arrayContained(column, rawValue),
+              ),
+            );
+          }
         } else {
           if (rawValue === null) {
             conditions.push(isNull(column));
@@ -1172,14 +1178,18 @@ function buildWhereConditions(
         break;
       case "_not":
         if (column.columnType === "PgArray") {
-          conditions.push(
-            not(
-              and(
-                arrayContains(column, rawValue),
-                arrayContained(column, rawValue),
-              )!,
-            ),
-          );
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) <> 0`);
+          } else {
+            conditions.push(
+              not(
+                and(
+                  arrayContains(column, rawValue),
+                  arrayContained(column, rawValue),
+                )!,
+              ),
+            );
+          }
         } else {
           if (rawValue === null) {
             conditions.push(isNotNull(column));

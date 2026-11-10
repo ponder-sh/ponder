@@ -1799,6 +1799,43 @@ test("filter plural", async () => {
   });
 });
 
+test("filter plural with empty list", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    tags: t.text().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", tags: ["a"] },
+    { id: "id2", tags: [] },
+    { id: "id3", tags: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids("{ tags: [] }")).toStrictEqual(["id2"]);
+  expect(await ids("{ tags_not: [] }")).toStrictEqual(["id1"]);
+  expect(await ids(`{ tags: ["a"] }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ tags_not: ["a"] }`)).toStrictEqual(["id2"]);
+});
+
 test("filter numeric", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
