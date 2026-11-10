@@ -12,6 +12,7 @@ import {
   type GraphQLSchema,
   parse,
   printType,
+  validate,
 } from "graphql";
 import type { DbClient } from "../database/db.js";
 import {
@@ -241,7 +242,7 @@ test("column type mapping", () => {
       "boolean: Boolean | Boolean | eq _not _in _not_in",
       "smallint: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
       "integer: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
-      "int8Number: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
+      "int8Number: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
       "int8Bigint: BigInt | BigInt | eq _not _in _not_in _gt _lt _gte _lte",
       "real: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
       "doublePrecision: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
@@ -342,6 +343,83 @@ test("smallint column", async () => {
         ],
         "sql": "select "id", "small" from "table" where "table"."small" > $1 order by "table"."id" asc limit $2",
       },
+    ]
+  `);
+});
+
+test("int8 number mode column", async () => {
+  const block = onchainTable("block", (t) => ({
+    id: t.text().primaryKey(),
+    timestamp: t.int8({ mode: "number" }),
+  }));
+  const { graphqlSchema, query, queries } = createGraphQL({ block }, () => [
+    { id: "id1", timestamp: "1" },
+    { id: "id2", timestamp: "3000000000" },
+    { id: "id3", timestamp: String(Number.MAX_SAFE_INTEGER) },
+  ]);
+
+  expect(printTypes(graphqlSchema, "block")).toMatchInlineSnapshot(`
+    "type block {
+      id: String!
+      timestamp: Float
+    }"
+  `);
+
+  const results = [
+    await query("{ blocks { items { id timestamp } } }"),
+    await query(
+      "{ blocks(where: { timestamp_gte: 3000000000 }) { items { id } } }",
+    ),
+  ];
+  expect(results.map((result) => result.errors)).toMatchInlineSnapshot(`
+    [
+      undefined,
+      undefined,
+    ]
+  `);
+  expect(results[0]!.data).toMatchInlineSnapshot(`
+    {
+      "blocks": {
+        "items": [
+          {
+            "id": "id1",
+            "timestamp": 1,
+          },
+          {
+            "id": "id2",
+            "timestamp": 3000000000,
+          },
+          {
+            "id": "id3",
+            "timestamp": 9007199254740991,
+          },
+        ],
+      },
+    }
+  `);
+  expect(queries.map(({ params }) => params)).toMatchInlineSnapshot(`
+    [
+      [
+        51,
+      ],
+      [
+        3000000000,
+        51,
+      ],
+    ]
+  `);
+
+  // Note: Variables declared as `Int` don't match the `Float` filter type.
+  expect(
+    validate(
+      graphqlSchema,
+      parse(
+        "query ($min: Int) { blocks(where: { timestamp_gte: $min }) { items { id } } }",
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      [GraphQLError: Variable "$min" of type "Int" used in position expecting type "Float".],
     ]
   `);
 });
@@ -1543,14 +1621,14 @@ test("filter input type", () => {
       int_lt: Int
       int_gte: Int
       int_lte: Int
-      int8Number: Int
-      int8Number_not: Int
-      int8Number_in: [Int]
-      int8Number_not_in: [Int]
-      int8Number_gt: Int
-      int8Number_lt: Int
-      int8Number_gte: Int
-      int8Number_lte: Int
+      int8Number: Float
+      int8Number_not: Float
+      int8Number_in: [Float]
+      int8Number_not_in: [Float]
+      int8Number_gt: Float
+      int8Number_lt: Float
+      int8Number_gte: Float
+      int8Number_lte: Float
       int8Bigint: BigInt
       int8Bigint_not: BigInt
       int8Bigint_in: [BigInt]

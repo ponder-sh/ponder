@@ -35,7 +35,6 @@ import {
   getViewConfig,
   isPgEnum,
   isPgView,
-  PgBigInt53,
   type PgColumn,
   type PgEnum,
   PgEnumColumn,
@@ -766,9 +765,10 @@ const columnToGraphQLCore = (
     case "bigint":
       return GraphQLBigInt;
     case "number":
-      // Note: Integer types with at most 32 bits use `Int`.
-      return int32ColumnTypes.includes(column.columnType) ||
-        is(column, PgBigInt53)
+      // Note: Integer types with at most 32 bits use `Int`. `PgBigInt53`
+      // (`int8({ mode: "number" })`) values can exceed the 32-bit range of
+      // `Int`, so they use `Float`, which represents every safe integer exactly.
+      return int32ColumnTypes.includes(column.columnType)
         ? GraphQLInt
         : GraphQLFloat;
     case "buffer":
