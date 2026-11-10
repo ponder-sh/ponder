@@ -1,16 +1,13 @@
-import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
-import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
-import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { Effect } from "effect";
 import { GraphQLError, type GraphQLSchema, printSchema } from "graphql";
-import { createYoga, maskError, type Plugin } from "graphql-yoga";
+import { createYoga, maskError } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { Db, type DbClient } from "../database/db.js";
 import type { Schema } from "../internal/types.js";
 import type { ReadonlyDrizzle } from "../types/db.js";
-import { getOperationRows } from "./cost.js";
 import { graphiQLHtml } from "./graphiql.html.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
+import { operationLimitsPlugin } from "./limits.js";
 
 export type GraphQLOptions = {
   /** Maximum number of tokens in an operation. Default: `1000`. */
@@ -230,35 +227,14 @@ export const createGraphQLHandler = ({
     graphiql: false,
     parserAndValidationCache: false,
     plugins: [
-      maxTokensPlugin({ n: options.maxOperationTokens }),
-      maxDepthPlugin({
-        n: options.maxOperationDepth,
-        ignoreIntrospection: false,
+      operationLimitsPlugin({
+        maxTokens: options.maxOperationTokens,
+        maxDepth: options.maxOperationDepth,
+        maxAliases: options.maxOperationAliases,
+        maxRows: options.maxOperationRows,
       }),
-      maxAliasesPlugin({ n: options.maxOperationAliases, allowList: [] }),
-      maxRowsPlugin(options.maxOperationRows),
     ],
   });
-
-/**
- * Reject operations that can select more than `maxRows` rows. This runs
- * before execution instead of during validation so that `limit` arguments
- * from variables count.
- */
-const maxRowsPlugin = (maxRows: number): Plugin => ({
-  onExecute: ({ args, setResultAndStopExecution }) => {
-    const rows = getOperationRows(args);
-    if (rows > maxRows) {
-      setResultAndStopExecution({
-        errors: [
-          new GraphQLError(
-            `Operation can select up to ${rows} rows, which is more than the maximum of ${maxRows}. Use smaller limit arguments for nested fields.`,
-          ),
-        ],
-      });
-    }
-  },
-});
 
 /**
  * Write the GraphQL schema to `generated/schema.graphql`.

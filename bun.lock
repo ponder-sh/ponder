@@ -397,9 +397,6 @@
         "@babel/code-frame": "7.27.1",
         "@commander-js/extra-typings": "12.0.1",
         "@electric-sql/pglite": "0.2.13",
-        "@escape.tech/graphql-armor-max-aliases": "2.4.0",
-        "@escape.tech/graphql-armor-max-depth": "2.3.0",
-        "@escape.tech/graphql-armor-max-tokens": "2.4.0",
         "@hono/node-server": "1.19.5",
         "@ponder/utils": "0.3.1",
         "abitype": "0.10.3",
@@ -743,14 +740,6 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.19.12", "", { "os": "win32", "cpu": "ia32" }, "sha512-+ZOE6pUkMOJfmxmBZElNOx72NKpIa/HFOMGzu8fqzQJ5kgf6aTGrcJaFsNiVMH4JKpMipyK+7k0n2UXN7a8YKQ=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.19.12", "", { "os": "win32", "cpu": "x64" }, "sha512-T1QyPSDCyMXaO3pzBkF96E8xMkiRYbUEZADd29SyPGabqxMViNoii+NcK7eWJAEoU6RZyEm5lVSIjTmcdoB9HA=="],
-
-    "@escape.tech/graphql-armor-max-aliases": ["@escape.tech/graphql-armor-max-aliases@2.4.0", "", { "dependencies": { "graphql": "^16.0.0" }, "optionalDependencies": { "@envelop/core": "^5.0.0", "@escape.tech/graphql-armor-types": "0.6.0" } }, "sha512-d4V9EgtPRG9HIoPHuanFNLHj1ENB1YkZi9FbiBiH88x5VahCjVpMXDgKQGkG6RUTOODU4XKp0/ZgaOq0pX5oEA=="],
-
-    "@escape.tech/graphql-armor-max-depth": ["@escape.tech/graphql-armor-max-depth@2.3.0", "", { "dependencies": { "graphql": "^16.0.0" }, "optionalDependencies": { "@envelop/core": "^5.0.0", "@escape.tech/graphql-armor-types": "0.6.0" } }, "sha512-EgqJU2yOaKaFeNDqMn18fIOI6UNjboWV950G9I39ebXyxsQmIaAx0Hs9hJoCBEHdLY9SCKWsEZFipHXqvaphdw=="],
-
-    "@escape.tech/graphql-armor-max-tokens": ["@escape.tech/graphql-armor-max-tokens@2.4.0", "", { "dependencies": { "graphql": "^16.0.0" }, "optionalDependencies": { "@envelop/core": "^5.0.0", "@escape.tech/graphql-armor-types": "0.6.0" } }, "sha512-apKQBcYc6vsrITR+uKGXTC9yWV4zUEP4usb5zO0vebYT6e4KLcS2gwIQOsDLCnD5IyU5sUOzHBWmkFyBPz5keQ=="],
-
-    "@escape.tech/graphql-armor-types": ["@escape.tech/graphql-armor-types@0.6.0", "", { "dependencies": { "graphql": "^16.0.0" } }, "sha512-Y3X6JgkB1N1MMaHNXaE2IeJWIs6wT4XcPvXM8PRWmT2DblZfY4NYiV1mh0GTInKdlnrEr5hquOR9XV+M3Da43w=="],
 
     "@fastify/busboy": ["@fastify/busboy@3.2.5", "", {}, "sha512-y8MTAeBlEQUNVnskmZQwpseZN3EgCksQNOULlfxWY6o6VEqh01+oExMgbM7gN6YLQ8pNDYeweNPKJRt8jQm2ZQ=="],
 

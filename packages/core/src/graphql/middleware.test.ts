@@ -6,8 +6,8 @@ import { Hono } from "hono";
 import { createTestDb } from "../_test/graphql.js";
 import { onchainTable } from "../drizzle/onchain.js";
 import type { Schema } from "../internal/types.js";
-import { getOperationRows } from "./cost.js";
 import { buildGraphQLSchema } from "./index.js";
+import { getOperationRows } from "./limits.js";
 import {
   createGraphQLHandler,
   createGraphQLMiddleware,
@@ -403,4 +403,64 @@ test("max request body size", async () => {
     }
   `);
   expect(queries).toEqual([]);
+});
+
+test("max operation tokens, depth, and aliases", async () => {
+  const { request, queries } = createServer({
+    options: {
+      maxOperationTokens: 40,
+      maxOperationDepth: 5,
+      maxOperationAliases: 2,
+    },
+  });
+
+  const results = await Promise.all(
+    [
+      // depth 5
+      "{ users { items { posts { items { id } } } } }",
+      // Note: A fragment counts at the depth where it is spread.
+      "{ users { items { ...user } } } fragment user on user { posts { items { author { id } } } }",
+      // 2 aliases
+      "{ a: users { items { id } } b: users { items { id } } }",
+      // Note: Aliases in a fragment count once for each spread.
+      "{ users { items { ...user } } a: users { items { ...user } } } fragment user on user { b: id }",
+      "{ users { items { id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id id } } }",
+    ].map((query) => request({ query })),
+  );
+  expect(
+    results.map(({ status, body }) => ({
+      status,
+      errors: body.errors?.map((error: { message: string }) => error.message),
+    })),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "errors": undefined,
+        "status": 200,
+      },
+      {
+        "errors": [
+          "Operation has a depth of 6, which is more than the maximum of 5.",
+        ],
+        "status": 200,
+      },
+      {
+        "errors": undefined,
+        "status": 200,
+      },
+      {
+        "errors": [
+          "Operation has 3 aliases, which is more than the maximum of 2.",
+        ],
+        "status": 200,
+      },
+      {
+        "errors": [
+          "Syntax Error: Document contains more that 40 tokens. Parsing aborted.",
+        ],
+        "status": 200,
+      },
+    ]
+  `);
+  expect(queries.length).toMatchInlineSnapshot(`3`);
 });
