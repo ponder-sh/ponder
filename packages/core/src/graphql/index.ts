@@ -536,14 +536,21 @@ export function buildGraphQLSchema({
       // Find the primary key columns and GraphQL core types and include them
       // as arguments to the singular query type.
       args: Object.fromEntries(
-        table.primaryKey.map((column) => [
-          getColumnTsName(column),
-          {
-            type: new GraphQLNonNull(
-              columnToGraphQLCore(column, enumTypes) as GraphQLInputType,
-            ),
-          },
-        ]),
+        table.primaryKey.map((primaryKeyColumn) => {
+          const columnName = getColumnTsName(primaryKeyColumn);
+          // Note: The columns of a composite primary key are copies that
+          // aren't instances of the column classes and don't have the `enum`
+          // property, so use the table's column instead.
+          const column = table.columns[columnName]!;
+          return [
+            columnName,
+            {
+              type: new GraphQLNonNull(
+                columnToGraphQLCore(column, enumTypes) as GraphQLInputType,
+              ),
+            },
+          ];
+        }),
       ),
       resolve: async (_parent, args, context) => {
         const loader = context.getDataLoader({ table });

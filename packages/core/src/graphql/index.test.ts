@@ -772,7 +772,7 @@ test("enum primary key", () => {
     }
 
     type Query {
-      table(a: String!, enum: String!): table
+      table(a: String!, enum: testEnum!): table
       tables(where: tableFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int, offset: Int): tablePage!
       _meta: Meta
     }"
@@ -3372,27 +3372,56 @@ test("view limit/offset pagination", async () => {
   `);
 });
 
-// BUG: The singular field takes an enum primary key column as `String!`,
-// though the column and its filter use the GraphQL enum type.
-test.failing("enum primary key argument uses the enum type", () => {
+test("composite primary key arguments use the column types", async () => {
   const testEnum = onchainEnum("enum", ["A", "B"]);
   const table = onchainTable(
     "table",
     (t) => ({
-      a: t.text().notNull(),
+      int: t.integer().notNull(),
       enum: testEnum("enum").notNull(),
+      name: t.text(),
     }),
     (table) => ({
-      pk: primaryKey({ columns: [table.a, table.enum] }),
+      pk: primaryKey({ columns: [table.int, table.enum] }),
     }),
   );
-  const { graphqlSchema } = createGraphQL({ testEnum, table });
+  const { graphqlSchema, query, queries } = createGraphQL(
+    { testEnum, table },
+    () => [{ int: 1, enum: "A", name: "a" }],
+  );
 
-  const arg = graphqlSchema
-    .getQueryType()!
-    .getFields()
-    .table!.args.find(({ name }) => name === "enum")!;
-  expect(String(arg.type)).toBe("testEnum!");
+  const args = graphqlSchema.getQueryType()!.getFields().table!.args;
+  expect(
+    args.map(({ name, type }) => `${name}: ${type}`),
+  ).toMatchInlineSnapshot(`
+    [
+      "int: Int!",
+      "enum: testEnum!",
+    ]
+  `);
+
+  const result = await query(`{ table(int: 1, enum: A) { name } }`);
+  expect(result).toMatchInlineSnapshot(`
+    {
+      "data": {
+        "table": {
+          "name": "a",
+        },
+      },
+    }
+  `);
+  expect(queries).toMatchInlineSnapshot(`
+    [
+      {
+        "params": [
+          1,
+          "A",
+          1,
+        ],
+        "sql": "select "int", "enum", "name" from "table" "table" where ("table"."int" = $1 and "table"."enum" = $2) limit $3",
+      },
+    ]
+  `);
 });
 
 // BUG: A view's `count()` column is exposed as `JSON`, though it is a number.
