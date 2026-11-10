@@ -3,11 +3,12 @@ import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { Effect } from "effect";
 import { GraphQLError, type GraphQLSchema, printSchema } from "graphql";
-import { createYoga, maskError } from "graphql-yoga";
+import { createYoga, maskError, type Plugin } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
 import { Db, type DbClient } from "../database/db.js";
 import type { Schema } from "../internal/types.js";
 import type { ReadonlyDrizzle } from "../types/db.js";
+import { getOperationRows } from "./cost.js";
 import { graphiQLHtml } from "./graphiql.html.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
@@ -18,6 +19,13 @@ export type GraphQLOptions = {
   maxOperationDepth?: number;
   /** Maximum number of aliases in an operation. Default: `30`. */
   maxOperationAliases?: number;
+  /**
+   * Maximum number of rows that an operation can select, where the `limit`
+   * arguments of nested plural fields multiply. Default: `100_000`.
+   */
+  maxOperationRows?: number;
+  /** Maximum size of a request body in bytes. Default: `1_048_576` (1 MiB). */
+  maxRequestBodySize?: number;
 };
 
 // Note: The token, depth, and alias limits are from Apollo:
@@ -26,6 +34,8 @@ const defaultOptions = {
   maxOperationTokens: 1000,
   maxOperationDepth: 100,
   maxOperationAliases: 30,
+  maxOperationRows: 100_000,
+  maxRequestBodySize: 1_048_576,
 } satisfies Required<GraphQLOptions>;
 
 /**
@@ -94,7 +104,10 @@ const makeGraphQL = ({
       options,
     });
 
-    return createGraphQLMiddleware({ yoga });
+    return createGraphQLMiddleware({
+      yoga,
+      maxRequestBodySize: options.maxRequestBodySize,
+    });
   });
 
 /**
@@ -103,16 +116,70 @@ const makeGraphQL = ({
  */
 export const createGraphQLMiddleware = ({
   yoga,
+  maxRequestBodySize,
 }: {
   yoga: { handle: (request: Request) => Response | Promise<Response> };
-}) =>
-  createMiddleware(async (c) => {
+  maxRequestBodySize: number;
+}) => {
+  return createMiddleware(async (c) => {
     if (c.req.method === "GET") {
       return c.html(graphiQLHtml);
     }
 
-    return yoga.handle(c.req.raw);
+    const body = await readBody(c.req.raw, maxRequestBodySize);
+    if (body === undefined) {
+      return c.json(
+        {
+          errors: [
+            {
+              message: `Request body is larger than the maximum of ${maxRequestBodySize} bytes.`,
+            },
+          ],
+        },
+        413,
+      );
+    }
+
+    return yoga.handle(
+      new Request(c.req.raw.url, {
+        method: c.req.raw.method,
+        headers: c.req.raw.headers,
+        // Note: A HEAD request can't have a body.
+        body: c.req.method === "HEAD" ? undefined : body,
+        signal: c.req.raw.signal,
+      }),
+    );
   });
+};
+
+/**
+ * Read the body of `request` as text, or return `undefined` as soon as it is
+ * larger than `maxSize` bytes.
+ */
+const readBody = async (
+  request: Request,
+  maxSize: number,
+): Promise<string | undefined> => {
+  const contentLength = Number(request.headers.get("content-length"));
+  if (contentLength > maxSize) return undefined;
+  if (request.body === null) return "";
+
+  const decoder = new TextDecoder();
+  let body = "";
+  let size = 0;
+  const reader = request.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxSize) {
+      await reader.cancel();
+      return undefined;
+    }
+    body += decoder.decode(value, { stream: true });
+  }
+  return body + decoder.decode();
+};
 
 /**
  * Create the graphql-yoga server that executes GraphQL requests against
@@ -169,8 +236,29 @@ export const createGraphQLHandler = ({
         ignoreIntrospection: false,
       }),
       maxAliasesPlugin({ n: options.maxOperationAliases, allowList: [] }),
+      maxRowsPlugin(options.maxOperationRows),
     ],
   });
+
+/**
+ * Reject operations that can select more than `maxRows` rows. This runs
+ * before execution instead of during validation so that `limit` arguments
+ * from variables count.
+ */
+const maxRowsPlugin = (maxRows: number): Plugin => ({
+  onExecute: ({ args, setResultAndStopExecution }) => {
+    const rows = getOperationRows(args);
+    if (rows > maxRows) {
+      setResultAndStopExecution({
+        errors: [
+          new GraphQLError(
+            `Operation can select up to ${rows} rows, which is more than the maximum of ${maxRows}. Use smaller limit arguments for nested fields.`,
+          ),
+        ],
+      });
+    }
+  },
+});
 
 /**
  * Write the GraphQL schema to `generated/schema.graphql`.

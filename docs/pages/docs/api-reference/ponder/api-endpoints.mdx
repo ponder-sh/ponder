@@ -139,6 +139,22 @@ app.use("/graphql", graphql({ db, schema })); // [!code focus]
 export default app;
 ```
 
+#### Limits
+
+The second argument sets the limits that protect the database from expensive queries. Requests that exceed a limit fail before any query runs.
+
+| field                   |   type   |  default  | description                                                                                                                                              |
+| :---------------------- | :------: | :-------: | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **maxOperationRows**    | `number` | `100000`  | Maximum number of rows an operation can select. The `limit` arguments of nested plural fields multiply, e.g. `users(limit: 100) { items { posts(limit: 50) } }` selects up to 5,100 rows. |
+| **maxRequestBodySize**  | `number` | `1048576` | Maximum size of a request body in bytes. Larger requests return status code `413`.                                                                       |
+| **maxOperationTokens**  | `number` |  `1000`   | Maximum number of tokens in an operation.                                                                                                                |
+| **maxOperationDepth**   | `number` |   `100`   | Maximum depth of an operation.                                                                                                                           |
+| **maxOperationAliases** | `number` |   `30`    | Maximum number of aliases in an operation.                                                                                                               |
+
+```ts [src/api/index.ts]
+app.use("/graphql", graphql({ db, schema }, { maxOperationRows: 10_000 }));
+```
+
 ### `client`
 
 The `client` function is a Hono middleware that serves SQL over HTTP queries submitted by `@ponder/client`.

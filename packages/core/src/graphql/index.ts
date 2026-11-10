@@ -100,8 +100,8 @@ type PluralArgs = {
   orderDirection?: "asc" | "desc";
 };
 
-const DEFAULT_LIMIT = 50 as const;
-const MAX_LIMIT = 1000 as const;
+export const DEFAULT_LIMIT = 50;
+export const MAX_LIMIT = 1000;
 
 export function buildGraphQLSchema({
   schema,

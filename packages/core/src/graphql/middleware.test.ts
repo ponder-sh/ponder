@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import { relations } from "drizzle-orm";
 import { Effect } from "effect";
+import { parse } from "graphql";
 import { Hono } from "hono";
 import { createTestDb } from "../_test/graphql.js";
 import { onchainTable } from "../drizzle/onchain.js";
 import type { Schema } from "../internal/types.js";
+import { getOperationRows } from "./cost.js";
 import { buildGraphQLSchema } from "./index.js";
 import {
   createGraphQLHandler,
@@ -49,10 +51,18 @@ const createServer = ({
       maxOperationTokens: 1000,
       maxOperationDepth: 100,
       maxOperationAliases: 30,
+      maxOperationRows: 100_000,
+      maxRequestBodySize: 1_048_576,
       ...options,
     },
   });
-  const app = new Hono().use("/graphql", createGraphQLMiddleware({ yoga }));
+  const app = new Hono().use(
+    "/graphql",
+    createGraphQLMiddleware({
+      yoga,
+      maxRequestBodySize: options?.maxRequestBodySize ?? 1_048_576,
+    }),
+  );
 
   const request = async (
     body: unknown,
@@ -274,4 +284,123 @@ test("unexpected errors are reported and masked in production", async () => {
       },
     ]
   `);
+});
+
+test("operation rows", () => {
+  const graphqlSchema = buildGraphQLSchema({ schema: schema as Schema });
+  const rows = (query: string, variableValues?: Record<string, unknown>) =>
+    getOperationRows({
+      schema: graphqlSchema,
+      document: parse(query),
+      variableValues,
+    });
+
+  expect({
+    default: rows("{ users { items { id } } }"),
+    limit: rows("{ users(limit: 1000) { items { id } } }"),
+    totalCount: rows("{ users(limit: 10) { totalCount } }"),
+    singular: rows(`{ user(id: "a") { id } }`),
+    nested: rows(
+      "{ users(limit: 10) { items { posts(limit: 20) { items { author { id } } } } } }",
+    ),
+    variables: rows(
+      "query ($n: Int) { users(limit: $n) { items { posts { items { id } } } } }",
+      { n: 100 },
+    ),
+    fragments: rows(
+      "{ a: users(limit: 2) { ...page } b: users(limit: 3) { ...page } } fragment page on userPage { items { ... on user { posts(limit: 10) { items { id } } } } }",
+    ),
+    // Note: Limits above the maximum fail in the resolver.
+    aboveMaximum: rows("{ users(limit: 5000) { items { id } } }"),
+    introspection: rows("{ __schema { types { name } } }"),
+  }).toMatchInlineSnapshot(`
+    {
+      "aboveMaximum": 1000,
+      "default": 50,
+      "fragments": 55,
+      "introspection": 0,
+      "limit": 1000,
+      "nested": 410,
+      "singular": 1,
+      "totalCount": 11,
+      "variables": 5100,
+    }
+  `);
+});
+
+test("max operation rows", async () => {
+  const { request, queries } = createServer();
+
+  const nested = (n: number) =>
+    `{ users(limit: ${n}) { items { posts(limit: ${n}) { totalCount items { author { posts(limit: ${n}) { items { id } } } } } } } }`;
+
+  expect([
+    await request({ query: nested(20) }),
+    await request({ query: nested(50) }),
+    await request({
+      query:
+        "query ($n: Int) { users(limit: $n) { items { posts(limit: $n) { items { id } } } } }",
+      variables: { n: 1000 },
+    }),
+  ]).toMatchInlineSnapshot(`
+    [
+      {
+        "body": {
+          "data": {
+            "users": {
+              "items": [],
+            },
+          },
+        },
+        "status": 200,
+      },
+      {
+        "body": {
+          "errors": [
+            {
+              "message": "Operation can select up to 130100 rows, which is more than the maximum of 100000. Use smaller limit arguments for nested fields.",
+            },
+          ],
+        },
+        "status": 200,
+      },
+      {
+        "body": {
+          "errors": [
+            {
+              "message": "Operation can select up to 1001000 rows, which is more than the maximum of 100000. Use smaller limit arguments for nested fields.",
+            },
+          ],
+        },
+        "status": 200,
+      },
+    ]
+  `);
+  expect(queries.length).toMatchInlineSnapshot(`1`);
+});
+
+test("max request body size", async () => {
+  const { request, queries } = createServer({
+    options: { maxRequestBodySize: 100 },
+  });
+
+  expect(
+    await request({
+      query:
+        "query ($ids: [String]) { users(where: { id_in: $ids }) { items { id } } }",
+      variables: { ids: Array.from({ length: 100 }, (_, i) => String(i)) },
+    }),
+  ).toMatchInlineSnapshot(`
+    {
+      "body": {
+        "errors": [
+          {
+            "message": "Request body is larger than the maximum of 100 bytes.",
+          },
+        ],
+      },
+      "status": 413,
+    }
+  `);
+  expect(queries).toEqual([]);
 });
