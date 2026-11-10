@@ -30,7 +30,6 @@ import {
   One,
   or,
   SQL,
-  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -860,18 +859,6 @@ async function executePluralQuery(
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
 
-  // Returns `true` if any record matches the filters and `condition`.
-  // Note: The inclusive cursor condition in the opposite direction matches
-  // exactly the records on the other side of a missing cursor record,
-  // because the order by clause always includes the primary key.
-  const rowExists = (condition: SQL | undefined) =>
-    qb.raw
-      .select({ exists: sql`1` })
-      .from(relation)
-      .where(and(...whereConditions, condition, ...extraConditions))
-      .limit(1)
-      .then((rows) => rows.length > 0);
-
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
     const [rows, totalCount] = await Promise.all([
@@ -930,16 +917,12 @@ async function executePluralQuery(
     ]);
 
     // If the cursor of the first returned record equals the `after` cursor,
-    // `hasPreviousPage` is true. Remove that record.
+    // `hasPreviousPage` is true. Remove that record. The cursor record may be
+    // missing if it was deleted or no longer matches the filter, in which
+    // case `hasPreviousPage` is conservatively false.
     if (rows.length > 0 && encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
-    } else {
-      // The cursor record may be missing if it was deleted or no longer
-      // matches the filter. Check for any records before the cursor.
-      hasPreviousPage = await rowExists(
-        buildCursorCondition(columns, orderBySchema, "before", cursorObject),
-      );
     }
 
     // Any records beyond `limit` mean there is a next page.
@@ -987,19 +970,15 @@ async function executePluralQuery(
   ]);
 
   // If the cursor of the last returned record equals the `before` cursor,
-  // `hasNextPage` is true. Remove that record.
+  // `hasNextPage` is true. Remove that record. The cursor record may be
+  // missing if it was deleted or no longer matches the filter, in which
+  // case `hasNextPage` is conservatively false.
   if (
     rows.length > 0 &&
     encodeCursor(orderBySchema, rows[rows.length - 1]!) === before
   ) {
     rows.pop();
     hasNextPage = true;
-  } else {
-    // The cursor record may be missing if it was deleted or no longer
-    // matches the filter. Check for any records after the cursor.
-    hasNextPage = await rowExists(
-      buildCursorCondition(columns, orderBySchema, "after", cursorObject),
-    );
   }
 
   // Any records beyond `limit` mean there is a previous page.

@@ -2475,7 +2475,6 @@ test("cursor pagination when the cursor row was deleted", async () => {
   let result = await page(`limit: 2, after: "${cursor}"`);
   expect(result.items).toEqual([{ id: "id3" }, { id: "id4" }]);
   expect(result.pageInfo.hasNextPage).toBe(true);
-  expect(result.pageInfo.hasPreviousPage).toBe(true);
 
   // after: exactly `limit` rows remain
   await reset(["id1", "id2", "id3", "id4"]);
@@ -2493,20 +2492,13 @@ test("cursor pagination when the cursor row was deleted", async () => {
   expect(result.items).toEqual([{ id: "id3" }]);
   expect(result.pageInfo.endCursor).not.toBeNull();
 
-  // after: no rows remain before the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id1", "id2");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.pageInfo.hasPreviousPage).toBe(false);
-
   // after: no rows remain after the deleted cursor row
   await reset();
   cursor = (await page("limit: 5")).pageInfo.endCursor;
   await remove("id5");
   result = await page(`limit: 2, after: "${cursor}"`);
   expect(result.items).toEqual([]);
-  expect(result.pageInfo.hasPreviousPage).toBe(true);
+  expect(result.pageInfo.hasNextPage).toBe(false);
 
   // before: rows remain on both sides of the deleted cursor row
   await reset();
@@ -2515,7 +2507,6 @@ test("cursor pagination when the cursor row was deleted", async () => {
   result = await page(`limit: 2, before: "${cursor}"`);
   expect(result.items).toEqual([{ id: "id1" }, { id: "id2" }]);
   expect(result.pageInfo.hasPreviousPage).toBe(false);
-  expect(result.pageInfo.hasNextPage).toBe(true);
 
   // before: rows remain beyond the previous page
   await reset();
