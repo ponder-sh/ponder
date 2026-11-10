@@ -367,8 +367,10 @@ export function buildGraphQLSchema({
                   const referenceColumnTsName =
                     getColumnTsName(referenceColumn);
 
-                  rowFragment[referenceColumnTsName] =
-                    parent[fieldColumnTsName];
+                  const value = parent[fieldColumnTsName];
+                  // A `NULL` reference never matches a row (like a SQL join).
+                  if (value === null || value === undefined) return null;
+                  rowFragment[referenceColumnTsName] = value;
                 }
                 const encodedId = encodeRowFragment(rowFragment);
 

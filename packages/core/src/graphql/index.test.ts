@@ -664,6 +664,63 @@ test("singular with one relation using camel case 'references' column name", asy
   });
 });
 
+test("singular with one relation and null reference", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    handle: t.text(),
+  }));
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerHandle: t.text(),
+  }));
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, {
+      fields: [pet.ownerHandle],
+      references: [person.handle],
+    }),
+  }));
+  const schema = { person, pet, petRelations };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.person).values([
+    { id: "jake", handle: "jj" },
+    { id: "kyle", handle: null },
+  ]);
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "dog1", ownerHandle: "jj" },
+    { id: "dog2", ownerHandle: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets {
+        items {
+          id
+          owner {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // A null reference does not match rows with a null referenced column.
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([
+    { id: "dog1", owner: { id: "jake" } },
+    { id: "dog2", owner: null },
+  ]);
+});
+
 test("singular with many relation", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
