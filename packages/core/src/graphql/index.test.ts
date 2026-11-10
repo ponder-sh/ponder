@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
-import { count, relations } from "drizzle-orm";
+import { count, getTableColumns, relations } from "drizzle-orm";
+import { customType } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect } from "effect";
 import {
   type ExecutionResult,
   execute,
+  type GraphQLInputObjectType,
   type GraphQLNamedType,
   type GraphQLObjectType,
   type GraphQLSchema,
@@ -16,6 +18,7 @@ import {
   onchainEnum,
   onchainTable,
   onchainView,
+  type PgColumnsBuilders,
   primaryKey,
 } from "../drizzle/onchain.js";
 import type { Schema } from "../internal/types.js";
@@ -153,6 +156,133 @@ test("scalar, scalar not null, scalar array, scalar array not null", () => {
       hexArrayNotNull: [String!]!
       bigintArrayNotNull: [BigInt!]!
     }"
+  `);
+});
+
+test("column type mapping", () => {
+  const simpleEnum = onchainEnum("SimpleEnum", ["VALUE", "ANOTHER_VALUE"]);
+  const custom = customType<{ data: string }>({ dataType: () => "text" });
+  const columns = (t: PgColumnsBuilders) => ({
+    boolean: t.boolean(),
+    smallint: t.smallint(),
+    integer: t.integer(),
+    int8Number: t.int8({ mode: "number" }),
+    int8Bigint: t.int8({ mode: "bigint" }),
+    real: t.real(),
+    doublePrecision: t.doublePrecision(),
+    numeric: t.numeric(),
+    numericNumber: t.numeric({ mode: "number" }),
+    numericBigint: t.numeric({ mode: "bigint" }),
+    bigint: t.bigint(),
+    text: t.text(),
+    varchar: t.varchar(),
+    char: t.char(),
+    hex: t.hex(),
+    bytes: t.bytes(),
+    uuid: t.uuid(),
+    inet: t.inet(),
+    cidr: t.cidr(),
+    macaddr: t.macaddr(),
+    macaddr8: t.macaddr8(),
+    time: t.time(),
+    interval: t.interval(),
+    timestamp: t.timestamp(),
+    timestampString: t.timestamp({ mode: "string" }),
+    date: t.date({ mode: "date" }),
+    dateString: t.date(),
+    json: t.json(),
+    jsonb: t.jsonb(),
+    pointTuple: t.point(),
+    pointXy: t.point({ mode: "xy" }),
+    lineTuple: t.line(),
+    lineAbc: t.line({ mode: "abc" }),
+    geometry: t.geometry(),
+    vector: t.vector({ dimensions: 2 }),
+    halfvec: t.halfvec({ dimensions: 2 }),
+    sparsevec: t.sparsevec({ dimensions: 2 }),
+    bit: t.bit({ dimensions: 2 }),
+    custom: custom(),
+    enum: simpleEnum(),
+    textArray: t.text().array(),
+    enumArray: simpleEnum().array(),
+    integerArray2d: t.integer().array().array(),
+    jsonArray: t.json().array(),
+  });
+
+  // Note: Each column gets its own table, so a column that fails to build
+  // doesn't hide the others.
+  const names = Object.keys(
+    getTableColumns(onchainTable("table", columns)),
+  ) as (keyof ReturnType<typeof columns>)[];
+  const mapping = names.map((name) => {
+    const table = onchainTable("table", (t) => ({
+      id: t.text().primaryKey(),
+      [name]: columns(t)[name],
+    }));
+    try {
+      const { graphqlSchema } = createGraphQL({ simpleEnum, table });
+      const field = (
+        graphqlSchema.getType("table") as GraphQLObjectType
+      ).getFields()[name]!;
+      const filterFields = (
+        graphqlSchema.getType("tableFilter") as GraphQLInputObjectType
+      ).getFields();
+      const suffixes = Object.keys(filterFields)
+        .filter((f) => f === name || f.startsWith(`${name}_`))
+        .map((f) => f.slice(name.length) || "eq");
+      return `${name}: ${field.type} | ${filterFields[name]?.type ?? "-"} | ${suffixes.join(" ")}`;
+    } catch (error) {
+      return `${name}: error: ${(error as Error).message}`;
+    }
+  });
+
+  expect(mapping).toMatchInlineSnapshot(`
+    [
+      "boolean: Boolean | Boolean | eq _not _in _not_in",
+      "smallint: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
+      "integer: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
+      "int8Number: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
+      "int8Bigint: BigInt | BigInt | eq _not _in _not_in _gt _lt _gte _lte",
+      "real: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
+      "doublePrecision: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
+      "numeric: Numeric | Numeric | eq _not _in _not_in _gt _lt _gte _lte",
+      "numericNumber: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
+      "numericBigint: BigInt | BigInt | eq _not _in _not_in _gt _lt _gte _lte",
+      "bigint: BigInt | BigInt | eq _not _in _not_in _gt _lt _gte _lte",
+      "text: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "varchar: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "char: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "hex: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with",
+      "bytes: [Int!] | [Int] | eq _not _has _not_has",
+      "uuid: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "inet: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "cidr: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "macaddr: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "macaddr8: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "time: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "interval: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "timestamp: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "timestampString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "date: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "dateString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "json: JSON | - | ",
+      "jsonb: JSON | - | ",
+      "pointTuple: error: undefined is not an object (evaluating 'column.columnType')",
+      "pointXy: JSON | - | ",
+      "lineTuple: error: undefined is not an object (evaluating 'column.columnType')",
+      "lineAbc: JSON | - | ",
+      "geometry: [Float!] | [Float] | eq _not _has _not_has",
+      "vector: [Float!] | [Float] | eq _not _has _not_has",
+      "halfvec: error: undefined is not an object (evaluating 'column.columnType')",
+      "sparsevec: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "bit: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "custom: error: Type custom is not implemented",
+      "enum: simpleEnum | simpleEnum | eq _not _in _not_in",
+      "textArray: [String!] | [String] | eq _not _has _not_has",
+      "enumArray: [simpleEnum!] | [simpleEnum] | eq _not _has _not_has",
+      "integerArray2d: [[Int!]!] | [Int] | eq _not _has _not_has",
+      "jsonArray: [JSON!] | [JSON] | eq _not _has _not_has",
+    ]
   `);
 });
 
