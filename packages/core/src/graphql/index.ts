@@ -1,9 +1,10 @@
 import DataLoader from "dataloader";
-import type { Column, TableRelationalConfig } from "drizzle-orm";
+import type { DriverValueDecoder, TableRelationalConfig } from "drizzle-orm";
 import {
   and,
   arrayContains,
   asc,
+  Column,
   count,
   createTableRelationsHelpers,
   desc,
@@ -353,7 +354,9 @@ export function buildGraphQLSchema({
           viewConfig.selectedFields,
         )) {
           if (is(column, SQL.Aliased)) {
-            fieldConfigMap[columnName] = { type: GraphQLJSON };
+            fieldConfigMap[columnName] = {
+              type: aliasedToGraphQLCore(column, enumTypes),
+            };
           } else {
             const type = columnToGraphQLCore(column as PgColumn, enumTypes);
             fieldConfigMap[columnName] = {
@@ -735,6 +738,39 @@ const buildFilterFields = (
   }
 
   return filterFields;
+};
+
+/**
+ * Returns the GraphQL type of an aliased SQL expression in a view, e.g.
+ * `count().as("count")`, based on the decoder set with `.mapWith()`.
+ *
+ * Note: Aggregates like `max()` can return `NULL`, so the type is nullable.
+ */
+const aliasedToGraphQLCore = (
+  aliased: SQL.Aliased,
+  enumTypes: Record<string, GraphQLEnumType>,
+): GraphQLOutputType => {
+  // Note: `decoder` is set by `.mapWith()`, but isn't part of drizzle's types.
+  const decoder = (
+    aliased.sql as unknown as { decoder: DriverValueDecoder<unknown, unknown> }
+  ).decoder;
+
+  // e.g. `max(column)` and `sql`...`.mapWith(column)`
+  if (is(decoder, Column)) return columnToGraphQLCore(decoder, enumTypes);
+
+  // Note: `Number` values aren't necessarily integers, e.g. `avg()`.
+  switch (decoder.mapFromDriverValue) {
+    case Number:
+      return GraphQLFloat;
+    case String:
+      return GraphQLString;
+    case Boolean:
+      return GraphQLBoolean;
+    case BigInt:
+      return GraphQLBigInt;
+    default:
+      return GraphQLJSON;
+  }
 };
 
 const innerType = (

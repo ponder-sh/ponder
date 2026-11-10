@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { count, getTableColumns, relations } from "drizzle-orm";
+import {
+  avg,
+  count,
+  countDistinct,
+  getTableColumns,
+  max,
+  relations,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { customType } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect } from "effect";
@@ -3509,7 +3518,7 @@ test("view with alias", async () => {
     "type petView {
       id: String!
       name: String!
-      count: JSON
+      count: Float
     }"
   `);
 
@@ -3747,24 +3756,51 @@ test("composite primary key arguments use the column types", async () => {
   `);
 });
 
-// BUG: A view's `count()` column is exposed as `JSON`, though it is a number.
-test.failing("view aggregate column is not typed JSON", () => {
+test("view aggregate column types", () => {
+  const testEnum = onchainEnum("enum", ["A", "B"]);
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
-    name: t.text().notNull(),
+    age: t.integer().notNull(),
+    weight: t.bigint(),
+    kind: testEnum("kind"),
   }));
   const petView = onchainView("pet_view").as((qb) =>
     qb
-      .select({ id: pet.id, count: count().as("count") })
+      .select({
+        id: pet.id,
+        count: count().as("count"),
+        countDistinct: countDistinct(pet.age).as("count_distinct"),
+        sum: sum(pet.age).as("sum"),
+        avg: avg(pet.age).as("avg"),
+        maxAge: max(pet.age).as("max_age"),
+        maxWeight: max(pet.weight).as("max_weight"),
+        maxKind: max(pet.kind).as("max_kind"),
+        isOld: sql<boolean>`bool_and(${pet.age} > 10)`
+          .mapWith(Boolean)
+          .as("is_old"),
+        raw: sql`array_agg(${pet.age})`.as("raw"),
+      })
       .from(pet)
       .groupBy(pet.id),
   );
-  const { graphqlSchema } = createGraphQL({ pet, petView });
+  const { graphqlSchema } = createGraphQL({ testEnum, pet, petView });
 
-  const field = (
-    graphqlSchema.getType("petView") as GraphQLObjectType
-  ).getFields().count!;
-  expect(String(field.type)).not.toBe("JSON");
+  // Note: The type comes from the decoder set with `.mapWith()`, and
+  // expressions without one are typed `JSON`.
+  expect(printTypes(graphqlSchema, "petView")).toMatchInlineSnapshot(`
+    "type petView {
+      id: String!
+      count: Float
+      countDistinct: Float
+      sum: String
+      avg: String
+      maxAge: Int
+      maxWeight: BigInt
+      maxKind: testEnum
+      isOld: Boolean
+      raw: JSON
+    }"
+  `);
 });
 
 // BUG: The dataloader batches a null foreign key into the relation lookup.
