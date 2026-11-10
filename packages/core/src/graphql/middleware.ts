@@ -2,14 +2,31 @@ import { maxAliasesPlugin } from "@escape.tech/graphql-armor-max-aliases";
 import { maxDepthPlugin } from "@escape.tech/graphql-armor-max-depth";
 import { maxTokensPlugin } from "@escape.tech/graphql-armor-max-tokens";
 import { Effect } from "effect";
-import { type GraphQLSchema, printSchema } from "graphql";
-import { createYoga } from "graphql-yoga";
+import { GraphQLError, type GraphQLSchema, printSchema } from "graphql";
+import { createYoga, maskError } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { Db } from "../database/db.js";
+import { Db, type DbClient } from "../database/db.js";
 import type { Schema } from "../internal/types.js";
 import type { ReadonlyDrizzle } from "../types/db.js";
 import { graphiQLHtml } from "./graphiql.html.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
+
+export type GraphQLOptions = {
+  /** Maximum number of tokens in an operation. Default: `1000`. */
+  maxOperationTokens?: number;
+  /** Maximum depth of an operation. Default: `100`. */
+  maxOperationDepth?: number;
+  /** Maximum number of aliases in an operation. Default: `30`. */
+  maxOperationAliases?: number;
+};
+
+// Note: The token, depth, and alias limits are from Apollo:
+// https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limits
+const defaultOptions = {
+  maxOperationTokens: 1000,
+  maxOperationDepth: 100,
+  maxOperationAliases: 30,
+} satisfies Required<GraphQLOptions>;
 
 /**
  * Middleware for GraphQL with an interactive web view.
@@ -31,21 +48,7 @@ import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
  */
 export const graphql = (
   { schema }: { db: ReadonlyDrizzle<Schema>; schema: Schema },
-  {
-    maxOperationTokens = 1000,
-    maxOperationDepth = 100,
-    maxOperationAliases = 30,
-  }: {
-    maxOperationTokens?: number;
-    maxOperationDepth?: number;
-    maxOperationAliases?: number;
-  } = {
-    // Default limits are from Apollo:
-    // https://www.apollographql.com/blog/prevent-graph-misuse-with-operation-size-and-complexity-limits
-    maxOperationTokens: 1000,
-    maxOperationDepth: 100,
-    maxOperationAliases: 30,
-  },
+  options: GraphQLOptions = {},
 ) => {
   if (globalThis.PONDER_API_CONTEXT === undefined) {
     throw new Error(
@@ -54,12 +57,7 @@ export const graphql = (
   }
 
   return Effect.runSyncWith(globalThis.PONDER_API_CONTEXT)(
-    makeGraphQL({
-      schema,
-      maxOperationTokens,
-      maxOperationDepth,
-      maxOperationAliases,
-    }),
+    makeGraphQL({ schema, options: { ...defaultOptions, ...options } }),
   );
 };
 
@@ -69,18 +67,14 @@ export const graphql = (
  */
 const makeGraphQL = ({
   schema,
-  maxOperationTokens,
-  maxOperationDepth,
-  maxOperationAliases,
+  options,
 }: {
   schema: Schema;
-  maxOperationTokens: number;
-  maxOperationDepth: number;
-  maxOperationAliases: number;
+  options: Required<GraphQLOptions>;
 }) =>
   Effect.gen(function* () {
+    const context = yield* Effect.context<Db>();
     const db = (yield* Db).readonly;
-    const runPromise = Effect.runPromiseWith(yield* Effect.context<Db>());
 
     const graphqlSchema = buildGraphQLSchema({ schema });
 
@@ -88,43 +82,94 @@ const makeGraphQL = ({
       generateSchema({ graphqlSchema }).pipe(Effect.ignore),
     );
 
-    const yoga = createYoga({
-      graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
-      schema: graphqlSchema,
-      context: () => {
-        const getDataLoader = buildDataLoaderCache({ db, runPromise });
+    const yoga = createGraphQLHandler({
+      graphqlSchema,
+      db,
+      runPromise: Effect.runPromiseWith(context),
+      maskErrors: process.env.NODE_ENV === "production",
+      onUnexpectedError: (error) =>
+        Effect.runForkWith(context)(
+          Effect.logWarning({ msg: "Failed to execute GraphQL query", error }),
+        ),
+      options,
+    });
 
-        return { db, runPromise, getDataLoader };
+    return createGraphQLMiddleware({ yoga });
+  });
+
+/**
+ * Create the Hono middleware that serves GraphiQL for `GET` requests and
+ * passes other requests to `yoga`.
+ */
+export const createGraphQLMiddleware = ({
+  yoga,
+}: {
+  yoga: { handle: (request: Request) => Response | Promise<Response> };
+}) =>
+  createMiddleware(async (c) => {
+    if (c.req.method === "GET") {
+      return c.html(graphiQLHtml);
+    }
+
+    return yoga.handle(c.req.raw);
+  });
+
+/**
+ * Create the graphql-yoga server that executes GraphQL requests against
+ * `graphqlSchema`.
+ *
+ * Errors that aren't `GraphQLError`s (e.g. database errors) are passed to
+ * `onUnexpectedError`, and replaced with "Unexpected error." if `maskErrors`.
+ */
+export const createGraphQLHandler = ({
+  graphqlSchema,
+  db,
+  runPromise,
+  maskErrors,
+  onUnexpectedError,
+  options,
+}: {
+  graphqlSchema: GraphQLSchema;
+  db: DbClient;
+  runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
+  maskErrors: boolean;
+  onUnexpectedError: (error: unknown) => void;
+  options: Required<GraphQLOptions>;
+}) =>
+  createYoga({
+    graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
+    schema: graphqlSchema,
+    context: () => ({
+      db,
+      runPromise,
+      getDataLoader: buildDataLoaderCache({ db, runPromise }),
+    }),
+    maskedErrors: {
+      maskError: (error, message) => {
+        const originalError =
+          error instanceof GraphQLError ? error.originalError : error;
+        if (
+          originalError === undefined ||
+          originalError instanceof GraphQLError
+        ) {
+          return error as Error;
+        }
+
+        onUnexpectedError(originalError);
+        return maskErrors ? maskError(error, message, false) : (error as Error);
       },
-      maskedErrors: process.env.NODE_ENV === "production",
-      logging: false,
-      graphiql: false,
-      parserAndValidationCache: false,
-      plugins: [
-        maxTokensPlugin({ n: maxOperationTokens }),
-        maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
-        maxAliasesPlugin({ n: maxOperationAliases, allowList: [] }),
-      ],
-    });
-
-    return createMiddleware(async (c) => {
-      if (c.req.method === "GET") {
-        return c.html(graphiQLHtml);
-      }
-
-      const response = await yoga.handle(c.req.raw);
-      if (response.status === 200) return response;
-      // set response status to 200, must construct a new response object because Response.status is readonly
-
-      // TODO: Figure out why Yoga is returning 500 status codes for GraphQL errors.
-      const body = response.body;
-      const headers = new Headers(response.headers);
-      return new Response(body, {
-        status: 200,
-        statusText: "OK",
-        headers,
-      });
-    });
+    },
+    logging: false,
+    graphiql: false,
+    parserAndValidationCache: false,
+    plugins: [
+      maxTokensPlugin({ n: options.maxOperationTokens }),
+      maxDepthPlugin({
+        n: options.maxOperationDepth,
+        ignoreIntrospection: false,
+      }),
+      maxAliasesPlugin({ n: options.maxOperationAliases, allowList: [] }),
+    ],
   });
 
 /**

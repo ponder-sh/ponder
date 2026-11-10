@@ -10,7 +10,6 @@ import {
   sum,
 } from "drizzle-orm";
 import { customType } from "drizzle-orm/pg-core";
-import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect } from "effect";
 import {
   type ExecutionResult,
@@ -23,7 +22,7 @@ import {
   printType,
   validate,
 } from "graphql";
-import type { DbClient } from "../database/db.js";
+import { createTestDb } from "../_test/graphql.js";
 import {
   onchainEnum,
   onchainTable,
@@ -36,36 +35,14 @@ import { EVENT_TYPES, encodeCheckpoint } from "../utils/checkpoint.js";
 import { buildDataLoaderCache, buildGraphQLSchema } from "./index.js";
 
 /**
- * Executes GraphQL operations against `schema` without a database.
- *
- * Every SQL statement is recorded in `queries`. `rows` returns the canned
- * result rows for a statement, as objects whose keys are in column order.
+ * Executes GraphQL operations against `schema` without a database. See
+ * `createTestDb`.
  */
 const createGraphQL = (
   schema: Schema,
-  rows: (
-    sql: string,
-    params: unknown[],
-  ) => Record<string, unknown>[] = () => [],
+  rows?: Parameters<typeof createTestDb>[1],
 ) => {
-  const queries: { sql: string; params: unknown[] }[] = [];
-
-  const raw = drizzle(
-    async (sql, params, method) => {
-      queries.push({ sql, params });
-      const result = rows(sql, params);
-      // Note: `db.execute()` resolves to the node-postgres result object.
-      return {
-        rows:
-          method === "all"
-            ? result.map(Object.values)
-            : ({ rows: result } as unknown as unknown[]),
-      };
-    },
-    { casing: "snake_case", schema },
-  );
-  // Note: GraphQL queries use `drizzle` directly, not `query`, which retries.
-  const db = { dialect: "postgres", drizzle: raw } as unknown as DbClient;
+  const { db, queries } = createTestDb(schema, rows);
   const runPromise = Effect.runPromise;
 
   const graphqlSchema = buildGraphQLSchema({ schema });
