@@ -1463,6 +1463,65 @@ test("filter input type", async () => {
   });
 });
 
+test("filter list columns that aren't arrays", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    data: t.bytes(),
+    jsonArray: t.json().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", data: new Uint8Array([1, 2]) },
+    { id: "id2", data: new Uint8Array([3]) },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  // Bytes columns are represented as lists, but are not SQL arrays, and
+  // `json` has no equality operator.
+  const fields = Object.keys(
+    (graphqlSchema.getType("petFilter") as any).getFields(),
+  );
+  expect(fields.filter((f) => f.startsWith("data"))).toEqual([
+    "data",
+    "data_not",
+  ]);
+  expect(fields.filter((f) => f.startsWith("jsonArray"))).toEqual([]);
+
+  const result = await query(`
+    query {
+      pets(where: { data: [1, 2] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }]);
+
+  // Views get the same filters as tables.
+  const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
+  const viewSchema = buildGraphQLSchema({ schema: { pet, petView } });
+  const viewFields = Object.keys(
+    (viewSchema.getType("petViewFilter") as any).getFields(),
+  );
+  expect(viewFields.filter((f) => f.startsWith("data"))).toEqual([
+    "data",
+    "data_not",
+  ]);
+  expect(viewFields.filter((f) => f.startsWith("jsonArray"))).toEqual([]);
+});
+
 test("filter universal", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.bigint().primaryKey(),

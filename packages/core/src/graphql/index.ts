@@ -144,15 +144,21 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Bytes are not SQL arrays => no containment filters.
+            if (column.columnType !== "PgBytes") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
@@ -232,15 +238,21 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Bytes are not SQL arrays => no containment filters.
+            if ((column as PgColumn).columnType !== "PgBytes") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
