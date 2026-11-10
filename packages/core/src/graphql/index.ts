@@ -127,171 +127,32 @@ export function buildGraphQLSchema({
   }
 
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
+  const buildFilterType = (name: string, columns: Record<string, Column>) => {
+    const filterType: GraphQLInputObjectType = new GraphQLInputObjectType({
+      name: `${name}Filter`,
+      fields: () => ({
+        // Logical operators
+        AND: { type: new GraphQLList(filterType) },
+        OR: { type: new GraphQLList(filterType) },
+        ...buildFilterFields(columns, enumTypes),
+      }),
+    });
+    entityFilterTypes[name] = filterType;
+  };
+
   for (const table of tables) {
-    const filterType = new GraphQLInputObjectType({
-      name: `${table.tsName}Filter`,
-      fields: () => {
-        const filterFields: GraphQLInputFieldConfigMap = {
-          // Logical operators
-          AND: { type: new GraphQLList(filterType) },
-          OR: { type: new GraphQLList(filterType) },
-        };
-
-        for (const [columnName, column] of Object.entries(table.columns)) {
-          const type = columnToGraphQLCore(column, enumTypes);
-
-          // List fields => universal, plural
-          if (type instanceof GraphQLList) {
-            const baseType = innerType(type);
-
-            conditionSuffixes.universal.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = {
-                type: new GraphQLList(baseType),
-              };
-            });
-
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
-          }
-
-          // JSON => no filters.
-          // Boolean => universal and singular only.
-          // All other scalar => universal, singular, numeric OR string depending on type
-          if (
-            type instanceof GraphQLScalarType ||
-            type instanceof GraphQLEnumType
-          ) {
-            if (type.name === "JSON") continue;
-
-            conditionSuffixes.universal.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = {
-                type,
-              };
-            });
-
-            conditionSuffixes.singular.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = {
-                type: new GraphQLList(type),
-              };
-            });
-
-            if (["String", "ID"].includes(type.name)) {
-              const stringConditionSuffixes =
-                column.columnType === "PgHex"
-                  ? conditionSuffixes.string.filter(
-                      (suffix) => suffix.endsWith("_nocase") === false,
-                    )
-                  : conditionSuffixes.string;
-
-              stringConditionSuffixes.forEach((suffix) => {
-                filterFields[`${columnName}${suffix}`] = {
-                  type: type,
-                };
-              });
-            }
-
-            if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
-              conditionSuffixes.numeric.forEach((suffix) => {
-                filterFields[`${columnName}${suffix}`] = {
-                  type: type,
-                };
-              });
-            }
-          }
-        }
-
-        return filterFields;
-      },
-    });
-    entityFilterTypes[table.tsName] = filterType;
+    buildFilterType(table.tsName, table.columns);
   }
-
   for (const [viewName, view] of views) {
-    const viewConfig = getViewConfig(view);
-    const filterType = new GraphQLInputObjectType({
-      name: `${viewName}Filter`,
-      fields: () => {
-        const filterFields: GraphQLInputFieldConfigMap = {
-          // Logical operators
-          AND: { type: new GraphQLList(filterType) },
-          OR: { type: new GraphQLList(filterType) },
-        };
-
-        for (const [columnName, column] of Object.entries(
-          viewConfig.selectedFields,
-        )) {
-          if (is(column, SQL.Aliased)) {
-            // Note: Aliased column filters are not supported by GraphQL because they don't have an associated type.
-            continue;
-          }
-          const type = columnToGraphQLCore(column as PgColumn, enumTypes);
-
-          // List fields => universal, plural
-          if (type instanceof GraphQLList) {
-            const baseType = innerType(type);
-
-            conditionSuffixes.universal.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = {
-                type: new GraphQLList(baseType),
-              };
-            });
-
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
-          }
-
-          // JSON => no filters.
-          // Boolean => universal and singular only.
-          // All other scalar => universal, singular, numeric OR string depending on type
-          if (
-            type instanceof GraphQLScalarType ||
-            type instanceof GraphQLEnumType
-          ) {
-            if (type.name === "JSON") continue;
-
-            conditionSuffixes.universal.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = {
-                type,
-              };
-            });
-
-            conditionSuffixes.singular.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = {
-                type: new GraphQLList(type),
-              };
-            });
-
-            if (["String", "ID"].includes(type.name)) {
-              const stringConditionSuffixes =
-                (column as PgColumn).columnType === "PgHex"
-                  ? conditionSuffixes.string.filter(
-                      (suffix) => suffix.endsWith("_nocase") === false,
-                    )
-                  : conditionSuffixes.string;
-
-              stringConditionSuffixes.forEach((suffix) => {
-                filterFields[`${columnName}${suffix}`] = {
-                  type: type,
-                };
-              });
-            }
-
-            if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
-              conditionSuffixes.numeric.forEach((suffix) => {
-                filterFields[`${columnName}${suffix}`] = {
-                  type: type,
-                };
-              });
-            }
-          }
-        }
-
-        return filterFields;
-      },
-    });
-    entityFilterTypes[viewName] = filterType;
+    const columns: Record<string, Column> = {};
+    for (const [columnName, column] of Object.entries(
+      getViewConfig(view).selectedFields,
+    )) {
+      // Note: Aliased column filters are not supported by GraphQL because they don't have an associated type.
+      if (is(column, SQL.Aliased)) continue;
+      columns[columnName] = column as Column;
+    }
+    buildFilterType(viewName, columns);
   }
 
   const entityTypes: Record<string, GraphQLObjectType<Parent, Context>> = {};
@@ -802,6 +663,71 @@ const columnToGraphQLCore = (
     default:
       throw new Error(`Type ${column.dataType} is not implemented`);
   }
+};
+
+/** Build the filter fields of every column in `columns`. */
+const buildFilterFields = (
+  columns: Record<string, Column>,
+  enumTypes: Record<string, GraphQLEnumType>,
+): GraphQLInputFieldConfigMap => {
+  const filterFields: GraphQLInputFieldConfigMap = {};
+
+  for (const [columnName, column] of Object.entries(columns)) {
+    const type = columnToGraphQLCore(column, enumTypes);
+
+    // List fields => universal, plural
+    if (type instanceof GraphQLList) {
+      const baseType = innerType(type);
+
+      conditionSuffixes.universal.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(baseType),
+        };
+      });
+
+      conditionSuffixes.plural.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = { type: baseType };
+      });
+    }
+
+    // JSON => no filters.
+    // Boolean => universal and singular only.
+    // All other scalar => universal, singular, numeric OR string depending on type
+    if (type instanceof GraphQLScalarType || type instanceof GraphQLEnumType) {
+      if (type.name === "JSON") continue;
+
+      conditionSuffixes.universal.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = { type };
+      });
+
+      conditionSuffixes.singular.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(type),
+        };
+      });
+
+      if (["String", "ID"].includes(type.name)) {
+        const stringConditionSuffixes =
+          column.columnType === "PgHex"
+            ? conditionSuffixes.string.filter(
+                (suffix) => suffix.endsWith("_nocase") === false,
+              )
+            : conditionSuffixes.string;
+
+        stringConditionSuffixes.forEach((suffix) => {
+          filterFields[`${columnName}${suffix}`] = { type };
+        });
+      }
+
+      if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
+        conditionSuffixes.numeric.forEach((suffix) => {
+          filterFields[`${columnName}${suffix}`] = { type };
+        });
+      }
+    }
+  }
+
+  return filterFields;
 };
 
 const innerType = (
