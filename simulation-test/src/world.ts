@@ -238,7 +238,6 @@ export const runWorld = async ({
         const transports = yield* makeDbTransports({
           namespace: build.namespaceBuild,
           preBuild: build.preBuild,
-          schemaBuild: build.schemaBuild,
         });
         const db = yield* makeDb(simDb.wrap(transports));
         const rpcs = yield* Effect.forEach(build.chains, (chain) => {

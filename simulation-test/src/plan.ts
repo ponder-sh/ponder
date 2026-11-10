@@ -99,6 +99,8 @@ export type DatabasePlan = {
   transactionErrorRate: number;
   /** Latency (ms) of a statement is drawn from [min, max]. */
   latency: { min: number; max: number };
+  /** `driver` in the config. Default: `"node-postgres"`. */
+  driver?: "node-postgres" | "bun";
 };
 
 export type AddressPlan =
@@ -286,6 +288,7 @@ export const makePlan = (seed: string): Plan => {
     poolMax: dbRng.pick([8, 14, 30]),
     transactionErrorRate: dbRng.pick([0, 0.02, 0.1]),
     latency: { min: 0, max: dbRng.pick([1, 5, 20]) },
+    driver: dbRng.pick(["node-postgres", "bun"] as const),
   };
 
   return {

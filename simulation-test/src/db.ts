@@ -1,18 +1,23 @@
-import { Effect, Exit, Semaphore, Stream } from "effect";
+import { Effect, Exit, Scope, Semaphore, Stream } from "effect";
 import type { DbTransports } from "../../packages/core/src/database/db.js";
-import type { DbTransport } from "../../packages/core/src/database/transport.js";
-import { NonRetryableUserError } from "../../packages/core/src/internal/errors.js";
+import {
+  type CompiledStatement,
+  DbError,
+  type DbTransport,
+  type DbTransportTransaction,
+} from "../../packages/core/src/database/transport.js";
 import type { Plan } from "./plan.js";
 import { Rng } from "./random.js";
 import type { SimScheduler } from "./scheduler.js";
 
-/** A failure the simulation injected. Ponder retries it like a Postgres error. */
-export class InjectedDbError extends Error {
-  override name = "InjectedDbError";
-}
-
 /** Wall-clock time before the next statement may start while one waits on a lock. */
 const LOCK_WAIT_MS = 2_000;
+
+/** Postgres fails it as a serialization failure, so its transaction rolls back. */
+const ROLLBACK: CompiledStatement = {
+  sql: "DO $$ BEGIN RAISE EXCEPTION 'simulated rollback' USING ERRCODE = 'serialization_failure'; END $$",
+  params: [],
+};
 
 /**
  * Runs Postgres statements one at a time, in the order they were issued, so
@@ -56,7 +61,6 @@ export const makeDbGate = () => {
       Effect.flatMap(Effect.promise(acquire), (release) =>
         Effect.ensuring(effect, Effect.sync(release)),
       ),
-    acquire,
     lockWaits: () => lockWaits,
   };
 };
@@ -87,28 +91,29 @@ export type DbStats = {
   transactionErrors: number;
 };
 
+/** Only the first attempts of a run fail, so Ponder never runs out of retries. */
+const MAX_INJECTED_ATTEMPTS = 2;
+
 /**
  * A simulated database: wraps the transports of a Postgres database.
  *
- * Postgres runs outside the simulation, so each statement, and the BEGIN and
- * COMMIT of each transaction, goes through `io`: its result reaches the fiber
- * in a seeded order. The callback of a transaction runs inside the
- * simulation, between them.
+ * Postgres runs outside the simulation, so each list of statements, and the
+ * `BEGIN`, each `run` and the `COMMIT` of an open transaction, goes through
+ * `io`: its result reaches the fiber in a seeded order, after a latency.
  *
- * It also adds latency to each statement, and fails transactions. A failed
- * transaction rolls back after its callback ran, and Ponder runs the callback
- * again. A callback with side effects outside the transaction does them twice.
+ * At `transactionErrorRate`, a list of statements rolls back at a drawn
+ * statement: Postgres runs the statements before it, then fails with a
+ * serialization failure. A run retries it, and an open transaction runs the
+ * statements that succeeded again in a new transaction.
  *
- * It also holds a connection of the pool of a transport for each statement and
- * transaction, so that a statement waits for a connection in the simulation,
- * in a seeded order. Then the pools of Ponder never make a statement wait.
+ * A list holds a connection of the pool of its role while it runs, and an open
+ * transaction holds one until it ends, so a statement waits for a connection
+ * in the simulation, in a seeded order. Then the pools of Ponder never make a
+ * statement wait.
  *
  * `listen` never receives a notification and holds no connection. Postgres
  * sends notifications at wall-clock times, and only `/sql` live queries,
  * which the simulation does not run, use them.
- *
- * @dev Only transactions fail. Ponder retries a failed statement, and a failed
- * statement in a transaction fails the transaction.
  */
 export const makeSimDb = ({
   plan,
@@ -132,7 +137,11 @@ export const makeSimDb = ({
   const killed = Effect.suspend(() =>
     isKilled
       ? Effect.fail(
-          new NonRetryableUserError("Process killed by the simulation"),
+          new DbError({
+            sql: "",
+            cause: new Error("Process killed by the simulation"),
+            notApplied: false,
+          }),
         )
       : Effect.void,
   );
@@ -140,6 +149,43 @@ export const makeSimDb = ({
   const sleep = Effect.suspend(() =>
     Effect.sleep(rng.int(latency.min, latency.max)),
   );
+
+  /** Run `effect` outside the simulation in its turn, then wait for the latency. */
+  const io = <A, E>(effect: Effect.Effect<A, E>) =>
+    Effect.andThen(killed, scheduler.io(gate.run(effect))).pipe(
+      Effect.exit,
+      Effect.tap(() => sleep),
+      Effect.flatten,
+    );
+
+  // Note: Ponder sends the same list of statements again when it retries.
+  const attempts = new WeakMap<readonly CompiledStatement[], number>();
+  let commitAttempts = 0;
+
+  /**
+   * `statements` with a rollback at a drawn statement, or `undefined` for the
+   * statements as they are.
+   */
+  const inject = (statements: readonly CompiledStatement[]) => {
+    const attempt = attempts.get(statements) ?? 0;
+    attempts.set(statements, attempt + 1);
+    if (attempt >= MAX_INJECTED_ATTEMPTS) return undefined;
+    if (rng.bool(transactionErrorRate) === false) return undefined;
+    stats.transactionErrors++;
+    return [...statements.slice(0, rng.int(0, statements.length)), ROLLBACK];
+  };
+
+  /** Fail with an error that `ROLLBACK` caused, and die if it didn't fail. */
+  const expectRollback = <A>(effect: Effect.Effect<A, DbError>) =>
+    effect.pipe(
+      Effect.flatMap(() =>
+        Effect.die(new Error("Simulated rollback committed")),
+      ),
+      Effect.catchIf(
+        (error) => error.sql !== ROLLBACK.sql,
+        (error) => Effect.die(error),
+      ),
+    );
 
   const sizes = poolSizes(plan.database.poolMax);
   const pools = {
@@ -149,138 +195,80 @@ export const makeSimDb = ({
     sync: Semaphore.makeUnsafe(sizes.sync),
   } satisfies Record<Role, Semaphore.Semaphore>;
 
-  /**
-   * @param pool The pool of the transport, or `undefined` for the transport of
-   * a transaction, which has its connection.
-   */
-  const wrapTransport = <T extends DbTransport<any>>(
+  const wrapTransaction = (
+    tx: DbTransportTransaction,
+  ): DbTransportTransaction => ({
+    run: (statements, savepoint) =>
+      Effect.suspend(() => {
+        stats.statements += statements.length;
+        const injected = inject(statements);
+        return injected === undefined
+          ? io(tx.run(statements, savepoint))
+          : expectRollback(io(tx.run(injected, false)));
+      }),
+    commit: Effect.suspend(() => {
+      if (
+        commitAttempts < MAX_INJECTED_ATTEMPTS &&
+        rng.bool(transactionErrorRate)
+      ) {
+        commitAttempts++;
+        stats.transactionErrors++;
+        return expectRollback(io(tx.run([ROLLBACK], false)));
+      }
+      commitAttempts = 0;
+      return io(tx.commit);
+    }),
+  });
+
+  const wrapTransport = <T extends DbTransport>(
     transport: T,
-    role: Role,
-    pool: Semaphore.Semaphore | undefined,
-  ): T => {
-    const connect = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      pool === undefined ? effect : pool.withPermit(effect);
-
-    return {
-      ...transport,
-      query: (build) =>
-        connect(
+    pool: Semaphore.Semaphore,
+  ): T => ({
+    ...transport,
+    run: (statements) =>
+      Effect.suspend(() => {
+        stats.statements += statements.length;
+        stats.transactions++;
+        const injected = inject(statements);
+        return pool.withPermit(
+          injected === undefined
+            ? io(transport.run(statements))
+            : expectRollback(io(transport.run(injected))),
+        );
+      }),
+    begin: Effect.gen(function* () {
+      stats.transactions++;
+      yield* Effect.acquireRelease(pool.take(1), () => pool.release(1));
+      const { tx } = yield* Effect.acquireRelease(
+        io(
           Effect.gen(function* () {
-            yield* killed;
-            stats.statements++;
-            const result = yield* scheduler.io(
-              gate.run(transport.query(build)),
-            );
-            yield* sleep;
-            return result;
-          }),
-        ),
-      copy: (target, text) =>
-        connect(
-          Effect.andThen(
-            killed,
-            scheduler
-              .io(gate.run(transport.copy(target, text)))
-              .pipe(Effect.tap(() => sleep)),
-          ),
-        ),
-      transaction: <A, E, R>(
-        f: (tx: DbTransport<any>) => Effect.Effect<A, E, R>,
-        config?: Parameters<DbTransport["transaction"]>[1],
-      ) =>
-        connect(
-          Effect.gen(function* () {
-            yield* killed;
-            stats.transactions++;
-            const began = Promise.withResolvers<DbTransport<any>>();
-            const done = Promise.withResolvers<Exit.Exit<A, E>>();
-
-            // Note: Runs outside the simulation. BEGIN runs in its turn, which ends
-            // when the callback starts. Then it waits for the callback, and commits
-            // or rolls back.
-            const commit = yield* scheduler.outside(
-              Effect.flatMap(
-                Effect.promise(() => gate.acquire()),
-                (release) =>
-                  transport
-                    .transaction(
-                      (tx) =>
-                        Effect.promise(() => {
-                          release();
-                          began.resolve(tx);
-                          return done.promise;
-                        }).pipe(Effect.flatten),
-                      config,
-                    )
-                    .pipe(Effect.ensuring(Effect.sync(release))),
+            const scope = yield* Scope.make();
+            const tx = yield* transport.begin.pipe(
+              Scope.provide(scope),
+              Effect.onError((cause) =>
+                Scope.close(scope, Exit.failCause(cause)),
               ),
             );
-
-            return yield* Effect.gen(function* () {
-              const begin = yield* scheduler.io(
-                Effect.promise(() =>
-                  Promise.race([
-                    began.promise.then((tx) => ({ tx }) as const),
-                    commit.then((exit) => ({ exit }) as const),
-                  ]),
-                ),
-              );
-              if ("exit" in begin) {
-                // Note: BEGIN failed.
-                return yield* begin.exit as Exit.Exit<A, E | unknown>;
-              }
-
-              const exit = yield* Effect.exit(
-                f(wrapTransport(begin.tx, role, undefined)).pipe(
-                  Effect.flatMap((result) => {
-                    if (rng.bool(transactionErrorRate)) {
-                      stats.transactionErrors++;
-                      return Effect.fail(
-                        new InjectedDbError(
-                          `deadlock detected in ${role} transaction (injected by the simulation)`,
-                        ) as unknown as E,
-                      );
-                    }
-                    return Effect.succeed(result);
-                  }),
-                ),
-              );
-              // Note: COMMIT or ROLLBACK runs in its turn.
-              const result = yield* scheduler.io(
-                Effect.promise(async () => {
-                  const release = await gate.acquire();
-                  done.resolve(exit);
-                  try {
-                    return await commit;
-                  } finally {
-                    release();
-                  }
-                }),
-              );
-              yield* sleep;
-              return yield* result as Exit.Exit<A, E | unknown>;
-            }).pipe(
-              // Note: An interrupted callback rolls back the transaction.
-              Effect.ensuring(
-                Effect.sync(() => done.resolve(Exit.interrupt())),
-              ),
-            );
+            return { scope, tx };
           }),
         ),
-    };
-  };
+        ({ scope }) => scheduler.io(gate.run(Scope.close(scope, Exit.void))),
+      );
+      return wrapTransaction(tx);
+    }),
+  });
 
   return {
     /** Wrap each transport of a database. */
     wrap: (transports: DbTransports): DbTransports => ({
       dialect: transports.dialect,
       admin: {
-        ...wrapTransport(transports.admin, "admin", pools.admin),
+        ...wrapTransport(transports.admin, pools.admin),
         listen: () => Effect.succeed(Stream.never),
       },
-      user: wrapTransport(transports.user, "user", pools.user),
-      readonly: wrapTransport(transports.readonly, "readonly", pools.readonly),
-      sync: wrapTransport(transports.sync, "sync", pools.sync),
+      user: wrapTransport(transports.user, pools.user),
+      readonly: wrapTransport(transports.readonly, pools.readonly),
+      sync: wrapTransport(transports.sync, pools.sync),
     }),
     stats,
     /**

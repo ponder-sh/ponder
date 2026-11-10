@@ -225,6 +225,7 @@ export default createConfig({
   database: {
     kind: "postgres",
     connectionString: ${JSON.stringify(databaseUrl)},
+    driver: "${plan.database.driver ?? "node-postgres"}",
     poolConfig: { max: ${plan.database.poolMax} },
   },
   chains: {
