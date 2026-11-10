@@ -719,7 +719,15 @@ const buildFilterFields = (
         });
       }
 
-      if (["Int", "Float", "BigInt", "Numeric"].includes(type.name)) {
+      if (
+        ["Int", "Float", "BigInt", "Numeric", "DateTime", "Date"].includes(
+          type.name,
+        ) ||
+        // Note: Postgres compares string mode timestamps and dates as their
+        // column type, not as text.
+        column.columnType === "PgTimestampString" ||
+        column.columnType === "PgDateString"
+      ) {
         conditionSuffixes.numeric.forEach((suffix) => {
           filterFields[`${columnName}${suffix}`] = { type };
         });

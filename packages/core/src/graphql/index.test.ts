@@ -262,10 +262,10 @@ test("column type mapping", () => {
       "macaddr8: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
       "time: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
       "interval: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
-      "timestamp: DateTime | DateTime | eq _not _in _not_in",
-      "timestampString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
-      "date: Date | Date | eq _not _in _not_in",
-      "dateString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "timestamp: DateTime | DateTime | eq _not _in _not_in _gt _lt _gte _lte",
+      "timestampString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase _gt _lt _gte _lte",
+      "date: Date | Date | eq _not _in _not_in _gt _lt _gte _lte",
+      "dateString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase _gt _lt _gte _lte",
       "json: JSON | - | ",
       "jsonb: JSON | - | ",
       "pointTuple: error: undefined is not an object (evaluating 'column.columnType')",
@@ -2201,6 +2201,108 @@ test("timestamp and date", async () => {
   expect(errors(`{ day: "2024-02-30" }`)).toHaveLength(1);
   expect(errors(`{ createdAt: "2024-02-29T23:59:59.999Z" }`)).toEqual([]);
   expect(errors(`{ day: "2024-02-29" }`)).toEqual([]);
+});
+
+test("filter timestamp and date comparison", async () => {
+  const event = onchainTable("event", (t) => ({
+    id: t.text().primaryKey(),
+    timestamp: t.timestamp(),
+    timestampTz: t.timestamp({ withTimezone: true }),
+    timestampString: t.timestamp({ mode: "string" }),
+    day: t.date({ mode: "date" }),
+    dayString: t.date(),
+  }));
+  const { graphqlSchema, query, queries } = createGraphQL({ event });
+
+  const fields = Object.keys(
+    (
+      graphqlSchema.getType("eventFilter") as GraphQLInputObjectType
+    ).getFields(),
+  );
+  expect(
+    fields.filter((field) => /_(gt|lt|gte|lte)$/.test(field)),
+  ).toMatchInlineSnapshot(`
+    [
+      "timestamp_gt",
+      "timestamp_lt",
+      "timestamp_gte",
+      "timestamp_lte",
+      "timestampTz_gt",
+      "timestampTz_lt",
+      "timestampTz_gte",
+      "timestampTz_lte",
+      "timestampString_gt",
+      "timestampString_lt",
+      "timestampString_gte",
+      "timestampString_lte",
+      "day_gt",
+      "day_lt",
+      "day_gte",
+      "day_lte",
+      "dayString_gt",
+      "dayString_lt",
+      "dayString_gte",
+      "dayString_lte",
+    ]
+  `);
+
+  for (const where of [
+    `{ timestamp_gt: "2024-01-02T12:00:00Z" }`,
+    `{ timestampTz_gte: "2024-01-02T12:00:00Z" }`,
+    `{ timestampString_lt: "2024-01-02 12:00:00.123456" }`,
+    `{ timestampString_lte: "2024-01-02 12:00:00.123456" }`,
+    `{ day_gt: "2024-01-01", day_lt: "2024-01-03" }`,
+    `{ dayString_gte: "2024-01-03" }`,
+  ]) {
+    const result = await query(`{ events(where: ${where}) { items { id } } }`);
+    expect(result.errors).toBeUndefined();
+  }
+  expect(
+    queries.map(({ sql, params }) => ({
+      where: sql.match(/ where (.*) order by /)?.[1],
+      params: params.slice(0, -1),
+    })),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "params": [
+          "2024-01-02T12:00:00.000Z",
+        ],
+        "where": ""event"."timestamp" > $1",
+      },
+      {
+        "params": [
+          "2024-01-02T12:00:00.000Z",
+        ],
+        "where": ""event"."timestamp_tz" >= $1",
+      },
+      {
+        "params": [
+          "2024-01-02 12:00:00.123456",
+        ],
+        "where": ""event"."timestamp_string" < $1",
+      },
+      {
+        "params": [
+          "2024-01-02 12:00:00.123456",
+        ],
+        "where": ""event"."timestamp_string" <= $1",
+      },
+      {
+        "params": [
+          "2024-01-01T00:00:00.000Z",
+          "2024-01-03T00:00:00.000Z",
+        ],
+        "where": "("event"."day" > $1 and "event"."day" < $2)",
+      },
+      {
+        "params": [
+          "2024-01-03",
+        ],
+        "where": ""event"."day_string" >= $1",
+      },
+    ]
+  `);
 });
 
 test("filter and/or", async () => {
