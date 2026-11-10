@@ -39,8 +39,6 @@ import {
   type PgColumn,
   type PgEnum,
   PgEnumColumn,
-  PgInteger,
-  PgSerial,
   type PgTable,
   PgView,
 } from "drizzle-orm/pg-core";
@@ -768,8 +766,8 @@ const columnToGraphQLCore = (
     case "bigint":
       return GraphQLBigInt;
     case "number":
-      return is(column, PgInteger) ||
-        is(column, PgSerial) ||
+      // Note: Integer types with at most 32 bits use `Int`.
+      return int32ColumnTypes.includes(column.columnType) ||
         is(column, PgBigInt53)
         ? GraphQLInt
         : GraphQLFloat;
@@ -1082,6 +1080,13 @@ const conditionSuffixes = {
     "_not_ends_with_nocase",
   ],
 } as const;
+
+const int32ColumnTypes = [
+  "PgInteger",
+  "PgSmallInt",
+  "PgSerial",
+  "PgSmallSerial",
+];
 
 const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
   .flat()

@@ -239,7 +239,7 @@ test("column type mapping", () => {
   expect(mapping).toMatchInlineSnapshot(`
     [
       "boolean: Boolean | Boolean | eq _not _in _not_in",
-      "smallint: Float | Float | eq _not _in _not_in _gt _lt _gte _lte",
+      "smallint: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
       "integer: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
       "int8Number: Int | Int | eq _not _in _not_in _gt _lt _gte _lte",
       "int8Bigint: BigInt | BigInt | eq _not _in _not_in _gt _lt _gte _lte",
@@ -282,6 +282,66 @@ test("column type mapping", () => {
       "enumArray: [simpleEnum!] | [simpleEnum] | eq _not _has _not_has",
       "integerArray2d: [[Int!]!] | [Int] | eq _not _has _not_has",
       "jsonArray: [JSON!] | [JSON] | eq _not _has _not_has",
+    ]
+  `);
+});
+
+test("smallint column", async () => {
+  const table = onchainTable("table", (t) => ({
+    id: t.text().primaryKey(),
+    small: t.smallint(),
+  }));
+  const { graphqlSchema, query, queries } = createGraphQL({ table }, () => [
+    { id: "1", small: 32767 },
+  ]);
+
+  expect(printTypes(graphqlSchema, "table")).toMatchInlineSnapshot(`
+    "type table {
+      id: String!
+      small: Int
+    }"
+  `);
+  const filterFields = (
+    graphqlSchema.getType("tableFilter") as GraphQLInputObjectType
+  ).getFields();
+  expect(filterFields.small_gt!.type.toString()).toMatchInlineSnapshot(`"Int"`);
+
+  const results = [
+    await query("{ tables(where: { small_gt: 0 }) { items { id small } } }"),
+    // Note: Postgres rejects fractional values for smallint columns.
+    await query("{ tables(where: { small_gt: 0.5 }) { items { id small } } }"),
+  ];
+  expect(results).toMatchInlineSnapshot(`
+    [
+      {
+        "data": {
+          "tables": {
+            "items": [
+              {
+                "id": "1",
+                "small": 32767,
+              },
+            ],
+          },
+        },
+      },
+      {
+        "data": null,
+        "errors": [
+          [GraphQLError: Argument "where" has invalid value {small_gt: 0.5}.],
+        ],
+      },
+    ]
+  `);
+  expect(queries).toMatchInlineSnapshot(`
+    [
+      {
+        "params": [
+          0,
+          51,
+        ],
+        "sql": "select "id", "small" from "table" where "table"."small" > $1 order by "table"."id" asc limit $2",
+      },
     ]
   `);
 });
