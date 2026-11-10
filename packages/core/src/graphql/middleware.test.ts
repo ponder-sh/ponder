@@ -464,3 +464,23 @@ test("max operation tokens, depth, and aliases", async () => {
   `);
   expect(queries.length).toMatchInlineSnapshot(`3`);
 });
+
+test("limits apply to cached documents", async () => {
+  const { request } = createServer({
+    options: { maxOperationTokens: 20, maxOperationDepth: 3 },
+  });
+
+  const errors = async (query: string) =>
+    (await request({ query })).body.errors?.map(
+      (error: { message: string }) => error.message,
+    );
+
+  // Note: The second request of each document hits the parser cache.
+  for (const query of [
+    "{ users { items { posts { items { id } } } } }",
+    "{ users { items { id id id id id id id id id id id id id id id id } } }",
+  ]) {
+    expect(await errors(query)).toEqual(await errors(query));
+    expect(await errors(query)).toHaveLength(1);
+  }
+});
