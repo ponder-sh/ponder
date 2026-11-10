@@ -309,7 +309,7 @@ test("smallint column", async () => {
       {
         "data": null,
         "errors": [
-          [GraphQLError: Argument "where" has invalid value {small_gt: 0.5}.],
+          [GraphQLError: Argument "Query.tables(where:)" has invalid value at .small_gt: Int cannot represent non-integer value: 0.5],
         ],
       },
     ]
@@ -406,6 +406,10 @@ test("int8 number mode column", async () => {
 
 test("schema name errors", () => {
   const status = onchainEnum("status", ["in-progress", "done"]);
+  const task = onchainTable("task", (t) => ({
+    id: t.text().primaryKey(),
+    status: status(),
+  }));
   const user = onchainTable("user", (t) => ({ id: t.text().primaryKey() }));
   const users = onchainTable("users", (t) => ({ id: t.text().primaryKey() }));
   const meta = onchainTable("_meta", (t) => ({ id: t.text().primaryKey() }));
@@ -419,7 +423,7 @@ test("schema name errors", () => {
 
   expect(
     [
-      { status },
+      { status, task },
       { user, users },
       { _meta: meta },
       { PageInfo: pageInfo },
@@ -434,7 +438,7 @@ test("schema name errors", () => {
     }),
   ).toMatchInlineSnapshot(`
     [
-      "Failed to build the GraphQL schema: Enum "status" is invalid. Names must only contain [_a-zA-Z0-9] but "in-progress" does not.",
+      "Failed to build the GraphQL schema: Names must only contain [_a-zA-Z0-9] but "in-progress" does not.",
       "Failed to build the GraphQL schema: The query field "users" is defined by both table "user" and table "users". Rename one of them.",
       "Failed to build the GraphQL schema: The query field "_meta" is defined by both table "_meta" and the built-in metadata. Rename one of them.",
       "Failed to build the GraphQL schema: Schema must contain uniquely named types but contains multiple types named "PageInfo".",
@@ -1885,17 +1889,17 @@ test("BigInt and Numeric input", async () => {
   ]).toMatchInlineSnapshot(`
     [
       [
-        "Expected value of type "BigInt", found ""; Invalid BigInt value "". Expected an integer string, e.g. "123".",
+        "Expected value of type "BigInt", but encountered error "Invalid BigInt value "". Expected an integer string, e.g. "123"."; found: "".",
       ],
       [
-        "Expected value of type "BigInt", found " 0x10 "; Invalid BigInt value " 0x10 ". Expected an integer string, e.g. "123".",
+        "Expected value of type "BigInt", but encountered error "Invalid BigInt value " 0x10 ". Expected an integer string, e.g. "123"."; found: " 0x10 ".",
       ],
       [
-        "Expected value of type "BigInt", found "1.5"; Invalid BigInt value "1.5". Expected an integer string, e.g. "123".",
+        "Expected value of type "BigInt", but encountered error "Invalid BigInt value "1.5". Expected an integer string, e.g. "123"."; found: "1.5".",
       ],
       [],
       [
-        "Expected value of type "Numeric", found "abc"; Invalid Numeric value "abc". Expected a decimal string, e.g. "1.5".",
+        "Expected value of type "Numeric", but encountered error "Invalid Numeric value "abc". Expected a decimal string, e.g. "1.5"."; found: "abc".",
       ],
       [],
     ]
@@ -1920,7 +1924,7 @@ test("BigInt and Numeric input", async () => {
       undefined,
       undefined,
       [
-        "Variable "$where" got invalid value true at "where.balance"; Expected type "BigInt". Invalid BigInt value true. Expected an integer string, e.g. "123".",
+        "Variable "$where" has invalid value at .balance: Expected value of type "BigInt", but encountered error "Invalid BigInt value true. Expected an integer string, e.g. "123"."; found: true.",
       ],
     ]
   `);
@@ -2503,13 +2507,13 @@ test("timestamp and date", async () => {
   ]).toMatchInlineSnapshot(`
     [
       [
-        "Expected value of type "DateTime", found "yesterday"; Invalid DateTime value "yesterday". Expected an ISO 8601 date-time string.",
+        "Expected value of type "DateTime", but encountered error "Invalid DateTime value "yesterday". Expected an ISO 8601 date-time string."; found: "yesterday".",
       ],
       [
-        "Expected value of type "Date", found "2024-06-01T00:00:00Z"; Invalid Date value "2024-06-01T00:00:00Z". Expected a YYYY-MM-DD string.",
+        "Expected value of type "Date", but encountered error "Invalid Date value "2024-06-01T00:00:00Z". Expected a YYYY-MM-DD string."; found: "2024-06-01T00:00:00Z".",
       ],
       [
-        "Expected value of type "DateTime", found 1717245000123; Invalid DateTime value 1717245000123. Expected an ISO 8601 date-time string.",
+        "Expected value of type "DateTime", but encountered error "Invalid DateTime value 1717245000123. Expected an ISO 8601 date-time string."; found: 1717245000123.",
       ],
     ]
   `);

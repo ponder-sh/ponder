@@ -63,8 +63,8 @@
     "drizzle-orm": "0.41.0",
     "effect": "4.0.5",
     "glob": "10.5.0",
-    "graphql": "16.14.2",
-    "graphql-yoga": "5.24.6",
+    "graphql": "17.0.2",
+    "graphql-yoga": "6.0.1",
     "pg": "8.16.2",
     "pg-connection-string": "2.9.1",
     "pg-copy-streams": "6.0.6",
@@ -92,6 +92,6 @@
     "mitata": "1.0.34"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.15"
   }
 }

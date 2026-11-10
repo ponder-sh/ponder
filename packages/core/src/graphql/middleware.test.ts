@@ -456,7 +456,7 @@ test("max operation tokens, depth, and aliases", async () => {
       },
       {
         "errors": [
-          "Syntax Error: Document contains more that 40 tokens. Parsing aborted.",
+          "Syntax Error: Document contains more than 40 tokens. Parsing aborted.",
         ],
         "status": 200,
       },

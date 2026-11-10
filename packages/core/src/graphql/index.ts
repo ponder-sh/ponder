@@ -47,6 +47,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { Effect } from "effect";
 import {
+  assertValidSchema,
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLError,
@@ -55,7 +56,6 @@ import {
   GraphQLFloat,
   type GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
-  type GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -383,9 +383,7 @@ export function buildGraphQLSchema({
           return [
             columnName,
             {
-              type: new GraphQLNonNull(
-                columnToGraphQLCore(column, enumTypes) as GraphQLInputType,
-              ),
+              type: new GraphQLNonNull(columnToGraphQLCore(column, enumTypes)),
             },
           ];
         }),
@@ -500,7 +498,10 @@ export function buildGraphQLSchema({
   });
 
   try {
-    return buildSchema(queryFields);
+    const graphqlSchema = buildSchema(queryFields);
+    // Note: graphql-js 17 doesn't validate names until the first request.
+    assertValidSchema(graphqlSchema);
+    return graphqlSchema;
   } catch (error) {
     throw new Error(
       `Failed to build the GraphQL schema: ${(error as Error).message}`,
@@ -551,10 +552,16 @@ const GraphQLMeta = new GraphQLObjectType({
   fields: { status: { type: GraphQLJSON } },
 });
 
+/** The GraphQL type of a column value, which is both an output and an input type. */
+type ColumnGraphQLType =
+  | GraphQLScalarType
+  | GraphQLEnumType
+  | GraphQLList<GraphQLNonNull<ColumnGraphQLType>>;
+
 const columnToGraphQLCore = (
   column: Column,
   enumTypes: Record<string, GraphQLEnumType>,
-): GraphQLOutputType => {
+): ColumnGraphQLType => {
   if (column.columnType === "PgEvmBigint") {
     return GraphQLBigInt;
   }
@@ -753,7 +760,7 @@ const buildFilterFields = (
 const aliasedToGraphQLCore = (
   aliased: SQL.Aliased,
   enumTypes: Record<string, GraphQLEnumType>,
-): GraphQLOutputType => {
+): ColumnGraphQLType => {
   // Note: `decoder` is set by `.mapWith()`, but isn't part of drizzle's types.
   const decoder = (
     aliased.sql as unknown as { decoder: DriverValueDecoder<unknown, unknown> }
