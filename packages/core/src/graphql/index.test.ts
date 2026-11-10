@@ -1004,6 +1004,102 @@ test("singular with one relation using camel case 'references' column name", asy
   `);
 });
 
+test("one relation without fields uses the inverse relation", async () => {
+  const user = onchainTable("user", (t) => ({ id: t.text().primaryKey() }));
+  const profile = onchainTable("profile", (t) => ({
+    id: t.text().primaryKey(),
+    userId: t.text().notNull(),
+  }));
+  const userRelations = relations(user, ({ one }) => ({
+    profile: one(profile),
+  }));
+  const profileRelations = relations(profile, ({ one }) => ({
+    user: one(user, { fields: [profile.userId], references: [user.id] }),
+  }));
+  const { query, queries } = createGraphQL(
+    { user, profile, userRelations, profileRelations },
+    (sql) =>
+      sql.includes('from "user"')
+        ? [{ id: "u1" }, { id: "u2" }]
+        : [{ id: "p2", userId: "u2" }],
+  );
+
+  const result = await query("{ users { items { id profile { id } } } }");
+  expect(result).toMatchInlineSnapshot(`
+    {
+      "data": {
+        "users": {
+          "items": [
+            {
+              "id": "u1",
+              "profile": null,
+            },
+            {
+              "id": "u2",
+              "profile": {
+                "id": "p2",
+              },
+            },
+          ],
+        },
+      },
+    }
+  `);
+  expect(queries.map(({ sql }) => sql)).toMatchInlineSnapshot(`
+    [
+      "select "id" from "user" order by "user"."id" asc limit $1",
+      "select "id", "user_id" from "profile" "profile" where ("profile"."user_id" = $1 or "profile"."user_id" = $2) limit $3",
+    ]
+  `);
+});
+
+test("many relation with an ambiguous inverse relation", () => {
+  const account = onchainTable("account", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const transfer = onchainTable("transfer", (t) => ({
+    id: t.text().primaryKey(),
+    from: t.text().notNull(),
+    to: t.text().notNull(),
+    parentId: t.text(),
+  }));
+  const accountRelations = relations(account, ({ many }) => ({
+    transfers: many(transfer),
+  }));
+  const transferRelations = relations(transfer, ({ one, many }) => ({
+    fromAccount: one(account, {
+      fields: [transfer.from],
+      references: [account.id],
+    }),
+    toAccount: one(account, {
+      fields: [transfer.to],
+      references: [account.id],
+    }),
+    // Note: A self-relation has one inverse.
+    parent: one(transfer, {
+      fields: [transfer.parentId],
+      references: [transfer.id],
+    }),
+    children: many(transfer),
+  }));
+
+  expect(() =>
+    createGraphQL({ account, transfer, accountRelations, transferRelations }),
+  ).toThrowErrorMatchingInlineSnapshot(`"Failed to build the GraphQL field for relation "account.transfers": Found 2 "one" relations in table "transfer" that reference "account". Use "relationName" to choose one."`);
+  expect(() =>
+    createGraphQL({
+      transfer,
+      transferRelations: relations(transfer, ({ one, many }) => ({
+        parent: one(transfer, {
+          fields: [transfer.parentId],
+          references: [transfer.id],
+        }),
+        children: many(transfer),
+      })),
+    }),
+  ).not.toThrow();
+});
+
 test("singular with many relation", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),

@@ -1,5 +1,9 @@
 import DataLoader from "dataloader";
-import type { DriverValueDecoder, TableRelationalConfig } from "drizzle-orm";
+import type {
+  DriverValueDecoder,
+  Relation,
+  TableRelationalConfig,
+} from "drizzle-orm";
 import {
   and,
   arrayContains,
@@ -197,16 +201,14 @@ export function buildGraphQLSchema({
               `Internal error: Referenced entity types not found for table "${referencedTable.tsName}" `,
             );
 
+          const { fields, references } = getRelationColumns(
+            table,
+            relationName,
+            relation,
+            referencedTable,
+          );
+
           if (is(relation, One)) {
-            const fields = relation.config?.fields ?? [];
-            const references = relation.config?.references ?? [];
-
-            if (fields.length !== references.length) {
-              throw new Error(
-                "Internal error: Fields and references arrays must be the same length",
-              );
-            }
-
             fieldConfigMap[relationName] = {
               // Note: There is a `relation.isNullable` field here but it appears
               // to be internal / incorrect. Until we have support for foreign
@@ -219,15 +221,8 @@ export function buildGraphQLSchema({
 
                 const rowFragment: Record<string, unknown> = {};
                 for (let i = 0; i < references.length; i++) {
-                  const referenceColumn = references[i]!;
-                  const fieldColumn = fields[i]!;
-
-                  const fieldColumnTsName = getColumnTsName(fieldColumn);
-                  const referenceColumnTsName =
-                    getColumnTsName(referenceColumn);
-
-                  rowFragment[referenceColumnTsName] =
-                    parent[fieldColumnTsName];
+                  rowFragment[getColumnTsName(references[i]!)] =
+                    parent[getColumnTsName(fields[i]!)];
                 }
                 const encodedId = encodeRowFragment(rowFragment);
 
@@ -235,51 +230,6 @@ export function buildGraphQLSchema({
               },
             };
           } else if (is(relation, Many)) {
-            // Search the relations of the referenced table for the corresponding `one` relation.
-            // If `relation.relationName` is not provided, use the first `one` relation that references this table.
-
-            let oneRelation: One | undefined;
-
-            // Note: can find the wrong relation if `relationName` is undefined.
-            // The first relation will be found.
-
-            if (relation.relationName !== undefined) {
-              for (const referencedRelation of Object.values(
-                referencedTable.relations,
-              )) {
-                if (
-                  is(referencedRelation, One) &&
-                  relation.relationName === referencedRelation.relationName
-                ) {
-                  oneRelation = referencedRelation;
-                  break;
-                }
-              }
-            }
-
-            if (oneRelation === undefined) {
-              for (const referencedRelation of Object.values(
-                referencedTable.relations,
-              )) {
-                if (
-                  is(referencedRelation, One) &&
-                  table.dbName === referencedRelation.referencedTableName
-                ) {
-                  oneRelation = referencedRelation;
-                  break;
-                }
-              }
-            }
-
-            if (oneRelation === undefined) {
-              throw new Error(
-                `Internal error: Relation "${relationName}" not found in table "${referencedTable.tsName}"`,
-              );
-            }
-
-            const fields = oneRelation.config?.fields ?? [];
-            const references = oneRelation.config?.references ?? [];
-
             fieldConfigMap[relationName] = {
               type: referencedEntityPageType,
               args: {
@@ -294,9 +244,9 @@ export function buildGraphQLSchema({
               resolve: (parent, args: PluralArgs, context, info) => {
                 const relationalConditions = [];
                 for (let i = 0; i < references.length; i++) {
-                  const column = fields[i]!;
-                  const value = parent[getColumnTsName(references[i]!)];
-                  relationalConditions.push(eq(column, value));
+                  relationalConditions.push(
+                    eq(references[i]!, parent[getColumnTsName(fields[i]!)]),
+                  );
                 }
 
                 const includeTotalCount = selectionIncludesField(
@@ -665,6 +615,57 @@ const columnToGraphQLCore = (
     default:
       throw new Error(`Type ${column.dataType} is not implemented`);
   }
+};
+
+/**
+ * Returns the columns that join `table` to the table of `relation`: `fields`
+ * are columns of `table` and `references` are columns of `referencedTable`.
+ *
+ * A relation without `fields` and `references`, such as `many()`, uses those
+ * of the inverse `one` relation, found by `relationName`, or else by table.
+ *
+ * Note: drizzle's `normalizeRelation` also counts the relation itself as an
+ * inverse, so it rejects a self-relation like `parent: one(person, ...)` with
+ * `children: many(person)`.
+ */
+const getRelationColumns = (
+  table: TableRelationalConfig,
+  relationName: string,
+  relation: Relation,
+  referencedTable: TableRelationalConfig,
+): { fields: Column[]; references: Column[] } => {
+  if (is(relation, One) && relation.config) {
+    return {
+      fields: relation.config.fields,
+      references: relation.config.references,
+    };
+  }
+
+  const inverseRelations = Object.values(referencedTable.relations).filter(
+    (inverse): inverse is One =>
+      inverse !== relation &&
+      is(inverse, One) &&
+      inverse.config !== undefined &&
+      (relation.relationName !== undefined
+        ? inverse.relationName === relation.relationName
+        : inverse.referencedTableName === table.dbName),
+  );
+
+  if (inverseRelations.length !== 1) {
+    throw new Error(
+      `Failed to build the GraphQL field for relation "${table.tsName}.${relationName}": ${
+        inverseRelations.length === 0
+          ? `Expected a "one" relation with "fields" and "references" in table "${referencedTable.tsName}" that references "${table.tsName}".`
+          : `Found ${inverseRelations.length} "one" relations in table "${referencedTable.tsName}" that reference "${table.tsName}". Use "relationName" to choose one.`
+      }`,
+    );
+  }
+
+  const inverse = inverseRelations[0]!;
+  return {
+    fields: inverse.config!.references,
+    references: inverse.config!.fields,
+  };
 };
 
 /** Build the filter fields of every column in `columns`. */
