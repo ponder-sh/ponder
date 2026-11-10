@@ -552,7 +552,8 @@ export type TraceEvent = {
   event: {
     id: string;
     args: { [key: string]: unknown } | readonly unknown[] | undefined;
-    result: { [key: string]: unknown } | readonly unknown[] | undefined;
+    // A function with one output decodes to that value, not an array.
+    result: unknown;
     block: UserBlock;
     transaction: UserTransaction;
     transactionReceipt?: UserTransactionReceipt;

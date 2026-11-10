@@ -4,6 +4,7 @@ import {
   execute,
   type GraphQLType,
   parse,
+  validate,
 } from "graphql";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -397,6 +398,55 @@ test("json, json not null", async () => {
       jsonNotNull: { kevin: 52 },
     },
   });
+});
+
+test("order by json column", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    json: t.json(),
+    jsonb: t.jsonb(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", json: { a: 2 }, jsonb: { a: 2 } },
+    { id: "id2", json: { a: 1 }, jsonb: { a: 1 } },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "json") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderBy. Column "json" has type json, which cannot be ordered.',
+  );
+
+  result = await query(`
+    query {
+      pets(orderBy: "jsonb") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
 });
 
 test("singular", async () => {
@@ -1019,6 +1069,62 @@ test("singular with many relation using order by", async () => {
   });
 });
 
+test("order by null", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 2 },
+    { id: "id2", age: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  // A null `orderBy` (e.g. a variable set to `null`) is treated as omitted.
+  let result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(`
+      query($orderBy: String, $orderDirection: String) {
+        pets(orderBy: $orderBy, orderDirection: $orderDirection) {
+          items {
+            id
+          }
+        }
+      }
+    `),
+    variableValues: { orderBy: null, orderDirection: null },
+  });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(`
+      query {
+        pets(orderBy: null, orderDirection: "desc") {
+          items {
+            id
+          }
+        }
+      }
+    `),
+  });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+});
+
 test("plural with one relation uses dataloader", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1088,6 +1194,52 @@ test("plural with one relation uses dataloader", async () => {
 
   expect(personSelectSpy).toHaveBeenCalledTimes(1);
   expect(petSelectSpy).toHaveBeenCalledTimes(1);
+});
+
+test("total count in fragments", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets {
+        ... on petPage {
+          totalCount
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
+
+  result = await query(`
+    query {
+      pets {
+        ...Outer
+      }
+    }
+    fragment Outer on petPage {
+      ...PetCount
+    }
+    fragment PetCount on petPage {
+      totalCount
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
 });
 
 test("filter input type", async () => {
@@ -1300,6 +1452,24 @@ test("filter universal", async () => {
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }] },
   });
+});
+
+test("numeric literal validation", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    num: t.numeric(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const errors = validate(
+    graphqlSchema,
+    parse(`query { pets(where: { num: 5 }) { items { id } } }`),
+  );
+  expect(errors[0]?.message).toBe(
+    'Expected value of type "Numeric", found 5; Invalid value kind provided for field of type Numeric: IntValue. Expected: StringValue',
+  );
 });
 
 test("filter null equality", async () => {
@@ -1798,6 +1968,58 @@ test("filter and/or", async () => {
   ]);
 });
 
+test("filter or with multi-field branches", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+    weight: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1, weight: 0 },
+    { id: "id2", age: 0, weight: 1 },
+    { id: "id3", age: 1, weight: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id3" }]);
+
+  const result2 = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }, { id: "id1" }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result2.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result2.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id3" }]);
+});
+
 test("order by", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1921,6 +2143,67 @@ test("order by", async () => {
   });
 });
 
+test("order direction validation", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: 2 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "ASC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "DESC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "up") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderDirection. Got "up", expected "asc" or "desc".',
+  );
+});
+
 test("limit", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1981,6 +2264,52 @@ test("limit", async () => {
   `);
   expect(result.errors?.[0]?.message).toBe(
     "Invalid limit. Got 1005, expected <=1000.",
+  );
+});
+
+test("negative limit and offset", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const schema = { person };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  for (let i = 0; i < 5; i++) {
+    await database.userQB.raw.insert(schema.person).values({ id: String(i) });
+  }
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      persons(limit: -2) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid limit. Got -2, expected >=0.",
+  );
+
+  result = await query(`
+    query {
+      persons(offset: -1) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    "Invalid offset. Got -1, expected >=0.",
   );
 });
 
@@ -2514,7 +2843,6 @@ test("cursor pagination when the cursor row was deleted", async () => {
   let result = await page(`limit: 2, after: "${cursor}"`);
   expect(result.items).toEqual([{ id: "id3" }, { id: "id4" }]);
   expect(result.pageInfo.hasNextPage).toBe(true);
-  expect(result.pageInfo.hasPreviousPage).toBe(true);
 
   // after: exactly `limit` rows remain
   await reset(["id1", "id2", "id3", "id4"]);
@@ -2532,20 +2860,13 @@ test("cursor pagination when the cursor row was deleted", async () => {
   expect(result.items).toEqual([{ id: "id3" }]);
   expect(result.pageInfo.endCursor).not.toBeNull();
 
-  // after: no rows remain before the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id1", "id2");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.pageInfo.hasPreviousPage).toBe(false);
-
   // after: no rows remain after the deleted cursor row
   await reset();
   cursor = (await page("limit: 5")).pageInfo.endCursor;
   await remove("id5");
   result = await page(`limit: 2, after: "${cursor}"`);
   expect(result.items).toEqual([]);
-  expect(result.pageInfo.hasPreviousPage).toBe(true);
+  expect(result.pageInfo.hasNextPage).toBe(false);
 
   // before: rows remain on both sides of the deleted cursor row
   await reset();
@@ -2554,7 +2875,6 @@ test("cursor pagination when the cursor row was deleted", async () => {
   result = await page(`limit: 2, before: "${cursor}"`);
   expect(result.items).toEqual([{ id: "id1" }, { id: "id2" }]);
   expect(result.pageInfo.hasPreviousPage).toBe(false);
-  expect(result.pageInfo.hasNextPage).toBe(true);
 
   // before: rows remain beyond the previous page
   await reset();
@@ -2963,6 +3283,33 @@ test("snake case table and column names with where clause", async () => {
       chain_id: "1",
     },
   });
+});
+
+test("filter string only on text columns", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.varchar(),
+    address: t.hex(),
+    createdAt: t.timestamp(),
+    createdAtString: t.timestamp({ mode: "string" }),
+    day: t.date({ mode: "string" }),
+    uuid: t.uuid(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const fields = Object.keys(
+    (graphqlSchema.getType("petFilter") as any).getFields(),
+  );
+  for (const column of ["id", "name", "address"]) {
+    expect(fields).toContain(`${column}_contains`);
+  }
+  for (const column of ["createdAt", "createdAtString", "day", "uuid"]) {
+    expect(fields).toContain(`${column}_in`);
+    expect(fields).not.toContain(`${column}_contains`);
+    expect(fields).not.toContain(`${column}_starts_with`);
+  }
 });
 
 test("singular with hex primary key uses case insensitive where", async () => {

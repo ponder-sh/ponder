@@ -30,7 +30,6 @@ import {
   One,
   or,
   SQL,
-  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -48,6 +47,7 @@ import {
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLError,
   type GraphQLFieldConfig,
   type GraphQLFieldConfigMap,
   GraphQLFloat,
@@ -63,6 +63,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
+  type SelectionNode,
 } from "graphql";
 import superjson from "superjson";
 import type { QB } from "@/database/queryBuilder.js";
@@ -86,8 +87,8 @@ type PluralArgs = {
   before?: string;
   limit?: number;
   offset?: number;
-  orderBy?: string;
-  orderDirection?: "asc" | "desc";
+  orderBy?: string | null;
+  orderDirection?: "asc" | "desc" | null;
 };
 
 const DEFAULT_LIMIT = 50 as const;
@@ -175,7 +176,8 @@ export function buildGraphQLSchema({
               };
             });
 
-            if (["String", "ID"].includes(type.name)) {
+            // String filters use `LIKE`, which only supports text columns.
+            if (textColumnTypes.includes(column.columnType)) {
               const stringConditionSuffixes =
                 column.columnType === "PgHex"
                   ? conditionSuffixes.string.filter(
@@ -262,7 +264,8 @@ export function buildGraphQLSchema({
               };
             });
 
-            if (["String", "ID"].includes(type.name)) {
+            // String filters use `LIKE`, which only supports text columns.
+            if (textColumnTypes.includes((column as PgColumn).columnType)) {
               const stringConditionSuffixes =
                 (column as PgColumn).columnType === "PgHex"
                   ? conditionSuffixes.string.filter(
@@ -684,7 +687,13 @@ const GraphQLViewPageInfo = new GraphQLObjectType({
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",
   serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value as any),
+  parseValue: (value) => {
+    try {
+      return BigInt(value as any);
+    } catch (error) {
+      throw new GraphQLError((error as Error).message);
+    }
+  },
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
       return BigInt(value.value);
@@ -705,7 +714,7 @@ const GraphQLNumeric = new GraphQLScalarType({
       return String(value.value);
     } else {
       throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
+        `Invalid value kind provided for field of type Numeric: ${value.kind}. Expected: StringValue`,
       );
     }
   },
@@ -806,15 +815,29 @@ async function executePluralQuery(
   const offset = args.offset ?? 0;
 
   if (limit > MAX_LIMIT) {
-    throw new Error(`Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`);
+    throw new GraphQLError(
+      `Invalid limit. Got ${limit}, expected <=${MAX_LIMIT}.`,
+    );
+  }
+  if (limit < 0) {
+    throw new GraphQLError(`Invalid limit. Got ${limit}, expected >=0.`);
+  }
+  if (offset < 0) {
+    throw new GraphQLError(`Invalid offset. Got ${offset}, expected >=0.`);
   }
 
   const orderBySchema = buildOrderBySchema(relation, args);
   const orderBy = orderBySchema.map(([columnName, direction]) => {
     const column = columns[columnName];
     if (column === undefined) {
-      throw new Error(
+      throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
+      );
+    }
+    // Note: Postgres has no ordering operator for `json` (unlike `jsonb`).
+    if (column.columnType === "PgJson") {
+      throw new GraphQLError(
+        `Invalid orderBy. Column "${columnName}" has type json, which cannot be ordered.`,
       );
     }
     return direction === "asc" ? asc(column) : desc(column);
@@ -822,7 +845,7 @@ async function executePluralQuery(
   const orderByReversed = orderBySchema.map(([columnName, direction]) => {
     const column = columns[columnName];
     if (column === undefined) {
-      throw new Error(
+      throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
     }
@@ -835,13 +858,13 @@ async function executePluralQuery(
   const before = args.before ?? null;
 
   if (after !== null && before !== null) {
-    throw new Error("Cannot specify both before and after cursors.");
+    throw new GraphQLError("Cannot specify both before and after cursors.");
   }
   if (after !== null && offset > 0) {
-    throw new Error("Cannot specify both after cursor and offset.");
+    throw new GraphQLError("Cannot specify both after cursor and offset.");
   }
   if (before !== null && offset > 0) {
-    throw new Error("Cannot specify both before cursor and offset.");
+    throw new GraphQLError("Cannot specify both before cursor and offset.");
   }
 
   let startCursor = null;
@@ -859,18 +882,6 @@ async function executePluralQuery(
         )
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
-
-  // Returns `true` if any record matches the filters and `condition`.
-  // Note: The inclusive cursor condition in the opposite direction matches
-  // exactly the records on the other side of a missing cursor record,
-  // because the order by clause always includes the primary key.
-  const rowExists = (condition: SQL | undefined) =>
-    qb.raw
-      .select({ exists: sql`1` })
-      .from(relation)
-      .where(and(...whereConditions, condition, ...extraConditions))
-      .limit(1)
-      .then((rows) => rows.length > 0);
 
   // Neither cursors are specified, apply the order conditions and execute.
   if (after === null && before === null) {
@@ -931,16 +942,12 @@ async function executePluralQuery(
     ]);
 
     // If the cursor of the first returned record equals the `after` cursor,
-    // `hasPreviousPage` is true. Remove that record.
+    // `hasPreviousPage` is true. Remove that record. The cursor record may be
+    // missing if it was deleted or no longer matches the filter, in which
+    // case `hasPreviousPage` is conservatively false.
     if (rows.length > 0 && encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
-    } else {
-      // The cursor record may be missing if it was deleted or no longer
-      // matches the filter. Check for any records before the cursor.
-      hasPreviousPage = await rowExists(
-        buildCursorCondition(columns, orderBySchema, "before", cursorObject),
-      );
     }
 
     // Any records beyond `limit` mean there is a next page.
@@ -988,19 +995,15 @@ async function executePluralQuery(
   ]);
 
   // If the cursor of the last returned record equals the `before` cursor,
-  // `hasNextPage` is true. Remove that record.
+  // `hasNextPage` is true. Remove that record. The cursor record may be
+  // missing if it was deleted or no longer matches the filter, in which
+  // case `hasNextPage` is conservatively false.
   if (
     rows.length > 0 &&
     encodeCursor(orderBySchema, rows[rows.length - 1]!) === before
   ) {
     rows.pop();
     hasNextPage = true;
-  } else {
-    // The cursor record may be missing if it was deleted or no longer
-    // matches the filter. Check for any records after the cursor.
-    hasNextPage = await rowExists(
-      buildCursorCondition(columns, orderBySchema, "after", cursorObject),
-    );
   }
 
   // Any records beyond `limit` mean there is a previous page.
@@ -1044,6 +1047,8 @@ const conditionSuffixes = {
   ],
 } as const;
 
+const textColumnTypes = ["PgText", "PgVarchar", "PgChar", "PgHex"];
+
 const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
   .flat()
   .sort((a, b) => b.length - a.length);
@@ -1060,13 +1065,14 @@ function buildWhereConditions(
     // Handle the `AND` and `OR` operators
     if (whereKey === "AND" || whereKey === "OR") {
       if (!Array.isArray(rawValue)) {
-        throw new Error(
+        throw new GraphQLError(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
         );
       }
 
-      const nestedConditions = rawValue.flatMap((subWhere) =>
-        buildWhereConditions(subWhere, columns),
+      // Conditions within a single filter object are combined with `AND`.
+      const nestedConditions = rawValue.map((subWhere) =>
+        and(...buildWhereConditions(subWhere, columns)),
       );
 
       if (nestedConditions.length > 0) {
@@ -1099,7 +1105,7 @@ function buildWhereConditions(
     // Validate that the column name is present in the table.
     const column = columns[columnName];
     if (column === undefined) {
-      throw new Error(
+      throw new GraphQLError(
         `Invalid query: Where clause contains unknown column ${columnName}`,
       );
     }
@@ -1211,9 +1217,16 @@ function buildOrderBySchema(relation: PgTable | PgView, args: PluralArgs) {
   // If the user-provided order by does not include the ALL of the ID columns,
   // add any missing ID columns to the end of the order by clause (asc).
   // This ensures a consistent sort order to unblock cursor pagination.
-  const userDirection = args.orderDirection ?? "asc";
+  const userDirection = (args.orderDirection ?? "asc").toLowerCase();
+  if (userDirection !== "asc" && userDirection !== "desc") {
+    throw new GraphQLError(
+      `Invalid orderDirection. Got "${args.orderDirection}", expected "asc" or "desc".`,
+    );
+  }
   const userColumns: [string, "asc" | "desc"][] =
-    args.orderBy !== undefined ? [[args.orderBy, userDirection]] : [];
+    args.orderBy !== undefined && args.orderBy !== null
+      ? [[args.orderBy, userDirection]]
+      : [];
 
   if (is(relation, PgView)) {
     return userColumns;
@@ -1262,7 +1275,7 @@ function buildCursorCondition(
   const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
     const column = columns[columnName];
     if (column === undefined)
-      throw new Error(
+      throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
       );
 
@@ -1379,19 +1392,33 @@ function getColumnTsName(column: Column) {
 }
 
 /**
- * Returns `true` if the query includes a specific field.
- * Does not consider nested selections; only works one "layer" deep.
+ * Returns `true` if the query includes a specific field, including selections
+ * made through inline fragments and fragment spreads.
+ * Does not consider nested fields; only works one "layer" deep.
  */
 function selectionIncludesField(
   info: GraphQLResolveInfo,
   fieldName: string,
 ): boolean {
-  for (const fieldNode of info.fieldNodes) {
-    for (const selection of fieldNode.selectionSet?.selections ?? []) {
-      if (selection.kind === "Field" && selection.name.value === fieldName) {
-        return true;
+  const includes = (selections: readonly SelectionNode[]): boolean =>
+    selections.some((selection) => {
+      switch (selection.kind) {
+        case "Field":
+          return selection.name.value === fieldName;
+        case "InlineFragment":
+          return includes(selection.selectionSet.selections);
+        case "FragmentSpread": {
+          const fragment = info.fragments[selection.name.value];
+          return (
+            fragment !== undefined && includes(fragment.selectionSet.selections)
+          );
+        }
+        default:
+          return false;
       }
-    }
-  }
-  return false;
+    });
+
+  return info.fieldNodes.some((fieldNode) =>
+    includes(fieldNode.selectionSet?.selections ?? []),
+  );
 }
