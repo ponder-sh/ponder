@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { isMainThread } from "node:worker_threads";
+import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect, Queue, Result, type Scope, Stream } from "effect";
 import { glob } from "glob";
 import { Hono } from "hono";
@@ -10,7 +11,7 @@ import { hexToNumber } from "viem";
 import { createServer, createServerModuleRunner, normalizePath } from "vite";
 import type { CliOptions } from "../bin/ponder.js";
 import type { Config } from "../config/index.js";
-import { Db } from "../database/db.js";
+import { Db, rawSql } from "../database/db.js";
 import { MAX_DATABASE_OBJECT_NAME_LENGTH } from "../drizzle/onchain.js";
 import { setApiContext } from "../internal/api.js";
 import {
@@ -380,7 +381,8 @@ export const createBuild = ({
           globalThis.PONDER_PRE_BUILD = preBuild;
           globalThis.PONDER_INDEXING_BUILD = configBuild;
           yield* setApiContext;
-          yield* setApiModule(configBuild);
+          const schema = yield* executeFile(options.schemaFile);
+          yield* setApiModule(configBuild, schema);
 
           if (!fs.existsSync(options.apiFile)) {
             const error = new BuildError(
@@ -733,7 +735,7 @@ export const createBuild = ({
           const dialect = preBuild.databaseConfig.kind;
 
           yield* db.admin
-            .query((db) => db.execute("SELECT version()"), {
+            .run(rawSql("SELECT version()"), {
               logAnnotations: { action: "database_diagnostic" },
             })
             .pipe(
@@ -787,13 +789,33 @@ const writeLogs = (
  * Make the readonly database and the RPC requests of `configBuild` available
  * to the `ponder:api` virtual module until the scope closes.
  */
-const setApiModule = (configBuild: Pick<IndexingBuild, "rpcs">) =>
+const setApiModule = (
+  configBuild: Pick<IndexingBuild, "rpcs">,
+  schema: Schema,
+) =>
   Effect.gen(function* () {
     const db = yield* Db;
     const runPromise = Effect.runPromiseWith(yield* Effect.context<never>());
 
+    const readonly = drizzle(
+      async (sql, params, method, typings) => {
+        const rows = await runPromise(
+          db.readonly.run({
+            sql,
+            params,
+            typings,
+            arrayMode: method === "all",
+          }),
+        );
+        if (method === "all") return { rows };
+        // Note: `db.execute()` resolves to `{ rows }`, and `db.$count()` reads `[0].count`.
+        return { rows: Object.assign([...rows], { rows }) };
+      },
+      { schema, casing: "snake_case" },
+    );
+
     const apiModule: ApiModule = {
-      db: db.readonly.drizzle,
+      db: readonly as unknown as ApiModule["db"],
       requests: configBuild.rpcs.map(
         (rpc) => (body) => runPromise(rpc.request(body)),
       ),

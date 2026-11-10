@@ -13,7 +13,7 @@ import {
   Stream,
 } from "effect";
 import { createIndexes, createViews } from "../database/actions.js";
-import { Db } from "../database/db.js";
+import { builder, Db } from "../database/db.js";
 import { getPonderMetaTable } from "../database/index.js";
 import {
   NonRetryableUserError,
@@ -99,7 +99,11 @@ export const isolatedController = ({
       yield* Fiber.interrupt(etaFiber);
 
       let endClock = yield* startClockEffect;
-      yield* createIndexes(db.admin, { statements: schemaBuild.statements });
+      yield* Effect.forEach(
+        createIndexes({ statements: schemaBuild.statements }),
+        (statements) => db.admin.run(statements, { label: "create_indexes" }),
+        { discard: true },
+      );
 
       if (schemaBuild.statements.indexes.sql.length > 0) {
         yield* Effect.logInfo({
@@ -114,7 +118,9 @@ export const isolatedController = ({
 
         const tables = Object.values(schemaBuild.schema).filter(isTable);
         const views = Object.values(schemaBuild.schema).filter(isView);
-        yield* createViews(db.admin, { tables, views, namespaceBuild });
+        yield* db.admin.run(createViews({ tables, views, namespaceBuild }), {
+          label: "create_views",
+        });
 
         yield* Effect.logInfo({
           msg: "Created database views",
@@ -124,11 +130,10 @@ export const isolatedController = ({
         });
       }
 
-      yield* db.admin.query(
-        (db) =>
-          db
-            .update(getPonderMetaTable(namespaceBuild.schema))
-            .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
+      yield* db.admin.run(
+        builder
+          .update(getPonderMetaTable(namespaceBuild.schema))
+          .set({ value: sql`jsonb_set(value, '{is_ready}', to_jsonb(1))` }),
         { label: "update_ready" },
       );
 

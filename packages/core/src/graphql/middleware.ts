@@ -5,7 +5,7 @@ import { Effect } from "effect";
 import { type GraphQLSchema, printSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { createMiddleware } from "hono/factory";
-import { Db } from "../database/db.js";
+import { Db, makeBuilder } from "../database/db.js";
 import type { Schema } from "../internal/types.js";
 import type { ReadonlyDrizzle } from "../types/db.js";
 import { graphiQLHtml } from "./graphiql.html.js";
@@ -83,6 +83,7 @@ const makeGraphQL = ({
     const runPromise = Effect.runPromiseWith(yield* Effect.context<Db>());
 
     const graphqlSchema = buildGraphQLSchema({ schema });
+    const schemaBuilder = makeBuilder(schema);
 
     yield* Effect.forkScoped(
       generateSchema({ graphqlSchema }).pipe(Effect.ignore),
@@ -92,9 +93,13 @@ const makeGraphQL = ({
       graphqlEndpoint: "*", // Disable built-in route validation, use Hono routing instead
       schema: graphqlSchema,
       context: () => {
-        const getDataLoader = buildDataLoaderCache({ db, runPromise });
+        const getDataLoader = buildDataLoaderCache({
+          db,
+          runPromise,
+          schemaBuilder,
+        });
 
-        return { db, runPromise, getDataLoader };
+        return { db, runPromise, schemaBuilder, getDataLoader };
       },
       maskedErrors: process.env.NODE_ENV === "production",
       logging: false,

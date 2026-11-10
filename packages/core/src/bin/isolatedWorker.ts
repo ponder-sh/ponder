@@ -97,7 +97,6 @@ export const isolatedWorker = ({
       yield* makeDbTransports({
         namespace: namespaceBuild,
         preBuild,
-        schemaBuild,
       }),
     );
 

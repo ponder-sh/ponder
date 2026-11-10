@@ -1,7 +1,13 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { createBuild } from "../../build/index.js";
-import { Db, makeDb, makeDbTransports } from "../../database/db.js";
+import {
+  builder,
+  Db,
+  makeDb,
+  makeDbTransports,
+  rawSql,
+} from "../../database/db.js";
 import {
   getPonderMetaTable,
   PONDER_CHECKPOINT_TABLE_NAME,
@@ -21,7 +27,6 @@ import {
   getLiveQueryNotifyProcedureSql,
   getViewsLiveQueryNotifyTriggerName,
 } from "../../drizzle/onchain.js";
-import { sql } from "../../index.js";
 import { buildOptions } from "../../internal/options.js";
 import { startClockEffect } from "../../utils/timer.js";
 import type { CliOptions } from "../ponder.js";
@@ -67,7 +72,6 @@ export function createViews({
           viewsSchema: undefined,
         },
         preBuild,
-        schemaBuild: { schema: {} },
       }),
     );
     yield* build
@@ -76,8 +80,8 @@ export function createViews({
 
     const endClock = yield* startClockEffect;
 
-    const schemas = yield* db.admin.query((db) =>
-      db
+    const schemas = yield* db.admin.run(
+      builder
         .select()
         .from(SCHEMATA)
         .where(eq(SCHEMATA.schemaName, cliOptions.schema!)),
@@ -93,8 +97,8 @@ export function createViews({
 
     const PONDER_META = getPonderMetaTable(cliOptions.schema!);
 
-    const meta = (yield* db.admin.query((db) =>
-      db
+    const meta = (yield* db.admin.run(
+      builder
         .select({ app: PONDER_META.value })
         .from(PONDER_META)
         .where(eq(PONDER_META.key, "app")),
@@ -129,22 +133,20 @@ export function createViews({
       return 0;
     }
 
-    yield* db.admin.query((db) =>
-      db.execute(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
+    yield* db.admin.run(
+      rawSql(`CREATE SCHEMA IF NOT EXISTS "${cliOptions.viewsSchema}"`),
     );
 
     // Note: Drop views before creating new ones because Postgres does not support
     // altering the schema of a view with CREATE OR REPLACE VIEW.
 
     for (const table of meta[0]!.app.table_names!) {
-      yield* db.admin.query((db) =>
-        db.execute(
-          `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`,
-        ),
+      yield* db.admin.run(
+        rawSql(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${table}"`),
       );
 
-      yield* db.admin.query((db) =>
-        db.execute(
+      yield* db.admin.run(
+        rawSql(
           `CREATE VIEW "${cliOptions.viewsSchema}"."${table}" AS SELECT * FROM "${cliOptions.schema!}"."${table}"`,
         ),
       );
@@ -152,14 +154,12 @@ export function createViews({
 
     if ("view_names" in meta[0]!.app) {
       for (const view of meta[0]!.app.view_names!) {
-        yield* db.admin.query((db) =>
-          db.execute(
-            `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${view}"`,
-          ),
+        yield* db.admin.run(
+          rawSql(`DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${view}"`),
         );
 
-        yield* db.admin.query((db) =>
-          db.execute(
+        yield* db.admin.run(
+          rawSql(
             `CREATE VIEW "${cliOptions.viewsSchema}"."${view}" AS SELECT * FROM "${cliOptions.schema!}"."${view}"`,
           ),
         );
@@ -175,43 +175,35 @@ export function createViews({
       duration: yield* endClock,
     });
 
-    yield* db.admin.query((db) =>
-      db.execute(
-        sql.raw(
-          `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
-        ),
+    yield* db.admin.run(
+      rawSql(
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}"`,
       ),
     );
 
-    yield* db.admin.query((db) =>
-      db.execute(
-        sql.raw(
-          `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
-        ),
+    yield* db.admin.run(
+      rawSql(
+        `DROP VIEW IF EXISTS "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
       ),
     );
 
-    yield* db.admin.query((db) =>
-      db.execute(
-        sql.raw(
-          `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_META_TABLE_NAME}"`,
-        ),
+    yield* db.admin.run(
+      rawSql(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_META_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_META_TABLE_NAME}"`,
       ),
     );
 
-    yield* db.admin.query((db) =>
-      db.execute(
-        sql.raw(
-          `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
-        ),
+    yield* db.admin.run(
+      rawSql(
+        `CREATE VIEW "${cliOptions.viewsSchema}"."${PONDER_CHECKPOINT_TABLE_NAME}" AS SELECT * FROM "${cliOptions.schema!}"."${PONDER_CHECKPOINT_TABLE_NAME}"`,
       ),
     );
 
     const notifyProcedure = getLiveQueryNotifyProcedureName();
     const channel = getLiveQueryChannelName(cliOptions.viewsSchema);
 
-    yield* db.admin.query((db) =>
-      db.execute(
+    yield* db.admin.run(
+      rawSql(
         getLiveQueryNotifyProcedureSql({
           schema: cliOptions.viewsSchema!,
           channel,
@@ -221,8 +213,8 @@ export function createViews({
 
     const trigger = getViewsLiveQueryNotifyTriggerName(cliOptions.viewsSchema);
 
-    yield* db.admin.query((db) =>
-      db.execute(
+    yield* db.admin.run(
+      rawSql(
         `
 CREATE OR REPLACE TRIGGER "${trigger}"
 AFTER INSERT OR UPDATE OR DELETE

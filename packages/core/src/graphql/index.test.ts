@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { count, relations } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect } from "effect";
 import {
   type ExecutionResult,
@@ -11,7 +10,13 @@ import {
   parse,
   printType,
 } from "graphql";
-import type { DbClient } from "../database/db.js";
+import {
+  compile,
+  type DbClient,
+  makeBuilder,
+  type Statement,
+} from "../database/db.js";
+import type { CompiledStatement } from "../database/transport.js";
 import {
   onchainEnum,
   onchainTable,
@@ -37,30 +42,29 @@ const createGraphQL = (
 ) => {
   const queries: { sql: string; params: unknown[] }[] = [];
 
-  const raw = drizzle(
-    async (sql, params, method) => {
-      queries.push({ sql, params });
-      const result = rows(sql, params);
-      // Note: `db.execute()` resolves to the node-postgres result object.
-      return {
-        rows:
-          method === "all"
-            ? result.map(Object.values)
-            : ({ rows: result } as unknown as unknown[]),
-      };
-    },
-    { casing: "snake_case", schema },
-  );
+  const runOne = (statement: Statement) => {
+    const compiled =
+      "getSQL" in statement
+        ? compile(statement)
+        : (statement as CompiledStatement);
+    queries.push({ sql: compiled.sql, params: compiled.params });
+    const result = rows(compiled.sql, compiled.params);
+    const decoded = compiled.arrayMode ? result.map(Object.values) : result;
+    return compiled.decode ? compiled.decode(decoded) : decoded;
+  };
   const db = {
     dialect: "postgres",
-    drizzle: raw,
-    query: (build: (db: typeof raw) => unknown) =>
-      Effect.tryPromise({
-        try: async () => await build(raw),
+    run: (statements: Statement | Statement[]) =>
+      Effect.try({
+        try: () =>
+          Array.isArray(statements)
+            ? statements.map(runOne)
+            : runOne(statements),
         catch: (error) => error,
       }),
   } as unknown as DbClient;
   const runPromise = Effect.runPromise;
+  const schemaBuilder = makeBuilder(schema);
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
@@ -70,7 +74,8 @@ const createGraphQL = (
       contextValue: {
         db,
         runPromise,
-        getDataLoader: buildDataLoaderCache({ db, runPromise }),
+        schemaBuilder,
+        getDataLoader: buildDataLoaderCache({ db, runPromise, schemaBuilder }),
       },
       document: parse(source),
     });

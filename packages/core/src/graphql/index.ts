@@ -66,7 +66,13 @@ import {
   GraphQLString,
 } from "graphql";
 import superjson from "superjson";
-import type { DbClient } from "../database/db.js";
+import {
+  chunkRows,
+  type DbClient,
+  type makeBuilder,
+  rawSql,
+  type Statement,
+} from "../database/db.js";
 import { getPrimaryKeyColumns } from "../drizzle/index.js";
 import type { OnchainTable } from "../drizzle/onchain.js";
 import { normalizeColumn } from "../indexing-store/utils.js";
@@ -80,6 +86,8 @@ type Context = {
   db: DbClient;
   /** Run `effect` with the services of the API build. */
   runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
+  /** Builds the statements of the user schema. */
+  schemaBuilder: ReturnType<typeof makeBuilder>;
   getDataLoader: ReturnType<typeof buildDataLoaderCache>;
 };
 
@@ -450,6 +458,7 @@ export function buildGraphQLSchema({
                     schema[referencedTable.tsName] as PgTable,
                     referencedTable.columns,
                     context.db,
+                    context.schemaBuilder,
                     args,
                     includeTotalCount,
                     relationalConditions,
@@ -578,6 +587,7 @@ export function buildGraphQLSchema({
             schema[table.tsName] as PgTable,
             table.columns,
             context.db,
+            context.schemaBuilder,
             args,
             includeTotalCount,
           ),
@@ -611,6 +621,7 @@ export function buildGraphQLSchema({
             view,
             viewConfig.selectedFields as Record<string, Column>,
             context.db,
+            context.schemaBuilder,
             args,
             includeTotalCount,
           ),
@@ -625,13 +636,12 @@ export function buildGraphQLSchema({
       context.runPromise(
         Effect.gen(function* () {
           // Note: This is done to avoid non-browser compatible dependencies
-          const checkpoints = (yield* context.db.query(
-            (db) =>
-              db.execute(
-                "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-              ),
+          const checkpoints = (yield* context.db.run(
+            rawSql(
+              "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
+            ),
             { label: "select_checkpoints" },
-          )).rows as {
+          )) as {
             chain_name: string;
             chain_id: string;
             latest_checkpoint: string;
@@ -806,17 +816,11 @@ const innerType = (
   throw new Error(`Type ${type.toString()} is not implemented`);
 };
 
-/** Run the query that `query` returns, failing with the error it throws. */
-const tryQuery = <A>(query: () => PromiseLike<A>) =>
-  Effect.tryPromise({
-    try: async () => await query(),
-    catch: (error) => error,
-  });
-
 const executePluralQuery = (
   relation: PgTable | PgView,
   columns: Record<string, Column>,
   db: DbClient,
+  builder: Context["schemaBuilder"],
   args: PluralArgs,
   includeTotalCount: boolean,
   extraConditions: (SQL | undefined)[] = [],
@@ -877,8 +881,8 @@ const executePluralQuery = (
 
     const totalCountQuery = includeTotalCount
       ? db
-          .query((db) =>
-            db
+          .run(
+            builder
               .select({ count: count() })
               .from(relation)
               .where(and(...whereConditions, ...extraConditions)),
@@ -891,8 +895,8 @@ const executePluralQuery = (
       const [totalCount, rows] = yield* Effect.all(
         [
           totalCountQuery,
-          tryQuery(() =>
-            db.drizzle
+          db.run(
+            builder
               .select()
               .from(relation)
               .where(and(...whereConditions, ...extraConditions))
@@ -940,8 +944,8 @@ const executePluralQuery = (
       const [totalCount, rows] = yield* Effect.all(
         [
           totalCountQuery,
-          tryQuery(() =>
-            db.drizzle
+          db.run(
+            builder
               .select()
               .from(relation)
               .where(
@@ -1009,15 +1013,19 @@ const executePluralQuery = (
     const [totalCount, rows] = yield* Effect.all(
       [
         totalCountQuery,
-        tryQuery(() =>
-          db.drizzle
-            .select()
-            .from(relation)
-            .where(and(...whereConditions, cursorCondition, ...extraConditions))
-            .orderBy(...orderByReversed)
-            .limit(limit + 2)
-            .offset(offset),
-        ).pipe(Effect.map((rows) => rows.reverse())),
+        db
+          .run(
+            builder
+              .select()
+              .from(relation)
+              .where(
+                and(...whereConditions, cursorCondition, ...extraConditions),
+              )
+              .orderBy(...orderByReversed)
+              .limit(limit + 2)
+              .offset(offset),
+          )
+          .pipe(Effect.map((rows) => rows.reverse())),
       ],
       { concurrency: "unbounded" },
     );
@@ -1341,14 +1349,18 @@ function buildCursorCondition(
 export function buildDataLoaderCache({
   db,
   runPromise,
-}: Pick<Context, "db" | "runPromise">) {
+  schemaBuilder,
+}: Pick<Context, "db" | "runPromise" | "schemaBuilder">) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
     DataLoader<string, any> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
-    const baseQuery = (db as DbClient<{ [key: string]: OnchainTable }>).drizzle
-      .query[table.tsName];
+    const baseQuery = (
+      schemaBuilder as ReturnType<
+        typeof makeBuilder<{ [key: string]: OnchainTable }>
+      >
+    ).query[table.tsName];
     if (baseQuery === undefined)
       throw new Error(
         `Internal error: Unknown table "${table.tsName}" in data loader cache`,
@@ -1371,12 +1383,21 @@ export function buildDataLoaderCache({
                   ),
               );
 
-              const rows = yield* tryQuery(() =>
-                baseQuery.findMany({
-                  where: or(...idConditions),
-                  limit: encodedIds.length,
-                }),
+              const paramsPerRow = Math.max(
+                ...decodedRowFragments.map((f) => Object.keys(f).length),
               );
+              // Note: drizzle doesn't type `getSQL` of relational queries.
+              const rows = (
+                (yield* db.run(
+                  chunkRows(idConditions, paramsPerRow, 1).map(
+                    (conditions) =>
+                      baseQuery.findMany({
+                        where: or(...conditions),
+                        limit: conditions.length,
+                      }) as unknown as Statement,
+                  ),
+                )) as Record<string, unknown>[][]
+              ).flat();
 
               // Now, we need to order the rows coming out of the database to match
               // the order of the IDs passed in. To accomplish this, we need to do

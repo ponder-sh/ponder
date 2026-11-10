@@ -18,7 +18,7 @@ import type { Context as HonoContext } from "hono";
 import { createMiddleware } from "hono/factory";
 import { type SSEStreamingApi, streamSSE } from "hono/streaming";
 import superjson from "superjson";
-import { Db } from "../database/db.js";
+import { builder, Db } from "../database/db.js";
 import type { PonderApp6 } from "../database/index.js";
 import { getLiveQueryChannelName } from "../drizzle/onchain.js";
 import type { Schema } from "../internal/types.js";
@@ -135,15 +135,11 @@ const makeClient = ({
 
     yield* Effect.forkScoped(
       database.readonly
-        .query(
-          (db) =>
-            db
-              .select()
-              .from(getPonderMetaTable())
-              .then((result) => result[0]!.value.is_ready === 1),
-          { label: "select_ready" },
-        )
+        .run(builder.select().from(getPonderMetaTable()), {
+          label: "select_ready",
+        })
         .pipe(
+          Effect.map((result) => result[0]!.value.is_ready === 1),
           Effect.orElseSucceed(() => false),
           Effect.repeat({
             until: (isReady) => isReady,
@@ -229,24 +225,13 @@ const makeClient = ({
     ): Effect.Effect<QueryResult, unknown> => {
       // Note: Rows of a select are arrays so that columns with the same name
       // (e.g. from a join) don't overwrite each other.
-      const execute = (session: PgSession<any, any, any>) =>
-        query.method === "all"
-          ? session
-              .prepareQuery(query, undefined, undefined, true, (rows) => ({
-                rows,
-              }))
-              .execute()
-          : session.prepareQuery(query, undefined, undefined, false).execute();
-
-      if (database.dialect === "pglite") {
-        return tryPromise(() => execute(session));
-      } else {
-        return tryPromise(() =>
-          database.readonly.drizzle.transaction((tx) => execute(tx._.session), {
-            accessMode: "read only",
-          }),
-        );
-      }
+      return database.readonly
+        .run({
+          sql: query.sql,
+          params: query.params,
+          arrayMode: query.method === "all",
+        })
+        .pipe(Effect.map((rows) => ({ rows })));
     };
 
     /** Return the tables that `query` reads, including through views. */

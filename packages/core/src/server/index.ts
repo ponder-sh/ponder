@@ -4,7 +4,7 @@ import { Deferred, Effect, type Scope } from "effect";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
-import { Db } from "../database/db.js";
+import { builder, Db } from "../database/db.js";
 import {
   getPonderCheckpointTable,
   getPonderMetaTable,
@@ -111,14 +111,11 @@ export const makeServer = (
       .get("/ready", (c) =>
         runPromise(
           Effect.gen(function* () {
-            const isReady = yield* db.readonly.query(
-              (db) =>
-                db
-                  .select()
-                  .from(getPonderMetaTable())
-                  .then((result) => result[0]!.value.is_ready === 1),
-              { label: "select_ready" },
-            );
+            const isReady = yield* db.readonly
+              .run(builder.select().from(getPonderMetaTable()), {
+                label: "select_ready",
+              })
+              .pipe(Effect.map((result) => result[0]!.value.is_ready === 1));
             if (isReady) {
               return c.text("", 200);
             }
@@ -130,8 +127,8 @@ export const makeServer = (
       .get("/status", (c) =>
         runPromise(
           Effect.gen(function* () {
-            const checkpoints = yield* db.readonly.query(
-              (db) => db.select().from(getPonderCheckpointTable()),
+            const checkpoints = yield* db.readonly.run(
+              builder.select().from(getPonderCheckpointTable()),
               { label: "select_checkpoints" },
             );
             const status: Status = {};

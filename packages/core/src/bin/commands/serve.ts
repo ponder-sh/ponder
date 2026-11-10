@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { createBuild } from "../../build/index.js";
-import { Db, makeDb, makeDbTransports } from "../../database/db.js";
+import { builder, Db, makeDb, makeDbTransports } from "../../database/db.js";
 import { SCHEMATA } from "../../database/index.js";
 import { Metrics } from "../../internal/metrics.js";
 import { buildOptions } from "../../internal/options.js";
@@ -43,7 +43,7 @@ export function serve({ cliOptions }: { cliOptions: CliOptions }) {
       return 1;
     }
 
-    const schemaBuild = yield* build
+    yield* build
       .compileSchema({ ...schemaResult, preBuild })
       .pipe(failBuild("schema"));
     const { chains } = yield* build
@@ -58,15 +58,14 @@ export function serve({ cliOptions }: { cliOptions: CliOptions }) {
       yield* makeDbTransports({
         namespace: namespaceBuild,
         preBuild,
-        schemaBuild,
       }),
     );
     yield* build
       .databaseDiagnostic({ preBuild })
       .pipe(failBuild("diagnostic", 75), Effect.provideService(Db, db));
 
-    const schemas = yield* db.admin.query((db) =>
-      db
+    const schemas = yield* db.admin.run(
+      builder
         .select()
         .from(SCHEMATA)
         .where(eq(SCHEMATA.schemaName, namespaceBuild.schema)),

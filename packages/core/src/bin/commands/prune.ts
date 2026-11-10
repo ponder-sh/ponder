@@ -2,7 +2,13 @@ import { count, eq, inArray, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
 import { Clock, Effect } from "effect";
 import { createBuild } from "../../build/index.js";
-import { Db, makeDb, makeDbTransports } from "../../database/db.js";
+import {
+  builder,
+  Db,
+  makeDb,
+  makeDbTransports,
+  rawSql,
+} from "../../database/db.js";
 import {
   getPonderMetaTable,
   PONDER_CHECKPOINT_TABLE_NAME,
@@ -46,21 +52,20 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
         // Note: `namespace` is not used in this command
         namespace: { schema: "public", viewsSchema: undefined },
         preBuild,
-        schemaBuild: { schema: {} },
       }),
     );
     yield* build
       .databaseDiagnostic({ preBuild })
       .pipe(failBuild("diagnostic", 75), Effect.provideService(Db, db));
 
-    const ponderSchemas = yield* db.admin.query((db) =>
-      db
+    const ponderSchemas = yield* db.admin.run(
+      builder
         .select({ schema: TABLES.table_schema, tableCount: count() })
         .from(TABLES)
         .where(
           inArray(
             TABLES.table_schema,
-            db
+            builder
               .select({ schema: TABLES.table_schema })
               .from(TABLES)
               .where(eq(TABLES.table_name, PONDER_META_TABLE_NAME)),
@@ -69,15 +74,15 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
         .groupBy(TABLES.table_schema),
     );
 
-    const ponderViewSchemas = yield* db.admin.query((db) =>
-      db
+    const ponderViewSchemas = yield* db.admin.run(
+      builder
         .select({ schema: VIEWS.table_schema })
         .from(VIEWS)
         .where(eq(VIEWS.table_name, PONDER_META_TABLE_NAME)),
     );
 
     const queries = ponderSchemas.map((row) =>
-      db.admin.drizzle
+      builder
         .select({
           value: getPonderMetaTable(row.schema).value,
           schema: sql<string>`${row.schema}`.as("schema"),
@@ -106,10 +111,10 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
     }[];
 
     if (queries.length === 1) {
-      result = yield* db.admin.query(() => queries[0]!);
+      result = (yield* db.admin.run(queries[0]!)) as typeof result;
     } else {
       // @ts-expect-error
-      result = yield* db.admin.query(() => unionAll(...queries));
+      result = (yield* db.admin.run(unionAll(...queries))) as typeof result;
     }
 
     const tablesToDrop: string[] = [];
@@ -206,8 +211,8 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
     let endClock = yield* startClockEffect;
 
     if (tablesToDrop.length > 0) {
-      yield* db.admin.query((db) =>
-        db.execute(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
+      yield* db.admin.run(
+        rawSql(`DROP TABLE IF EXISTS ${tablesToDrop.join(", ")} CASCADE`),
       );
 
       yield* Effect.logWarning({
@@ -220,8 +225,8 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
     endClock = yield* startClockEffect;
 
     if (viewsToDrop.length > 0) {
-      yield* db.admin.query((db) =>
-        db.execute(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
+      yield* db.admin.run(
+        rawSql(`DROP VIEW IF EXISTS ${viewsToDrop.join(", ")} CASCADE`),
       );
 
       yield* Effect.logWarning({
@@ -234,10 +239,8 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
     endClock = yield* startClockEffect;
 
     if (functionsToDrop.length > 0) {
-      yield* db.admin.query((db) =>
-        db.execute(
-          `DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`,
-        ),
+      yield* db.admin.run(
+        rawSql(`DROP FUNCTION IF EXISTS ${functionsToDrop.join(", ")} CASCADE`),
       );
 
       yield* Effect.logWarning({
@@ -250,8 +253,8 @@ export function prune({ cliOptions }: { cliOptions: CliOptions }) {
     endClock = yield* startClockEffect;
 
     if (schemasToDrop.length > 0) {
-      yield* db.admin.query((db) =>
-        db.execute(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
+      yield* db.admin.run(
+        rawSql(`DROP SCHEMA IF EXISTS ${schemasToDrop.join(", ")} CASCADE`),
       );
 
       yield* Effect.logWarning({
