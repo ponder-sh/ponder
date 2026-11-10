@@ -632,11 +632,9 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context.qb
-        .wrap({ label: "select_checkpoints" }, (db) =>
-          db.execute(
-            "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-          ),
+      const checkpoints = (await context.qb.raw
+        .execute(
+          "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
         )
         .then((res) => res.rows)) as {
         chain_name: string;
@@ -888,13 +886,10 @@ async function executePluralQuery(
   let hasNextPage = false;
 
   const totalCountPromise = includeTotalCount
-    ? qb
-        .wrap((db) =>
-          db
-            .select({ count: count() })
-            .from(relation)
-            .where(and(...whereConditions, ...extraConditions)),
-        )
+    ? qb.raw
+        .select({ count: count() })
+        .from(relation)
+        .where(and(...whereConditions, ...extraConditions))
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
 
