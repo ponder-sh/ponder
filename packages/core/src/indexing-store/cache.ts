@@ -9,7 +9,14 @@ import {
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { Effect, Result } from "effect";
-import type { DbClient } from "../database/db.js";
+import {
+  builder,
+  chunkRows,
+  copyFrom,
+  type DbRunner,
+  rawSql,
+  type Statement,
+} from "../database/db.js";
 import { getPrimaryKeyColumns } from "../drizzle/index.js";
 import { getColumnCasing } from "../drizzle/kit/index.js";
 import { getPartitionName } from "../drizzle/onchain.js";
@@ -84,7 +91,7 @@ export type IndexingCache = {
   clear: () => void;
   event: Event | undefined;
   /** Client for reads and writes, such as the transaction of the current batch. */
-  client: DbClient;
+  client: DbRunner;
 };
 
 const SAMPLING_RATE = 10;
@@ -350,7 +357,7 @@ export const createIndexingCache = ({
     const metrics = yield* Metrics;
 
     let event: Event | undefined;
-    let client: DbClient = undefined!;
+    let client: DbRunner = undefined!;
 
     const cache: Cache = new Map();
     const insertBuffer: Buffer = new Map();
@@ -377,20 +384,129 @@ export const createIndexingCache = ({
       updateBuffer.set(table, new Map());
     }
 
+    const getTarget = (table: Table) =>
+      chainId === undefined
+        ? getTableName(table)
+        : getPartitionName(table, chainId);
+
+    /** Statements that insert `entries` into the table. Throws when a row can't be serialized. */
+    const insertStatements = (
+      table: Table,
+      entries: BufferEntry[],
+    ): Statement[] => {
+      if (entries.length === 0) return [];
+      const rows = entries.map(({ row }) => row);
+      if (entries.length > LOW_BATCH_THRESHOLD) {
+        return [
+          copyFrom(getCopyTarget(table, chainId), getCopyText(table, rows)),
+        ];
+      }
+      return [builder.insert(table).values(rows)];
+    };
+
     /**
-     * Copy `rows` into the table. Fails when a row can't be serialized, so
-     * that the flush recovers from the error and finds the row.
+     * Statements that update the rows of `entries`. A large batch is copied
+     * into a temp table, which updates the table.
      */
-    const copy = (table: Table, rows: Row[], includeSchema = true) =>
-      Effect.try({
-        try: () => getCopyText(table, rows),
-        catch: (error) => error as Error,
-      }).pipe(
-        Effect.tap(() => Effect.yieldNow),
-        Effect.flatMap((text) =>
-          client.copy(getCopyTarget(table, chainId, includeSchema), text),
-        ),
-      );
+    const updateStatements = (
+      table: Table,
+      entries: BufferEntry[],
+    ): Statement[] => {
+      if (entries.length === 0) return [];
+      const rows = entries.map(({ row }) => row);
+      const primaryKeys = getPrimaryKeyColumns(table);
+
+      if (entries.length > LOW_BATCH_THRESHOLD) {
+        const target = getTarget(table);
+        const schema = getTableConfig(table).schema ?? "public";
+        const columns = Object.values(getTableColumns(table)).map(
+          (column) => `"${getColumnCasing(column, "snake_case")}"`,
+        );
+
+        return [
+          rawSql(
+            `CREATE TEMP TABLE IF NOT EXISTS "${target}" AS SELECT * FROM "${schema}"."${target}" WITH NO DATA`,
+          ),
+          copyFrom(
+            getCopyTarget(table, chainId, false),
+            getCopyText(table, rows),
+          ),
+          rawSql(`
+UPDATE "${schema}"."${target}" as target
+SET ${columns.map((column) => `${column} = source.${column}`).join(",\n")}
+FROM "${target}" source
+WHERE ${primaryKeys.map(({ sql }) => `target."${sql}" = source."${sql}"`).join(" AND ")}`),
+          rawSql(`TRUNCATE TABLE "${target}"`),
+        ];
+      }
+
+      return [
+        builder
+          .insert(table)
+          .values(rows)
+          .onConflictDoUpdate({
+            // @ts-expect-error
+            target: primaryKeys.map(({ js }) => table[js]!),
+            set: Object.fromEntries(
+              Object.entries(getTableColumns(table)).map(
+                ([columnName, column]) => [
+                  columnName,
+                  sql.raw(
+                    `excluded."${getColumnCasing(column, "snake_case")}"`,
+                  ),
+                ],
+              ),
+            ),
+          }),
+      ];
+    };
+
+    /**
+     * Find the row that failed the flush, and fail with it.
+     *
+     * @dev The rows of each table are written again in bisected batches, each
+     * in a savepoint, to find the exact row that caused the error.
+     */
+    const recoverFlushError = (flushed: Table[], flushError: Error) =>
+      Effect.gen(function* () {
+        const endClock = yield* startClockEffect;
+
+        for (const table of flushed) {
+          for (const [type, buffer, build] of [
+            ["insert", insertBuffer, insertStatements],
+            ["update", updateBuffer, updateStatements],
+          ] as const) {
+            const values = Array.from(buffer.get(table)!.values());
+            if (values.length === 0) continue;
+
+            const result = yield* recoverBatchError(values, (values) =>
+              Effect.try({
+                try: () => build(table, values),
+                catch: (error) => error as Error,
+              }).pipe(
+                Effect.flatMap((statements) =>
+                  client.run(statements, { savepoint: true }),
+                ),
+              ),
+            );
+
+            if (result.status === "error") {
+              return yield* failDelayedInsert({
+                type,
+                table,
+                row: result.value,
+                cause: result.error,
+                rowCount: values.length,
+                duration: yield* endClock,
+              });
+            }
+          }
+        }
+
+        // Note: if we weren't able to find the exact row that caused the error,
+        // fail with the original error.
+        return yield* Effect.fail(flushError);
+      });
 
     /**
      * Mark `table` as read. If rows were inserted before without being cached,
@@ -499,8 +615,8 @@ export const createIndexingCache = ({
         return Effect.gen(function* () {
           const endClock = yield* startClockEffect;
 
-          const rows = yield* client.query((db) =>
-            db.select().from(table).where(getWhereCondition(table, key)),
+          const rows = yield* client.run(
+            builder.select().from(table).where(getWhereCondition(table, key)),
           );
           const row: Row | null = rows.length === 0 ? null : rows[0]!;
 
@@ -537,8 +653,11 @@ export const createIndexingCache = ({
 
           cache.get(table)!.cache.delete(ck);
 
-          const rows = yield* client.query((db) =>
-            db.delete(table).where(getWhereCondition(table, key)).returning(),
+          const rows = yield* client.run(
+            builder
+              .delete(table)
+              .where(getWhereCondition(table, key))
+              .returning(),
           );
 
           return inInsertBuffer || inUpdateBuffer || rows.length > 0;
@@ -550,336 +669,84 @@ export const createIndexingCache = ({
           };
           const flushEndClock = yield* startClockEffect;
 
-          const isFlushed = (table: Table) =>
-            tableNames === undefined || tableNames.has(getTableName(table));
+          const flushed = tables.filter(
+            (table) =>
+              (tableNames === undefined ||
+                tableNames.has(getTableName(table))) &&
+              (insertBuffer.get(table)!.size > 0 ||
+                updateBuffer.get(table)!.size > 0),
+          );
+          if (flushed.length === 0) return;
 
-          const flushTable = (table: Table) =>
-            Effect.gen(function* () {
-              const shouldRecordBytes = cache.get(table)!.isCacheComplete;
-              if (isFlushed(table) === false) return;
+          const statements = yield* Effect.try({
+            try: () =>
+              flushed.flatMap((table) => [
+                ...insertStatements(
+                  table,
+                  Array.from(insertBuffer.get(table)!.values()),
+                ),
+                ...updateStatements(
+                  table,
+                  Array.from(updateBuffer.get(table)!.values()),
+                ),
+              ]),
+            catch: (error) => error as Error,
+          }).pipe(Effect.tap(() => Effect.yieldNow));
 
-              const tableCache = cache.get(table)!;
+          yield* client
+            .run(statements, { savepoint: true, ...context })
+            .pipe(Effect.catch((error) => recoverFlushError(flushed, error)));
 
-              const target =
+          const duration = yield* flushEndClock;
+
+          for (const table of flushed) {
+            const tableCache = cache.get(table)!;
+            const shouldRecordBytes = tableCache.isCacheComplete;
+            const inserts = insertBuffer.get(table)!;
+            const updates = updateBuffer.get(table)!;
+
+            metrics.ponder_indexing_cache_query_duration.observe(
+              { table: getTableName(table), method: "flush" },
+              duration,
+            );
+
+            if (tableCache.isRead) {
+              let bytes = 0;
+              for (const [key, entry] of inserts) {
+                if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                  bytes += getBytes(entry.row) + getBytes(key);
+                }
+                tableCache.cache.set(key, entry.row);
+              }
+              tableCache.bytes += bytes;
+            } else if (shouldRecordBytes && inserts.size > 0) {
+              // Note: The size of the rows is estimated from one row.
+              const [key, { row }] = inserts.entries().next().value!;
+              tableCache.unreadBytes +=
+                inserts.size * (getBytes(row) + getBytes(key));
+            }
+
+            let bytes = 0;
+            for (const [key, entry] of updates) {
+              if (shouldRecordBytes && tableCache.cache.has(key) === false) {
+                bytes += getBytes(entry.row) + getBytes(key);
+              }
+              tableCache.cache.set(key, entry.row);
+            }
+            tableCache.bytes += bytes;
+
+            yield* Effect.logDebug({
+              msg: "Wrote database rows",
+              table:
                 chainId === undefined
                   ? getTableName(table)
-                  : getPartitionName(table, chainId);
-
-              const insertValues = Array.from(
-                insertBuffer.get(table)!.values(),
-              );
-              const updateValues = Array.from(
-                updateBuffer.get(table)!.values(),
-              );
-
-              if (insertValues.length > 0) {
-                const endClock = yield* startClockEffect;
-
-                const insertRows = insertValues.map(({ row }) => row);
-
-                if (insertValues.length > LOW_BATCH_THRESHOLD) {
-                  yield* copy(table, insertRows);
-                } else {
-                  yield* client.query(
-                    (db) => db.insert(table).values(insertRows),
-                    context,
-                  );
-                }
-
-                metrics.ponder_indexing_cache_query_duration.observe(
-                  { table: getTableName(table), method: "flush" },
-                  yield* endClock,
-                );
-
-                if (tableCache.isRead) {
-                  let bytes = 0;
-                  for (const [key, entry] of insertBuffer.get(table)!) {
-                    if (
-                      shouldRecordBytes &&
-                      tableCache.cache.has(key) === false
-                    ) {
-                      bytes += getBytes(entry.row) + getBytes(key);
-                    }
-                    tableCache.cache.set(key, entry.row);
-                  }
-                  tableCache.bytes += bytes;
-                } else if (shouldRecordBytes) {
-                  // Note: The size of the rows is estimated from one row.
-                  const row = insertRows[0]!;
-                  tableCache.unreadBytes +=
-                    insertRows.length *
-                    (getBytes(row) +
-                      getBytes(getCacheKey(table, row, primaryKeyCache)));
-                }
-                insertBuffer.get(table)!.clear();
-
-                yield* Effect.yieldNow;
-              }
-
-              if (updateValues.length > 0) {
-                const primaryKeys = getPrimaryKeyColumns(table);
-
-                const endClock = yield* startClockEffect;
-
-                if (updateValues.length > LOW_BATCH_THRESHOLD) {
-                  // Steps for flushing "update" entries:
-                  // 1. Create temp table
-                  // 2. Copy into temp table
-                  // 3. Update target table with data from temp
-
-                  const createTempTableQuery = `
-              CREATE TEMP TABLE IF NOT EXISTS "${target}"
-              AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${target}"
-              WITH NO DATA;`;
-
-                  const updateQuery = `
-              UPDATE "${getTableConfig(table).schema ?? "public"}"."${target}" as target
-              SET ${Object.values(getTableColumns(table))
-                .map(
-                  (column) =>
-                    `"${getColumnCasing(
-                      column,
-                      "snake_case",
-                    )}" = source."${getColumnCasing(column, "snake_case")}"`,
-                )
-                .join(",\n")}
-              FROM "${target}" source
-              WHERE ${primaryKeys
-                .map(({ sql }) => `target."${sql}" = source."${sql}"`)
-                .join(" AND ")};`;
-
-                  yield* client.query(
-                    (db) => db.execute(createTempTableQuery),
-                    context,
-                  );
-
-                  yield* copy(
-                    table,
-                    updateValues.map(({ row }) => row),
-                    false,
-                  );
-                  yield* client.query((db) => db.execute(updateQuery), context);
-                  yield* client.query(
-                    (db) => db.execute(`TRUNCATE TABLE "${target}"`),
-                    context,
-                  );
-                } else {
-                  yield* client.query(
-                    (db) =>
-                      db
-                        .insert(table)
-                        .values(updateValues.map(({ row }) => row))
-                        .onConflictDoUpdate({
-                          // @ts-expect-error
-                          target: primaryKeys.map(({ js }) => table[js]!),
-                          set: Object.fromEntries(
-                            Object.entries(getTableColumns(table)).map(
-                              ([columnName, column]) => [
-                                columnName,
-                                sql.raw(
-                                  `excluded."${getColumnCasing(column, "snake_case")}"`,
-                                ),
-                              ],
-                            ),
-                          ),
-                        }),
-                    context,
-                  );
-                }
-
-                metrics.ponder_indexing_cache_query_duration.observe(
-                  { table: getTableName(table), method: "flush" },
-                  yield* endClock,
-                );
-
-                let bytes = 0;
-                for (const [key, entry] of updateBuffer.get(table)!) {
-                  if (
-                    shouldRecordBytes &&
-                    tableCache.cache.has(key) === false
-                  ) {
-                    bytes += getBytes(entry.row) + getBytes(key);
-                  }
-                  tableCache.cache.set(key, entry.row);
-                }
-                tableCache.bytes += bytes;
-                updateBuffer.get(table)!.clear();
-
-                yield* Effect.yieldNow;
-              }
-
-              if (insertValues.length > 0 || updateValues.length > 0) {
-                yield* Effect.logDebug({
-                  msg: "Wrote database rows",
-                  table: target,
-                  row_count: insertValues.length + updateValues.length,
-                  duration: yield* flushEndClock,
-                });
-              }
+                  : getPartitionName(table, chainId),
+              row_count: inserts.size + updates.size,
+              duration,
             });
 
-          /**
-           * Find the row that failed the flush, after a delayed insert error.
-           *
-           * Note: The flush takes an optimized fast path, with support for small batch
-           * sizes. When it fails, each table is copied again in bisected batches, to
-           * find the exact row that caused the error. PGlite always takes the fast path
-           * because it doesn't support delayed insert errors.
-           */
-          const recoverFlushError = (flushError: Error) =>
-            Effect.gen(function* () {
-              yield* client.query(
-                (db) => db.execute("ROLLBACK to flush"),
-                context,
-              );
-
-              for (const table of cache.keys()) {
-                if (isFlushed(table) === false) continue;
-
-                const target =
-                  chainId === undefined
-                    ? getTableName(table)
-                    : getPartitionName(table, chainId);
-
-                const insertValues = Array.from(
-                  insertBuffer.get(table)!.values(),
-                );
-                const updateValues = Array.from(
-                  updateBuffer.get(table)!.values(),
-                );
-
-                if (insertValues.length > 0) {
-                  const endClock = yield* startClockEffect;
-
-                  yield* client.query(
-                    (db) => db.execute("SAVEPOINT flush"),
-                    context,
-                  );
-
-                  const result = yield* recoverBatchError(
-                    insertValues,
-                    (values) =>
-                      Effect.gen(function* () {
-                        yield* client.query(
-                          (db) => db.execute("ROLLBACK to flush"),
-                          context,
-                        );
-                        yield* copy(
-                          table,
-                          values.map(({ row }) => row),
-                        );
-
-                        yield* client.query(
-                          (db) => db.execute("SAVEPOINT flush"),
-                          context,
-                        );
-                      }),
-                  );
-
-                  if (result.status === "error") {
-                    return yield* failDelayedInsert({
-                      type: "insert",
-                      table,
-                      row: result.value,
-                      cause: result.error,
-                      rowCount: insertValues.length,
-                      duration: yield* endClock,
-                    });
-                  }
-                }
-
-                if (updateValues.length > 0) {
-                  // Steps for flushing "update" entries:
-                  // 1. Create temp table
-                  // 2. Copy into temp table
-                  // 3. Update target table with data from temp
-
-                  const createTempTableQuery = `
-              CREATE TEMP TABLE IF NOT EXISTS "${target}"
-              AS SELECT * FROM "${getTableConfig(table).schema ?? "public"}"."${target}"
-              WITH NO DATA;
-            `;
-
-                  const endClock = yield* startClockEffect;
-
-                  yield* client.query(
-                    (db) => db.execute(createTempTableQuery),
-                    context,
-                  );
-                  yield* client.query(
-                    (db) => db.execute("SAVEPOINT flush"),
-                    context,
-                  );
-
-                  const result = yield* recoverBatchError(
-                    updateValues,
-                    (values) =>
-                      Effect.gen(function* () {
-                        yield* client.query(
-                          (db) => db.execute("ROLLBACK to flush"),
-                          context,
-                        );
-                        yield* copy(
-                          table,
-                          values.map(({ row }) => row),
-                          false,
-                        );
-
-                        yield* client.query(
-                          (db) => db.execute("SAVEPOINT flush"),
-                          context,
-                        );
-                      }),
-                  );
-
-                  yield* client.query(
-                    (db) => db.execute(`TRUNCATE TABLE "${target}"`),
-                    context,
-                  );
-
-                  if (result.status === "error") {
-                    return yield* failDelayedInsert({
-                      type: "update",
-                      table,
-                      row: result.value,
-                      cause: result.error,
-                      rowCount: updateValues.length,
-                      duration: yield* endClock,
-                    });
-                  }
-                }
-              }
-
-              // Note: if we weren't able to find the exact row that caused the error,
-              // fail with the original error.
-              return yield* Effect.fail(flushError);
-            });
-
-          if (client.dialect === "postgres") {
-            yield* Effect.gen(function* () {
-              yield* client.query(
-                (db) => db.execute("SAVEPOINT flush"),
-                context,
-              );
-
-              // Note: Every table finishes before the flush fails with the first error,
-              // so that no statement runs after the rollback.
-              const results = yield* Effect.forEach(
-                cache.keys(),
-                (table) => Effect.result(flushTable(table)),
-                { concurrency: "unbounded" },
-              );
-              for (const result of results) {
-                if (Result.isFailure(result)) {
-                  return yield* Effect.fail(result.failure);
-                }
-              }
-
-              yield* client.query((db) => db.execute("RELEASE flush"), context);
-            }).pipe(Effect.catch(recoverFlushError));
-          } else {
-            // Note: pglite must run sequentially
-            yield* Effect.forEach(cache.keys(), flushTable, { discard: true });
+            inserts.clear();
+            updates.clear();
           }
         }),
       prefetch: ({ events }) =>
@@ -898,14 +765,13 @@ export const createIndexingCache = ({
 
                 // Note: With isolated ordering, the table has the rows of
                 // every chain.
-                const rows = yield* client.query(
-                  (db) =>
-                    chainId === undefined
-                      ? db.select().from(table)
-                      : db
-                          .select()
-                          .from(table)
-                          .where(eq(getTableColumns(table).chainId!, chainId)),
+                const rows = yield* client.run(
+                  chainId === undefined
+                    ? builder.select().from(table)
+                    : builder
+                        .select()
+                        .from(table)
+                        .where(eq(getTableColumns(table).chainId!, chainId)),
                   context,
                 );
 
@@ -1044,14 +910,18 @@ export const createIndexingCache = ({
                 if (conditions.length === 0) return;
                 const endClock = yield* startClockEffect;
 
-                const results = yield* client.query(
-                  (db) =>
-                    db
-                      .select()
-                      .from(table)
-                      .where(or(...conditions)),
-                  context,
-                );
+                const results = (yield* Effect.forEach(
+                  chunkRows(conditions, getPrimaryKeyColumns(table).length),
+                  (conditions) =>
+                    client.run(
+                      builder
+                        .select()
+                        .from(table)
+                        .where(or(...conditions)),
+                      context,
+                    ),
+                  { concurrency: "unbounded" },
+                )).flat();
 
                 const resultsPerKey = new Map<CacheKey, Row>();
                 for (const result of results) {
@@ -1112,7 +982,7 @@ export const createIndexingCache = ({
       get client() {
         return client;
       },
-      set client(_client: DbClient) {
+      set client(_client: DbRunner) {
         client = _client;
       },
     };

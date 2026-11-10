@@ -1,5 +1,6 @@
-import { Effect, Stream } from "effect";
+import { Effect, Schedule, type Scope, Stream } from "effect";
 import { type Address, hexToNumber, numberToHex, toHex } from "viem";
+import type { DbClient, DbTransaction } from "../database/db.js";
 import { createCachedViemClient } from "../indexing/client.js";
 import {
   createColumnAccessPattern,
@@ -8,7 +9,10 @@ import {
 } from "../indexing/index.js";
 import { createIndexingCache } from "../indexing-store/cache.js";
 import { createIndexingStore } from "../indexing-store/index.js";
-import type { RetryableError } from "../internal/errors.js";
+import {
+  NonRetryableUserError,
+  type RetryableError,
+} from "../internal/errors.js";
 import { getAppProgress, Metrics } from "../internal/metrics.js";
 import type {
   Chain,
@@ -847,3 +851,31 @@ export const runBackfill = <A, E, R, E2, R2>(
       }),
     );
   });
+
+/**
+ * Run `index` in a transaction of `db`, and commit it.
+ *
+ * @dev A failure that can succeed again runs `reset`, which restores the
+ * in-memory state that `index` changed, and runs `index` again in a new
+ * transaction. A failed commit stops the app, because its outcome is unknown.
+ */
+export const indexInTransaction = <A, R>(
+  db: DbClient,
+  index: (tx: DbTransaction) => Effect.Effect<A, Error, R>,
+  { reset }: { reset?: Effect.Effect<void> } = {},
+): Effect.Effect<A, Error, Exclude<R, Scope.Scope>> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const tx = yield* db.begin;
+      const result = yield* index(tx);
+      yield* Effect.orDie(tx.commit);
+      return result;
+    }),
+  ).pipe(
+    Effect.tapError(() => reset ?? Effect.void),
+    Effect.retry({
+      schedule: Schedule.exponential("125 millis"),
+      times: 9,
+      while: (error) => error instanceof NonRetryableUserError === false,
+    }),
+  );

@@ -7,9 +7,10 @@ import {
   dropLiveQueryTriggers,
   dropTriggers,
   finalizeIsolated,
+  getRevertCount,
   revertIsolated,
 } from "../database/actions.js";
-import { Db } from "../database/db.js";
+import { builder, Db } from "../database/db.js";
 import { getPonderCheckpointTable } from "../database/index.js";
 import { getLiveQueryTempTableName } from "../drizzle/onchain.js";
 import {
@@ -40,7 +41,12 @@ import {
   getHistoricalEventsIsolated,
   refetchHistoricalEvents,
 } from "./historical.js";
-import { createIndexingRuntime, getChainSync, runBackfill } from "./index.js";
+import {
+  createIndexingRuntime,
+  getChainSync,
+  indexInTransaction,
+  runBackfill,
+} from "./index.js";
 import {
   getRealtimeEventsIsolated,
   logBackpressure,
@@ -147,27 +153,28 @@ export const runIsolated = ({
 
     // If the initial checkpoint is zero, we need to run setup events.
     if (crashRecoveryCheckpoint === undefined) {
-      yield* db.user.transaction((tx) =>
-        Effect.gen(function* () {
-          indexingStore.client = tx;
-          indexingStore.isProcessingEvents = true;
+      yield* indexInTransaction(
+        db.user,
+        (tx) =>
+          Effect.gen(function* () {
+            indexingStore.client = tx;
+            indexingStore.isProcessingEvents = true;
 
-          indexingCache.client = tx;
+            indexingCache.client = tx;
 
-          yield* indexing.processSetupEvents;
+            yield* indexing.processSetupEvents;
 
-          indexingStore.isProcessingEvents = false;
+            indexingStore.isProcessingEvents = false;
 
-          yield* indexingCache.flush();
+            yield* indexingCache.flush();
 
-          const initialCheckpoint = min(
-            syncProgress.getCheckpoint({ tag: "start" }),
-            syncProgress.getCheckpoint({ tag: "finalized" }),
-          );
+            const initialCheckpoint = min(
+              syncProgress.getCheckpoint({ tag: "start" }),
+              syncProgress.getCheckpoint({ tag: "finalized" }),
+            );
 
-          yield* tx.query(
-            (tx) =>
-              tx
+            yield* tx.run(
+              builder
                 .insert(PONDER_CHECKPOINT)
                 .values({
                   chainName: chain.name,
@@ -184,9 +191,10 @@ export const runIsolated = ({
                     latestCheckpoint: sql`excluded.latest_checkpoint`,
                   },
                 }),
-            { label: "update_checkpoints" },
-          );
-        }),
+              { label: "update_checkpoints" },
+            );
+          }),
+        { reset: Effect.sync(() => indexingCache.clear()) },
       );
     }
 
@@ -219,147 +227,141 @@ export const runIsolated = ({
         );
 
         let endClock = yield* startClockEffect;
-        yield* db.user.transaction(
-          (tx) =>
-            Effect.gen(function* () {
-              const initialCompletedEvents = structuredClone(
-                yield* Effect.promise(() =>
-                  metrics.ponder_indexing_completed_events.get(),
-                ),
+        yield* indexInTransaction(db.user, (tx) =>
+          Effect.gen(function* () {
+            const initialCompletedEvents = structuredClone(
+              yield* Effect.promise(() =>
+                metrics.ponder_indexing_completed_events.get(),
+              ),
+            );
+
+            yield* Effect.gen(function* () {
+              indexingStore.client = tx;
+              indexingStore.isProcessingEvents = true;
+              indexingCache.client = tx;
+
+              metrics.ponder_historical_transform_duration.inc(
+                { step: "begin" },
+                yield* endClock,
               );
 
-              yield* Effect.gen(function* () {
-                indexingStore.client = tx;
-                indexingStore.isProcessingEvents = true;
-                indexingCache.client = tx;
+              endClock = yield* startClockEffect;
 
-                metrics.ponder_historical_transform_duration.inc(
-                  { step: "begin" },
-                  yield* endClock,
-                );
+              yield* indexing.processHistoricalEvents({
+                events,
+                updateIndexingSeconds(event, chain) {
+                  const checkpoint = decodeCheckpoint(event.checkpoint);
 
-                endClock = yield* startClockEffect;
+                  metrics.ponder_historical_completed_indexing_seconds.set(
+                    { chain: chain.name },
+                    Math.max(
+                      Number(checkpoint.blockTimestamp) -
+                        Math.max(
+                          seconds[chain.name]!.cached,
+                          seconds[chain.name]!.start,
+                        ),
+                      0,
+                    ),
+                  );
+                  metrics.ponder_indexing_timestamp.set(
+                    { chain: chain.name },
+                    Number(checkpoint.blockTimestamp),
+                  );
+                },
+              });
 
-                yield* indexing.processHistoricalEvents({
-                  events,
-                  updateIndexingSeconds(event, chain) {
-                    const checkpoint = decodeCheckpoint(event.checkpoint);
+              indexingStore.isProcessingEvents = false;
 
-                    metrics.ponder_historical_completed_indexing_seconds.set(
-                      { chain: chain.name },
-                      Math.max(
-                        Number(checkpoint.blockTimestamp) -
-                          Math.max(
-                            seconds[chain.name]!.cached,
-                            seconds[chain.name]!.start,
-                          ),
-                        0,
-                      ),
-                    );
-                    metrics.ponder_indexing_timestamp.set(
-                      { chain: chain.name },
-                      Number(checkpoint.blockTimestamp),
-                    );
-                  },
-                });
+              metrics.ponder_historical_transform_duration.inc(
+                { step: "index" },
+                yield* endClock,
+              );
 
-                indexingStore.isProcessingEvents = false;
+              endClock = yield* startClockEffect;
 
-                metrics.ponder_historical_transform_duration.inc(
-                  { step: "index" },
-                  yield* endClock,
-                );
+              // Note: at this point, the next events can be preloaded, as long as the are not indexed until
+              // the "flush" + "finalize" is complete.
 
-                endClock = yield* startClockEffect;
+              yield* indexingCache.flush();
 
-                // Note: at this point, the next events can be preloaded, as long as the are not indexed until
-                // the "flush" + "finalize" is complete.
+              metrics.ponder_historical_transform_duration.inc(
+                { step: "load" },
+                yield* endClock,
+              );
 
-                yield* indexingCache.flush();
+              endClock = yield* startClockEffect;
 
-                metrics.ponder_historical_transform_duration.inc(
-                  { step: "load" },
-                  yield* endClock,
-                );
-
-                endClock = yield* startClockEffect;
-
-                yield* tx.query(
-                  (tx) =>
-                    tx
-                      .insert(PONDER_CHECKPOINT)
-                      .values({
-                        chainName: chain.name,
-                        chainId,
-                        latestCheckpoint: checkpoint,
-                        finalizedCheckpoint: checkpoint,
-                        safeCheckpoint: checkpoint,
-                      })
-                      .onConflictDoUpdate({
-                        target: PONDER_CHECKPOINT.chainName,
-                        set: {
-                          safeCheckpoint: sql`excluded.safe_checkpoint`,
-                          finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
-                          latestCheckpoint: sql`excluded.latest_checkpoint`,
-                        },
-                      }),
-                  { label: "update_checkpoints", ...context },
-                );
-
-                metrics.ponder_historical_transform_duration.inc(
-                  { step: "finalize" },
-                  yield* endClock,
-                );
-                endClock = yield* startClockEffect;
-              }).pipe(
-                Effect.tapError((error) =>
-                  Effect.gen(function* () {
-                    // Note: This can cause a bug with "dev" command, because there are multiple instances
-                    // updating the same metric.
-                    metrics.flushIndexingMetrics();
-                    for (const value of initialCompletedEvents.values) {
-                      metrics.ponder_indexing_completed_events.set(
-                        value.labels,
-                        value.value,
-                      );
-                    }
-
-                    indexingCache.invalidate();
-                    indexingCache.clear();
-
-                    if (error instanceof InvalidEventAccessError) {
-                      yield* Effect.logDebug({
-                        msg: "Failed to index block range",
-                        chain: chain.name,
-                        chain_id: chain.id,
-                        block_range: JSON.stringify(blockRange),
-                        duration: yield* indexStartClock,
-                        error,
-                      });
-                      events = yield* refetchHistoricalEvents({
-                        indexingBuild,
-                        perChainSync: new Map([[chain, { childAddresses }]]),
-                        syncStore,
-                        events,
-                      });
-                    } else if (
-                      error instanceof NonRetryableUserError ===
-                      false
-                    ) {
-                      yield* Effect.logWarning({
-                        msg: "Failed to index block range",
-                        chain: chain.name,
-                        chain_id: chain.id,
-                        block_range: JSON.stringify(blockRange),
-                        duration: yield* indexStartClock,
-                        error,
-                      });
-                    }
+              yield* tx.run(
+                builder
+                  .insert(PONDER_CHECKPOINT)
+                  .values({
+                    chainName: chain.name,
+                    chainId,
+                    latestCheckpoint: checkpoint,
+                    finalizedCheckpoint: checkpoint,
+                    safeCheckpoint: checkpoint,
+                  })
+                  .onConflictDoUpdate({
+                    target: PONDER_CHECKPOINT.chainName,
+                    set: {
+                      safeCheckpoint: sql`excluded.safe_checkpoint`,
+                      finalizedCheckpoint: sql`excluded.finalized_checkpoint`,
+                      latestCheckpoint: sql`excluded.latest_checkpoint`,
+                    },
                   }),
-                ),
+                { label: "update_checkpoints", ...context },
               );
-            }),
-          context,
+
+              metrics.ponder_historical_transform_duration.inc(
+                { step: "finalize" },
+                yield* endClock,
+              );
+              endClock = yield* startClockEffect;
+            }).pipe(
+              Effect.tapError((error) =>
+                Effect.gen(function* () {
+                  // Note: This can cause a bug with "dev" command, because there are multiple instances
+                  // updating the same metric.
+                  metrics.flushIndexingMetrics();
+                  for (const value of initialCompletedEvents.values) {
+                    metrics.ponder_indexing_completed_events.set(
+                      value.labels,
+                      value.value,
+                    );
+                  }
+
+                  indexingCache.invalidate();
+                  indexingCache.clear();
+
+                  if (error instanceof InvalidEventAccessError) {
+                    yield* Effect.logDebug({
+                      msg: "Failed to index block range",
+                      chain: chain.name,
+                      chain_id: chain.id,
+                      block_range: JSON.stringify(blockRange),
+                      duration: yield* indexStartClock,
+                      error,
+                    });
+                    events = yield* refetchHistoricalEvents({
+                      indexingBuild,
+                      perChainSync: new Map([[chain, { childAddresses }]]),
+                      syncStore,
+                      events,
+                    });
+                  } else if (error instanceof NonRetryableUserError === false) {
+                    yield* Effect.logWarning({
+                      msg: "Failed to index block range",
+                      chain: chain.name,
+                      chain_id: chain.id,
+                      block_range: JSON.stringify(blockRange),
+                      duration: yield* indexStartClock,
+                      error,
+                    });
+                  }
+                }),
+              ),
+            );
+          }),
         );
 
         cachedViemClient.clear();
@@ -425,12 +427,10 @@ export const runIsolated = ({
 
     const endClock = yield* startClockEffect;
 
-    yield* createTriggers(db.admin, { tables, chainId: chain.id });
-    yield* createLiveQueryTriggers(db.admin, {
-      namespaceBuild,
-      tables,
-      chainId: chain.id,
-    });
+    yield* db.admin.run([
+      ...createTriggers({ tables, chainId: chain.id }),
+      ...createLiveQueryTriggers({ namespaceBuild, tables, chainId: chain.id }),
+    ]);
 
     yield* Effect.logDebug({
       msg: "Created database triggers",
@@ -457,23 +457,22 @@ export const runIsolated = ({
           { concurrency: "unbounded", discard: true },
         );
 
-        yield* db.user.transaction(
+        yield* indexInTransaction(
+          db.user,
           (tx) =>
             Effect.gen(function* () {
               if (db.dialect === "postgres") {
-                yield* tx.query(
-                  (tx) =>
-                    tx.execute(
-                      `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
-                    ),
+                yield* tx.run(
+                  builder.execute(
+                    `CREATE TEMP TABLE ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY) ON COMMIT DROP`,
+                  ),
                   context,
                 );
               } else {
-                yield* tx.query(
-                  (tx) =>
-                    tx.execute(
-                      `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
-                    ),
+                yield* tx.run(
+                  builder.execute(
+                    `CREATE TEMP TABLE IF NOT EXISTS ${getLiveQueryTempTableName()} (table_name TEXT PRIMARY KEY)`,
+                  ),
                   context,
                 );
               }
@@ -508,11 +507,11 @@ export const runIsolated = ({
 
                   yield* indexingCache.flush();
 
-                  yield* Effect.forEach(
-                    tables,
-                    (table) =>
-                      commitBlock(tx, { table, checkpoint, preBuild }, context),
-                    { concurrency: "unbounded", discard: true },
+                  yield* tx.run(
+                    tables.map((table) =>
+                      commitBlock({ table, checkpoint, preBuild }),
+                    ),
+                    context,
                   );
 
                   cachedViemClient.clear();
@@ -552,34 +551,30 @@ export const runIsolated = ({
               }
 
               yield* Effect.gen(function* () {
-                yield* tx.query(
-                  (db) =>
-                    db
-                      .update(PONDER_CHECKPOINT)
-                      .set({ latestCheckpoint: event.checkpoint })
-                      .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
+                yield* tx.run(
+                  builder
+                    .update(PONDER_CHECKPOINT)
+                    .set({ latestCheckpoint: event.checkpoint })
+                    .where(eq(PONDER_CHECKPOINT.chainName, event.chain.name)),
                   { label: "update_checkpoints", ...context },
                 );
 
                 if (event.events.length > 0 && db.dialect === "pglite") {
-                  yield* tx.query(
-                    (tx) =>
-                      tx.execute(
-                        `TRUNCATE TABLE ${getLiveQueryTempTableName()}`,
-                      ),
+                  yield* tx.run(
+                    builder.execute(
+                      `TRUNCATE TABLE ${getLiveQueryTempTableName()}`,
+                    ),
                     context,
                   );
                 }
-              }).pipe(
-                Effect.tapError(() =>
-                  Effect.sync(() => {
-                    indexingCache.invalidate();
-                    indexingCache.clear();
-                  }),
-                ),
-              );
+              });
             }),
-          context,
+          {
+            reset: Effect.sync(() => {
+              indexingCache.invalidate();
+              indexingCache.clear();
+            }),
+          },
         );
 
         if (event.isAccepted) yield* Deferred.succeed(event.isAccepted, true);
@@ -603,41 +598,37 @@ export const runIsolated = ({
         // Note: `_ponder_checkpoint` is not called here, instead it is called
         // in the `block` case.
 
-        yield* db.user.transaction(
-          (tx) =>
-            Effect.gen(function* () {
-              yield* dropTriggers(tx, { tables, chainId: chain.id }, context);
-              yield* dropLiveQueryTriggers(
-                tx,
-                { namespaceBuild, tables, chainId: chain.id },
-                context,
-              );
-
-              const counts = yield* revertIsolated(
-                tx,
-                { checkpoint: event.checkpoint, tables },
-                context,
-              );
-
-              for (const [index, table] of tables.entries()) {
-                yield* Effect.logDebug({
-                  msg: "Reverted reorged database rows",
-                  chain: chain.name,
-                  chain_id: chain.id,
-                  table: getTableName(table),
-                  row_count: counts[index],
-                });
-              }
-
-              yield* createTriggers(tx, { tables, chainId: chain.id }, context);
-              yield* createLiveQueryTriggers(
-                tx,
-                { namespaceBuild, tables, chainId: chain.id },
-                context,
-              );
+        const drops = [
+          ...dropTriggers({ tables, chainId: chain.id }),
+          ...dropLiveQueryTriggers({
+            namespaceBuild,
+            tables,
+            chainId: chain.id,
+          }),
+        ];
+        const results = yield* db.user.run(
+          [
+            ...drops,
+            ...revertIsolated({ checkpoint: event.checkpoint, tables }),
+            ...createTriggers({ tables, chainId: chain.id }),
+            ...createLiveQueryTriggers({
+              namespaceBuild,
+              tables,
+              chainId: chain.id,
             }),
-          context,
+          ],
+          { label: "revert", ...context },
         );
+
+        for (const [index, table] of tables.entries()) {
+          yield* Effect.logDebug({
+            msg: "Reverted reorged database rows",
+            chain: chain.name,
+            chain_id: chain.id,
+            table: getTableName(table),
+            row_count: getRevertCount(results[drops.length + index]!),
+          });
+        }
 
         indexingCache.clear();
         cachedViemClient.reorg({
@@ -662,10 +653,13 @@ export const runIsolated = ({
         const context = { logAnnotations: { action: "finalize_block" } };
         const endClock = yield* startClockEffect;
 
-        yield* finalizeIsolated(
-          db.user,
-          { checkpoint: event.checkpoint, tables, namespaceBuild },
-          context,
+        yield* db.user.run(
+          finalizeIsolated({
+            checkpoint: event.checkpoint,
+            tables,
+            namespaceBuild,
+          }),
+          { label: "finalize", ...context },
         );
 
         yield* cachedViemClient.finalize({

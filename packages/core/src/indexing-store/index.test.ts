@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect, Scope } from "effect";
 import { zeroAddress } from "viem";
 import { createTestServices } from "../_test/utils.js";
@@ -105,19 +104,14 @@ test("sql select with columns of the same name", async () => {
   // only in array row mode, and as objects keyed by column name otherwise.
   const columns = ["id", "name", "id", "owner_id", "name"];
   const values = ["p1", "alice", "d1", "p1", "rex"];
-  const raw = drizzle(async (_sql, _params, method) => ({
-    rows:
-      method === "all"
-        ? [values]
-        : ({
-            rows: [Object.fromEntries(columns.map((c, i) => [c, values[i]]))],
-          } as unknown as unknown[]),
-  }));
   const client = {
     dialect: "postgres",
-    query: (build: (db: typeof raw) => unknown) =>
-      Effect.promise(async () => await build(raw)),
-    transaction: (fn: (tx: DbClient) => unknown) => fn(client),
+    run: ({ arrayMode }: { arrayMode?: boolean }) =>
+      Effect.succeed(
+        arrayMode
+          ? [values]
+          : [Object.fromEntries(columns.map((c, i) => [c, values[i]]))],
+      ),
   } as unknown as DbClient;
   const indexingStore = createStore({ person, pet }, client);
 

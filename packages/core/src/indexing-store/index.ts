@@ -5,13 +5,12 @@ import {
   getViewName,
   isTable,
   isView,
-  type QueryWithTypings,
   type Table,
 } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { Effect, FiberSet, type Scope } from "effect";
-import type { DbClient } from "../database/db.js";
+import type { DbRunner } from "../database/db.js";
 import { onchain } from "../drizzle/onchain.js";
 import {
   DbConnectionError,
@@ -51,7 +50,7 @@ export type IndexingStore = {
   /** The `context.db` of indexing functions. */
   db: Db<Schema>;
   /** Client for reads and writes, such as the transaction of the current batch. */
-  client: DbClient;
+  client: DbRunner;
   isProcessingEvents: boolean;
 };
 
@@ -142,7 +141,7 @@ export const createIndexingStore = ({
     const metrics = yield* Metrics;
     const runPromise = yield* FiberSet.makeRuntimePromise();
 
-    let client: DbClient = undefined!;
+    let client: DbRunner = undefined!;
     let isProcessingEvents = true;
 
     const tables = Object.values(schema).filter(isTable);
@@ -650,40 +649,17 @@ export const createIndexingStore = ({
                   }
                 }
 
-                const query: QueryWithTypings = { sql, params, typings };
                 const endClock = yield* startClockEffect;
 
-                // Note: Use transaction so that user-land queries don't affect the
-                // in-progress transaction.
+                // Note: Rows of `all` are arrays so that columns with the same
+                // name (e.g. from a join) don't overwrite each other.
                 return yield* client
-                  .transaction((tx) =>
-                    Effect.gen(function* () {
-                      if (method === "all") {
-                        // Note: Rows are arrays so that columns with the same
-                        // name (e.g. from a join) don't overwrite each other.
-                        const rows = yield* tx.query((tx) =>
-                          tx._.session
-                            .prepareQuery(
-                              query,
-                              undefined,
-                              undefined,
-                              true,
-                              (rows) => rows,
-                            )
-                            .execute(),
-                        );
-
-                        return { rows };
-                      }
-
-                      return yield* tx.query((tx) =>
-                        tx._.session
-                          .prepareQuery(query, undefined, undefined, false)
-                          .execute(),
-                      );
-                    }),
+                  .run(
+                    { sql, params, typings, arrayMode: method === "all" },
+                    { savepoint: true },
                   )
                   .pipe(
+                    Effect.map((rows) => ({ rows })),
                     Effect.mapError((error) =>
                       error instanceof DbConnectionError
                         ? error
@@ -706,7 +682,7 @@ export const createIndexingStore = ({
       get client() {
         return client;
       },
-      set client(_client: DbClient) {
+      set client(_client: DbRunner) {
         client = _client;
       },
       get isProcessingEvents() {
