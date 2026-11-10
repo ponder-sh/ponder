@@ -1130,7 +1130,17 @@ function buildWhereConditions(
     switch (conditionSuffix) {
       case "":
         if (column.columnType === "PgArray") {
-          conditions.push(arrayEquals(column, rawValue));
+          // Note: `arrayContains` and `arrayContained` don't support empty arrays.
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) = 0`);
+          } else {
+            conditions.push(
+              and(
+                arrayContains(column, rawValue),
+                arrayContained(column, rawValue),
+              ),
+            );
+          }
         } else {
           if (rawValue === null) {
             conditions.push(isNull(column));
@@ -1141,7 +1151,18 @@ function buildWhereConditions(
         break;
       case "_not":
         if (column.columnType === "PgArray") {
-          conditions.push(not(arrayEquals(column, rawValue)));
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) <> 0`);
+          } else {
+            conditions.push(
+              not(
+                and(
+                  arrayContains(column, rawValue),
+                  arrayContained(column, rawValue),
+                )!,
+              ),
+            );
+          }
         } else {
           if (rawValue === null) {
             conditions.push(isNotNull(column));
@@ -1426,14 +1447,4 @@ function selectionIncludesField(
   return info.fieldNodes.some((fieldNode) =>
     includes(fieldNode.selectionSet?.selections ?? []),
   );
-}
-
-/**
- * Returns a condition that is true if the array column contains exactly the
- * elements of `value`, regardless of order.
- */
-function arrayEquals(column: Column, value: unknown[]): SQL {
-  // Note: `arrayContains` and `arrayContained` don't support empty arrays.
-  if (value.length === 0) return sql`cardinality(${column}) = 0`;
-  return and(arrayContains(column, value), arrayContained(column, value))!;
 }
