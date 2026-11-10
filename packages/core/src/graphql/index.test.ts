@@ -1065,7 +1065,7 @@ test("one relation without fields uses the inverse relation", async () => {
   expect(queries.map(({ sql }) => sql)).toMatchInlineSnapshot(`
     [
       "select "id" from "user" order by "user"."id" asc limit $1",
-      "select "id", "user_id" from "profile" "profile" where ("profile"."user_id" = $1 or "profile"."user_id" = $2) limit $3",
+      "select "id", "user_id" from "profile" "profile" where "profile"."user_id" in ($1, $2) limit $3",
     ]
   `);
 });
@@ -1666,8 +1666,63 @@ test("plural with one relation uses dataloader", async () => {
           "kyle",
           2,
         ],
-        "sql": "select "id", "name" from "person" "person" where ("person"."id" = $1 or "person"."id" = $2) limit $3",
+        "sql": "select "id", "name" from "person" "person" where "person"."id" in ($1, $2) limit $3",
       },
+    ]
+  `);
+});
+
+test("one relation batch matches rows by key", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.integer().primaryKey(),
+    name: t.text(),
+  }));
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerId: t.integer(),
+  }));
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, { fields: [pet.ownerId], references: [person.id] }),
+  }));
+  const pets = (ownerIds: (number | null)[]) =>
+    ownerIds.map((ownerId, i) => ({ id: `pet${i}`, ownerId }));
+  let ownerIds: (number | null)[] = [];
+  const { query, queries } = createGraphQL(
+    { person, pet, petRelations },
+    (sql) =>
+      sql.includes('from "pet"')
+        ? pets(ownerIds)
+        : // Note: Rows come back in any order, and person 3 doesn't exist.
+          [
+            { id: 2, name: "b" },
+            { id: 1, name: "a" },
+          ],
+  );
+
+  ownerIds = [1, 2, 1, 3];
+  const result = await query("{ pets { items { id owner { name } } } }");
+  expect(
+    (result.data as any).pets.items.map((pet: any) => pet.owner?.name ?? null),
+  ).toMatchInlineSnapshot(`
+    [
+      "a",
+      "b",
+      "a",
+      null,
+    ]
+  `);
+
+  // Note: A null key can't use `IN`.
+  ownerIds = [1, null];
+  await query("{ pets { items { id owner { name } } } }");
+  expect(
+    queries.map(({ sql }) => sql.split(" where ")[1]),
+  ).toMatchInlineSnapshot(`
+    [
+      undefined,
+      ""person"."id" in ($1, $2, $3) limit $4",
+      undefined,
+      "("person"."id" = $1 or "person"."id" is null) limit $2",
     ]
   `);
 });
