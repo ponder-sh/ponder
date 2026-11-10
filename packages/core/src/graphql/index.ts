@@ -71,6 +71,7 @@ import type { Schema, Status } from "../internal/types.js";
 import { decodeCheckpoint } from "../utils/checkpoint.js";
 import { never } from "../utils/never.js";
 import { GraphQLJSON } from "./json.js";
+import { GraphQLDate, GraphQLDateTime } from "./scalars.js";
 
 type Parent = Record<string, any>;
 type Context = {
@@ -668,6 +669,8 @@ export function buildGraphQLSchema({
     types: [
       GraphQLJSON,
       GraphQLBigInt,
+      GraphQLDateTime,
+      GraphQLDate,
       GraphQLPageInfo,
       GraphQLViewPageInfo,
       GraphQLMeta,
@@ -766,7 +769,7 @@ const columnToGraphQLCore = (
     case "json":
       return GraphQLJSON;
     case "date":
-      return GraphQLString;
+      return column.columnType === "PgDate" ? GraphQLDate : GraphQLDateTime;
     case "string":
       return GraphQLString;
     case "bigint":

@@ -262,9 +262,9 @@ test("column type mapping", () => {
       "macaddr8: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
       "time: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
       "interval: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
-      "timestamp: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "timestamp: DateTime | DateTime | eq _not _in _not_in",
       "timestampString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
-      "date: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
+      "date: Date | Date | eq _not _in _not_in",
       "dateString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
       "json: JSON | - | ",
       "jsonb: JSON | - | ",
@@ -2027,6 +2027,182 @@ test("filter string", async () => {
   `);
 });
 
+test("timestamp and date", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    createdAt: t.timestamp(),
+    createdAtTz: t.timestamp({ withTimezone: true }),
+    day: t.date({ mode: "date" }),
+    history: t.timestamp().array(),
+  }));
+  const { graphqlSchema, query, queries } = createGraphQL({ pet }, (sql) =>
+    sql.includes('"pet"."id" = $1')
+      ? [
+          {
+            id: "id2",
+            createdAt: "2024-06-01 12:30:00.123",
+            createdAtTz: "2024-06-01 12:30:00.123+00",
+            day: "2024-06-01",
+            history: "{}",
+          },
+        ]
+      : [],
+  );
+
+  expect(printTypes(graphqlSchema, "pet")).toMatchInlineSnapshot(`
+    "type pet {
+      id: String!
+      createdAt: DateTime
+      createdAtTz: DateTime
+      day: Date
+      history: [DateTime!]
+    }"
+  `);
+
+  // Note: Timestamps are returned as ISO 8601 strings in UTC, dates as
+  // YYYY-MM-DD.
+  const result = await query(
+    `{ pet(id: "id2") { createdAt createdAtTz day history } }`,
+  );
+  expect(result).toMatchInlineSnapshot(`
+    {
+      "data": {
+        "pet": {
+          "createdAt": "2024-06-01T12:30:00.123Z",
+          "createdAtTz": "2024-06-01T12:30:00.123Z",
+          "day": "2024-06-01",
+          "history": [],
+        },
+      },
+    }
+  `);
+  queries.length = 0;
+
+  for (const where of [
+    `{ createdAt: "2024-06-01T12:30:00.123Z" }`,
+    // Note: Offsets are supported, and a missing offset means UTC.
+    `{ createdAt: "2024-06-01T14:30:00.123+02:00" }`,
+    `{ createdAtTz: "2024-06-01T12:30:00.123" }`,
+    `{ createdAt_not: "2024-01-01T00:00:00Z" }`,
+    `{ createdAt_in: ["2024-01-01T00:00:00.000Z"] }`,
+    `{ day: "2024-06-01" }`,
+    `{ day_in: ["2024-01-01"] }`,
+    `{ history_has: "2024-01-01T00:00:00Z" }`,
+    // Note: Unix timestamps in milliseconds are still accepted.
+    `{ createdAt: "1717245000123" }`,
+    `{ day: "1717200000000" }`,
+  ]) {
+    const result = await query(`{ pets(where: ${where}) { items { id } } }`);
+    expect(result.errors).toBeUndefined();
+  }
+  expect(
+    queries.map(({ sql, params }) => ({
+      where: sql.match(/ where (.*) order by /)?.[1],
+      params: params.slice(0, -1),
+    })),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "params": [
+          "2024-06-01T12:30:00.123Z",
+        ],
+        "where": ""pet"."created_at" = $1",
+      },
+      {
+        "params": [
+          "2024-06-01T12:30:00.123Z",
+        ],
+        "where": ""pet"."created_at" = $1",
+      },
+      {
+        "params": [
+          "2024-06-01T12:30:00.123Z",
+        ],
+        "where": ""pet"."created_at_tz" = $1",
+      },
+      {
+        "params": [
+          "2024-01-01T00:00:00.000Z",
+        ],
+        "where": ""pet"."created_at" <> $1",
+      },
+      {
+        "params": [
+          "2024-01-01T00:00:00.000Z",
+        ],
+        "where": ""pet"."created_at" in ($1)",
+      },
+      {
+        "params": [
+          "2024-06-01T00:00:00.000Z",
+        ],
+        "where": ""pet"."day" = $1",
+      },
+      {
+        "params": [
+          "2024-01-01T00:00:00.000Z",
+        ],
+        "where": ""pet"."day" in ($1)",
+      },
+      {
+        "params": [
+          "{"2024-01-01T00:00:00.000Z"}",
+        ],
+        "where": ""pet"."history" @> $1",
+      },
+      {
+        "params": [
+          "2024-06-01T12:30:00.123Z",
+        ],
+        "where": ""pet"."created_at" = $1",
+      },
+      {
+        "params": [
+          "2024-06-01T00:00:00.000Z",
+        ],
+        "where": ""pet"."day" = $1",
+      },
+    ]
+  `);
+
+  const errors = (where: string) =>
+    validate(
+      graphqlSchema,
+      parse(`{ pets(where: ${where}) { items { id } } }`),
+    ).map((error) => error.message);
+
+  expect([
+    errors(`{ createdAt: "yesterday" }`),
+    errors(`{ day: "2024-06-01T00:00:00Z" }`),
+    errors("{ createdAt: 1717245000123 }"),
+  ]).toMatchInlineSnapshot(`
+    [
+      [
+        "Expected value of type "DateTime", found "yesterday"; Invalid DateTime value "yesterday". Expected an ISO 8601 date-time string.",
+      ],
+      [
+        "Expected value of type "Date", found "2024-06-01T00:00:00Z"; Invalid Date value "2024-06-01T00:00:00Z". Expected a YYYY-MM-DD string.",
+      ],
+      [
+        "Expected value of type "DateTime", found 1717245000123; Invalid DateTime value 1717245000123. Expected an ISO 8601 date-time string.",
+      ],
+    ]
+  `);
+  // Note: Out of range fields are rejected instead of rolling over.
+  for (const value of [
+    "2024-02-30T00:00:00Z",
+    "2024-06-01T24:00:00Z",
+    "2024-06-01T12:60:00Z",
+    "2024-06-01T12:00:00+24:00",
+    "2024-06-01 12:00:00Z",
+  ]) {
+    expect(errors(`{ createdAt: "${value}" }`)).toHaveLength(1);
+  }
+  expect(errors(`{ day: "2024-02-30" }`)).toHaveLength(1);
+  expect(errors(`{ createdAt: "2024-02-29T23:59:59.999Z" }`)).toEqual([]);
+  expect(errors(`{ day: "2024-02-29" }`)).toEqual([]);
+});
+
 test("filter and/or", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
@@ -2822,27 +2998,27 @@ test("cursor pagination with date order", async () => {
           "pets": {
             "items": [
               {
-                "createdAt": "1609459200000",
+                "createdAt": "2021-01-01",
                 "id": "id1",
                 "name": "Skip",
               },
               {
-                "createdAt": "1609545600000",
+                "createdAt": "2021-01-02",
                 "id": "id2",
                 "name": "Foo",
               },
               {
-                "createdAt": "1609632000000",
+                "createdAt": "2021-01-03",
                 "id": "id3",
                 "name": "Bar",
               },
               {
-                "createdAt": "1609718400000",
+                "createdAt": "2021-01-04",
                 "id": "id4",
                 "name": "Zarbar",
               },
               {
-                "createdAt": "1609804800000",
+                "createdAt": "2021-01-05",
                 "id": "id5",
                 "name": "Winston",
               },
@@ -2862,22 +3038,22 @@ test("cursor pagination with date order", async () => {
           "pets": {
             "items": [
               {
-                "createdAt": "1609891200000",
+                "createdAt": "2021-01-06",
                 "id": "id6",
                 "name": "Book",
               },
               {
-                "createdAt": "1609977600000",
+                "createdAt": "2021-01-07",
                 "id": "id7",
                 "name": "Shea",
               },
               {
-                "createdAt": "1610064000000",
+                "createdAt": "2021-01-08",
                 "id": "id8",
                 "name": "Snack",
               },
               {
-                "createdAt": "1610150400000",
+                "createdAt": "2021-01-09",
                 "id": "id9",
                 "name": "Last",
               },
