@@ -11,9 +11,7 @@ import { oraPromise } from "ora";
 import pico from "picocolors";
 import prettier from "prettier";
 import { default as prompts } from "prompts";
-// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
-// @ts-expect-error
-import rootPackageJson from "../package.json";
+import rootPackageJson from "../package.json" with { type: "json" };
 
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { mergeAbis } from "./helpers/mergeAbis.js";
@@ -459,10 +457,10 @@ function addBunFlagToScripts(scripts: Record<string, string>) {
     Number(_nodeVersion[1]),
     Number(_nodeVersion[2]),
   ];
-  if (nodeVersion[0]! < 18 || (nodeVersion[0] === 18 && nodeVersion[1]! < 14))
+  if (nodeVersion[0]! < 22 || (nodeVersion[0] === 22 && nodeVersion[1]! < 12))
     throw new Error(
       pico.red(
-        `Node version:${process.version} does not meet the >=18.14 requirement`,
+        `Node version:${process.version} does not meet the >=22.12 requirement`,
       ),
     );
 
