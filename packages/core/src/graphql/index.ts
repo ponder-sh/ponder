@@ -30,6 +30,7 @@ import {
   One,
   or,
   SQL,
+  sql,
 } from "drizzle-orm";
 import {
   getViewConfig,
@@ -909,8 +910,16 @@ async function executePluralQuery(
           ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
           : null;
     } else {
-      // Rows are skipped by the offset if any row matches the filters.
-      hasPreviousPage = rows.length > 0 || (await rowExists(undefined));
+      // Rows are skipped by the offset if any row matches the filters. Only
+      // query for that when the page is empty.
+      hasPreviousPage =
+        rows.length > 0 ||
+        (await qb.raw
+          .select({ exists: sql`1` })
+          .from(relation)
+          .where(and(...whereConditions, ...extraConditions))
+          .limit(1)
+          .then((rows) => rows.length > 0));
     }
 
     return {
