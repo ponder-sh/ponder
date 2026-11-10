@@ -1,4 +1,4 @@
-import { GraphQLScalarType, print } from "graphql";
+import { GraphQLScalarType, Kind, print } from "graphql";
 
 const DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DATE_TIME_REGEX =
@@ -138,4 +138,57 @@ export const GraphQLDate = new GraphQLScalarType({
     if (ast.kind !== "StringValue") throw dateError(print(ast));
     return parseDate(ast.value);
   },
+});
+
+const INTEGER_REGEX = /^-?\d+$/;
+const DECIMAL_REGEX = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+const parseBigInt = (value: unknown, display: string): bigint => {
+  if (typeof value === "string" && INTEGER_REGEX.test(value)) {
+    return BigInt(value);
+  }
+  // Note: JSON variables can't represent large integers, but small ones are
+  // accepted as numbers.
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return BigInt(value);
+  }
+  throw new TypeError(
+    `Invalid BigInt value ${display}. Expected an integer string, e.g. "123".`,
+  );
+};
+
+const parseNumeric = (value: unknown, display: string): string => {
+  if (typeof value === "string" && DECIMAL_REGEX.test(value)) return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  throw new TypeError(
+    `Invalid Numeric value ${display}. Expected a decimal string, e.g. "1.5".`,
+  );
+};
+
+export const GraphQLBigInt = new GraphQLScalarType({
+  name: "BigInt",
+  description:
+    'The `BigInt` scalar type represents an integer of any size as a string, e.g. `"123"`.',
+  serialize: (value) => String(value),
+  parseValue: (value) =>
+    parseBigInt(value, JSON.stringify(value) ?? String(value)),
+  // Note: Int literals are exact, so they are accepted at any size.
+  parseLiteral: (ast) =>
+    parseBigInt(
+      ast.kind === Kind.STRING || ast.kind === Kind.INT ? ast.value : undefined,
+      print(ast),
+    ),
+});
+
+export const GraphQLNumeric = new GraphQLScalarType({
+  name: "Numeric",
+  description:
+    'The `Numeric` scalar type represents an exact decimal number as a string, e.g. `"1.5"`.',
+  serialize: (value) => String(value),
+  parseValue: (value) =>
+    parseNumeric(value, JSON.stringify(value) ?? String(value)),
+  parseLiteral: (ast) =>
+    parseNumeric(ast.kind === Kind.STRING ? ast.value : undefined, print(ast)),
 });

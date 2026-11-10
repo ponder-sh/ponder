@@ -75,7 +75,12 @@ import type { Schema, Status } from "../internal/types.js";
 import { decodeCheckpoint } from "../utils/checkpoint.js";
 import { never } from "../utils/never.js";
 import { GraphQLJSON } from "./json.js";
-import { GraphQLDate, GraphQLDateTime } from "./scalars.js";
+import {
+  GraphQLBigInt,
+  GraphQLDate,
+  GraphQLDateTime,
+  GraphQLNumeric,
+} from "./scalars.js";
 
 type Parent = Record<string, any>;
 type Context = {
@@ -513,36 +518,6 @@ const GraphQLViewPageInfo = new GraphQLObjectType({
   },
 });
 
-const GraphQLBigInt = new GraphQLScalarType({
-  name: "BigInt",
-  serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value as any),
-  parseLiteral: (value) => {
-    if (value.kind === "StringValue") {
-      return BigInt(value.value);
-    } else {
-      throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
-      );
-    }
-  },
-});
-
-const GraphQLNumeric = new GraphQLScalarType({
-  name: "Numeric",
-  serialize: (value) => String(value),
-  parseValue: (value) => String(value as any),
-  parseLiteral: (value) => {
-    if (value.kind === "StringValue") {
-      return String(value.value);
-    } else {
-      throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
-      );
-    }
-  },
-});
-
 const GraphQLMeta = new GraphQLObjectType({
   name: "Meta",
   fields: { status: { type: GraphQLJSON } },
@@ -821,7 +796,7 @@ const executePluralQuery = (
 
     const orderBySchema = buildOrderBySchema(relation, args);
     const orderBy = orderBySchema.map(([columnName, direction]) => {
-      const column = columns[columnName];
+      const column = getColumn(columns, columnName);
       if (column === undefined) {
         throw new Error(
           `Unknown column "${columnName}" used in orderBy argument`,
@@ -830,7 +805,7 @@ const executePluralQuery = (
       return direction === "asc" ? asc(column) : desc(column);
     });
     const orderByReversed = orderBySchema.map(([columnName, direction]) => {
-      const column = columns[columnName];
+      const column = getColumn(columns, columnName);
       if (column === undefined) {
         throw new Error(
           `Unknown column "${columnName}" used in orderBy argument`,
@@ -1125,7 +1100,7 @@ function buildWhereConditions(
     );
 
     // Validate that the column name is present in the table.
-    const column = columns[columnName];
+    const column = getColumn(columns, columnName);
     if (column === undefined) {
       throw new Error(
         `Invalid query: Where clause contains unknown column ${columnName}`,
@@ -1264,7 +1239,7 @@ function buildCursorCondition(
   cursorObject: { [k: string]: unknown },
 ): SQL | undefined {
   const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
-    const column = columns[columnName];
+    const column = getColumn(columns, columnName);
     if (column === undefined)
       throw new Error(
         `Unknown column "${columnName}" used in orderBy argument`,
@@ -1355,7 +1330,7 @@ export function buildDataLoaderCache({
                   .map((fragment) =>
                     Object.fromEntries(
                       Object.entries(fragment).map(([col, val]) => {
-                        const column = table.columns[col];
+                        const column = getColumn(table.columns, col);
                         if (column === undefined) {
                           throw new Error(
                             `Unknown column '${table.tsName}.${col}' used in dataloader row ID fragment`,
@@ -1383,6 +1358,19 @@ export function buildDataLoaderCache({
 
     return dataLoader;
   };
+}
+
+/**
+ * Returns the column named `name`, or `undefined`.
+ *
+ * Note: `name` can come from user input (e.g. `orderBy`), so keys inherited
+ * from `Object.prototype` like "toString" must not match.
+ */
+function getColumn(
+  columns: Record<string, Column>,
+  name: string,
+): Column | undefined {
+  return Object.hasOwn(columns, name) ? columns[name] : undefined;
 }
 
 function getColumnTsName(column: Column) {

@@ -70,7 +70,7 @@ const createGraphQL = (
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  const query = (source: string) =>
+  const query = (source: string, variableValues?: Record<string, unknown>) =>
     execute({
       schema: graphqlSchema,
       contextValue: {
@@ -79,6 +79,7 @@ const createGraphQL = (
         getDataLoader: buildDataLoaderCache({ db, runPromise }),
       },
       document: parse(source),
+      variableValues,
     });
 
   return { graphqlSchema, query, queries };
@@ -1085,7 +1086,9 @@ test("many relation with an ambiguous inverse relation", () => {
 
   expect(() =>
     createGraphQL({ account, transfer, accountRelations, transferRelations }),
-  ).toThrowErrorMatchingInlineSnapshot(`"Failed to build the GraphQL field for relation "account.transfers": Found 2 "one" relations in table "transfer" that reference "account". Use "relationName" to choose one."`);
+  ).toThrowErrorMatchingInlineSnapshot(
+    `"Failed to build the GraphQL field for relation "account.transfers": Found 2 "one" relations in table "transfer" that reference "account". Use "relationName" to choose one."`,
+  );
   expect(() =>
     createGraphQL({
       transfer,
@@ -1785,6 +1788,114 @@ test("filter input type", () => {
       enumArray_not_has: simpleEnum
     }"
   `);
+});
+
+test("BigInt and Numeric input", async () => {
+  const account = onchainTable("account", (t) => ({
+    id: t.text().primaryKey(),
+    balance: t.bigint(),
+    price: t.numeric(),
+  }));
+  const { graphqlSchema, query, queries } = createGraphQL({ account });
+
+  const errors = (where: string) =>
+    validate(
+      graphqlSchema,
+      parse(`{ accounts(where: ${where}) { items { id } } }`),
+    ).map((error) => error.message);
+
+  expect([
+    errors(`{ balance: "" }`),
+    errors(`{ balance: " 0x10 " }`),
+    errors(`{ balance: "1.5" }`),
+    errors("{ balance: 1 }"),
+    errors(`{ price: "abc" }`),
+    errors(`{ price: "-1.5e3" }`),
+  ]).toMatchInlineSnapshot(`
+    [
+      [
+        "Expected value of type "BigInt", found ""; Invalid BigInt value "". Expected an integer string, e.g. "123".",
+      ],
+      [
+        "Expected value of type "BigInt", found " 0x10 "; Invalid BigInt value " 0x10 ". Expected an integer string, e.g. "123".",
+      ],
+      [
+        "Expected value of type "BigInt", found "1.5"; Invalid BigInt value "1.5". Expected an integer string, e.g. "123".",
+      ],
+      [],
+      [
+        "Expected value of type "Numeric", found "abc"; Invalid Numeric value "abc". Expected a decimal string, e.g. "1.5".",
+      ],
+      [],
+    ]
+  `);
+
+  const results = [];
+  for (const variables of [
+    { where: { balance: "-123" } },
+    { where: { balance: 5 } },
+    { where: { price: 1.5 } },
+    { where: { balance: true } },
+  ]) {
+    const result = await query(
+      "query ($where: accountFilter) { accounts(where: $where) { items { id } } }",
+      variables,
+    );
+    results.push(result.errors?.map((error) => error.message));
+  }
+  expect(results).toMatchInlineSnapshot(`
+    [
+      undefined,
+      undefined,
+      undefined,
+      [
+        "Variable "$where" got invalid value true at "where.balance"; Expected type "BigInt". Invalid BigInt value true. Expected an integer string, e.g. "123".",
+      ],
+    ]
+  `);
+  expect(queries.map(({ params }) => params)).toMatchInlineSnapshot(`
+    [
+      [
+        -123n,
+        51,
+      ],
+      [
+        5n,
+        51,
+      ],
+      [
+        "1.5",
+        51,
+      ],
+    ]
+  `);
+});
+
+test("order by an Object.prototype key", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const { query, queries } = createGraphQL({ pet });
+
+  const results = await Promise.all(
+    ["toString", "constructor", "__proto__"].map((orderBy) =>
+      query(`{ pets(orderBy: "${orderBy}") { items { id } } }`),
+    ),
+  );
+  expect(
+    results.map((result) => result.errors?.map((error) => error.message)),
+  ).toMatchInlineSnapshot(`
+    [
+      [
+        "Unknown column "toString" used in orderBy argument",
+      ],
+      [
+        "Unknown column "constructor" used in orderBy argument",
+      ],
+      [
+        "Unknown column "__proto__" used in orderBy argument",
+      ],
+    ]
+  `);
+  expect(queries).toEqual([]);
 });
 
 test("filter universal", async () => {
