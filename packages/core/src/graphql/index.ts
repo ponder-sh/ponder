@@ -126,13 +126,18 @@ export function buildGraphQLSchema({
   for (const [enumTsName, enumObject] of enums) {
     // Note that this is keyed by enumName (the SQL name) because that's what is
     // available on the PgEnumColumn type. See `columnToGraphQLCore` for context.
-    enumTypes[enumObject.enumName] = new GraphQLEnumType({
-      name: enumTsName,
-      values: enumObject.enumValues.reduce(
-        (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-        {},
-      ),
-    });
+    try {
+      enumTypes[enumObject.enumName] = new GraphQLEnumType({
+        name: enumTsName,
+        values: Object.fromEntries(
+          enumObject.enumValues.map((value) => [value, {}]),
+        ),
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to build the GraphQL schema: Enum "${enumTsName}" is invalid. ${(error as Error).message}`,
+      );
+    }
   }
 
   const entityFilterTypes: Record<string, GraphQLInputObjectType> = {};
@@ -341,6 +346,22 @@ export function buildGraphQLSchema({
   }
 
   const queryFields: Record<string, GraphQLFieldConfig<Parent, Context>> = {};
+  const queryFieldOwners: Record<string, string> = {};
+  /** Add a field to `Query`, failing if another table or view added it. */
+  const addQueryField = (
+    name: string,
+    owner: string,
+    config: GraphQLFieldConfig<Parent, Context>,
+  ) => {
+    if (Object.hasOwn(queryFieldOwners, name)) {
+      throw new Error(
+        `Failed to build the GraphQL schema: The query field "${name}" is defined by both ${queryFieldOwners[name]} and ${owner}. Rename one of them.`,
+      );
+    }
+    queryFieldOwners[name] = owner;
+    queryFields[name] = config;
+  };
+
   for (const table of tables) {
     const entityType = entityTypes[table.tsName]!;
     const entityPageType = entityPageTypes[table.tsName]!;
@@ -350,7 +371,7 @@ export function buildGraphQLSchema({
       table.tsName.charAt(0).toLowerCase() + table.tsName.slice(1);
     const pluralFieldName = `${singularFieldName}s`;
 
-    queryFields[singularFieldName] = {
+    addQueryField(singularFieldName, `table "${table.tsName}"`, {
       type: entityType,
       // Find the primary key columns and GraphQL core types and include them
       // as arguments to the singular query type.
@@ -380,9 +401,9 @@ export function buildGraphQLSchema({
 
         return loader.load(encodedId);
       },
-    };
+    });
 
-    queryFields[pluralFieldName] = {
+    addQueryField(pluralFieldName, `table "${table.tsName}"`, {
       type: new GraphQLNonNull(entityPageType),
       args: {
         where: { type: entityFilterType },
@@ -406,7 +427,7 @@ export function buildGraphQLSchema({
           ),
         );
       },
-    };
+    });
   }
   for (const [viewName, view] of views) {
     const viewConfig = getViewConfig(view);
@@ -417,7 +438,7 @@ export function buildGraphQLSchema({
       viewName.charAt(0).toLowerCase() + viewName.slice(1);
     const pluralFieldName = `${singularFieldName}s`;
 
-    queryFields[pluralFieldName] = {
+    addQueryField(pluralFieldName, `view "${viewName}"`, {
       type: new GraphQLNonNull(entityPageType),
       args: {
         where: { type: entityFilterType },
@@ -439,10 +460,10 @@ export function buildGraphQLSchema({
           ),
         );
       },
-    };
+    });
   }
 
-  queryFields._meta = {
+  addQueryField("_meta", "the built-in metadata", {
     type: GraphQLMeta,
     resolve: (_source, _args, context) =>
       context.runPromise(
@@ -480,9 +501,21 @@ export function buildGraphQLSchema({
           return { status };
         }),
       ),
-  };
+  });
 
-  return new GraphQLSchema({
+  try {
+    return buildSchema(queryFields);
+  } catch (error) {
+    throw new Error(
+      `Failed to build the GraphQL schema: ${(error as Error).message}`,
+    );
+  }
+}
+
+const buildSchema = (
+  queryFields: Record<string, GraphQLFieldConfig<Parent, Context>>,
+) =>
+  new GraphQLSchema({
     // Include these here so they are listed first in the printed schema.
     types: [
       GraphQLJSON,
@@ -498,7 +531,6 @@ export function buildGraphQLSchema({
       fields: queryFields,
     }),
   });
-}
 
 const GraphQLPageInfo = new GraphQLObjectType({
   name: "PageInfo",
@@ -628,7 +660,7 @@ const getRelationColumns = (
 
   if (inverseRelations.length !== 1) {
     throw new Error(
-      `Failed to build the GraphQL field for relation "${table.tsName}.${relationName}": ${
+      `Relation "${table.tsName}.${relationName}" is invalid. ${
         inverseRelations.length === 0
           ? `Expected a "one" relation with "fields" and "references" in table "${referencedTable.tsName}" that references "${table.tsName}".`
           : `Found ${inverseRelations.length} "one" relations in table "${referencedTable.tsName}" that reference "${table.tsName}". Use "relationName" to choose one.`

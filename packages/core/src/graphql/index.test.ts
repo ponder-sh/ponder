@@ -271,16 +271,16 @@ test("column type mapping", () => {
       "dateString: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase _gt _lt _gte _lte",
       "json: JSON | - | ",
       "jsonb: JSON | - | ",
-      "pointTuple: error: undefined is not an object (evaluating 'column.columnType')",
+      "pointTuple: error: Failed to build the GraphQL schema: undefined is not an object (evaluating 'column.columnType')",
       "pointXy: JSON | - | ",
-      "lineTuple: error: undefined is not an object (evaluating 'column.columnType')",
+      "lineTuple: error: Failed to build the GraphQL schema: undefined is not an object (evaluating 'column.columnType')",
       "lineAbc: JSON | - | ",
       "geometry: [Float!] | [Float] | eq _not _has _not_has",
       "vector: [Float!] | [Float] | eq _not _has _not_has",
-      "halfvec: error: undefined is not an object (evaluating 'column.columnType')",
+      "halfvec: error: Failed to build the GraphQL schema: undefined is not an object (evaluating 'column.columnType')",
       "sparsevec: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
       "bit: String | String | eq _not _in _not_in _contains _not_contains _starts_with _ends_with _not_starts_with _not_ends_with _contains_nocase _not_contains_nocase _starts_with_nocase _ends_with_nocase _not_starts_with_nocase _not_ends_with_nocase",
-      "custom: error: Type custom is not implemented",
+      "custom: error: Failed to build the GraphQL schema: Type custom is not implemented",
       "enum: simpleEnum | simpleEnum | eq _not _in _not_in",
       "textArray: [String!] | [String] | eq _not _has _not_has",
       "enumArray: [simpleEnum!] | [simpleEnum] | eq _not _has _not_has",
@@ -423,6 +423,45 @@ test("int8 number mode column", async () => {
   ).toMatchInlineSnapshot(`
     [
       [GraphQLError: Variable "$min" of type "Int" used in position expecting type "Float".],
+    ]
+  `);
+});
+
+test("schema name errors", () => {
+  const status = onchainEnum("status", ["in-progress", "done"]);
+  const user = onchainTable("user", (t) => ({ id: t.text().primaryKey() }));
+  const users = onchainTable("users", (t) => ({ id: t.text().primaryKey() }));
+  const meta = onchainTable("_meta", (t) => ({ id: t.text().primaryKey() }));
+  const pageInfo = onchainTable("PageInfo", (t) => ({
+    id: t.text().primaryKey(),
+  }));
+  const dash = onchainTable("dash", (t) => ({
+    id: t.text().primaryKey(),
+    "my-col": t.text(),
+  }));
+
+  expect(
+    [
+      { status },
+      { user, users },
+      { _meta: meta },
+      { PageInfo: pageInfo },
+      { dash },
+    ].map((schema) => {
+      try {
+        buildGraphQLSchema({ schema });
+        return "ok";
+      } catch (error) {
+        return (error as Error).message;
+      }
+    }),
+  ).toMatchInlineSnapshot(`
+    [
+      "Failed to build the GraphQL schema: Enum "status" is invalid. Names must only contain [_a-zA-Z0-9] but "in-progress" does not.",
+      "Failed to build the GraphQL schema: The query field "users" is defined by both table "user" and table "users". Rename one of them.",
+      "Failed to build the GraphQL schema: The query field "_meta" is defined by both table "_meta" and the built-in metadata. Rename one of them.",
+      "Failed to build the GraphQL schema: Schema must contain uniquely named types but contains multiple types named "PageInfo".",
+      "Failed to build the GraphQL schema: Names must only contain [_a-zA-Z0-9] but "my-col" does not.",
     ]
   `);
 });
@@ -1087,7 +1126,7 @@ test("many relation with an ambiguous inverse relation", () => {
   expect(() =>
     createGraphQL({ account, transfer, accountRelations, transferRelations }),
   ).toThrowErrorMatchingInlineSnapshot(
-    `"Failed to build the GraphQL field for relation "account.transfers": Found 2 "one" relations in table "transfer" that reference "account". Use "relationName" to choose one."`,
+    `"Failed to build the GraphQL schema: Relation "account.transfers" is invalid. Found 2 "one" relations in table "transfer" that reference "account". Use "relationName" to choose one."`,
   );
   expect(() =>
     createGraphQL({
