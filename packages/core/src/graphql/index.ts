@@ -146,8 +146,6 @@ export function buildGraphQLSchema({
 
             // JSON => no filters.
             if (baseType.name === "JSON") continue;
-            // Geometric types don't have an equality operator.
-            if (column.columnType === "PgGeometry") continue;
 
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
@@ -155,8 +153,8 @@ export function buildGraphQLSchema({
               };
             });
 
-            // Containment filters are only supported for SQL arrays.
-            if (column.columnType === "PgArray") {
+            // Bytes are not SQL arrays => no containment filters.
+            if (column.columnType !== "PgBytes") {
               conditionSuffixes.plural.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = { type: baseType };
               });
@@ -242,8 +240,6 @@ export function buildGraphQLSchema({
 
             // JSON => no filters.
             if (baseType.name === "JSON") continue;
-            // Geometric types don't have an equality operator.
-            if ((column as PgColumn).columnType === "PgGeometry") continue;
 
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
@@ -251,8 +247,8 @@ export function buildGraphQLSchema({
               };
             });
 
-            // Containment filters are only supported for SQL arrays.
-            if ((column as PgColumn).columnType === "PgArray") {
+            // Bytes are not SQL arrays => no containment filters.
+            if ((column as PgColumn).columnType !== "PgBytes") {
               conditionSuffixes.plural.forEach((suffix) => {
                 filterFields[`${columnName}${suffix}`] = { type: baseType };
               });

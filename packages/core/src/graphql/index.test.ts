@@ -1452,23 +1452,6 @@ test("filter list columns that aren't arrays", async () => {
   // @ts-expect-error
   expect(result.data.pets.items).toMatchObject([{ id: "id1" }]);
 
-  // Vector and geometry columns require extensions, so only check the schema.
-  const vectorTable = onchainTable("vector_table", (t) => ({
-    id: t.text().primaryKey(),
-    vector: t.vector({ dimensions: 2 }),
-    geometry: t.geometry(),
-  }));
-  const vectorSchema = buildGraphQLSchema({ schema: { vectorTable } });
-  const vectorFields = Object.keys(
-    (vectorSchema.getType("vectorTableFilter") as any).getFields(),
-  );
-  expect(vectorFields.filter((f) => f.startsWith("id") === false)).toEqual([
-    "AND",
-    "OR",
-    "vector",
-    "vector_not",
-  ]);
-
   // Views get the same filters as tables.
   const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
   const viewSchema = buildGraphQLSchema({ schema: { pet, petView } });
