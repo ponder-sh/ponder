@@ -857,8 +857,12 @@ const executePluralQuery = (
       throw new Error("Cannot specify both before cursor and offset.");
     }
 
-    let startCursor = null;
-    let endCursor = null;
+    // Note: The cursors are functions, which the default resolver calls, so
+    // they are only encoded if the query selects them.
+    let startCursor: (() => string) | null = null;
+    let endCursor: (() => string) | null = null;
+    const cursor = (row: { [k: string]: unknown }) => () =>
+      encodeCursor(orderBySchema, row);
     let hasPreviousPage = false;
     let hasNextPage = false;
 
@@ -895,12 +899,8 @@ const executePluralQuery = (
       }
 
       if (offset === 0) {
-        startCursor =
-          rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-        endCursor =
-          rows.length > 0
-            ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-            : null;
+        startCursor = rows.length > 0 ? cursor(rows[0]!) : null;
+        endCursor = rows.length > 0 ? cursor(rows[rows.length - 1]!) : null;
       } else {
         hasPreviousPage = true;
       }
@@ -966,12 +966,8 @@ const executePluralQuery = (
       }
 
       // Now calculate the cursors.
-      startCursor =
-        rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-      endCursor =
-        rows.length > 0
-          ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-          : null;
+      startCursor = rows.length > 0 ? cursor(rows[0]!) : null;
+      endCursor = rows.length > 0 ? cursor(rows[rows.length - 1]!) : null;
 
       return {
         items: rows,
@@ -1033,12 +1029,8 @@ const executePluralQuery = (
     }
 
     // Now calculate the cursors.
-    startCursor =
-      rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-    endCursor =
-      rows.length > 0
-        ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-        : null;
+    startCursor = rows.length > 0 ? cursor(rows[0]!) : null;
+    endCursor = rows.length > 0 ? cursor(rows[rows.length - 1]!) : null;
 
     return {
       items: rows,
