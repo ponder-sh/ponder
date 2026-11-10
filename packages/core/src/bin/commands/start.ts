@@ -1,7 +1,7 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { createBuild } from "../../build/index.js";
 import { Db, makeDb, makeDbTransports } from "../../database/db.js";
-import { migrate, migrateSync } from "../../database/migrate.js";
+import { lockApp, migrateApp, migrateSync } from "../../database/migrate.js";
 import { Metrics } from "../../internal/metrics.js";
 import { buildOptions, type Options } from "../../internal/options.js";
 import type {
@@ -55,7 +55,6 @@ export const startApp = ({ cliOptions }: { cliOptions: CliOptions }) =>
       yield* makeDbTransports({
         namespace: app.namespaceBuild,
         preBuild: app.preBuild,
-        schemaBuild: app.schemaBuild,
       }),
     );
     const rpcs = yield* createRpcs(app.chains).pipe(failBuild("config"));
@@ -142,7 +141,8 @@ export const runApp = ({
       })
       .pipe(failBuild("indexing"));
 
-    const crashRecoveryCheckpoint = yield* migrate({
+    const db = yield* Db;
+    const crashRecoveryCheckpoint = yield* migrateApp(db.admin, {
       namespace: namespaceBuild,
       preBuild,
       schemaBuild,
@@ -152,7 +152,11 @@ export const runApp = ({
       finalizedBlocks: indexingBuild.finalizedBlocks,
     });
 
-    yield* migrateSync;
+    yield* lockApp(db.admin, {
+      namespace: namespaceBuild,
+      buildId: indexingBuild.buildId,
+    });
+    yield* migrateSync(db.admin);
 
     const apiResult = yield* build
       .executeApi({ preBuild, configBuild })

@@ -3,7 +3,7 @@ import path from "node:path";
 import { Cause, Deferred, Effect, Exit, Queue, Scope, Stream } from "effect";
 import { createBuild } from "../../build/index.js";
 import { Db, makeDb, makeDbTransports } from "../../database/db.js";
-import { migrate, migrateSync } from "../../database/migrate.js";
+import { lockApp, migrateApp, migrateSync } from "../../database/migrate.js";
 import { NonRetryableUserError } from "../../internal/errors.js";
 import { Metrics } from "../../internal/metrics.js";
 import { buildOptions } from "../../internal/options.js";
@@ -143,7 +143,6 @@ export function dev({ cliOptions }: { cliOptions: CliOptions }) {
       const db = yield* makeDbTransports({
         namespace,
         preBuild,
-        schemaBuild,
       }).pipe(Effect.flatMap(makeDb), Scope.provide(indexingScope));
       yield* build
         .databaseDiagnostic({ preBuild })
@@ -169,7 +168,7 @@ export function dev({ cliOptions }: { cliOptions: CliOptions }) {
         .pipe(failBuild("indexing"));
 
       yield* Effect.gen(function* () {
-        const crashRecoveryCheckpoint = yield* migrate({
+        const crashRecoveryCheckpoint = yield* migrateApp(db.admin, {
           namespace,
           preBuild,
           schemaBuild,
@@ -177,9 +176,13 @@ export function dev({ cliOptions }: { cliOptions: CliOptions }) {
           chains: indexingBuild.chains,
           rpcs: indexingBuild.rpcs,
           finalizedBlocks: indexingBuild.finalizedBlocks,
+        });
+        yield* lockApp(db.admin, {
+          namespace,
+          buildId: indexingBuild.buildId,
         }).pipe(Scope.provide(indexingScope));
 
-        yield* migrateSync;
+        yield* migrateSync(db.admin);
 
         const apiResult = yield* build
           .executeApi({ preBuild, configBuild })
