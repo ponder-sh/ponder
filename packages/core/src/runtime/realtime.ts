@@ -1033,73 +1033,73 @@ export const handleRealtimeSyncEvent = (
 
         const db = yield* Db;
 
-        yield* db.sync.transaction(
-          (tx) =>
-            Effect.gen(function* () {
-              const syncStore = yield* createSyncStore(tx);
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const tx = yield* db.sync.begin;
+            const syncStore = yield* createSyncStore(tx);
 
-              // Note: Every insert finishes before the transaction fails with the
-              // first error.
-              const results = yield* Effect.all(
-                [
-                  syncStore.insertBlocks({
-                    blocks: finalizedBlocks
-                      .filter(({ hasMatchedFilter }) => hasMatchedFilter)
-                      .map(({ block }) => block),
-                    chainId: params.chain.id,
-                  }),
-                  syncStore.insertTransactions({
-                    transactions: finalizedBlocks.flatMap(
-                      ({ transactions }) => transactions,
-                    ),
-                    chainId: params.chain.id,
-                  }),
-                  syncStore.insertTransactionReceipts({
-                    transactionReceipts: finalizedBlocks.flatMap(
-                      ({ transactionReceipts }) => transactionReceipts,
-                    ),
-                    chainId: params.chain.id,
-                  }),
-                  syncStore.insertLogs({
-                    logs: finalizedBlocks.flatMap(({ logs }) => logs),
-                    chainId: params.chain.id,
-                  }),
-                  syncStore.insertTraces({
-                    traces: finalizedBlocks.flatMap(
-                      ({ traces, block, transactions }) =>
-                        traces.map((trace) => ({
-                          trace,
-                          block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
-                          transaction: transactions.find(
-                            (t) => t.hash === trace.transactionHash,
-                          )!,
-                        })),
-                    ),
-                    chainId: params.chain.id,
-                  }),
-                  syncStore.insertChildAddresses({
-                    childAddresses,
-                    chainId: params.chain.id,
-                  }),
-                ].map(Effect.result),
-                { concurrency: "unbounded" },
-              );
-              for (const result of results) {
-                if (Result.isFailure(result)) {
-                  return yield* Effect.fail(result.failure);
-                }
-              }
-
-              yield* syncStore.insertIntervals(
-                {
-                  intervals,
-                  factoryIntervals,
+            // Note: Every insert finishes before the transaction fails with the
+            // first error.
+            const results = yield* Effect.all(
+              [
+                syncStore.insertBlocks({
+                  blocks: finalizedBlocks
+                    .filter(({ hasMatchedFilter }) => hasMatchedFilter)
+                    .map(({ block }) => block),
                   chainId: params.chain.id,
-                },
-                context,
-              );
-            }),
-          context,
+                }),
+                syncStore.insertTransactions({
+                  transactions: finalizedBlocks.flatMap(
+                    ({ transactions }) => transactions,
+                  ),
+                  chainId: params.chain.id,
+                }),
+                syncStore.insertTransactionReceipts({
+                  transactionReceipts: finalizedBlocks.flatMap(
+                    ({ transactionReceipts }) => transactionReceipts,
+                  ),
+                  chainId: params.chain.id,
+                }),
+                syncStore.insertLogs({
+                  logs: finalizedBlocks.flatMap(({ logs }) => logs),
+                  chainId: params.chain.id,
+                }),
+                syncStore.insertTraces({
+                  traces: finalizedBlocks.flatMap(
+                    ({ traces, block, transactions }) =>
+                      traces.map((trace) => ({
+                        trace,
+                        block: block as SyncBlock, // SyncBlock is expected for traces.length !== 0
+                        transaction: transactions.find(
+                          (t) => t.hash === trace.transactionHash,
+                        )!,
+                      })),
+                  ),
+                  chainId: params.chain.id,
+                }),
+                syncStore.insertChildAddresses({
+                  childAddresses,
+                  chainId: params.chain.id,
+                }),
+              ].map(Effect.result),
+              { concurrency: "unbounded" },
+            );
+            for (const result of results) {
+              if (Result.isFailure(result)) {
+                return yield* Effect.fail(result.failure);
+              }
+            }
+
+            yield* syncStore.insertIntervals(
+              {
+                intervals,
+                factoryIntervals,
+                chainId: params.chain.id,
+              },
+              context,
+            );
+            yield* tx.commit;
+          }),
         );
         break;
       }

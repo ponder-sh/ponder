@@ -970,8 +970,9 @@ export const createHistoricalSync = (
                   return;
                 }
 
-                yield* db.sync.transaction((tx) =>
+                yield* Effect.scoped(
                   Effect.gen(function* () {
+                    const tx = yield* db.sync.begin;
                     const syncStore = yield* createSyncStore(tx).pipe(
                       Effect.provideService(Options, options),
                       Effect.provideService(Metrics, metrics),
@@ -1009,6 +1010,7 @@ export const createHistoricalSync = (
                       factoryIntervals,
                       chainId: args.chain.id,
                     });
+                    yield* tx.commit;
                   }),
                 );
 
