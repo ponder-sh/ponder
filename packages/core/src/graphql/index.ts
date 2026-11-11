@@ -1353,7 +1353,8 @@ function buildCursorCondition(
   direction: "after" | "before",
   cursorObject: { [k: string]: unknown },
 ): SQL | undefined {
-  const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
+  const buildCondition = (index: number): SQL | undefined => {
+    const [columnName, orderDirection] = orderBySchema[index]!;
     const column = columns[columnName];
     if (column === undefined)
       throw new GraphQLError(
@@ -1361,44 +1362,25 @@ function buildCursorCondition(
       );
 
     const value = cursorObject[columnName];
+    // Postgres sorts NULL greater than every other value.
+    const greater = (direction === "after") === (orderDirection === "asc");
 
-    let comparator: typeof gt | typeof lt;
-    let comparatorOrEquals: typeof gte | typeof lte;
-    if (direction === "after") {
-      [comparator, comparatorOrEquals] =
-        orderDirection === "asc" ? [gt, gte] : [lt, lte];
-    } else {
-      [comparator, comparatorOrEquals] =
-        orderDirection === "asc" ? [lt, lte] : [gt, gte];
+    // The last column is a primary key column, which is never NULL.
+    if (index === orderBySchema.length - 1) {
+      return greater ? gte(column, value) : lte(column, value);
     }
 
-    // Postgres sorts NULLs last for `asc` and first for `desc`.
-    const nullsBeyond = (direction === "after") === (orderDirection === "asc");
-
-    let beyond: SQL;
+    let beyond: SQL | undefined;
     let equal: SQL;
-    let beyondOrEqual: SQL | undefined;
     if (value === null) {
-      beyond = nullsBeyond ? sql`false` : isNotNull(column);
+      beyond = greater ? undefined : isNotNull(column);
       equal = isNull(column);
-      beyondOrEqual = nullsBeyond ? isNull(column) : undefined;
-    } else if (nullsBeyond && column.notNull !== true) {
-      beyond = or(comparator(column, value), isNull(column))!;
-      equal = eq(column, value);
-      beyondOrEqual = or(comparatorOrEquals(column, value), isNull(column));
     } else {
-      beyond = comparator(column, value);
+      beyond = greater
+        ? or(gt(column, value), isNull(column))
+        : lt(column, value);
       equal = eq(column, value);
-      beyondOrEqual = comparatorOrEquals(column, value);
     }
-
-    return { beyond, equal, beyondOrEqual };
-  });
-
-  const buildCondition = (index: number): SQL | undefined => {
-    const { beyond, equal, beyondOrEqual } = cursorColumns[index]!;
-
-    if (index === cursorColumns.length - 1) return beyondOrEqual;
 
     return or(beyond, and(equal, buildCondition(index + 1)));
   };
