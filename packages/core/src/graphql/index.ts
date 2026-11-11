@@ -963,15 +963,10 @@ async function executePluralQuery(
     if (encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
-    } else {
-      // Otherwise, remove the last record.
-      rows.pop();
     }
 
-    // Now if the length of the records is still equal to limit + 1,
-    // there is a next page.
-    if (rows.length === limit + 1) {
-      rows.pop();
+    if (rows.length > limit) {
+      rows.splice(limit);
       hasNextPage = true;
     }
 
@@ -1026,15 +1021,10 @@ async function executePluralQuery(
   if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
     rows.pop();
     hasNextPage = true;
-  } else {
-    // Otherwise, remove the first record.
-    rows.shift();
   }
 
-  // Now if the length of the records is equal to limit + 1, we know
-  // there is a previous page.
-  if (rows.length === limit + 1) {
-    rows.shift();
+  if (rows.length > limit) {
+    rows.splice(0, rows.length - limit);
     hasPreviousPage = true;
   }
 
