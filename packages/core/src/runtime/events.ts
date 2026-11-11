@@ -621,7 +621,8 @@ export const decodeEvents = (
       eventCallback.filter.type === "trace"
     ) {
       let decodedData: { args: readonly unknown[]; functionName: string };
-      let decodedResult: readonly unknown[];
+      // A function with one output decodes to that value, not an array.
+      let decodedResult: unknown;
       try {
         decodedData = decodeFunctionData({
           abi: [eventCallback.abiItem as AbiFunction],
