@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.18.7
+
+### Patch Changes
+
+- [#2478](https://github.com/ponder-sh/ponder/pull/2478) [`25d4a1d`](https://github.com/ponder-sh/ponder/commit/25d4a1d76a93c9420a9671648fb4317d1d9f050e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed Node version validation (`>=22.12` is required).
+
 ## 0.18.6
 
 No changes in this release.
