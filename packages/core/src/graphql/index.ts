@@ -145,15 +145,21 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Bytes are not SQL arrays => no containment filters.
+            if (column.columnType !== "PgBytes") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
@@ -233,15 +239,21 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Bytes are not SQL arrays => no containment filters.
+            if ((column as PgColumn).columnType !== "PgBytes") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
@@ -368,8 +380,10 @@ export function buildGraphQLSchema({
                   const referenceColumnTsName =
                     getColumnTsName(referenceColumn);
 
-                  rowFragment[referenceColumnTsName] =
-                    parent[fieldColumnTsName];
+                  const value = parent[fieldColumnTsName];
+                  // A `NULL` reference never matches a row (like a SQL join).
+                  if (value === null || value === undefined) return null;
+                  rowFragment[referenceColumnTsName] = value;
                 }
                 const encodedId = encodeRowFragment(rowFragment);
 
@@ -618,11 +632,9 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context.qb
-        .wrap({ label: "select_checkpoints" }, (db) =>
-          db.execute(
-            "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-          ),
+      const checkpoints = (await context.qb.raw
+        .execute(
+          "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
         )
         .then((res) => res.rows)) as {
         chain_name: string;
@@ -874,13 +886,10 @@ async function executePluralQuery(
   let hasNextPage = false;
 
   const totalCountPromise = includeTotalCount
-    ? qb
-        .wrap((db) =>
-          db
-            .select({ count: count() })
-            .from(relation)
-            .where(and(...whereConditions, ...extraConditions)),
-        )
+    ? qb.raw
+        .select({ count: count() })
+        .from(relation)
+        .where(and(...whereConditions, ...extraConditions))
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
 
@@ -910,16 +919,7 @@ async function executePluralQuery(
           ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
           : null;
     } else {
-      // Rows are skipped by the offset if any row matches the filters. Only
-      // query for that when the page is empty.
-      hasPreviousPage =
-        rows.length > 0 ||
-        (await qb.raw
-          .select({ exists: sql`1` })
-          .from(relation)
-          .where(and(...whereConditions, ...extraConditions))
-          .limit(1)
-          .then((rows) => rows.length > 0));
+      hasPreviousPage = rows.length > 0;
     }
 
     return {
@@ -931,7 +931,7 @@ async function executePluralQuery(
 
   if (after !== null) {
     // User specified an 'after' cursor.
-    const cursorObject = decodeCursor(after);
+    const cursorObject = decodeCursor(orderBySchema, after);
     const cursorCondition = buildCursorCondition(
       columns,
       orderBySchema,
@@ -950,16 +950,21 @@ async function executePluralQuery(
       totalCountPromise,
     ]);
 
+    if (rows.length === 0) {
+      return {
+        items: rows,
+        totalCount,
+        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+      };
+    }
+
     // If the cursor of the first returned record equals the `after` cursor,
-    // `hasPreviousPage` is true. Remove that record. The cursor record may be
-    // missing if it was deleted or no longer matches the filter, in which
-    // case `hasPreviousPage` is conservatively false.
-    if (rows.length > 0 && encodeCursor(orderBySchema, rows[0]!) === after) {
+    // `hasPreviousPage` is true. Remove that record.
+    if (encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
     }
 
-    // Any records beyond `limit` mean there is a next page.
     if (rows.length > limit) {
       rows.splice(limit);
       hasNextPage = true;
@@ -981,7 +986,7 @@ async function executePluralQuery(
   }
 
   // User specified a 'before' cursor.
-  const cursorObject = decodeCursor(before!);
+  const cursorObject = decodeCursor(orderBySchema, before!);
   const cursorCondition = buildCursorCondition(
     columns,
     orderBySchema,
@@ -1003,19 +1008,21 @@ async function executePluralQuery(
     totalCountPromise,
   ]);
 
+  if (rows.length === 0) {
+    return {
+      items: rows,
+      totalCount,
+      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+    };
+  }
+
   // If the cursor of the last returned record equals the `before` cursor,
-  // `hasNextPage` is true. Remove that record. The cursor record may be
-  // missing if it was deleted or no longer matches the filter, in which
-  // case `hasNextPage` is conservatively false.
-  if (
-    rows.length > 0 &&
-    encodeCursor(orderBySchema, rows[rows.length - 1]!) === before
-  ) {
+  // `hasNextPage` is true. Remove that record.
+  if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
     rows.pop();
     hasNextPage = true;
   }
 
-  // Any records beyond `limit` mean there is a previous page.
   if (rows.length > limit) {
     rows.splice(0, rows.length - limit);
     hasPreviousPage = true;
@@ -1062,20 +1069,39 @@ const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
   .flat()
   .sort((a, b) => b.length - a.length);
 
+/**
+ * Prepare a string filter value for use in a `LIKE` pattern.
+ *
+ * - Escape the `LIKE` wildcard characters (`%` and `_`) and the escape
+ *   character (backslash) so that the value is matched literally.
+ * - Lowercase values for hex columns, which are stored lowercase.
+ */
+function likeValue(column: Column, value: string) {
+  const normalized =
+    column.columnType === "PgHex" ? value.toLowerCase() : value;
+  return normalized.replace(/[\\%_]/g, "\\$&");
+}
+
 function buildWhereConditions(
-  where: Record<string, any> | undefined,
+  where: Record<string, any> | null | undefined,
   columns: Record<string, Column>,
 ) {
   const conditions: (SQL | undefined)[] = [];
 
-  if (where === undefined) return conditions;
+  if (where === undefined || where === null) return conditions;
 
   for (const [whereKey, rawValue] of Object.entries(where)) {
     // Handle the `AND` and `OR` operators
     if (whereKey === "AND" || whereKey === "OR") {
+      if (rawValue === null) continue;
       if (!Array.isArray(rawValue)) {
         throw new GraphQLError(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
+        );
+      }
+      if (rawValue.includes(null)) {
+        throw new GraphQLError(
+          `Invalid query: ${whereKey} cannot contain null`,
         );
       }
 
@@ -1119,39 +1145,56 @@ function buildWhereConditions(
       );
     }
 
+    if (
+      rawValue === null &&
+      conditionSuffix !== "" &&
+      conditionSuffix !== "_not"
+    ) {
+      continue;
+    }
+
+    if (Array.isArray(rawValue) && rawValue.includes(null)) {
+      throw new GraphQLError(`Invalid query: ${whereKey} cannot contain null`);
+    }
+
     switch (conditionSuffix) {
       case "":
-        if (column.columnType === "PgArray") {
-          conditions.push(
-            and(
-              arrayContains(column, rawValue),
-              arrayContained(column, rawValue),
-            ),
-          );
-        } else {
-          if (rawValue === null) {
-            conditions.push(isNull(column));
+        if (rawValue === null) {
+          conditions.push(isNull(column));
+        } else if (column.columnType === "PgArray") {
+          // Note: `arrayContains` and `arrayContained` don't support empty arrays.
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) = 0`);
           } else {
-            conditions.push(eq(column, rawValue));
-          }
-        }
-        break;
-      case "_not":
-        if (column.columnType === "PgArray") {
-          conditions.push(
-            not(
+            conditions.push(
               and(
                 arrayContains(column, rawValue),
                 arrayContained(column, rawValue),
-              )!,
-            ),
-          );
-        } else {
-          if (rawValue === null) {
-            conditions.push(isNotNull(column));
-          } else {
-            conditions.push(ne(column, rawValue));
+              ),
+            );
           }
+        } else {
+          conditions.push(eq(column, rawValue));
+        }
+        break;
+      case "_not":
+        if (rawValue === null) {
+          conditions.push(isNotNull(column));
+        } else if (column.columnType === "PgArray") {
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) <> 0`);
+          } else {
+            conditions.push(
+              not(
+                and(
+                  arrayContains(column, rawValue),
+                  arrayContained(column, rawValue),
+                )!,
+              ),
+            );
+          }
+        } else {
+          conditions.push(ne(column, rawValue));
         }
         break;
       case "_in":
@@ -1179,40 +1222,40 @@ function buildWhereConditions(
         conditions.push(lte(column, rawValue));
         break;
       case "_contains":
-        conditions.push(like(column, `%${rawValue}%`));
+        conditions.push(like(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_not_contains":
-        conditions.push(notLike(column, `%${rawValue}%`));
+        conditions.push(notLike(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_starts_with":
-        conditions.push(like(column, `${rawValue}%`));
+        conditions.push(like(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_ends_with":
-        conditions.push(like(column, `%${rawValue}`));
+        conditions.push(like(column, `%${likeValue(column, rawValue)}`));
         break;
       case "_not_starts_with":
-        conditions.push(notLike(column, `${rawValue}%`));
+        conditions.push(notLike(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_not_ends_with":
-        conditions.push(notLike(column, `%${rawValue}`));
+        conditions.push(notLike(column, `%${likeValue(column, rawValue)}`));
         break;
       case "_contains_nocase":
-        conditions.push(ilike(column, `%${rawValue}%`));
+        conditions.push(ilike(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_not_contains_nocase":
-        conditions.push(notIlike(column, `%${rawValue}%`));
+        conditions.push(notIlike(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_starts_with_nocase":
-        conditions.push(ilike(column, `${rawValue}%`));
+        conditions.push(ilike(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_ends_with_nocase":
-        conditions.push(ilike(column, `%${rawValue}`));
+        conditions.push(ilike(column, `%${likeValue(column, rawValue)}`));
         break;
       case "_not_starts_with_nocase":
-        conditions.push(notIlike(column, `${rawValue}%`));
+        conditions.push(notIlike(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_not_ends_with_nocase":
-        conditions.push(notIlike(column, `%${rawValue}`));
+        conditions.push(notIlike(column, `%${likeValue(column, rawValue)}`));
         break;
       default:
         never(conditionSuffix);
@@ -1262,8 +1305,37 @@ function encodeCursor(
   );
   return encodeRowFragment(cursorObject);
 }
-function decodeCursor(cursor: string): { [k: string]: unknown } {
-  return decodeRowFragment(cursor);
+function decodeCursor(
+  orderBySchema: [string, "asc" | "desc"][],
+  cursor: string,
+): { [k: string]: unknown } {
+  let cursorObject: unknown;
+  try {
+    cursorObject = decodeRowFragment(cursor);
+  } catch {
+    throw new GraphQLError("Invalid cursor.");
+  }
+
+  if (
+    typeof cursorObject !== "object" ||
+    cursorObject === null ||
+    Array.isArray(cursorObject)
+  ) {
+    throw new GraphQLError("Invalid cursor.");
+  }
+
+  // The cursor must contain exactly the columns of the order by clause.
+  const keys = Object.keys(cursorObject);
+  if (
+    keys.length !== orderBySchema.length ||
+    orderBySchema.some(([columnName]) => !keys.includes(columnName))
+  ) {
+    throw new GraphQLError(
+      "Invalid cursor. The cursor does not match the orderBy argument.",
+    );
+  }
+
+  return cursorObject as { [k: string]: unknown };
 }
 
 function encodeRowFragment(rowFragment: { [k: string]: unknown }): string {

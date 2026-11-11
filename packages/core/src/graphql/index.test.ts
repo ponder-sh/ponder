@@ -1,4 +1,4 @@
-import { count, relations } from "drizzle-orm";
+import { count, eq, relations } from "drizzle-orm";
 import {
   type ExecutionResult,
   execute,
@@ -664,6 +664,63 @@ test("singular with one relation using camel case 'references' column name", asy
   });
 });
 
+test("singular with one relation and null reference", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    handle: t.text(),
+  }));
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerHandle: t.text(),
+  }));
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, {
+      fields: [pet.ownerHandle],
+      references: [person.handle],
+    }),
+  }));
+  const schema = { person, pet, petRelations };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.person).values([
+    { id: "jake", handle: "jj" },
+    { id: "kyle", handle: null },
+  ]);
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "dog1", ownerHandle: "jj" },
+    { id: "dog2", ownerHandle: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets {
+        items {
+          id
+          owner {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // A null reference does not match rows with a null referenced column.
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([
+    { id: "dog1", owner: { id: "jake" } },
+    { id: "dog2", owner: null },
+  ]);
+});
+
 test("singular with many relation", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1009,6 +1066,21 @@ test("singular with many relation using filter", async () => {
       },
     },
   });
+
+  for (const where of ["null", "{ OR: null, age_gt: null }"]) {
+    const result = await query(`
+      query { person(id: "jake") { pets(where: ${where}) { items { id } totalCount } } }
+    `);
+    expect(result.errors, where).toBeUndefined();
+    expect(result.data, where).toEqual({
+      person: {
+        pets: {
+          items: [{ id: "dog1" }, { id: "dog2" }, { id: "dog3" }],
+          totalCount: 3,
+        },
+      },
+    });
+  }
 });
 
 test("singular with many relation using order by", async () => {
@@ -1406,6 +1478,65 @@ test("filter input type", async () => {
   });
 });
 
+test("filter list columns that aren't arrays", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    data: t.bytes(),
+    jsonArray: t.json().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", data: new Uint8Array([1, 2]) },
+    { id: "id2", data: new Uint8Array([3]) },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  // Bytes columns are represented as lists, but are not SQL arrays, and
+  // `json` has no equality operator.
+  const fields = Object.keys(
+    (graphqlSchema.getType("petFilter") as any).getFields(),
+  );
+  expect(fields.filter((f) => f.startsWith("data"))).toEqual([
+    "data",
+    "data_not",
+  ]);
+  expect(fields.filter((f) => f.startsWith("jsonArray"))).toEqual([]);
+
+  const result = await query(`
+    query {
+      pets(where: { data: [1, 2] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }]);
+
+  // Views get the same filters as tables.
+  const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
+  const viewSchema = buildGraphQLSchema({ schema: { pet, petView } });
+  const viewFields = Object.keys(
+    (viewSchema.getType("petViewFilter") as any).getFields(),
+  );
+  expect(viewFields.filter((f) => f.startsWith("data"))).toEqual([
+    "data",
+    "data_not",
+  ]);
+  expect(viewFields.filter((f) => f.startsWith("jsonArray"))).toEqual([]);
+});
+
 test("filter universal", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.bigint().primaryKey(),
@@ -1528,6 +1659,120 @@ test("filter null equality", async () => {
       ],
     },
   });
+});
+
+test("filter nullable values", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+    age: t.integer(),
+    enabled: t.boolean(),
+    tags: t.text().array(),
+  }));
+  const schema = { pet };
+  const { database } = await setupDatabaseServices({ schemaBuild: { schema } });
+  const contextValue = buildContextValue(database);
+  const graphqlSchema = buildGraphQLSchema({ schema });
+  await database.userQB.raw
+    .insert(pet)
+    .values([
+      { id: "id1", name: "", age: 0, enabled: false, tags: [] },
+      { id: "id2", name: "null-ish", age: 10, enabled: true, tags: ["a"] },
+      { id: "id3" },
+    ]);
+
+  const all = ["id1", "id2", "id3"];
+  const cases: [string, string[]][] = [
+    ["null", all],
+    ["{ AND: null }", all],
+    ["{ OR: null }", all],
+    ["{ AND: [{ OR: null }, { enabled: false }] }", ["id1"]],
+    ["{ tags: null }", ["id3"]],
+    ["{ tags_not: null }", ["id1", "id2"]],
+    ["{ name: null }", ["id3"]],
+    ["{ name_not: null }", ["id1", "id2"]],
+    ["{ age: 0 }", ["id1"]],
+    ["{ enabled: false }", ["id1"]],
+    ['{ name: "" }', ["id1"]],
+    ['{ name_contains: "" }', ["id1", "id2"]],
+    ['{ tags_has: "" }', []],
+    ['{ tags: ["a"] }', ["id2"]],
+    ['{ tags_has: "a" }', ["id2"]],
+    ["{ age_in: [0] }", ["id1"]],
+    ["{ age_not_in: [0] }", ["id2"]],
+    ["{ age_in: [] }", []],
+    ["{ age_not_in: [] }", all],
+    ["{ OR: [{ age: 0 }, { age: 10 }] }", ["id1", "id2"]],
+    ["{ AND: [{ age_gte: 0 }, { age_lte: 0 }] }", ["id1"]],
+  ];
+  for (const operator of [
+    "age_gt",
+    "age_lt",
+    "age_gte",
+    "age_lte",
+    "age_in",
+    "age_not_in",
+    "tags_has",
+    "tags_not_has",
+    "name_contains",
+    "name_not_contains",
+    "name_starts_with",
+    "name_ends_with",
+    "name_not_starts_with",
+    "name_not_ends_with",
+    "name_contains_nocase",
+    "name_not_contains_nocase",
+    "name_starts_with_nocase",
+    "name_ends_with_nocase",
+    "name_not_starts_with_nocase",
+    "name_not_ends_with_nocase",
+  ]) {
+    cases.push([`{ ${operator}: null }`, all]);
+  }
+  for (const [where, ids] of cases) {
+    const result = await execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(
+        `query { pets(where: ${where}, orderBy: "id") { items { id } } }`,
+      ),
+    });
+    expect(result.errors, where).toBeUndefined();
+    expect(result.data, where).toEqual({
+      pets: { items: ids.map((id) => ({ id })) },
+    });
+  }
+
+  const nullElementCases: [string, string][] = [
+    ["{ AND: [null] }", "AND"],
+    ["{ OR: [null, { age: 0 }] }", "OR"],
+    ["{ AND: [{ OR: [null] }] }", "OR"],
+    ["{ age_in: [0, null] }", "age_in"],
+    ["{ age_not_in: [null] }", "age_not_in"],
+    ['{ tags: ["a", null] }', "tags"],
+    ["{ tags_not: [null] }", "tags_not"],
+  ];
+  for (const [where, key] of nullElementCases) {
+    const result = await execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(`query { pets(where: ${where}) { items { id } } }`),
+    });
+    expect(result.errors?.[0]?.message, where).toBe(
+      `Invalid query: ${key} cannot contain null`,
+    );
+  }
+
+  const result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(
+      `query($where: petFilter) { pets(where: $where, orderBy: "id") { items { id } } }`,
+    ),
+    variableValues: { where: null },
+  });
+  expect(result.errors).toBeUndefined();
+  expect(result.data).toEqual({ pets: { items: all.map((id) => ({ id })) } });
 });
 
 test("filter singular", async () => {
@@ -1681,6 +1926,43 @@ test("filter plural", async () => {
       ],
     },
   });
+});
+
+test("filter plural with empty list", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    tags: t.text().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", tags: ["a"] },
+    { id: "id2", tags: [] },
+    { id: "id3", tags: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids("{ tags: [] }")).toStrictEqual(["id2"]);
+  expect(await ids("{ tags_not: [] }")).toStrictEqual(["id1"]);
+  expect(await ids(`{ tags: ["a"] }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ tags_not: ["a"] }`)).toStrictEqual(["id2"]);
 });
 
 test("filter numeric", async () => {
@@ -1919,6 +2201,94 @@ test("filter string", async () => {
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "1" }, { id: "2" }] },
   });
+});
+
+test("filter string escapes wildcards", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", name: "50%_off" },
+    { id: "id2", name: "50abc" },
+    { id: "id3", name: "a\\b" },
+    { id: "id4", name: "ab" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids(`{ name_contains: "%" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_contains: "_" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_starts_with: "50%" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_ends_with: "%_off" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_not_contains: "%" }`)).toStrictEqual([
+    "id2",
+    "id3",
+    "id4",
+  ]);
+  expect(await ids(`{ name_contains_nocase: "%_OFF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_starts_with_nocase: "A\\\\" }`)).toStrictEqual([
+    "id3",
+  ]);
+});
+
+test("filter string on hex column is case insensitive", async () => {
+  const account = onchainTable("account", (t) => ({
+    id: t.text().primaryKey(),
+    address: t.hex(),
+  }));
+  const schema = { account };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.account).values([
+    { id: "id1", address: "0xabcdef" },
+    { id: "id2", address: "0x123456" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { accounts(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.accounts.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids(`{ address: "0xABCDEF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_starts_with: "0xABC" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_contains: "CDE" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_ends_with: "EF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_not_contains: "CDE" }`)).toStrictEqual(["id2"]);
+  expect(await ids(`{ address_not_starts_with: "0xABC" }`)).toStrictEqual([
+    "id2",
+  ]);
+  expect(await ids(`{ address_not_ends_with: "EF" }`)).toStrictEqual(["id2"]);
 });
 
 test("filter and/or", async () => {
@@ -2624,21 +2994,56 @@ test("offset has previous page", async () => {
 
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  const hasPreviousPage = async (args: string) => {
-    const result = await query(
-      `query { pets(${args}) { pageInfo { hasPreviousPage } } }`,
-    );
-    expect(result.errors?.[0]?.message).toBeUndefined();
-    // @ts-expect-error
-    return result.data.pets.pageInfo.hasPreviousPage;
-  };
+  let result = await query(`
+    query {
+      pets(offset: 1) {
+        items { id }
+        pageInfo { hasPreviousPage }
+      }
+    }
+  `);
 
-  expect(await hasPreviousPage(`offset: 1`)).toBe(true);
-  // Rows exist before the offset, even though the page is empty.
-  expect(await hasPreviousPage(`offset: 10`)).toBe(true);
-  expect(await hasPreviousPage(`where: { name: "a" }, offset: 2`)).toBe(true);
-  // No rows match the filter.
-  expect(await hasPreviousPage(`where: { name: "c" }, offset: 1`)).toBe(false);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id2" }, { id: "id3" }],
+      pageInfo: { hasPreviousPage: true },
+    },
+  });
+
+  result = await query(`
+    query {
+      pets(offset: 10) {
+        items { id }
+        pageInfo { hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [],
+      pageInfo: { hasPreviousPage: false },
+    },
+  });
+
+  result = await query(`
+    query {
+      pets(where: { name: "c" }, offset: 1) {
+        items { id }
+        pageInfo { hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [],
+      pageInfo: { hasPreviousPage: false },
+    },
+  });
 });
 
 test("cursor pagination start and end cursors", async () => {
@@ -2790,17 +3195,7 @@ test("cursor pagination has previous page", async () => {
   });
 });
 
-test("cursor pagination when the cursor row was deleted", async () => {
-  type Page = {
-    items: { id: string }[];
-    pageInfo: {
-      hasNextPage: boolean;
-      hasPreviousPage: boolean;
-      startCursor: string | null;
-      endCursor: string | null;
-    };
-  };
-
+test("cursor pagination after a deleted cursor row", async () => {
   const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
   const schema = { pet };
 
@@ -2811,86 +3206,198 @@ test("cursor pagination when the cursor row was deleted", async () => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([
+      { id: "id1" },
+      { id: "id2" },
+      { id: "id3" },
+      { id: "id4" },
+      { id: "id5" },
+    ]);
+
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  let ids: string[] = [];
-  const reset = async (newIds = ["id1", "id2", "id3", "id4", "id5"]) => {
-    ids = newIds;
-    await database.userQB.raw.delete(schema.pet);
-    await database.userQB.raw
-      .insert(schema.pet)
-      .values(ids.map((id) => ({ id })));
-  };
-  const remove = (...removed: string[]) =>
-    reset(ids.filter((id) => removed.includes(id) === false));
-  const page = async (args: string) => {
-    const result = await query(`
-      query {
-        pets(${args}) {
-          items { id }
-          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-        }
+  let result = await query(`
+    query {
+      pets(limit: 2) {
+        pageInfo { endCursor }
       }
-    `);
-    expect(result.errors?.[0]?.message).toBeUndefined();
-    return result.data!.pets as Page;
-  };
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
 
-  // after: rows remain on both sides of the deleted cursor row
-  await reset();
-  let cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id2");
-  let result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id3" }, { id: "id4" }]);
-  expect(result.pageInfo.hasNextPage).toBe(true);
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id2"));
 
-  // after: exactly `limit` rows remain
-  await reset(["id1", "id2", "id3", "id4"]);
-  cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id2");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id3" }, { id: "id4" }]);
-  expect(result.pageInfo.hasNextPage).toBe(false);
+  result = await query(`
+    query {
+      pets(limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
 
-  // after: a single row remains
-  await reset(["id1", "id2", "id3"]);
-  cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id2");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id3" }]);
-  expect(result.pageInfo.endCursor).not.toBeNull();
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id3" }, { id: "id4" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: false },
+    },
+  });
+});
 
-  // after: no rows remain after the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 5")).pageInfo.endCursor;
-  await remove("id5");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([]);
-  expect(result.pageInfo.hasNextPage).toBe(false);
+test("cursor pagination after a deleted cursor row with limit rows remaining", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
 
-  // before: rows remain on both sides of the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 3")).pageInfo.endCursor;
-  await remove("id3");
-  result = await page(`limit: 2, before: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id1" }, { id: "id2" }]);
-  expect(result.pageInfo.hasPreviousPage).toBe(false);
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  // before: rows remain beyond the previous page
-  await reset();
-  cursor = (await page("limit: 4")).pageInfo.endCursor;
-  await remove("id4");
-  result = await page(`limit: 2, before: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id2" }, { id: "id3" }]);
-  expect(result.pageInfo.hasPreviousPage).toBe(true);
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }, { id: "id3" }, { id: "id4" }]);
 
-  // before: no rows remain after the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 3")).pageInfo.endCursor;
-  await remove("id3", "id4", "id5");
-  result = await page(`limit: 2, before: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id1" }, { id: "id2" }]);
-  expect(result.pageInfo.hasNextPage).toBe(false);
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(limit: 2) {
+        pageInfo { endCursor }
+      }
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id2"));
+
+  result = await query(`
+    query {
+      pets(limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id3" }, { id: "id4" }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    },
+  });
+});
+
+test("cursor pagination after a deleted cursor row with one row remaining", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }, { id: "id3" }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(limit: 2) {
+        pageInfo { endCursor }
+      }
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id2"));
+
+  result = await query(`
+    query {
+      pets(limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id3" }],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: expect.any(String),
+        endCursor: expect.any(String),
+      },
+    },
+  });
+});
+
+test("cursor pagination before a deleted cursor row", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([
+      { id: "id1" },
+      { id: "id2" },
+      { id: "id3" },
+      { id: "id4" },
+      { id: "id5" },
+    ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(limit: 3) {
+        pageInfo { endCursor }
+      }
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id3"));
+
+  result = await query(`
+    query {
+      pets(limit: 2, before: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id1" }, { id: "id2" }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    },
+  });
 });
 
 test("cursor pagination composite primary key", async () => {
