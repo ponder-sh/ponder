@@ -4,6 +4,7 @@ import {
   execute,
   type GraphQLType,
   parse,
+  validate,
 } from "graphql";
 import { toBytes, zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -399,6 +400,55 @@ test("json, json not null", async () => {
   });
 });
 
+test("order by json column", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    json: t.json(),
+    jsonb: t.jsonb(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", json: { a: 2 }, jsonb: { a: 2 } },
+    { id: "id2", json: { a: 1 }, jsonb: { a: 1 } },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "json") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderBy. Column "json" has type json, which cannot be ordered.',
+  );
+
+  result = await query(`
+    query {
+      pets(orderBy: "jsonb") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+});
+
 test("singular", async () => {
   const transferEvents = onchainTable("transfer_events", (t) => ({
     id: t.text().primaryKey(),
@@ -612,6 +662,63 @@ test("singular with one relation using camel case 'references' column name", asy
       owner: { camelCaseId: "jake" },
     },
   });
+});
+
+test("singular with one relation and null reference", async () => {
+  const person = onchainTable("person", (t) => ({
+    id: t.text().primaryKey(),
+    handle: t.text(),
+  }));
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    ownerHandle: t.text(),
+  }));
+  const petRelations = relations(pet, ({ one }) => ({
+    owner: one(person, {
+      fields: [pet.ownerHandle],
+      references: [person.handle],
+    }),
+  }));
+  const schema = { person, pet, petRelations };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.person).values([
+    { id: "jake", handle: "jj" },
+    { id: "kyle", handle: null },
+  ]);
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "dog1", ownerHandle: "jj" },
+    { id: "dog2", ownerHandle: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets {
+        items {
+          id
+          owner {
+            id
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // A null reference does not match rows with a null referenced column.
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([
+    { id: "dog1", owner: { id: "jake" } },
+    { id: "dog2", owner: null },
+  ]);
 });
 
 test("singular with many relation", async () => {
@@ -1034,6 +1141,62 @@ test("singular with many relation using order by", async () => {
   });
 });
 
+test("order by null", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 2 },
+    { id: "id2", age: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  // A null `orderBy` (e.g. a variable set to `null`) is treated as omitted.
+  let result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(`
+      query($orderBy: String, $orderDirection: String) {
+        pets(orderBy: $orderBy, orderDirection: $orderDirection) {
+          items {
+            id
+          }
+        }
+      }
+    `),
+    variableValues: { orderBy: null, orderDirection: null },
+  });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(`
+      query {
+        pets(orderBy: null, orderDirection: "desc") {
+          items {
+            id
+          }
+        }
+      }
+    `),
+  });
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+});
+
 test("plural with one relation uses dataloader", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1103,6 +1266,52 @@ test("plural with one relation uses dataloader", async () => {
 
   expect(personSelectSpy).toHaveBeenCalledTimes(1);
   expect(petSelectSpy).toHaveBeenCalledTimes(1);
+});
+
+test("total count in fragments", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets {
+        ... on petPage {
+          totalCount
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
+
+  result = await query(`
+    query {
+      pets {
+        ...Outer
+      }
+    }
+    fragment Outer on petPage {
+      ...PetCount
+    }
+    fragment PetCount on petPage {
+      totalCount
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({ pets: { totalCount: 2 } });
 });
 
 test("filter input type", async () => {
@@ -1269,6 +1478,65 @@ test("filter input type", async () => {
   });
 });
 
+test("filter list columns that aren't arrays", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    data: t.bytes(),
+    jsonArray: t.json().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", data: new Uint8Array([1, 2]) },
+    { id: "id2", data: new Uint8Array([3]) },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  // Bytes columns are represented as lists, but are not SQL arrays, and
+  // `json` has no equality operator.
+  const fields = Object.keys(
+    (graphqlSchema.getType("petFilter") as any).getFields(),
+  );
+  expect(fields.filter((f) => f.startsWith("data"))).toEqual([
+    "data",
+    "data_not",
+  ]);
+  expect(fields.filter((f) => f.startsWith("jsonArray"))).toEqual([]);
+
+  const result = await query(`
+    query {
+      pets(where: { data: [1, 2] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }]);
+
+  // Views get the same filters as tables.
+  const petView = onchainView("pet_view").as((qb) => qb.select().from(pet));
+  const viewSchema = buildGraphQLSchema({ schema: { pet, petView } });
+  const viewFields = Object.keys(
+    (viewSchema.getType("petViewFilter") as any).getFields(),
+  );
+  expect(viewFields.filter((f) => f.startsWith("data"))).toEqual([
+    "data",
+    "data_not",
+  ]);
+  expect(viewFields.filter((f) => f.startsWith("jsonArray"))).toEqual([]);
+});
+
 test("filter universal", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.bigint().primaryKey(),
@@ -1315,6 +1583,24 @@ test("filter universal", async () => {
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }] },
   });
+});
+
+test("numeric literal validation", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    num: t.numeric(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const errors = validate(
+    graphqlSchema,
+    parse(`query { pets(where: { num: 5 }) { items { id } } }`),
+  );
+  expect(errors[0]?.message).toBe(
+    'Expected value of type "Numeric", found 5; Invalid value kind provided for field of type Numeric: IntValue. Expected: StringValue',
+  );
 });
 
 test("filter null equality", async () => {
@@ -1626,6 +1912,43 @@ test("filter plural", async () => {
   });
 });
 
+test("filter plural with empty list", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    tags: t.text().array(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", tags: ["a"] },
+    { id: "id2", tags: [] },
+    { id: "id3", tags: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids("{ tags: [] }")).toStrictEqual(["id2"]);
+  expect(await ids("{ tags_not: [] }")).toStrictEqual(["id1"]);
+  expect(await ids(`{ tags: ["a"] }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ tags_not: ["a"] }`)).toStrictEqual(["id2"]);
+});
+
 test("filter numeric", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
@@ -1864,6 +2187,94 @@ test("filter string", async () => {
   });
 });
 
+test("filter string escapes wildcards", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", name: "50%_off" },
+    { id: "id2", name: "50abc" },
+    { id: "id3", name: "a\\b" },
+    { id: "id4", name: "ab" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids(`{ name_contains: "%" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_contains: "_" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_starts_with: "50%" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_ends_with: "%_off" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_not_contains: "%" }`)).toStrictEqual([
+    "id2",
+    "id3",
+    "id4",
+  ]);
+  expect(await ids(`{ name_contains_nocase: "%_OFF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ name_starts_with_nocase: "A\\\\" }`)).toStrictEqual([
+    "id3",
+  ]);
+});
+
+test("filter string on hex column is case insensitive", async () => {
+  const account = onchainTable("account", (t) => ({
+    id: t.text().primaryKey(),
+    address: t.hex(),
+  }));
+  const schema = { account };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.account).values([
+    { id: "id1", address: "0xabcdef" },
+    { id: "id2", address: "0x123456" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { accounts(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.accounts.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids(`{ address: "0xABCDEF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_starts_with: "0xABC" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_contains: "CDE" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_ends_with: "EF" }`)).toStrictEqual(["id1"]);
+  expect(await ids(`{ address_not_contains: "CDE" }`)).toStrictEqual(["id2"]);
+  expect(await ids(`{ address_not_starts_with: "0xABC" }`)).toStrictEqual([
+    "id2",
+  ]);
+  expect(await ids(`{ address_not_ends_with: "EF" }`)).toStrictEqual(["id2"]);
+});
+
 test("filter and/or", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
@@ -1909,6 +2320,58 @@ test("filter and/or", async () => {
     { id: "id2", name: "Foo", bigAge: "10" },
     { id: "id3", name: "Bar", bigAge: "190" },
   ]);
+});
+
+test("filter or with multi-field branches", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+    weight: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1, weight: 0 },
+    { id: "id2", age: 0, weight: 1 },
+    { id: "id3", age: 1, weight: 1 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id3" }]);
+
+  const result2 = await query(`
+    query {
+      pets(where: { OR: [{ age: 1, weight: 1 }, { id: "id1" }] }) {
+        items {
+          id
+        }
+      }
+    }
+  `);
+
+  expect(result2.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result2.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id3" }]);
 });
 
 test("order by", async () => {
@@ -2032,6 +2495,67 @@ test("order by", async () => {
   expect(result.data).toMatchObject({
     persons: { items: [{ id: "2" }, { id: "3" }, { id: "1" }] },
   });
+});
+
+test("order direction validation", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: 2 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "ASC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id2" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "DESC") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.pets.items).toMatchObject([{ id: "id2" }, { id: "id1" }]);
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "up") {
+        items {
+          id
+        }
+      }
+    }
+  `);
+  expect(result.errors?.[0]?.message).toBe(
+    'Invalid orderDirection. Got "up", expected "asc" or "desc".',
+  );
 });
 
 test("limit", async () => {
@@ -2971,6 +3495,33 @@ test("snake case table and column names with where clause", async () => {
       chain_id: "1",
     },
   });
+});
+
+test("filter string only on text columns", () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.varchar(),
+    address: t.hex(),
+    createdAt: t.timestamp(),
+    createdAtString: t.timestamp({ mode: "string" }),
+    day: t.date({ mode: "string" }),
+    uuid: t.uuid(),
+  }));
+  const schema = { pet };
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const fields = Object.keys(
+    (graphqlSchema.getType("petFilter") as any).getFields(),
+  );
+  for (const column of ["id", "name", "address"]) {
+    expect(fields).toContain(`${column}_contains`);
+  }
+  for (const column of ["createdAt", "createdAtString", "day", "uuid"]) {
+    expect(fields).toContain(`${column}_in`);
+    expect(fields).not.toContain(`${column}_contains`);
+    expect(fields).not.toContain(`${column}_starts_with`);
+  }
 });
 
 test("singular with hex primary key uses case insensitive where", async () => {

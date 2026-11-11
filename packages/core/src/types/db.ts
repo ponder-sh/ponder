@@ -6,9 +6,8 @@ import type {
   Table,
 } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { PgTableExtraConfig, TableConfig } from "drizzle-orm/pg-core";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
-import type { OnchainTable, PrimaryKeyBuilder } from "@/drizzle/onchain.js";
+import type { PrimaryKeyBuilder } from "@/drizzle/onchain.js";
 import { onchain } from "@/drizzle/onchain.js";
 import type { Schema } from "@/internal/types.js";
 import type { PonderTypeError, Prettify } from "./utils.js";
@@ -139,8 +138,9 @@ type InferPrimaryKey<
 export type Key<
   table extends Table,
   ///
-  compositePrimaryKey extends // @ts-ignore
-  keyof table["_"]["columns"] = InferCompositePrimaryKey<table>,
+  compositePrimaryKey extends
+    keyof table["_"]["columns"] = InferCompositePrimaryKey<table> &
+    keyof table["_"]["columns"],
   primaryKey extends keyof table["_"]["columns"] = [
     compositePrimaryKey,
   ] extends [never]
@@ -151,11 +151,9 @@ export type Key<
 };
 
 export type InferCompositePrimaryKey<
-  table extends OnchainTable<
-    TableConfig & { extra: PgTableExtraConfig | undefined }
-  >,
+  table extends Table,
   ///
-  extra extends PgTableExtraConfig | undefined = table["_"]["config"]["extra"],
+  extra = table["_"] extends { config: { extra: infer extra } } ? extra : never,
   builders = extra[keyof extra],
 > = builders extends builders
   ? builders extends PrimaryKeyBuilder
