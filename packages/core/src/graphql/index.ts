@@ -916,16 +916,21 @@ async function executePluralQuery(
       totalCountPromise,
     ]);
 
+    if (rows.length === 0) {
+      return {
+        items: rows,
+        totalCount,
+        pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+      };
+    }
+
     // If the cursor of the first returned record equals the `after` cursor,
-    // `hasPreviousPage` is true. Remove that record. The cursor record may be
-    // missing if it was deleted or no longer matches the filter, in which
-    // case `hasPreviousPage` is conservatively false.
-    if (rows.length > 0 && encodeCursor(orderBySchema, rows[0]!) === after) {
+    // `hasPreviousPage` is true. Remove that record.
+    if (encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
     }
 
-    // Any records beyond `limit` mean there is a next page.
     if (rows.length > limit) {
       rows.splice(limit);
       hasNextPage = true;
@@ -969,19 +974,21 @@ async function executePluralQuery(
     totalCountPromise,
   ]);
 
+  if (rows.length === 0) {
+    return {
+      items: rows,
+      totalCount,
+      pageInfo: { hasNextPage, hasPreviousPage, startCursor, endCursor },
+    };
+  }
+
   // If the cursor of the last returned record equals the `before` cursor,
-  // `hasNextPage` is true. Remove that record. The cursor record may be
-  // missing if it was deleted or no longer matches the filter, in which
-  // case `hasNextPage` is conservatively false.
-  if (
-    rows.length > 0 &&
-    encodeCursor(orderBySchema, rows[rows.length - 1]!) === before
-  ) {
+  // `hasNextPage` is true. Remove that record.
+  if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
     rows.pop();
     hasNextPage = true;
   }
 
-  // Any records beyond `limit` mean there is a previous page.
   if (rows.length > limit) {
     rows.splice(0, rows.length - limit);
     hasPreviousPage = true;

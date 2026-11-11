@@ -1,4 +1,4 @@
-import { count, relations } from "drizzle-orm";
+import { count, eq, relations } from "drizzle-orm";
 import {
   type ExecutionResult,
   execute,
@@ -2422,17 +2422,7 @@ test("cursor pagination has previous page", async () => {
   });
 });
 
-test("cursor pagination when the cursor row was deleted", async () => {
-  type Page = {
-    items: { id: string }[];
-    pageInfo: {
-      hasNextPage: boolean;
-      hasPreviousPage: boolean;
-      startCursor: string | null;
-      endCursor: string | null;
-    };
-  };
-
+test("cursor pagination after a deleted cursor row", async () => {
   const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
   const schema = { pet };
 
@@ -2443,86 +2433,198 @@ test("cursor pagination when the cursor row was deleted", async () => {
   const query = (source: string) =>
     execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([
+      { id: "id1" },
+      { id: "id2" },
+      { id: "id3" },
+      { id: "id4" },
+      { id: "id5" },
+    ]);
+
   const graphqlSchema = buildGraphQLSchema({ schema });
 
-  let ids: string[] = [];
-  const reset = async (newIds = ["id1", "id2", "id3", "id4", "id5"]) => {
-    ids = newIds;
-    await database.userQB.raw.delete(schema.pet);
-    await database.userQB.raw
-      .insert(schema.pet)
-      .values(ids.map((id) => ({ id })));
-  };
-  const remove = (...removed: string[]) =>
-    reset(ids.filter((id) => removed.includes(id) === false));
-  const page = async (args: string) => {
-    const result = await query(`
-      query {
-        pets(${args}) {
-          items { id }
-          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-        }
+  let result = await query(`
+    query {
+      pets(limit: 2) {
+        pageInfo { endCursor }
       }
-    `);
-    expect(result.errors?.[0]?.message).toBeUndefined();
-    return result.data!.pets as Page;
-  };
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
 
-  // after: rows remain on both sides of the deleted cursor row
-  await reset();
-  let cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id2");
-  let result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id3" }, { id: "id4" }]);
-  expect(result.pageInfo.hasNextPage).toBe(true);
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id2"));
 
-  // after: exactly `limit` rows remain
-  await reset(["id1", "id2", "id3", "id4"]);
-  cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id2");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id3" }, { id: "id4" }]);
-  expect(result.pageInfo.hasNextPage).toBe(false);
+  result = await query(`
+    query {
+      pets(limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
 
-  // after: a single row remains
-  await reset(["id1", "id2", "id3"]);
-  cursor = (await page("limit: 2")).pageInfo.endCursor;
-  await remove("id2");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id3" }]);
-  expect(result.pageInfo.endCursor).not.toBeNull();
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id3" }, { id: "id4" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: false },
+    },
+  });
+});
 
-  // after: no rows remain after the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 5")).pageInfo.endCursor;
-  await remove("id5");
-  result = await page(`limit: 2, after: "${cursor}"`);
-  expect(result.items).toEqual([]);
-  expect(result.pageInfo.hasNextPage).toBe(false);
+test("cursor pagination after a deleted cursor row with limit rows remaining", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
 
-  // before: rows remain on both sides of the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 3")).pageInfo.endCursor;
-  await remove("id3");
-  result = await page(`limit: 2, before: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id1" }, { id: "id2" }]);
-  expect(result.pageInfo.hasPreviousPage).toBe(false);
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
 
-  // before: rows remain beyond the previous page
-  await reset();
-  cursor = (await page("limit: 4")).pageInfo.endCursor;
-  await remove("id4");
-  result = await page(`limit: 2, before: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id2" }, { id: "id3" }]);
-  expect(result.pageInfo.hasPreviousPage).toBe(true);
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }, { id: "id3" }, { id: "id4" }]);
 
-  // before: no rows remain after the deleted cursor row
-  await reset();
-  cursor = (await page("limit: 3")).pageInfo.endCursor;
-  await remove("id3", "id4", "id5");
-  result = await page(`limit: 2, before: "${cursor}"`);
-  expect(result.items).toEqual([{ id: "id1" }, { id: "id2" }]);
-  expect(result.pageInfo.hasNextPage).toBe(false);
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(limit: 2) {
+        pageInfo { endCursor }
+      }
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id2"));
+
+  result = await query(`
+    query {
+      pets(limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id3" }, { id: "id4" }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    },
+  });
+});
+
+test("cursor pagination after a deleted cursor row with one row remaining", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([{ id: "id1" }, { id: "id2" }, { id: "id3" }]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(limit: 2) {
+        pageInfo { endCursor }
+      }
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id2"));
+
+  result = await query(`
+    query {
+      pets(limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id3" }],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: expect.any(String),
+        endCursor: expect.any(String),
+      },
+    },
+  });
+});
+
+test("cursor pagination before a deleted cursor row", async () => {
+  const pet = onchainTable("pet", (t) => ({ id: t.text().primaryKey() }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw
+    .insert(schema.pet)
+    .values([
+      { id: "id1" },
+      { id: "id2" },
+      { id: "id3" },
+      { id: "id4" },
+      { id: "id5" },
+    ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(limit: 3) {
+        pageInfo { endCursor }
+      }
+    }
+  `);
+  // @ts-expect-error
+  const endCursor = result.data.pets.pageInfo.endCursor;
+
+  await database.userQB.raw.delete(schema.pet).where(eq(schema.pet.id, "id3"));
+
+  result = await query(`
+    query {
+      pets(limit: 2, before: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id1" }, { id: "id2" }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    },
+  });
 });
 
 test("cursor pagination composite primary key", async () => {
