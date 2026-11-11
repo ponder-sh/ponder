@@ -1365,6 +1365,25 @@ function buildCursorCondition(
     // Postgres sorts NULL greater than every other value.
     const greater = (direction === "after") === (orderDirection === "asc");
 
+    // A row comparison of NOT NULL columns is a single index range.
+    const rest = orderBySchema.slice(index);
+    if (
+      rest.length > 1 &&
+      rest.every(
+        ([name, d]) => d === orderDirection && columns[name]?.notNull === true,
+      )
+    ) {
+      const restColumns = rest.map(([name]) => columns[name]!);
+      const left = sql.join(restColumns, sql`, `);
+      const right = sql.join(
+        rest.map(([name], i) => sql.param(cursorObject[name], restColumns[i])),
+        sql`, `,
+      );
+      return greater
+        ? sql`(${left}) >= (${right})`
+        : sql`(${left}) <= (${right})`;
+    }
+
     // The last column is a primary key column, which is never NULL.
     if (index === orderBySchema.length - 1) {
       return greater ? gte(column, value) : lte(column, value);
