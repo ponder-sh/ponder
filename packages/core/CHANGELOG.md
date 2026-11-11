@@ -1,5 +1,49 @@
 # ponder
 
+## 0.18.7
+
+### Patch Changes
+
+- [#2476](https://github.com/ponder-sh/ponder/pull/2476) [`bef15af`](https://github.com/ponder-sh/ponder/commit/bef15af57b5603bbf6a238195d3e23fbe2de6f24) Thanks [@mkzung](https://github.com/mkzung)! - Fixed a bug that caused GraphQL queries with `where: null` to fail with `Cannot convert undefined or null to object`, and queries with `AND: null` or `OR: null` to fail with `Invalid query: Expected an array`. These values are now ignored.
+
+- [#2482](https://github.com/ponder-sh/ponder/pull/2482) [`5d005a2`](https://github.com/ponder-sh/ponder/commit/5d005a27a0a7f012e74358cbf486add6fb953ae8) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed the GraphQL filter options `{column}_has` and `{column}_not_has` for `p.bytes()` columns, which always failed with a database error.
+
+- [#2483](https://github.com/ponder-sh/ponder/pull/2483) [`415225b`](https://github.com/ponder-sh/ponder/commit/415225bd5dd19abb1af848e389fbc1676534002d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused the GraphQL error `arrayContains requires at least one value` when filtering an array column with an empty list, such as `{column}: []` or `{column}_not: []`.
+
+- [#2487](https://github.com/ponder-sh/ponder/pull/2487) [`522ef20`](https://github.com/ponder-sh/ponder/commit/522ef20e0731e51d07002e07980ce113c86b537e) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL string filters on `p.hex()` columns, such as `{column}_starts_with` and `{column}_contains`, to be case-sensitive.
+
+- [#2482](https://github.com/ponder-sh/ponder/pull/2482) [`5d005a2`](https://github.com/ponder-sh/ponder/commit/5d005a27a0a7f012e74358cbf486add6fb953ae8) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed GraphQL filter options for arrays of `p.json()` columns, which always failed with a database error.
+
+- [#2486](https://github.com/ponder-sh/ponder/pull/2486) [`a9d77f6`](https://github.com/ponder-sh/ponder/commit/a9d77f6e892d82142bcc2f75d93fd259bb984113) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL string filters such as `{column}_contains` and `{column}_starts_with` to treat `%` and `_` in the filter value as wildcards. These characters are now matched literally.
+
+- [#2468](https://github.com/ponder-sh/ponder/pull/2468) [`d6720b0`](https://github.com/ponder-sh/ponder/commit/d6720b01afbc4cb0eb0bd2df546e2d497941736d) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL cursor pagination to skip rows or return an incorrect `hasNextPage` or `hasPreviousPage` when the row referenced by the `after` or `before` cursor had been deleted or no longer matched the `where` filter.
+
+- [#2466](https://github.com/ponder-sh/ponder/pull/2466) [`7d53829`](https://github.com/ponder-sh/ponder/commit/7d53829d5954059e11315c34e91f49743b03edcc) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused a negative `limit` argument in GraphQL plural queries to return every matching row, bypassing the 1000-row maximum. Negative `limit` and `offset` values now return a validation error.
+
+- [#2480](https://github.com/ponder-sh/ponder/pull/2480) [`656438b`](https://github.com/ponder-sh/ponder/commit/656438be42753f46586993e3ad7f3e7e8fbcf9c4) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL cursor pagination to stop early and skip rows when the `orderBy` column contained `NULL` values.
+
+- [#2469](https://github.com/ponder-sh/ponder/pull/2469) [`8dde803`](https://github.com/ponder-sh/ponder/commit/8dde8032a86c3627065aae2d97860f1f9c65145a) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL queries with an `offset` to return `hasPreviousPage: true` for an empty page.
+
+- [#2484](https://github.com/ponder-sh/ponder/pull/2484) [`c22f07a`](https://github.com/ponder-sh/ponder/commit/c22f07a6c996c8378d7512db0e8a36ec1325cf78) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused a GraphQL `one` relation field with a `null` value to not always return `null`.
+
+- [#2475](https://github.com/ponder-sh/ponder/pull/2475) [`6257549`](https://github.com/ponder-sh/ponder/commit/62575498838891f6bc51582d151b7967c03aaa89) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL queries with `orderBy` set to a `json` column to fail with the database error `could not identify an ordering operator for type json`. These queries now return a validation error. `jsonb` columns can still be used with `orderBy`.
+
+- [#2473](https://github.com/ponder-sh/ponder/pull/2473) [`282ca74`](https://github.com/ponder-sh/ponder/commit/282ca7499847b590178aec8b268d647bcf868b9f) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused the GraphQL error `Unknown column "null" used in orderBy argument` when the `orderBy` argument was `null`.
+
+- [#2470](https://github.com/ponder-sh/ponder/pull/2470) [`df3daf5`](https://github.com/ponder-sh/ponder/commit/df3daf5c190c587ad996c951b2cc73aa555f2a4b) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused GraphQL queries with `orderDirection: "ASC"` (or any value other than `"asc"`) to sort in descending order. `orderDirection` is now case-insensitive, and invalid values return a validation error.
+
+- [#2471](https://github.com/ponder-sh/ponder/pull/2471) [`0bd4a22`](https://github.com/ponder-sh/ponder/commit/0bd4a220ada823c2c5dbe61aa99b8e389b3aaf94) Thanks [@kyscott18](https://github.com/kyscott18)! - Removed the string filter options (such as `{column}_contains` and `{column}_starts_with`) from GraphQL filters for non-text columns, including `timestamp`, `date`, and `uuid` columns. These filters always failed with an error like `operator does not exist: timestamp without time zone ~~ unknown`.
+
+- [#2467](https://github.com/ponder-sh/ponder/pull/2467) [`4574041`](https://github.com/ponder-sh/ponder/commit/457404157f3dd2306b78a21e1781dbe6ed54d143) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug that caused the GraphQL error `Cannot return null for non-nullable field <table>Page.totalCount.` when `totalCount` was selected through an inline fragment or fragment spread.
+
+- [#2476](https://github.com/ponder-sh/ponder/pull/2476) [`bef15af`](https://github.com/ponder-sh/ponder/commit/bef15af57b5603bbf6a238195d3e23fbe2de6f24) Thanks [@mkzung](https://github.com/mkzung)! - Fixed a bug that caused `{column}: null` and `{column}_not: null` GraphQL filters on array columns to match no rows. They now match `NULL` and non-`NULL` values.
+
+- [#2476](https://github.com/ponder-sh/ponder/pull/2476) [`bef15af`](https://github.com/ponder-sh/ponder/commit/bef15af57b5603bbf6a238195d3e23fbe2de6f24) Thanks [@mkzung](https://github.com/mkzung)! - Fixed a bug that caused a `null` value for GraphQL filter operators other than `{column}` and `{column}_not`, such as `{column}_gt`, `{column}_in`, or `{column}_contains`, to fail with a SQL syntax error or match the wrong rows. These filters are now ignored.
+
+- [#2476](https://github.com/ponder-sh/ponder/pull/2476) [`bef15af`](https://github.com/ponder-sh/ponder/commit/bef15af57b5603bbf6a238195d3e23fbe2de6f24) Thanks [@mkzung](https://github.com/mkzung)! - Fixed a bug that caused GraphQL filter lists containing `null`, such as `{column}_in: [1, null]` or `OR: [null]`, to fail with `Cannot convert undefined or null to object` or match the wrong rows. These queries now return the error `Invalid query: {key} cannot contain null`.
+
+- [#2448](https://github.com/ponder-sh/ponder/pull/2448) [`bfe2c41`](https://github.com/ponder-sh/ponder/commit/bfe2c41f674f03ac52f47795f746233eb5af84d4) Thanks [@WillXing](https://github.com/WillXing)! - Fixed a bug that caused GraphQL OR filters to match extra rows when a branch contained multiple fields.
+
 ## 0.18.6
 
 ### Patch Changes
