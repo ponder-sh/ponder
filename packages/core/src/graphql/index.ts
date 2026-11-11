@@ -841,7 +841,9 @@ async function executePluralQuery(
 
   const orderBySchema = buildOrderBySchema(relation, args);
   const orderBy = orderBySchema.map(([columnName, direction]) => {
-    const column = columns[columnName];
+    const column = Object.hasOwn(columns, columnName)
+      ? columns[columnName]
+      : undefined;
     if (column === undefined) {
       throw new GraphQLError(
         `Unknown column "${columnName}" used in orderBy argument`,
