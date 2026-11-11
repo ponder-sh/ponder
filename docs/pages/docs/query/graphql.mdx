@@ -83,7 +83,11 @@ type Query {
 
 Use the `where` argument to filter for records that match certain criteria. The `where` argument type includes filter options for every column defined on a table.
 
-A `null` filter value is treated as omitted, including `where: null`, `AND: null`, `OR: null`, and operator values such as `age_gt: null` or `age_in: null`. The exceptions are `field: null`, which matches `NULL` values, and `field_not: null`, which matches non-`NULL` values. Lists can't contain `null`, so queries like `age_in: [1, null]` or `OR: [null]` return an error.
+Filters handle `null` values with three rules:
+
+- A `null` filter value is treated as omitted. This includes `where: null`, `AND: null`, `OR: null`, and operators such as `age_gt: null` or `age_in: null`.
+- `{column}: null` matches `NULL` values and `{column}_not: null` matches non-`NULL` values, including for array columns.
+- A list can't contain `null`. Filters such as `age_in: [1, null]`, `tags: ["a", null]`, or `OR: [null]` return an error.
 
 Here are the filter options available for each column type.
 
