@@ -880,8 +880,10 @@ async function executePluralQuery(
     throw new GraphQLError("Cannot specify both before cursor and offset.");
   }
 
-  let startCursor = null;
-  let endCursor = null;
+  let startCursor: (() => string) | null = null;
+  let endCursor: (() => string) | null = null;
+  const cursor = (row: { [k: string]: unknown }) => () =>
+    encodeCursor(orderBySchema, row);
   let hasPreviousPage = false;
   let hasNextPage = false;
 
@@ -912,12 +914,8 @@ async function executePluralQuery(
     }
 
     if (offset === 0) {
-      startCursor =
-        rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-      endCursor =
-        rows.length > 0
-          ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-          : null;
+      startCursor = rows.length > 0 ? cursor(rows[0]!) : null;
+      endCursor = rows.length > 0 ? cursor(rows[rows.length - 1]!) : null;
     } else {
       hasPreviousPage = rows.length > 0;
     }
@@ -971,12 +969,8 @@ async function executePluralQuery(
     }
 
     // Now calculate the cursors.
-    startCursor =
-      rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-    endCursor =
-      rows.length > 0
-        ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-        : null;
+    startCursor = rows.length > 0 ? cursor(rows[0]!) : null;
+    endCursor = rows.length > 0 ? cursor(rows[rows.length - 1]!) : null;
 
     return {
       items: rows,
@@ -1029,11 +1023,8 @@ async function executePluralQuery(
   }
 
   // Now calculate the cursors.
-  startCursor = rows.length > 0 ? encodeCursor(orderBySchema, rows[0]!) : null;
-  endCursor =
-    rows.length > 0
-      ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
-      : null;
+  startCursor = rows.length > 0 ? cursor(rows[0]!) : null;
+  endCursor = rows.length > 0 ? cursor(rows[rows.length - 1]!) : null;
 
   return {
     items: rows,
