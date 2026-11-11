@@ -1067,7 +1067,7 @@ test("singular with many relation using filter", async () => {
     },
   });
 
-  for (const where of ["null", "{ OR: [null], age_gt: null }"]) {
+  for (const where of ["null", "{ OR: null, age_gt: null }"]) {
     const result = await query(`
       query { person(id: "jake") { pets(where: ${where}) { items { id } totalCount } } }
     `);
@@ -1686,10 +1686,6 @@ test("filter nullable values", async () => {
     ["null", all],
     ["{ AND: null }", all],
     ["{ OR: null }", all],
-    ["{ AND: [null] }", all],
-    ["{ OR: [null] }", all],
-    ["{ AND: [null, { age: 0 }] }", ["id1"]],
-    ["{ OR: [null, { age: 0 }] }", ["id1"]],
     ["{ AND: [{ OR: null }, { enabled: false }] }", ["id1"]],
     ["{ tags: null }", ["id3"]],
     ["{ tags_not: null }", ["id1", "id2"]],
@@ -1745,6 +1741,26 @@ test("filter nullable values", async () => {
     expect(result.data, where).toEqual({
       pets: { items: ids.map((id) => ({ id })) },
     });
+  }
+
+  const nullElementCases: [string, string][] = [
+    ["{ AND: [null] }", "AND"],
+    ["{ OR: [null, { age: 0 }] }", "OR"],
+    ["{ AND: [{ OR: [null] }] }", "OR"],
+    ["{ age_in: [0, null] }", "age_in"],
+    ["{ age_not_in: [null] }", "age_not_in"],
+    ['{ tags: ["a", null] }', "tags"],
+    ["{ tags_not: [null] }", "tags_not"],
+  ];
+  for (const [where, key] of nullElementCases) {
+    const result = await execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(`query { pets(where: ${where}) { items { id } } }`),
+    });
+    expect(result.errors?.[0]?.message, where).toBe(
+      `Invalid query: ${key} cannot contain null`,
+    );
   }
 
   const result = await execute({

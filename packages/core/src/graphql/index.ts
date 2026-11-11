@@ -1109,6 +1109,11 @@ function buildWhereConditions(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
         );
       }
+      if (rawValue.includes(null)) {
+        throw new GraphQLError(
+          `Invalid query: ${whereKey} cannot contain null`,
+        );
+      }
 
       // Conditions within a single filter object are combined with `AND`.
       const nestedConditions = rawValue.map((subWhere) =>
@@ -1156,6 +1161,10 @@ function buildWhereConditions(
       conditionSuffix !== "_not"
     ) {
       continue;
+    }
+
+    if (Array.isArray(rawValue) && rawValue.includes(null)) {
+      throw new GraphQLError(`Invalid query: ${whereKey} cannot contain null`);
     }
 
     switch (conditionSuffix) {
