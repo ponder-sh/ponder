@@ -352,8 +352,24 @@ export function buildGraphQLSchema({
             );
 
           if (is(relation, One)) {
-            const fields = relation.config?.fields ?? [];
-            const references = relation.config?.references ?? [];
+            let fields = relation.config?.fields ?? [];
+            let references = relation.config?.references ?? [];
+
+            // A `one` relation without `fields` and `references` (e.g. the other
+            // side of a one-to-one relation) uses the inverse `one` relation.
+            if (relation.config === undefined) {
+              const inverse = Object.values(referencedTable.relations).find(
+                (referencedRelation): referencedRelation is One =>
+                  is(referencedRelation, One) &&
+                  referencedRelation !== relation &&
+                  referencedRelation.config !== undefined &&
+                  referencedRelation.referencedTableName === table.dbName &&
+                  (relation.relationName === undefined ||
+                    referencedRelation.relationName === relation.relationName),
+              );
+              fields = inverse?.config?.references ?? [];
+              references = inverse?.config?.fields ?? [];
+            }
 
             if (fields.length !== references.length) {
               throw new Error(
@@ -367,6 +383,8 @@ export function buildGraphQLSchema({
               // key constraints, all `one` relations must be nullable.
               type: referencedEntityType,
               resolve: (parent, _args, context) => {
+                if (references.length === 0) return null;
+
                 const loader = context.getDataLoader({
                   table: referencedTable,
                 });
