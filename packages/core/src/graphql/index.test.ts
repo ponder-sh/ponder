@@ -609,6 +609,61 @@ test("singular with one relation", async () => {
   });
 });
 
+test("singular with one relation referencing a non-unique column", async () => {
+  const team = onchainTable("team", (t) => ({
+    id: t.text().primaryKey(),
+    league: t.text(),
+  }));
+  const player = onchainTable("player", (t) => ({
+    id: t.text().primaryKey(),
+    league: t.text(),
+  }));
+  const playerRelations = relations(player, ({ one }) => ({
+    team: one(team, { fields: [player.league], references: [team.league] }),
+  }));
+  const schema = { team, player, playerRelations };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.team).values([
+    { id: "t1", league: "a" },
+    { id: "t2", league: "a" },
+    { id: "t3", league: "b" },
+  ]);
+  await database.userQB.raw.insert(schema.player).values([
+    { id: "p1", league: "a" },
+    { id: "p2", league: "b" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const result = await query(`
+    query {
+      players {
+        items {
+          id
+          team {
+            id
+            league
+          }
+        }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  // @ts-expect-error
+  expect(result.data.players.items).toMatchObject([
+    { id: "p1", team: { league: "a" } },
+    { id: "p2", team: { id: "t3", league: "b" } },
+  ]);
+});
+
 test("singular with one relation using camel case 'references' column name", async () => {
   const person = onchainTable("person", (t) => ({
     camelCaseId: t.text().primaryKey(),
