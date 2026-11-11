@@ -3550,6 +3550,209 @@ test("cursor pagination composite primary key", async () => {
   });
 });
 
+test("cursor pagination with null order by values ascending", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: null },
+    { id: "id3", age: 2 },
+    { id: "id4", age: null },
+    { id: "id5", age: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "asc", limit: 2) {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id1" }, { id: "id3" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: false },
+    },
+  });
+
+  // @ts-expect-error
+  let endCursor = result.data.pets.pageInfo.endCursor;
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "asc", limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id2" }, { id: "id4" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: true },
+    },
+  });
+
+  // @ts-expect-error
+  const startCursor = result.data.pets.pageInfo.startCursor;
+  // @ts-expect-error
+  endCursor = result.data.pets.pageInfo.endCursor;
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "asc", limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id5" }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: true },
+    },
+  });
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "asc", limit: 2, before: "${startCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id1" }, { id: "id3" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: false },
+    },
+  });
+});
+
+test("cursor pagination with null order by values descending", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: null },
+    { id: "id3", age: 2 },
+    { id: "id4", age: null },
+    { id: "id5", age: null },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "desc", limit: 2) {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id5" }, { id: "id4" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: false },
+    },
+  });
+
+  // @ts-expect-error
+  let endCursor = result.data.pets.pageInfo.endCursor;
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "desc", limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id2" }, { id: "id3" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: true },
+    },
+  });
+
+  // @ts-expect-error
+  endCursor = result.data.pets.pageInfo.endCursor;
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "desc", limit: 2, after: "${endCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id1" }],
+      pageInfo: { hasNextPage: false, hasPreviousPage: true },
+    },
+  });
+
+  // @ts-expect-error
+  const startCursor = result.data.pets.pageInfo.startCursor;
+
+  result = await query(`
+    query {
+      pets(orderBy: "age", orderDirection: "desc", limit: 2, before: "${startCursor}") {
+        items { id }
+        pageInfo { hasNextPage hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id2" }, { id: "id3" }],
+      pageInfo: { hasNextPage: true, hasPreviousPage: true },
+    },
+  });
+});
+
 test("cursor pagination with date order", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),

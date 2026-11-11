@@ -1353,7 +1353,8 @@ function buildCursorCondition(
   direction: "after" | "before",
   cursorObject: { [k: string]: unknown },
 ): SQL | undefined {
-  const cursorColumns = orderBySchema.map(([columnName, orderDirection]) => {
+  const buildCondition = (index: number): SQL | undefined => {
+    const [columnName, orderDirection] = orderBySchema[index]!;
     const column = columns[columnName];
     if (column === undefined)
       throw new GraphQLError(
@@ -1361,33 +1362,27 @@ function buildCursorCondition(
       );
 
     const value = cursorObject[columnName];
+    // Postgres sorts NULL greater than every other value.
+    const greater = (direction === "after") === (orderDirection === "asc");
 
-    let comparator: typeof gt | typeof lt;
-    let comparatorOrEquals: typeof gte | typeof lte;
-    if (direction === "after") {
-      [comparator, comparatorOrEquals] =
-        orderDirection === "asc" ? [gt, gte] : [lt, lte];
+    // The last column is a primary key column, which is never NULL.
+    if (index === orderBySchema.length - 1) {
+      return greater ? gte(column, value) : lte(column, value);
+    }
+
+    let beyond: SQL | undefined;
+    let equal: SQL;
+    if (value === null) {
+      beyond = greater ? undefined : isNotNull(column);
+      equal = isNull(column);
     } else {
-      [comparator, comparatorOrEquals] =
-        orderDirection === "asc" ? [lt, lte] : [gt, gte];
+      beyond = greater
+        ? or(gt(column, value), isNull(column))
+        : lt(column, value);
+      equal = eq(column, value);
     }
 
-    return { column, value, comparator, comparatorOrEquals };
-  });
-
-  const buildCondition = (index: number): SQL | undefined => {
-    if (index === cursorColumns.length - 1) {
-      const { column, value, comparatorOrEquals } = cursorColumns[index]!;
-      return comparatorOrEquals(column, value);
-    }
-
-    const currentColumn = cursorColumns[index]!;
-    const nextCondition = buildCondition(index + 1);
-
-    return or(
-      currentColumn.comparator(currentColumn.column, currentColumn.value),
-      and(eq(currentColumn.column, currentColumn.value), nextCondition),
-    );
+    return or(beyond, and(equal, buildCondition(index + 1)));
   };
 
   return buildCondition(0);
