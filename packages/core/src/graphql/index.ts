@@ -919,7 +919,7 @@ async function executePluralQuery(
           ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
           : null;
     } else {
-      hasPreviousPage = true;
+      hasPreviousPage = rows.length > 0;
     }
 
     return {

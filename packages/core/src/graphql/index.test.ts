@@ -2972,6 +2972,80 @@ test("cursor pagination descending", async () => {
   });
 });
 
+test("offset has previous page", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", name: "a" },
+    { id: "id2", name: "a" },
+    { id: "id3", name: "b" },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  let result = await query(`
+    query {
+      pets(offset: 1) {
+        items { id }
+        pageInfo { hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [{ id: "id2" }, { id: "id3" }],
+      pageInfo: { hasPreviousPage: true },
+    },
+  });
+
+  result = await query(`
+    query {
+      pets(offset: 10) {
+        items { id }
+        pageInfo { hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [],
+      pageInfo: { hasPreviousPage: false },
+    },
+  });
+
+  result = await query(`
+    query {
+      pets(where: { name: "c" }, offset: 1) {
+        items { id }
+        pageInfo { hasPreviousPage }
+      }
+    }
+  `);
+
+  expect(result.errors?.[0]?.message).toBeUndefined();
+  expect(clone(result).data).toMatchObject({
+    pets: {
+      items: [],
+      pageInfo: { hasPreviousPage: false },
+    },
+  });
+});
+
 test("cursor pagination start and end cursors", async () => {
   const pet = onchainTable("pet", (t) => ({
     id: t.text().primaryKey(),
