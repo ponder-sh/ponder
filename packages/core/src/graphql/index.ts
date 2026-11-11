@@ -697,19 +697,28 @@ const GraphQLViewPageInfo = new GraphQLObjectType({
   },
 });
 
-const GraphQLBigInt = new GraphQLScalarType({
-  name: "BigInt",
-  serialize: (value) => String(value),
-  parseValue: (value) => {
+const parseBigInt = (value: unknown) => {
+  // Note: `BigInt()` converts "", whitespace, and booleans to a number.
+  if (
+    (typeof value === "string" && value !== "" && value.trim() === value) ||
+    typeof value === "number"
+  ) {
     try {
-      return BigInt(value as any);
+      return BigInt(value);
     } catch (error) {
       throw new GraphQLError((error as Error).message);
     }
-  },
+  }
+  throw new GraphQLError(`Cannot convert ${JSON.stringify(value)} to a BigInt`);
+};
+
+const GraphQLBigInt = new GraphQLScalarType({
+  name: "BigInt",
+  serialize: (value) => String(value),
+  parseValue: parseBigInt,
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
-      return BigInt(value.value);
+      return parseBigInt(value.value);
     } else {
       throw new Error(
         `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
@@ -718,13 +727,25 @@ const GraphQLBigInt = new GraphQLScalarType({
   },
 });
 
+const parseNumeric = (value: unknown) => {
+  if (
+    (typeof value === "string" && value !== "") ||
+    typeof value === "number"
+  ) {
+    return String(value);
+  }
+  throw new GraphQLError(
+    `Cannot convert ${JSON.stringify(value)} to a Numeric`,
+  );
+};
+
 const GraphQLNumeric = new GraphQLScalarType({
   name: "Numeric",
   serialize: (value) => String(value),
-  parseValue: (value) => String(value as any),
+  parseValue: parseNumeric,
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
-      return String(value.value);
+      return parseNumeric(value.value);
     } else {
       throw new Error(
         `Invalid value kind provided for field of type Numeric: ${value.kind}. Expected: StringValue`,
