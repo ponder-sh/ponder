@@ -1093,19 +1093,25 @@ function likeValue(column: Column, value: string) {
 }
 
 function buildWhereConditions(
-  where: Record<string, any> | undefined,
+  where: Record<string, any> | null | undefined,
   columns: Record<string, Column>,
 ) {
   const conditions: (SQL | undefined)[] = [];
 
-  if (where === undefined) return conditions;
+  if (where === undefined || where === null) return conditions;
 
   for (const [whereKey, rawValue] of Object.entries(where)) {
     // Handle the `AND` and `OR` operators
     if (whereKey === "AND" || whereKey === "OR") {
+      if (rawValue === null) continue;
       if (!Array.isArray(rawValue)) {
         throw new GraphQLError(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
+        );
+      }
+      if (rawValue.includes(null)) {
+        throw new GraphQLError(
+          `Invalid query: ${whereKey} cannot contain null`,
         );
       }
 
@@ -1149,9 +1155,23 @@ function buildWhereConditions(
       );
     }
 
+    if (
+      rawValue === null &&
+      conditionSuffix !== "" &&
+      conditionSuffix !== "_not"
+    ) {
+      continue;
+    }
+
+    if (Array.isArray(rawValue) && rawValue.includes(null)) {
+      throw new GraphQLError(`Invalid query: ${whereKey} cannot contain null`);
+    }
+
     switch (conditionSuffix) {
       case "":
-        if (column.columnType === "PgArray") {
+        if (rawValue === null) {
+          conditions.push(isNull(column));
+        } else if (column.columnType === "PgArray") {
           // Note: `arrayContains` and `arrayContained` don't support empty arrays.
           if (rawValue.length === 0) {
             conditions.push(sql`cardinality(${column}) = 0`);
@@ -1164,15 +1184,13 @@ function buildWhereConditions(
             );
           }
         } else {
-          if (rawValue === null) {
-            conditions.push(isNull(column));
-          } else {
-            conditions.push(eq(column, rawValue));
-          }
+          conditions.push(eq(column, rawValue));
         }
         break;
       case "_not":
-        if (column.columnType === "PgArray") {
+        if (rawValue === null) {
+          conditions.push(isNotNull(column));
+        } else if (column.columnType === "PgArray") {
           if (rawValue.length === 0) {
             conditions.push(sql`cardinality(${column}) <> 0`);
           } else {
@@ -1186,11 +1204,7 @@ function buildWhereConditions(
             );
           }
         } else {
-          if (rawValue === null) {
-            conditions.push(isNotNull(column));
-          } else {
-            conditions.push(ne(column, rawValue));
-          }
+          conditions.push(ne(column, rawValue));
         }
         break;
       case "_in":

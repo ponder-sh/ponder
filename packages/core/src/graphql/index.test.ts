@@ -1066,6 +1066,21 @@ test("singular with many relation using filter", async () => {
       },
     },
   });
+
+  for (const where of ["null", "{ OR: null, age_gt: null }"]) {
+    const result = await query(`
+      query { person(id: "jake") { pets(where: ${where}) { items { id } totalCount } } }
+    `);
+    expect(result.errors, where).toBeUndefined();
+    expect(result.data, where).toEqual({
+      person: {
+        pets: {
+          items: [{ id: "dog1" }, { id: "dog2" }, { id: "dog3" }],
+          totalCount: 3,
+        },
+      },
+    });
+  }
 });
 
 test("singular with many relation using order by", async () => {
@@ -1644,6 +1659,120 @@ test("filter null equality", async () => {
       ],
     },
   });
+});
+
+test("filter nullable values", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    name: t.text(),
+    age: t.integer(),
+    enabled: t.boolean(),
+    tags: t.text().array(),
+  }));
+  const schema = { pet };
+  const { database } = await setupDatabaseServices({ schemaBuild: { schema } });
+  const contextValue = buildContextValue(database);
+  const graphqlSchema = buildGraphQLSchema({ schema });
+  await database.userQB.raw
+    .insert(pet)
+    .values([
+      { id: "id1", name: "", age: 0, enabled: false, tags: [] },
+      { id: "id2", name: "null-ish", age: 10, enabled: true, tags: ["a"] },
+      { id: "id3" },
+    ]);
+
+  const all = ["id1", "id2", "id3"];
+  const cases: [string, string[]][] = [
+    ["null", all],
+    ["{ AND: null }", all],
+    ["{ OR: null }", all],
+    ["{ AND: [{ OR: null }, { enabled: false }] }", ["id1"]],
+    ["{ tags: null }", ["id3"]],
+    ["{ tags_not: null }", ["id1", "id2"]],
+    ["{ name: null }", ["id3"]],
+    ["{ name_not: null }", ["id1", "id2"]],
+    ["{ age: 0 }", ["id1"]],
+    ["{ enabled: false }", ["id1"]],
+    ['{ name: "" }', ["id1"]],
+    ['{ name_contains: "" }', ["id1", "id2"]],
+    ['{ tags_has: "" }', []],
+    ['{ tags: ["a"] }', ["id2"]],
+    ['{ tags_has: "a" }', ["id2"]],
+    ["{ age_in: [0] }", ["id1"]],
+    ["{ age_not_in: [0] }", ["id2"]],
+    ["{ age_in: [] }", []],
+    ["{ age_not_in: [] }", all],
+    ["{ OR: [{ age: 0 }, { age: 10 }] }", ["id1", "id2"]],
+    ["{ AND: [{ age_gte: 0 }, { age_lte: 0 }] }", ["id1"]],
+  ];
+  for (const operator of [
+    "age_gt",
+    "age_lt",
+    "age_gte",
+    "age_lte",
+    "age_in",
+    "age_not_in",
+    "tags_has",
+    "tags_not_has",
+    "name_contains",
+    "name_not_contains",
+    "name_starts_with",
+    "name_ends_with",
+    "name_not_starts_with",
+    "name_not_ends_with",
+    "name_contains_nocase",
+    "name_not_contains_nocase",
+    "name_starts_with_nocase",
+    "name_ends_with_nocase",
+    "name_not_starts_with_nocase",
+    "name_not_ends_with_nocase",
+  ]) {
+    cases.push([`{ ${operator}: null }`, all]);
+  }
+  for (const [where, ids] of cases) {
+    const result = await execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(
+        `query { pets(where: ${where}, orderBy: "id") { items { id } } }`,
+      ),
+    });
+    expect(result.errors, where).toBeUndefined();
+    expect(result.data, where).toEqual({
+      pets: { items: ids.map((id) => ({ id })) },
+    });
+  }
+
+  const nullElementCases: [string, string][] = [
+    ["{ AND: [null] }", "AND"],
+    ["{ OR: [null, { age: 0 }] }", "OR"],
+    ["{ AND: [{ OR: [null] }] }", "OR"],
+    ["{ age_in: [0, null] }", "age_in"],
+    ["{ age_not_in: [null] }", "age_not_in"],
+    ['{ tags: ["a", null] }', "tags"],
+    ["{ tags_not: [null] }", "tags_not"],
+  ];
+  for (const [where, key] of nullElementCases) {
+    const result = await execute({
+      schema: graphqlSchema,
+      contextValue,
+      document: parse(`query { pets(where: ${where}) { items { id } } }`),
+    });
+    expect(result.errors?.[0]?.message, where).toBe(
+      `Invalid query: ${key} cannot contain null`,
+    );
+  }
+
+  const result = await execute({
+    schema: graphqlSchema,
+    contextValue,
+    document: parse(
+      `query($where: petFilter) { pets(where: $where, orderBy: "id") { items { id } } }`,
+    ),
+    variableValues: { where: null },
+  });
+  expect(result.errors).toBeUndefined();
+  expect(result.data).toEqual({ pets: { items: all.map((id) => ({ id })) } });
 });
 
 test("filter singular", async () => {
