@@ -385,9 +385,7 @@ export function buildGraphQLSchema({
                   if (value === null || value === undefined) return null;
                   rowFragment[referenceColumnTsName] = value;
                 }
-                const encodedId = encodeRowFragment(rowFragment);
-
-                return loader.load(encodedId);
+                return loader.load(rowFragment);
               },
             };
           } else if (is(relation, Many)) {
@@ -566,9 +564,7 @@ export function buildGraphQLSchema({
 
         // The `args` object here should be a valid `where` argument that
         // uses the `eq` shorthand for each primary key column.
-        const encodedId = encodeRowFragment(args);
-
-        return loader.load(encodedId);
+        return loader.load(args);
       },
     };
 
@@ -1388,10 +1384,26 @@ function buildCursorCondition(
   return buildCondition(0);
 }
 
+type RowFragment = { [column: string]: unknown };
+
+function getRowFragmentKey(fragment: RowFragment): string {
+  const entries: string[] = [];
+  for (const [column, value] of Object.entries(fragment)) {
+    entries.push(
+      column,
+      typeof value,
+      typeof value === "object" && value !== null
+        ? superjson.stringify(value)
+        : String(value),
+    );
+  }
+  return JSON.stringify(entries);
+}
+
 export function buildDataLoaderCache(qb: QB) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
-    DataLoader<string, any> | undefined
+    DataLoader<RowFragment, any, string> | undefined
   >();
   return ({ table }: { table: TableRelationalConfig }) => {
     const baseQuery = (qb as QB<{ [key: string]: OnchainTable }>).raw.query[
@@ -1405,9 +1417,7 @@ export function buildDataLoaderCache(qb: QB) {
     let dataLoader = dataLoaderMap.get(table);
     if (dataLoader === undefined) {
       dataLoader = new DataLoader(
-        async (encodedIds) => {
-          const decodedRowFragments = encodedIds.map(decodeRowFragment);
-
+        async (decodedRowFragments) => {
           // The decoded row fragments should be valid `where` objects
           // which use the `eq` object shorthand for each primary key column.
           const idConditions = decodedRowFragments.map((decodedRowFragment) =>
@@ -1416,7 +1426,7 @@ export function buildDataLoaderCache(qb: QB) {
 
           const rows = await baseQuery.findMany({
             where: or(...idConditions),
-            limit: encodedIds.length,
+            limit: decodedRowFragments.length,
           });
 
           // Now, we need to order the rows coming out of the database to match
@@ -1451,7 +1461,7 @@ export function buildDataLoaderCache(qb: QB) {
               )
           );
         },
-        { maxBatchSize: 1_000 },
+        { maxBatchSize: 1_000, cacheKeyFn: getRowFragmentKey },
       );
       dataLoaderMap.set(table, dataLoader);
     }
