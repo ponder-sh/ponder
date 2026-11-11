@@ -9,7 +9,7 @@ import {
   RpcRequestError,
   toHex,
 } from "viem";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
 import { erc20ABI } from "@/_test/generated.js";
 import {
@@ -2737,6 +2737,322 @@ test("sync() range scan retries when eth_getLogs and the head disagree", async (
   );
 });
 
+test("createRealtimeSync() has no log trigger without range scan", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain();
+  const rpc = createRpc({ common, chain });
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  expect(realtimeSync.logTrigger).toBeUndefined();
+});
+
+test("createRealtimeSync() range scan log trigger subscribes static sources by address", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter;
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  expect(realtimeSync.logTrigger!.filters).toStrictEqual([
+    { address: [address.toLowerCase()], topics: [[filter.topic0]] },
+  ]);
+  // A third of the reorg window, and at least `pollingInterval`.
+  expect(realtimeSync.logTrigger!.heartbeatInterval).toBe(3_333);
+
+  // `heartbeatInterval` replaces the default.
+  const configured = createRealtimeSync({
+    common,
+    chain: { ...chain, heartbeatInterval: 600_000 },
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+  expect(configured.logTrigger!.heartbeatInterval).toBe(600_000);
+});
+
+test("createRealtimeSync() range scan log trigger matches sources and known children", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
+  const childAddresses = new Map([[filter.address.id, new Map()]]);
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses,
+  });
+  const logTrigger = realtimeSync.logTrigger!;
+
+  // The factory by address, its children by signature alone.
+  expect(logTrigger.filters).toStrictEqual([
+    {
+      address: [address.toLowerCase()],
+      topics: [[filter.address.eventSelector]],
+    },
+    { topics: [[filter.topic0]] },
+  ]);
+
+  const [factoryLog] = await rpc.request({
+    method: "eth_getLogs",
+    params: [{ fromBlock: "0x2", toBlock: "0x2", address }],
+  });
+  const swapLog = (
+    await rpc.request({
+      method: "eth_getLogs",
+      params: [{ fromBlock: "0x3", toBlock: "0x3", address: pair }],
+    })
+  ).find((log) => log.topics[0] === filter.topic0)!;
+  const otherSwapLog = { ...swapLog, address: BOB.toLowerCase() as Address };
+
+  expect(logTrigger.isTrigger(factoryLog as SyncLog)).toBe(true);
+  // The child isn't known until a scan reconciles its creation.
+  expect(logTrigger.isTrigger(swapLog as SyncLog)).toBe(false);
+  expect(logTrigger.isScanned(factoryLog as SyncLog)).toBe(false);
+
+  const head2 = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  await drainAsyncGenerator(realtimeSync.sync(head2));
+
+  expect(logTrigger.isTrigger(swapLog as SyncLog)).toBe(true);
+  expect(logTrigger.isTrigger(otherSwapLog as SyncLog)).toBe(false);
+  expect(logTrigger.isScanned(factoryLog as SyncLog)).toBe(true);
+  expect(logTrigger.isScanned(swapLog as SyncLog)).toBe(false);
+});
+
+test("sync() range scan rejects a scan that misses a notified log until eth_getLogs returns it", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { log } = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+  realtimeSync.logTrigger!.expect(log);
+
+  // The node answering `eth_getLogs` hasn't seen the notified block yet.
+  const originalRequest = rpc.request.bind(rpc);
+  const requestSpy = vi
+    .spyOn(rpc, "request")
+    .mockImplementation(async (body, context) => {
+      if (body.method === "eth_getLogs") return [] as never;
+      return originalRequest(body, context);
+    });
+
+  const head = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  const warnSpy = vi.spyOn(common.logger, "warn");
+  const rejected = await drainAsyncGenerator(realtimeSync.sync(head));
+
+  expect(rejected).toHaveLength(0);
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
+  expect(warnSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining("has a notified log"),
+      }),
+    }),
+  );
+
+  // The next scan, at the same head, returns it: no reorg needed.
+  requestSpy.mockRestore();
+  const accepted = (await drainAsyncGenerator(
+    realtimeSync.sync(head),
+  )) as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  expect(accepted.map((event) => event.type)).toStrictEqual(["block"]);
+  expect(accepted[0]!.logs).toHaveLength(1);
+  expect(realtimeSync.logTrigger!.isScanned(log)).toBe(true);
+});
+
+test("sync() range scan accepts a scan that misses a notified log after three rejections", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { log } = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+  realtimeSync.logTrigger!.expect(log);
+
+  // As if the notified block was reorged out.
+  const originalRequest = rpc.request.bind(rpc);
+  vi.spyOn(rpc, "request").mockImplementation(async (body, context) => {
+    if (body.method === "eth_getLogs") return [] as never;
+    return originalRequest(body, context);
+  });
+
+  const head = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  for (let i = 0; i < 3; i++) {
+    await drainAsyncGenerator(realtimeSync.sync(head));
+    expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
+  }
+
+  await drainAsyncGenerator(realtimeSync.sync(head));
+  expect(
+    realtimeSync.unfinalizedBlocks.map((block) => block.hash),
+  ).toStrictEqual([head.hash]);
+});
+
+test("createRealtimeSync() gives up on the latest block after failing for 10 minutes", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  // Attempts a heartbeat apart: many fewer than 10 minutes of `pollingInterval`.
+  let now = 1_000_000;
+  const dateSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+  onTestFinished(() => {
+    dateSpy.mockRestore();
+  });
+  const error = new Error("unavailable");
+  for (let i = 0; i < 10; i++) {
+    expect(() => realtimeSync.onError(error)).not.toThrow();
+    now += 60_000;
+  }
+  now += 1;
+  expect(() => realtimeSync.onError(error)).toThrow(error);
+});
+
+test("sync() range scan drops the expectation of a removed notified log", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { log } = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+  realtimeSync.logTrigger!.expect(log);
+  // A reorg removed the log before any scan reached its block.
+  realtimeSync.logTrigger!.expect({ ...log, removed: true });
+
+  const originalRequest = rpc.request.bind(rpc);
+  vi.spyOn(rpc, "request").mockImplementation(async (body, context) => {
+    if (body.method === "eth_getLogs") return [] as never;
+    return originalRequest(body, context);
+  });
+
+  const head = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  await drainAsyncGenerator(realtimeSync.sync(head));
+  expect(
+    realtimeSync.unfinalizedBlocks.map((block) => block.hash),
+  ).toStrictEqual([head.hash]);
+});
+
 test("sync() range scan re-ingests a block when a later scan returns more of its logs", async () => {
   const { common } = context;
   await setupDatabaseServices();
@@ -3155,7 +3471,7 @@ const setupRangeScanCostSync = async () => {
     await drainAsyncGenerator(realtimeSync.sync({ ...block, logsBloom }));
   };
 
-  return { getCostWarnings, poll };
+  return { realtimeSync, getCostWarnings, poll };
 };
 
 // Note: a full bloom matches every filter; a single set bit matches none here.
@@ -3182,12 +3498,27 @@ test("sync() range scan warns when heads' blooms match no filter", async () => {
   expect(getCostWarnings()).toHaveLength(1);
 });
 
+test("sync() range scan samples only polls made while log notifications are down", async () => {
+  const { realtimeSync, getCostWarnings, poll } =
+    await setupRangeScanCostSync();
+
+  // Scans driven by notifications and the heartbeat are never sampled.
+  realtimeSync.logTrigger!.setPolling(false);
+  for (let i = 0; i < 12; i++) await poll(2, unrelatedLogsBloom);
+  expect(getCostWarnings()).toHaveLength(0);
+
+  // Polls made while the subscription is down are.
+  realtimeSync.logTrigger!.setPolling(true);
+  for (let i = 0; i < 12; i++) await poll(2, unrelatedLogsBloom);
+  expect(getCostWarnings()).toHaveLength(1);
+});
+
 test("sync() range scan finalizes all but its reorg window when a scan spans more than it", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
-  // Note: as on a chain whose `pollingInterval` is longer than its reorg
-  // window.
+  // Note: as on a chain whose `pollingInterval`, or heartbeat with log
+  // notifications, is longer than its reorg window.
   const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
   const rpc = createRpc({ common, chain });
 
@@ -3213,7 +3544,12 @@ test("sync() range scan finalizes all but its reorg window when a scan spans mor
 
   // Blocks 3 and 4 hold a transfer each, 20 s apart, and head 5 is 20 s
   // after block 4: one scan covers 40 s against a 10 s window.
-  await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
+  const { log } = await transferErc20({
+    erc20: address,
+    to: BOB,
+    amount: 1n,
+    sender: ALICE,
+  });
   await testClient.increaseTime({ seconds: 20 });
   await transferErc20({ erc20: address, to: BOB, amount: 1n, sender: ALICE });
   await testClient.increaseTime({ seconds: 20 });
@@ -3244,12 +3580,63 @@ test("sync() range scan finalizes all but its reorg window when a scan spans mor
     "0x5",
   ]);
 
-  // The next scan starts after the finalized block.
+  // A notification for a block that is now finalized arrives late: it is
+  // scanned already, and its expectation never rejects a scan. The next scan
+  // starts after the finalized block.
+  realtimeSync.logTrigger!.expect(log);
+  expect(realtimeSync.logTrigger!.isScanned(log)).toBe(true);
   await simulateBlock();
+  const warnSpy = vi.spyOn(common.logger, "warn");
   const head6 = await eth_getBlockByNumber(rpc, ["0x6", true]);
   await drainAsyncGenerator(realtimeSync.sync(head6));
+  expect(warnSpy).not.toHaveBeenCalled();
   expect(realtimeSync.unfinalizedBlocks.map((block) => block.number)).toEqual([
     "0x5",
     "0x6",
   ]);
+});
+
+test("createRealtimeSync() range scan log trigger reports a failed scan until one succeeds", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10, experimentalRangeScan: true });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+  expect(realtimeSync.logTrigger!.hasFailed()).toBe(false);
+
+  const originalRequest = rpc.request.bind(rpc);
+  const requestSpy = vi
+    .spyOn(rpc, "request")
+    .mockImplementation(async (body, context) => {
+      if (body.method === "eth_getLogs") throw new Error("unavailable");
+      return originalRequest(body, context);
+    });
+
+  const head = await eth_getBlockByNumber(rpc, ["0x2", true]);
+  await drainAsyncGenerator(realtimeSync.sync(head));
+  expect(realtimeSync.logTrigger!.hasFailed()).toBe(true);
+
+  requestSpy.mockRestore();
+  await drainAsyncGenerator(realtimeSync.sync(head));
+  expect(realtimeSync.logTrigger!.hasFailed()).toBe(false);
 });

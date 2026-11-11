@@ -5,11 +5,13 @@ import {
   getLogsRetryHelper,
 } from "@ponder/utils";
 import {
+  type Address,
   BlockNotFoundError,
   custom,
   type EIP1193Parameters,
   type EIP1193RequestFn,
   type Hash,
+  type Hex,
   HttpRequestError,
   hexToNumber,
   isHex,
@@ -27,7 +29,12 @@ import {
 import { WebSocket } from "ws";
 import type { Common } from "@/internal/common.js";
 import type { Logger } from "@/internal/logger.js";
-import type { Chain, SyncBlock, SyncBlockHeader } from "@/internal/types.js";
+import type {
+  Chain,
+  SyncBlock,
+  SyncBlockHeader,
+  SyncLog,
+} from "@/internal/types.js";
 import { eth_getBlockByNumber, standardizeBlock } from "@/rpc/actions.js";
 import { createQueue } from "@/utils/queue.js";
 import { startClock } from "@/utils/timer.js";
@@ -79,17 +86,79 @@ export type Rpc = {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
     onError: (error: Error) => void;
     /**
-     * `true` when the realtime sync range scans the chain. The subscription then
-     * polls, never a WebSocket.
+     * The log notifications that trigger a scan, set when the realtime sync
+     * range scans the chain. With `ws`, it scans when one arrives.
+     *
+     * @dev A chain with `experimentalRangeScan` never follows "newHeads", even
+     * when the range scan doesn't apply: `ws` then only carries log
+     * notifications, so the subscription polls.
      */
-    isRangeScan?: boolean;
+    logTrigger?: RpcLogTrigger;
   }) => void;
   unsubscribe: () => Promise<void>;
+};
+
+/**
+ * Log notifications that trigger a range scan on a chain with `ws`.
+ */
+export type RpcLogTrigger = {
+  /** Filters for `eth_subscribe("logs")`, together covering every source. */
+  filters: { address?: Address[]; topics: [Hex[]] }[];
+  /** Whether a notified log belongs to an indexed source. */
+  isTrigger: (log: SyncLog) => boolean;
+  /**
+   * Make scans that reach the block of a notified log return that block, or
+   * be rejected: the node answering `eth_getLogs` can be behind the node that
+   * sent the notification. A removed log drops its block's expectation.
+   */
+  expect: (log: SyncLog) => void;
+  /** Whether a scan has reconciled a notified log and its block. */
+  isScanned: (
+    log: Pick<SyncLog, "blockNumber" | "blockHash" | "logIndex">,
+  ) => boolean;
+  /** Milliseconds between scans while the subscription is up. */
+  heartbeatInterval: number;
+  /**
+   * Called with `true` while scans run every `pollingInterval` (the
+   * subscription is down or paused), and `false` while notifications and the
+   * heartbeat drive them.
+   */
+  setPolling: (isPolling: boolean) => void;
+  /** Whether the realtime sync failed the latest scan. */
+  hasFailed: () => boolean;
 };
 
 const RETRY_COUNT = 9;
 const BASE_DURATION = 125;
 const INITIAL_REACTIVATION_DELAY = 100;
+/** Scans of a notified block before waiting for the next heartbeat. */
+const LOG_TRIGGER_RETRY_COUNT = 4;
+const LOG_TRIGGER_RETRY_DELAY = 250;
+/**
+ * First retry of a failed scan, or of a notified log no scan has reconciled,
+ * doubling up to the scan interval: the next tick can be a long heartbeat away.
+ */
+const LOG_TRIGGER_FAILURE_RETRY_DELAY = 1_000;
+/**
+ * Log notifications pause once they trigger more scans, over this many
+ * polling intervals, than polling would make in that time.
+ */
+const LOG_TRIGGER_RATE_POLLS = 10;
+/**
+ * Log notifications also pause once they average more than this many per
+ * polling interval, whether or not they trigger a scan: a poll is two
+ * requests, and a notification costs about as much as a response. The average
+ * is taken over the first pause's length, 5 heartbeats, which polls
+ * throughout: a burst pauses only when it exceeds that budget, and a stream
+ * that never stops costs the same each time the subscription resumes, while
+ * the pauses double. Sources without a static address are subscribed by
+ * `topic0` alone, so they receive every log with that signature on the chain.
+ */
+const LOG_TRIGGER_NOTIFICATIONS_PER_POLL = 2;
+const LOG_TRIGGER_MAX_PAUSE = 3_600_000;
+const WEBSOCKET_PING_INTERVAL = 30_000;
+/** Longest wait for `eth_subscribe` to be confirmed, capped by the heartbeat. */
+const LOG_SUBSCRIPTION_TIMEOUT = 10_000;
 const MAX_REACTIVATION_DELAY = 5_000;
 const BACKOFF_FACTOR = 1.5;
 const LATENCY_WINDOW_SIZE = 500;
@@ -713,18 +782,452 @@ export const createRpc = ({
   let subscriptionId: string | undefined;
   let webSocketErrorCount = 0;
   let interval: NodeJS.Timeout | undefined;
+  const logSubscriptionIds = new Set<string>();
+  let pingInterval: NodeJS.Timeout | undefined;
+  let reconnectTimeout: NodeJS.Timeout | undefined;
+  let catchUpTimeout: NodeJS.Timeout | undefined;
+  let failureRetryTimeout: NodeJS.Timeout | undefined;
+
+  /**
+   * Range scan with `ws`: scan when a `logs` notification for an indexed
+   * source arrives, and otherwise every `heartbeatInterval`. While the
+   * subscription is down, or paused because notifications would cost more
+   * than polling, scan every `pollingInterval`.
+   */
+  const subscribeLogTriggers = ({
+    onBlock,
+    onError,
+    logTrigger,
+  }: {
+    onBlock: (block: SyncBlock) => Promise<boolean>;
+    onError: (error: Error) => void;
+    logTrigger: RpcLogTrigger;
+  }) => {
+    const rateWindow = LOG_TRIGGER_RATE_POLLS * chain.pollingInterval;
+    let scanInterval: number | undefined;
+    let isScanning = false;
+    let isRescanNeeded = false;
+    let lastScanAt = 0;
+    let isPaused = false;
+    let pauseCount = 0;
+    /** The newest notified log whose block the next scan must reach. */
+    let pendingLog: SyncLog | undefined;
+    /**
+     * Logs that weren't triggers when they arrived during a scan. That scan can
+     * find their emitter as a child address, so they are tested again after it.
+     */
+    let deferredLogs: SyncLog[] = [];
+    /**
+     * Notified logs no scan has reconciled yet. A scan can end without
+     * reaching one: the node answering is behind the node that sent it, or the
+     * local tip passed its block before `eth_getLogs` returned it. They are
+     * retried with backoff until reconciled, finalized or removed.
+     */
+    let unreconciledLogs: SyncLog[] = [];
+    let lastTriggerBlockNumber: number | undefined;
+    const triggerTimestamps: number[] = [];
+    const notificationTimestamps: number[] = [];
+    let scanFailureCount = 0;
+
+    /** Records an arrival now, and returns how many fall within `window`. */
+    const countInWindow = (timestamps: number[], window: number) => {
+      const now = Date.now();
+      timestamps.push(now);
+      while (timestamps[0]! <= now - window) {
+        timestamps.shift();
+      }
+      return timestamps.length;
+    };
+
+    /** How long the next pause lasts: 5 heartbeats, doubling up to an hour. */
+    const getPauseDuration = () =>
+      Math.min(
+        LOG_TRIGGER_MAX_PAUSE,
+        logTrigger.heartbeatInterval * 5 * 2 ** pauseCount,
+      );
+    /** The notification budget's window: the first pause's length. */
+    const notificationWindow = Math.min(
+      LOG_TRIGGER_MAX_PAUSE,
+      logTrigger.heartbeatInterval * 5,
+    );
+    const notificationBudget =
+      (LOG_TRIGGER_NOTIFICATIONS_PER_POLL * notificationWindow) /
+      chain.pollingInterval;
+
+    const scanUntilReconciled = async (log: SyncLog | undefined) => {
+      for (let attempt = 0; isUnsubscribed === false; attempt++) {
+        const block = await eth_getBlockByNumber(rpc, ["latest", true]);
+        common.logger.trace({
+          msg: "Received successful JSON-RPC polling response",
+          chain: chain.name,
+          chain_id: chain.id,
+          block_number: hexToNumber(block.number),
+          block_hash: block.hash,
+        });
+
+        // Note: the node that answered can be behind the node that sent the
+        // notification, for the head or for `eth_getLogs` (in which case the
+        // realtime sync rejects the scan, see `expect`). Retry until a scan
+        // has reconciled the notified block.
+        const isBehind =
+          log !== undefined &&
+          hexToNumber(block.number) < hexToNumber(log.blockNumber);
+        if (isBehind === false || attempt === LOG_TRIGGER_RETRY_COUNT) {
+          // Note: `onBlock` should never throw.
+          await onBlock(block);
+        }
+        if (
+          log === undefined ||
+          logTrigger.isScanned(log) ||
+          attempt === LOG_TRIGGER_RETRY_COUNT
+        ) {
+          return;
+        }
+        await wait(LOG_TRIGGER_RETRY_DELAY);
+      }
+    };
+
+    const scan = async () => {
+      if (isScanning) {
+        isRescanNeeded = true;
+        return;
+      }
+      isScanning = true;
+      clearTimeout(failureRetryTimeout);
+      let isFailed = false;
+
+      try {
+        do {
+          isRescanNeeded = false;
+          const log = pendingLog;
+          pendingLog = undefined;
+
+          // Note: a scan for another log of the same block already reconciled it.
+          if (log === undefined || logTrigger.isScanned(log) === false) {
+            lastScanAt = Date.now();
+            await scanUntilReconciled(log);
+          }
+          unreconciledLogs = unreconciledLogs.filter(
+            (unreconciledLog) =>
+              logTrigger.isScanned(unreconciledLog) === false,
+          );
+
+          const logs = deferredLogs;
+          deferredLogs = [];
+          for (const deferredLog of logs) {
+            if (logTrigger.isTrigger(deferredLog)) trigger(deferredLog);
+          }
+        } while (isRescanNeeded && isUnsubscribed === false);
+      } catch (error) {
+        isFailed = true;
+        onError(error as Error);
+      } finally {
+        isScanning = false;
+      }
+
+      // Note: a failed scan, or a notified log no scan has reconciled, is
+      // retried with backoff rather than at the next tick, which can be a long
+      // heartbeat away. The realtime sync still gives up after its failures
+      // span 10 minutes, and a log counts as reconciled once it's finalized.
+      if (
+        (isFailed || logTrigger.hasFailed() || unreconciledLogs.length > 0) &&
+        isUnsubscribed === false
+      ) {
+        failureRetryTimeout = setTimeout(
+          scan,
+          Math.min(
+            LOG_TRIGGER_FAILURE_RETRY_DELAY * 2 ** scanFailureCount,
+            scanInterval ?? chain.pollingInterval,
+          ),
+        );
+        scanFailureCount += 1;
+      } else {
+        scanFailureCount = 0;
+      }
+    };
+
+    const setScanInterval = (duration: number) => {
+      if (scanInterval === duration) return;
+      scanInterval = duration;
+      clearInterval(interval);
+      interval = setInterval(() => {
+        if (logSubscriptionIds.size === logTrigger.filters.length) {
+          // Note: every subscription has lasted a heartbeat.
+          pauseCount = 0;
+          webSocketErrorCount = 0;
+        }
+        // Note: a scan in progress covers this tick.
+        if (isScanning === false) scan();
+      }, duration);
+    };
+
+    const pause = (reason: "scans" | "notifications") => {
+      const duration = getPauseDuration();
+      pauseCount += 1;
+      common.logger.info({
+        msg:
+          reason === "scans"
+            ? "Paused JSON-RPC WebSocket log notifications, which would trigger more scans than polling"
+            : "Paused JSON-RPC WebSocket log notifications, which arrive more often than polling would request",
+        chain: chain.name,
+        chain_id: chain.id,
+        polling_interval: chain.pollingInterval,
+        duration,
+      });
+      isPaused = true;
+      triggerTimestamps.length = 0;
+      notificationTimestamps.length = 0;
+      ws?.close();
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(() => {
+        isPaused = false;
+        connect();
+      }, duration);
+    };
+
+    const trigger = (log: SyncLog) => {
+      const blockNumber = hexToNumber(log.blockNumber);
+
+      if (log.removed !== true) {
+        // Note: a scan for another log of the same block already reconciled it.
+        if (logTrigger.isScanned(log)) return;
+        logTrigger.expect(log);
+        unreconciledLogs.push(log);
+        if (
+          pendingLog === undefined ||
+          hexToNumber(pendingLog.blockNumber) <= blockNumber
+        ) {
+          pendingLog = log;
+        }
+      } else {
+        logTrigger.expect(log);
+        // Note: a reorg removed the block, so no scan can reconcile its logs.
+        unreconciledLogs = unreconciledLogs.filter(
+          ({ blockHash }) => blockHash !== log.blockHash,
+        );
+        if (pendingLog?.blockHash === log.blockHash) pendingLog = undefined;
+      }
+
+      if (blockNumber !== lastTriggerBlockNumber) {
+        lastTriggerBlockNumber = blockNumber;
+        if (
+          countInWindow(triggerTimestamps, rateWindow) > LOG_TRIGGER_RATE_POLLS
+        ) {
+          pause("scans");
+        }
+      }
+
+      scan();
+    };
+
+    const onLog = (log: SyncLog) => {
+      // Note: notifications can still arrive while a paused socket closes.
+      if (isPaused) return;
+
+      if (
+        countInWindow(notificationTimestamps, notificationWindow) >
+        notificationBudget
+      ) {
+        pause("notifications");
+        return;
+      }
+
+      if (logTrigger.isTrigger(log)) {
+        trigger(log);
+      } else if (isScanning && log.removed !== true) {
+        deferredLogs.push(log);
+      }
+    };
+
+    const connect = () => {
+      if (isUnsubscribed || isPaused) return;
+
+      const socket = new WebSocket(chain.ws!);
+      ws = socket;
+      let isAlive = true;
+      let isFailed = false;
+      let confirmationTimeout: NodeJS.Timeout | undefined;
+
+      // Note: counted once per connection, whether it errors, closes or both.
+      const fail = (error: unknown) => {
+        if (isFailed) return;
+        isFailed = true;
+        // Note: retried for good, unlike "newHeads", as the chain scans every
+        // `pollingInterval` meanwhile. Warn only until the retry count, and so
+        // the backoff, reaches its cap.
+        common.logger[webSocketErrorCount < RETRY_COUNT ? "warn" : "debug"]({
+          msg: "Failed JSON-RPC WebSocket subscription",
+          chain: chain.name,
+          chain_id: chain.id,
+          request: JSON.stringify({
+            method: "eth_subscribe",
+            params: ["logs"],
+          }),
+          retry_count: webSocketErrorCount + 1,
+          error: error as Error,
+        });
+        if (webSocketErrorCount < RETRY_COUNT) webSocketErrorCount += 1;
+        if (socket.readyState === socket.OPEN) socket.close();
+      };
+
+      socket.on("open", () => {
+        common.logger.debug({
+          msg: "Created JSON-RPC WebSocket connection",
+          chain: chain.name,
+          chain_id: chain.id,
+        });
+
+        logTrigger.filters.forEach((filter, index) => {
+          socket.send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: index + 1,
+              method: "eth_subscribe",
+              params: ["logs", filter],
+            }),
+          );
+        });
+
+        // Note: a provider that never confirms would leave the chain polling.
+        confirmationTimeout = setTimeout(
+          () => fail(new Error("Timed out waiting for 'eth_subscribe'")),
+          Math.min(logTrigger.heartbeatInterval, LOG_SUBSCRIPTION_TIMEOUT),
+        );
+
+        // Note: a connection can die without closing. Terminate it when a
+        // ping goes unanswered, so it reconnects.
+        clearInterval(pingInterval);
+        pingInterval = setInterval(() => {
+          if (isAlive === false) {
+            fail(new Error("Timed out waiting for a WebSocket pong"));
+            socket.terminate();
+            return;
+          }
+          isAlive = false;
+          socket.ping();
+        }, WEBSOCKET_PING_INTERVAL);
+      });
+
+      socket.on("pong", () => {
+        isAlive = true;
+      });
+
+      socket.on("message", (data: Buffer) => {
+        isAlive = true;
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.method === "eth_subscription") {
+            if (logSubscriptionIds.has(msg.params.subscription)) {
+              onLog(msg.params.result as SyncLog);
+            }
+          } else if (msg.error) {
+            fail(msg.error);
+          } else if (typeof msg.result === "string") {
+            logSubscriptionIds.add(msg.result);
+
+            if (logSubscriptionIds.size === logTrigger.filters.length) {
+              clearTimeout(confirmationTimeout);
+              common.logger.debug({
+                msg: "Created JSON-RPC WebSocket subscription",
+                chain: chain.name,
+                chain_id: chain.id,
+                request: JSON.stringify({
+                  method: "eth_subscribe",
+                  params: ["logs"],
+                }),
+                subscription_count: logSubscriptionIds.size,
+              });
+
+              setScanInterval(logTrigger.heartbeatInterval);
+              logTrigger.setPolling(false);
+              // Note: logs since the last scan had no notification. Scan when
+              // the next poll would have, so a connection that keeps
+              // resubscribing never scans more often than polling.
+              clearTimeout(catchUpTimeout);
+              catchUpTimeout = setTimeout(
+                scan,
+                Math.max(0, lastScanAt + chain.pollingInterval - Date.now()),
+              );
+            }
+          }
+        } catch (error) {
+          fail(error);
+        }
+      });
+
+      socket.on("error", (error) => {
+        fail(error);
+      });
+
+      socket.on("close", () => {
+        clearInterval(pingInterval);
+        clearTimeout(confirmationTimeout);
+        if (ws === socket) ws = undefined;
+        logSubscriptionIds.clear();
+
+        if (isUnsubscribed) return;
+        setScanInterval(chain.pollingInterval);
+        logTrigger.setPolling(true);
+        if (isPaused) return;
+
+        // Note: a close nobody asked for counts as a failure, so a provider
+        // that keeps closing the connection backs off.
+        if (isFailed === false) {
+          common.logger[webSocketErrorCount < RETRY_COUNT ? "warn" : "debug"]({
+            msg: "Closed JSON-RPC WebSocket connection unexpectedly",
+            chain: chain.name,
+            chain_id: chain.id,
+            retry_count: webSocketErrorCount + 1,
+          });
+          if (webSocketErrorCount < RETRY_COUNT) webSocketErrorCount += 1;
+        }
+
+        const duration = Math.min(
+          BASE_DURATION * 2 ** webSocketErrorCount,
+          logTrigger.heartbeatInterval,
+        );
+        common.logger.debug({
+          msg: "Retrying JSON-RPC WebSocket connection",
+          chain: chain.name,
+          retry_count: webSocketErrorCount + 1,
+          retry_delay: duration,
+        });
+        reconnectTimeout = setTimeout(connect, duration);
+      });
+    };
+
+    setScanInterval(chain.pollingInterval);
+    connect();
+
+    common.shutdown.add(() => {
+      isUnsubscribed = true;
+      clearInterval(interval);
+      clearInterval(pingInterval);
+      clearTimeout(reconnectTimeout);
+      clearTimeout(catchUpTimeout);
+      clearTimeout(failureRetryTimeout);
+      ws?.close();
+    });
+  };
 
   const rpc: Rpc = {
     hostnames: backends.map((backend) => backend.hostname),
     // @ts-expect-error
     request: (parameters, context) => queue.add({ body: parameters, context }),
-    subscribe({ onBlock, onError, isRangeScan = false }) {
+    subscribe({ onBlock, onError, logTrigger }) {
+      if (logTrigger !== undefined && chain.ws !== undefined) {
+        subscribeLogTriggers({ onBlock, onError, logTrigger });
+        return;
+      }
+
       // The range-scan path scans the entire unfinalized window on every head,
       // so its cost is per-head, not per-block. A "newHeads" subscription
       // delivers every block, which would make it more expensive than the
       // default per-block sync. Use polling to bound the scan rate to
-      // `pollingInterval`.
-      if (chain.ws !== undefined && isRangeScan) {
+      // `pollingInterval`. A chain with `experimentalRangeScan` whose sources
+      // rule the range scan out also polls: there, `ws` was set for log
+      // notifications, never to follow every block.
+      if (chain.ws !== undefined && chain.experimentalRangeScan) {
         common.logger.warn({
           msg: "Ignoring 'ws' because 'experimentalRangeScan' is enabled. Using a polling subscription so that realtime RPC usage is bounded by 'pollingInterval'.",
           chain: chain.name,
@@ -738,7 +1241,7 @@ export const createRpc = ({
 
           if (
             chain.ws === undefined ||
-            isRangeScan ||
+            chain.experimentalRangeScan ||
             webSocketErrorCount >= RETRY_COUNT
           ) {
             common.logger.debug({
@@ -930,8 +1433,22 @@ export const createRpc = ({
     },
     async unsubscribe() {
       clearInterval(interval);
+      clearInterval(pingInterval);
+      clearTimeout(reconnectTimeout);
+      clearTimeout(catchUpTimeout);
+      clearTimeout(failureRetryTimeout);
       isUnsubscribed = true;
       if (ws) {
+        for (const id of logSubscriptionIds) {
+          ws.send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "eth_unsubscribe",
+              params: [id],
+            }),
+          );
+        }
         if (subscriptionId) {
           const unsubscribeRequest = {
             jsonrpc: "2.0",

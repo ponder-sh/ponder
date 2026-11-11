@@ -138,6 +138,8 @@ Use the optional `ws` field to specify a WebSocket RPC endpoint for each chain.
 
 When provided, Ponder will use WebSocket connections for realtime block subscriptions instead of polling. Websocket connections typically offer lower latency and reduced RPC usage.
 
+With [`experimentalRangeScan`](#range-scan-experimental), `ws` carries [log notifications](#scans-triggered-by-log-notifications) instead, and the chain never subscribes to new blocks.
+
 :::info
   If the WebSocket connection becomes unstable or fails, Ponder automatically falls back to the default polling mechanism to ensure continuous indexing.
 :::
@@ -199,13 +201,42 @@ export default createConfig({
 });
 ```
 
-This option applies to chains whose indexed sources are all `log` events, including factory sources and sources without an `address`. Chains that use block, transaction, trace, or transfer sources fall back to the default per-block realtime sync.
+This option applies to chains whose indexed sources are all `log` events, including factory sources and sources without an `address`. Chains that use block, transaction, trace, or transfer sources fall back to the default per-block realtime sync, polled every `pollingInterval`. With this option, `ws` only carries log notifications (see below) and never follows every block.
 
 Each scan requests the head block and the logs of every unfinalized block, then fetches only the blocks with matching events. When every source has a static `address`, the logs are requested by address. When a source has none, such as a factory, one request without an address covers every source's event signatures, and child addresses are matched as the scan finds them. If that request returns many logs that match no source, for example because a source's event signature is common on the chain, the scan switches to one request by address plus one without an address for the other sources.
 
-Each scan costs about two requests no matter how many blocks elapsed, so this option only reduces RPC usage when `pollingInterval` is several times the chain's block time — roughly 4x or more. Below that it can cost *more* than the default per-block sync, which is why it is not useful on chains with slow blocks. Ponder logs a warning if it observes too few blocks per poll, counting the blocks whose `logsBloom` would make the per-block sync request logs.
+Each scan costs about two requests no matter how many blocks elapsed, so this option only reduces RPC usage when `pollingInterval` is several times the chain's block time — roughly 4x or more. Below that it can cost *more* than the default per-block sync, which is why it is not useful on chains with slow blocks. Ponder logs a warning if it observes too few blocks per poll, counting the blocks whose `logsBloom` would make the per-block sync request logs. With [log notifications](#scans-triggered-by-log-notifications), only polls made while the subscription is down or paused are compared.
 
-On chains it applies to, this option also ignores the [`ws`](#websocket) option. A `newHeads` subscription delivers every block, which would run one scan per block and cost more than the default per-block sync. Polling bounds the scan rate to `pollingInterval`.
+### Scans triggered by log notifications
+
+With a [`ws`](#websocket) endpoint, the range scan subscribes to the logs it scans for (`eth_subscribe` with `logs`), rather than to every new block. A scan runs as soon as a notification for an indexed source arrives, so events are indexed moments after their block. Otherwise a heartbeat scan runs every `heartbeatInterval`, by default a third of [`reorgWindow`](#reorg-window) (60 seconds), which advances finality and picks up any log whose notification was lost.
+
+Notifications only trigger scans: every log still comes from `eth_getLogs`, so a lost notification delays its event until the next heartbeat at most. A notified log that a scan doesn't reach, for example because the node answering `eth_getLogs` is behind, is retried within seconds. Sources with a static `address` are subscribed by address. The others, such as factory children, are subscribed by event signature, and logs from contracts the chain doesn't index trigger nothing.
+
+Ponder scans every `pollingInterval` instead while the subscription is down, and pauses notifications when they would cost more than polling every `pollingInterval`: when they trigger more scans, or exceed two per polling interval over five heartbeats, as when a source without an `address` has a common event signature. A burst of logs pauses them only past that budget, `10 × heartbeatInterval / pollingInterval` notifications: 300 with a 60-second heartbeat and 2-second polling. The subscription resumes after a while. On chains with rare events, a `heartbeatInterval` of minutes costs fewer scans for a later sweep of lost notifications. It must be at least `pollingInterval`, and a failed scan is retried within seconds rather than at the next heartbeat.
+
+```ts [ponder.config.ts]
+import { createConfig } from "ponder";
+
+export default createConfig({
+  chains: {
+    base: {
+      id: 8453,
+      rpc: process.env.PONDER_RPC_URL_8453,
+      ws: process.env.PONDER_WS_URL_8453, // [!code focus]
+      pollingInterval: 2_000,
+      experimentalRangeScan: true, // [!code focus]
+    },
+  },
+  contracts: { /* ... */ },
+});
+```
+
+This suits providers that bill subscriptions by the bytes they deliver: a chain with few indexed events then costs little more than its heartbeat scans.
+
+:::info
+With `ordering: "omnichain"`, events on other chains wait until this chain has scanned past their timestamp, which can take up to a heartbeat while it has no events. The default `multichain` ordering doesn't wait.
+:::
 
 :::warning
 This option is experimental. It changes how reorgs are detected in realtime (by comparing the block hashes and logs reported by each scan of the unfinalized window rather than tracing a contiguous chain of block hashes). The default is `false`.
