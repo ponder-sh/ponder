@@ -68,7 +68,10 @@ export const graphql = (
     maskedErrors: process.env.NODE_ENV === "production",
     logging: false,
     graphiql: false,
-    parserAndValidationCache: false,
+    parserAndValidationCache: {
+      documentCache: createSourceCache(),
+      errorCache: createSourceCache(),
+    },
     plugins: [
       maxTokensPlugin({ n: maxOperationTokens }),
       maxDepthPlugin({ n: maxOperationDepth, ignoreIntrospection: false }),
@@ -115,3 +118,31 @@ async function generateSchema({
     msg: `Wrote file "generated/schema.graphql"`,
   });
 }
+
+/**
+ * Least recently used cache keyed by the source of a GraphQL document, for
+ * yoga's parser cache.
+ *
+ * Note: The cache holds at most 100 entries and ignores sources longer than
+ * 10 KiB, so that requests can't fill memory with large documents.
+ */
+const createSourceCache = <value>() => {
+  const cache = new Map<string, value>();
+  return {
+    get: (source: string) => {
+      const value = cache.get(source);
+      if (value !== undefined) {
+        // Note: Re-inserting moves the entry to the end of the iteration order.
+        cache.delete(source);
+        cache.set(source, value);
+      }
+      return value;
+    },
+    set: (source: string, value: value) => {
+      if (source.length > 10_240) return;
+      cache.delete(source);
+      cache.set(source, value);
+      if (cache.size > 100) cache.delete(cache.keys().next().value!);
+    },
+  };
+};
