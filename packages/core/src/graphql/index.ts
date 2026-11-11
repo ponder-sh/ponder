@@ -1379,6 +1379,99 @@ function buildCursorCondition(
   return buildCondition(0);
 }
 
+/**
+ * Returns a condition that matches the rows of any of `fragments`, which are
+ * `where` objects that use the `eq` shorthand for each column.
+ *
+ * Note: Fragments of one non-null column use `IN`, which is faster to build
+ * than `OR` and uses one index scan.
+ */
+function buildRowFragmentsCondition(
+  fragments: readonly { [column: string]: unknown }[],
+  columns: Record<string, Column>,
+): SQL | undefined {
+  const fragmentColumns = Object.keys(fragments[0] ?? {});
+  if (fragmentColumns.length === 1) {
+    const columnName = fragmentColumns[0]!;
+    const column = columns[columnName];
+    const values: unknown[] = [];
+    for (const fragment of fragments) {
+      const keys = Object.keys(fragment);
+      const value = fragment[columnName];
+      if (keys.length !== 1 || keys[0] !== columnName || value === null) break;
+      values.push(value);
+    }
+    if (column !== undefined && values.length === fragments.length) {
+      return values.length === 1
+        ? eq(column, values[0])
+        : inArray(column, values);
+    }
+  }
+
+  return or(
+    ...fragments.map((fragment) =>
+      and(...buildWhereConditions(fragment, columns)),
+    ),
+  );
+}
+
+/**
+ * Returns a function that finds the first row in `rows` whose columns are
+ * strictly equal (`===`) to every value of `fragment`.
+ *
+ * Note: The rows are indexed once for each set of fragment columns, instead
+ * of searching every row for every fragment.
+ */
+function createRowFinder<row extends Record<string, unknown>>(rows: row[]) {
+  const indexes = new Map<string, Map<string, row>>();
+
+  return (fragment: Record<string, unknown>): row | undefined => {
+    const columns = Object.keys(fragment);
+    const fragmentKey = getRowKey(columns, fragment);
+    if (fragmentKey === undefined) return undefined;
+
+    const indexKey = JSON.stringify(columns);
+    let index = indexes.get(indexKey);
+    if (index === undefined) {
+      index = new Map();
+      for (const row of rows) {
+        const rowKey = getRowKey(columns, row);
+        if (rowKey !== undefined && index.has(rowKey) === false) {
+          index.set(rowKey, row);
+        }
+      }
+      indexes.set(indexKey, index);
+    }
+    return index.get(fragmentKey);
+  };
+}
+
+/**
+ * Returns a key for the values of `columns` in `row` that is equal for two
+ * rows if and only if every value is strictly equal (`===`) or the same
+ * `Date`, or `undefined` if a value is another object or `NaN`, which never
+ * match.
+ */
+function getRowKey(
+  columns: string[],
+  row: Record<string, unknown>,
+): string | undefined {
+  const values: string[] = [];
+  for (const column of columns) {
+    const value = row[column];
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return undefined;
+      values.push(`date:${value.getTime()}`);
+      continue;
+    }
+    if (typeof value === "object" && value !== null) return undefined;
+    if (Number.isNaN(value)) return undefined;
+    // Note: The type distinguishes e.g. `1` from `"1"` and `1n`.
+    values.push(`${typeof value}:${String(value)}`);
+  }
+  return JSON.stringify(values);
+}
+
 export function buildDataLoaderCache(qb: QB) {
   const dataLoaderMap = new Map<
     TableRelationalConfig,
@@ -1399,14 +1492,11 @@ export function buildDataLoaderCache(qb: QB) {
         async (encodedIds) => {
           const decodedRowFragments = encodedIds.map(decodeRowFragment);
 
-          // The decoded row fragments should be valid `where` objects
-          // which use the `eq` object shorthand for each primary key column.
-          const idConditions = decodedRowFragments.map((decodedRowFragment) =>
-            and(...buildWhereConditions(decodedRowFragment, table.columns)),
-          );
-
           const rows = await baseQuery.findMany({
-            where: or(...idConditions),
+            where: buildRowFragmentsCondition(
+              decodedRowFragments,
+              table.columns,
+            ),
             limit: encodedIds.length,
           });
 
@@ -1433,13 +1523,7 @@ export function buildDataLoaderCache(qb: QB) {
                 ),
               )
               // Find the database row corresponding to each normalized row fragment
-              .map((fragment) =>
-                rows.find((row) =>
-                  Object.entries(fragment).every(
-                    ([col, val]) => row[col] === val,
-                  ),
-                ),
-              )
+              .map(createRowFinder(rows))
           );
         },
         { maxBatchSize: 1_000 },
