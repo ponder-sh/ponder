@@ -145,15 +145,21 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Bytes are not SQL arrays => no containment filters.
+            if (column.columnType !== "PgBytes") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
@@ -233,15 +239,21 @@ export function buildGraphQLSchema({
           if (type instanceof GraphQLList) {
             const baseType = innerType(type);
 
+            // JSON => no filters.
+            if (baseType.name === "JSON") continue;
+
             conditionSuffixes.universal.forEach((suffix) => {
               filterFields[`${columnName}${suffix}`] = {
                 type: new GraphQLList(baseType),
               };
             });
 
-            conditionSuffixes.plural.forEach((suffix) => {
-              filterFields[`${columnName}${suffix}`] = { type: baseType };
-            });
+            // Bytes are not SQL arrays => no containment filters.
+            if ((column as PgColumn).columnType !== "PgBytes") {
+              conditionSuffixes.plural.forEach((suffix) => {
+                filterFields[`${columnName}${suffix}`] = { type: baseType };
+              });
+            }
           }
 
           // JSON => no filters.
@@ -368,8 +380,10 @@ export function buildGraphQLSchema({
                   const referenceColumnTsName =
                     getColumnTsName(referenceColumn);
 
-                  rowFragment[referenceColumnTsName] =
-                    parent[fieldColumnTsName];
+                  const value = parent[fieldColumnTsName];
+                  // A `NULL` reference never matches a row (like a SQL join).
+                  if (value === null || value === undefined) return null;
+                  rowFragment[referenceColumnTsName] = value;
                 }
                 const encodedId = encodeRowFragment(rowFragment);
 
@@ -618,11 +632,9 @@ export function buildGraphQLSchema({
     type: GraphQLMeta,
     resolve: async (_source, _args, context) => {
       // Note: This is done to avoid non-browser compatible dependencies
-      const checkpoints = (await context.qb
-        .wrap({ label: "select_checkpoints" }, (db) =>
-          db.execute(
-            "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
-          ),
+      const checkpoints = (await context.qb.raw
+        .execute(
+          "SELECT chain_name, chain_id, latest_checkpoint, safe_checkpoint from _ponder_checkpoint",
         )
         .then((res) => res.rows)) as {
         chain_name: string;
@@ -874,13 +886,10 @@ async function executePluralQuery(
   let hasNextPage = false;
 
   const totalCountPromise = includeTotalCount
-    ? qb
-        .wrap((db) =>
-          db
-            .select({ count: count() })
-            .from(relation)
-            .where(and(...whereConditions, ...extraConditions)),
-        )
+    ? qb.raw
+        .select({ count: count() })
+        .from(relation)
+        .where(and(...whereConditions, ...extraConditions))
         .then((rows) => rows[0]?.count ?? null)
     : Promise.resolve(null);
 
@@ -910,7 +919,7 @@ async function executePluralQuery(
           ? encodeCursor(orderBySchema, rows[rows.length - 1]!)
           : null;
     } else {
-      hasPreviousPage = true;
+      hasPreviousPage = rows.length > 0;
     }
 
     return {
@@ -922,7 +931,7 @@ async function executePluralQuery(
 
   if (after !== null) {
     // User specified an 'after' cursor.
-    const cursorObject = decodeCursor(after);
+    const cursorObject = decodeCursor(orderBySchema, after);
     const cursorCondition = buildCursorCondition(
       columns,
       orderBySchema,
@@ -954,15 +963,10 @@ async function executePluralQuery(
     if (encodeCursor(orderBySchema, rows[0]!) === after) {
       rows.shift();
       hasPreviousPage = true;
-    } else {
-      // Otherwise, remove the last record.
-      rows.pop();
     }
 
-    // Now if the length of the records is still equal to limit + 1,
-    // there is a next page.
-    if (rows.length === limit + 1) {
-      rows.pop();
+    if (rows.length > limit) {
+      rows.splice(limit);
       hasNextPage = true;
     }
 
@@ -982,7 +986,7 @@ async function executePluralQuery(
   }
 
   // User specified a 'before' cursor.
-  const cursorObject = decodeCursor(before!);
+  const cursorObject = decodeCursor(orderBySchema, before!);
   const cursorCondition = buildCursorCondition(
     columns,
     orderBySchema,
@@ -1017,15 +1021,10 @@ async function executePluralQuery(
   if (encodeCursor(orderBySchema, rows[rows.length - 1]!) === before) {
     rows.pop();
     hasNextPage = true;
-  } else {
-    // Otherwise, remove the first record.
-    rows.shift();
   }
 
-  // Now if the length of the records is equal to limit + 1, we know
-  // there is a previous page.
-  if (rows.length === limit + 1) {
-    rows.shift();
+  if (rows.length > limit) {
+    rows.splice(0, rows.length - limit);
     hasPreviousPage = true;
   }
 
@@ -1070,20 +1069,39 @@ const conditionSuffixesByLengthDesc = Object.values(conditionSuffixes)
   .flat()
   .sort((a, b) => b.length - a.length);
 
+/**
+ * Prepare a string filter value for use in a `LIKE` pattern.
+ *
+ * - Escape the `LIKE` wildcard characters (`%` and `_`) and the escape
+ *   character (backslash) so that the value is matched literally.
+ * - Lowercase values for hex columns, which are stored lowercase.
+ */
+function likeValue(column: Column, value: string) {
+  const normalized =
+    column.columnType === "PgHex" ? value.toLowerCase() : value;
+  return normalized.replace(/[\\%_]/g, "\\$&");
+}
+
 function buildWhereConditions(
-  where: Record<string, any> | undefined,
+  where: Record<string, any> | null | undefined,
   columns: Record<string, Column>,
 ) {
   const conditions: (SQL | undefined)[] = [];
 
-  if (where === undefined) return conditions;
+  if (where === undefined || where === null) return conditions;
 
   for (const [whereKey, rawValue] of Object.entries(where)) {
     // Handle the `AND` and `OR` operators
     if (whereKey === "AND" || whereKey === "OR") {
+      if (rawValue === null) continue;
       if (!Array.isArray(rawValue)) {
         throw new GraphQLError(
           `Invalid query: Expected an array for the ${whereKey} operator. Got: ${rawValue}`,
+        );
+      }
+      if (rawValue.includes(null)) {
+        throw new GraphQLError(
+          `Invalid query: ${whereKey} cannot contain null`,
         );
       }
 
@@ -1127,39 +1145,56 @@ function buildWhereConditions(
       );
     }
 
+    if (
+      rawValue === null &&
+      conditionSuffix !== "" &&
+      conditionSuffix !== "_not"
+    ) {
+      continue;
+    }
+
+    if (Array.isArray(rawValue) && rawValue.includes(null)) {
+      throw new GraphQLError(`Invalid query: ${whereKey} cannot contain null`);
+    }
+
     switch (conditionSuffix) {
       case "":
-        if (column.columnType === "PgArray") {
-          conditions.push(
-            and(
-              arrayContains(column, rawValue),
-              arrayContained(column, rawValue),
-            ),
-          );
-        } else {
-          if (rawValue === null) {
-            conditions.push(isNull(column));
+        if (rawValue === null) {
+          conditions.push(isNull(column));
+        } else if (column.columnType === "PgArray") {
+          // Note: `arrayContains` and `arrayContained` don't support empty arrays.
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) = 0`);
           } else {
-            conditions.push(eq(column, rawValue));
-          }
-        }
-        break;
-      case "_not":
-        if (column.columnType === "PgArray") {
-          conditions.push(
-            not(
+            conditions.push(
               and(
                 arrayContains(column, rawValue),
                 arrayContained(column, rawValue),
-              )!,
-            ),
-          );
-        } else {
-          if (rawValue === null) {
-            conditions.push(isNotNull(column));
-          } else {
-            conditions.push(ne(column, rawValue));
+              ),
+            );
           }
+        } else {
+          conditions.push(eq(column, rawValue));
+        }
+        break;
+      case "_not":
+        if (rawValue === null) {
+          conditions.push(isNotNull(column));
+        } else if (column.columnType === "PgArray") {
+          if (rawValue.length === 0) {
+            conditions.push(sql`cardinality(${column}) <> 0`);
+          } else {
+            conditions.push(
+              not(
+                and(
+                  arrayContains(column, rawValue),
+                  arrayContained(column, rawValue),
+                )!,
+              ),
+            );
+          }
+        } else {
+          conditions.push(ne(column, rawValue));
         }
         break;
       case "_in":
@@ -1187,40 +1222,40 @@ function buildWhereConditions(
         conditions.push(lte(column, rawValue));
         break;
       case "_contains":
-        conditions.push(like(column, `%${rawValue}%`));
+        conditions.push(like(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_not_contains":
-        conditions.push(notLike(column, `%${rawValue}%`));
+        conditions.push(notLike(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_starts_with":
-        conditions.push(like(column, `${rawValue}%`));
+        conditions.push(like(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_ends_with":
-        conditions.push(like(column, `%${rawValue}`));
+        conditions.push(like(column, `%${likeValue(column, rawValue)}`));
         break;
       case "_not_starts_with":
-        conditions.push(notLike(column, `${rawValue}%`));
+        conditions.push(notLike(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_not_ends_with":
-        conditions.push(notLike(column, `%${rawValue}`));
+        conditions.push(notLike(column, `%${likeValue(column, rawValue)}`));
         break;
       case "_contains_nocase":
-        conditions.push(ilike(column, `%${rawValue}%`));
+        conditions.push(ilike(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_not_contains_nocase":
-        conditions.push(notIlike(column, `%${rawValue}%`));
+        conditions.push(notIlike(column, `%${likeValue(column, rawValue)}%`));
         break;
       case "_starts_with_nocase":
-        conditions.push(ilike(column, `${rawValue}%`));
+        conditions.push(ilike(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_ends_with_nocase":
-        conditions.push(ilike(column, `%${rawValue}`));
+        conditions.push(ilike(column, `%${likeValue(column, rawValue)}`));
         break;
       case "_not_starts_with_nocase":
-        conditions.push(notIlike(column, `${rawValue}%`));
+        conditions.push(notIlike(column, `${likeValue(column, rawValue)}%`));
         break;
       case "_not_ends_with_nocase":
-        conditions.push(notIlike(column, `%${rawValue}`));
+        conditions.push(notIlike(column, `%${likeValue(column, rawValue)}`));
         break;
       default:
         never(conditionSuffix);
@@ -1270,8 +1305,37 @@ function encodeCursor(
   );
   return encodeRowFragment(cursorObject);
 }
-function decodeCursor(cursor: string): { [k: string]: unknown } {
-  return decodeRowFragment(cursor);
+function decodeCursor(
+  orderBySchema: [string, "asc" | "desc"][],
+  cursor: string,
+): { [k: string]: unknown } {
+  let cursorObject: unknown;
+  try {
+    cursorObject = decodeRowFragment(cursor);
+  } catch {
+    throw new GraphQLError("Invalid cursor.");
+  }
+
+  if (
+    typeof cursorObject !== "object" ||
+    cursorObject === null ||
+    Array.isArray(cursorObject)
+  ) {
+    throw new GraphQLError("Invalid cursor.");
+  }
+
+  // The cursor must contain exactly the columns of the order by clause.
+  const keys = Object.keys(cursorObject);
+  if (
+    keys.length !== orderBySchema.length ||
+    orderBySchema.some(([columnName]) => !keys.includes(columnName))
+  ) {
+    throw new GraphQLError(
+      "Invalid cursor. The cursor does not match the orderBy argument.",
+    );
+  }
+
+  return cursorObject as { [k: string]: unknown };
 }
 
 function encodeRowFragment(rowFragment: { [k: string]: unknown }): string {
@@ -1283,7 +1347,7 @@ function decodeRowFragment(encodedRowFragment: string): {
   return superjson.parse(Buffer.from(encodedRowFragment, "base64").toString());
 }
 
-export function buildCursorCondition(
+function buildCursorCondition(
   columns: Record<string, Column>,
   orderBySchema: [string, "asc" | "desc"][],
   direction: "after" | "before",
@@ -1308,13 +1372,9 @@ export function buildCursorCondition(
         orderDirection === "asc" ? [lt, lte] : [gt, gte];
     }
 
-    // Postgres sorts NULLs last for `asc` and first for `desc`. Determine
-    // whether NULLs come after non-NULL values in the direction of the scan.
+    // Postgres sorts NULLs last for `asc` and first for `desc`.
     const nullsBeyond = (direction === "after") === (orderDirection === "asc");
 
-    // `beyond`: rows strictly beyond the cursor value in the direction of the scan.
-    // `equal`: rows with the same value as the cursor.
-    // `beyondOrEqual`: either, used for the last column. `undefined` matches every row.
     let beyond: SQL;
     let equal: SQL;
     let beyondOrEqual: SQL | undefined;
@@ -1327,8 +1387,6 @@ export function buildCursorCondition(
       equal = eq(column, value);
       beyondOrEqual = or(comparatorOrEquals(column, value), isNull(column));
     } else {
-      // Keep plain comparisons when NULLs can't be beyond the cursor, so
-      // Postgres can use an index range scan.
       beyond = comparator(column, value);
       equal = eq(column, value);
       beyondOrEqual = comparatorOrEquals(column, value);
@@ -1340,7 +1398,6 @@ export function buildCursorCondition(
   const buildCondition = (index: number): SQL | undefined => {
     const { beyond, equal, beyondOrEqual } = cursorColumns[index]!;
 
-    // The cursor condition is inclusive of the cursor row.
     if (index === cursorColumns.length - 1) return beyondOrEqual;
 
     return or(beyond, and(equal, buildCondition(index + 1)));
