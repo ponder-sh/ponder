@@ -303,6 +303,7 @@ export type Chain = {
   reorgWindow: number;
   cacheRpcRequests: boolean;
   ethGetLogsBlockRange: number | undefined;
+  allowLateBlocks: boolean;
   viemChain: ViemChain | undefined;
 };
 
