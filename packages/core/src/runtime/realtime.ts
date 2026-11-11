@@ -1,4 +1,4 @@
-import { type Address, hexToNumber } from "viem";
+import { type Address, hexToNumber, numberToHex } from "viem";
 import type { Database } from "@/database/index.js";
 import type { Common } from "@/internal/common.js";
 import type {
@@ -9,6 +9,7 @@ import type {
   FactoryFragmentId,
   Filter,
   IndexingBuild,
+  LightBlock,
   SyncBlock,
   SyncBlockHeader,
 } from "@/internal/types.js";
@@ -41,6 +42,7 @@ import {
 import { type Interval, intervalIntersection } from "@/utils/interval.js";
 import { promiseAllSettledWithThrow } from "@/utils/promiseAllSettledWithThrow.js";
 import { promiseWithResolvers } from "@/utils/promiseWithResolvers.js";
+import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
 import { getFilterFactories } from "./filter.js";
 import type { ChildAddresses, SyncProgress } from "./index.js";
@@ -801,7 +803,11 @@ export async function* getRealtimeEventGenerator(params: {
       chain_id: params.chain.id,
     });
   };
-  let noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
+  const noNewBlockTimeout = getNoNewBlockTimeout({
+    chain: params.chain,
+    isRangeScan: realtimeSync.isRangeScan,
+  });
+  let noNewBlockTimer = setTimeout(noNewBlockWarning, noNewBlockTimeout);
   // Hash of the most recent block received from the RPC.
   let mostRecentHash = params.syncProgress.finalized.hash;
 
@@ -816,7 +822,7 @@ export async function* getRealtimeEventGenerator(params: {
       if (block.hash !== mostRecentHash) {
         mostRecentHash = block.hash;
         clearTimeout(noNewBlockTimer);
-        noNewBlockTimer = setTimeout(noNewBlockWarning, 30_000);
+        noNewBlockTimer = setTimeout(noNewBlockWarning, noNewBlockTimeout);
       }
 
       const pwr = promiseWithResolvers<boolean>();
@@ -825,6 +831,7 @@ export async function* getRealtimeEventGenerator(params: {
       return pwr.promise;
     },
     onError: realtimeSync.onError,
+    isRangeScan: realtimeSync.isRangeScan,
   });
 
   for await (const { block, blockCallback, endClock } of generator) {
@@ -883,6 +890,40 @@ export async function* getRealtimeEventGenerator(params: {
     }
   }
 }
+
+/**
+ * How long to wait for a new block before warning. A range-scanned chain
+ * receives blocks only as often as it scans, every `pollingInterval`.
+ */
+export const getNoNewBlockTimeout = ({
+  chain,
+  isRangeScan,
+}: {
+  chain: Pick<Chain, "pollingInterval">;
+  isRangeScan: boolean;
+}) => (isRangeScan ? chain.pollingInterval + 30_000 : 30_000);
+
+/**
+ * Every block number a reorg removed: the blocks above the common ancestor, up
+ * to the highest reorged block.
+ *
+ * @dev `reorgedBlocks` is sparse when the chain is range scanned, so cached
+ * requests at a block that wasn't emitted would otherwise survive the reorg.
+ */
+export const getReorgedBlockNumbers = ({
+  block,
+  reorgedBlocks,
+}: {
+  block: Pick<LightBlock, "number">;
+  reorgedBlocks: Pick<LightBlock, "number">[];
+}): Pick<LightBlock, "number">[] => {
+  if (reorgedBlocks.length === 0) return [];
+
+  return range(
+    hexToNumber(block.number) + 1,
+    Math.max(...reorgedBlocks.map(({ number }) => hexToNumber(number))) + 1,
+  ).map((number) => ({ number: numberToHex(number) }));
+};
 
 export async function handleRealtimeSyncEvent(
   event: RealtimeSyncEvent,
@@ -1095,7 +1136,7 @@ export async function handleRealtimeSyncEvent(
         }).pruneRpcRequestResults(
           {
             chainId: params.chain.id,
-            blocks: event.reorgedBlocks,
+            blocks: getReorgedBlockNumbers(event),
           },
           { logger: params.common.logger.child({ action: "reconcile_reorg" }) },
         );
