@@ -3947,6 +3947,45 @@ test("column casing", async () => {
   });
 });
 
+test("filter on column name ending with a filter suffix", async () => {
+  const user = onchainTable("user", (t) => ({
+    id: t.text().primaryKey(),
+    opt_in: t.boolean(),
+    token_not: t.integer(),
+  }));
+  const schema = { user };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.user).values([
+    { id: "id1", opt_in: true, token_not: 1 },
+    { id: "id2", opt_in: false, token_not: 2 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { users(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.users.items.map((item: { id: string }) => item.id);
+  };
+
+  expect(await ids("{ opt_in: true }")).toStrictEqual(["id1"]);
+  expect(await ids("{ opt_in_not: true }")).toStrictEqual(["id2"]);
+  expect(await ids("{ opt_in_in: [false] }")).toStrictEqual(["id2"]);
+  expect(await ids("{ token_not: 1 }")).toStrictEqual(["id1"]);
+  expect(await ids("{ token_not_not: 1 }")).toStrictEqual(["id2"]);
+  expect(await ids("{ token_not_gt: 1 }")).toStrictEqual(["id2"]);
+});
+
 test("snake case table and column names with where clause", async () => {
   const schema = {
     deposited_token: onchainTable(
