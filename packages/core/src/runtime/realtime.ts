@@ -54,8 +54,26 @@ export type RealtimeEvent =
       checkpoint: string;
       blockCallback?: (isAccepted: boolean) => void;
     }
-  | { type: "reorg"; chain: Chain; checkpoint: string }
-  | { type: "finalize"; chain: Chain; checkpoint: string };
+  | {
+      type: "reorg";
+      chain: Chain;
+      checkpoint: string;
+      /**
+       * With multichain ordering, the checkpoint of the first executed event
+       * of each chain that is indexed again.
+       */
+      executedCheckpoints?: string[];
+    }
+  | {
+      type: "finalize";
+      chain: Chain;
+      checkpoint: string;
+      /**
+       * With multichain ordering, the checkpoint of the first executed event
+       * of each chain that can be indexed again after a reorg.
+       */
+      executedCheckpoints?: string[];
+    };
 
 export async function* getRealtimeEventsOmnichain(params: {
   common: Common;
@@ -543,7 +561,12 @@ export async function* getRealtimeEventsMultichain(params: {
           event_count: finalizedEvents.length,
         });
 
-        yield { type: "finalize", chain, checkpoint };
+        yield {
+          type: "finalize",
+          chain,
+          checkpoint,
+          executedCheckpoints: getFirstCheckpoints(executedEvents),
+        };
         break;
       }
       case "reorg": {
@@ -570,8 +593,9 @@ export async function* getRealtimeEventsMultichain(params: {
 
         // Move events from executed to pending
 
+        let reorgedEvents: Event[] = [];
         if (reorgIndex !== undefined) {
-          const reorgedEvents = executedEvents.slice(reorgIndex);
+          reorgedEvents = executedEvents.slice(reorgIndex);
           executedEvents = executedEvents.slice(0, reorgIndex);
           pendingEvents = pendingEvents.concat(reorgedEvents);
 
@@ -585,12 +609,28 @@ export async function* getRealtimeEventsMultichain(params: {
           (e) => isReorgedEvent(e) === false,
         );
 
-        yield { type: "reorg", chain, checkpoint };
+        yield {
+          type: "reorg",
+          chain,
+          checkpoint,
+          executedCheckpoints: getFirstCheckpoints(reorgedEvents),
+        };
         break;
       }
     }
   }
 }
+
+/** The checkpoint of the first event of each chain in `events`. */
+const getFirstCheckpoints = (events: Event[]) => {
+  const checkpoints = new Map<number, string>();
+  for (const event of events) {
+    if (checkpoints.has(event.chain.id) === false) {
+      checkpoints.set(event.chain.id, event.checkpoint);
+    }
+  }
+  return Array.from(checkpoints.values());
+};
 
 export async function* getRealtimeEventsIsolated(params: {
   common: Common;
