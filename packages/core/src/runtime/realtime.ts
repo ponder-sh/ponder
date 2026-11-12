@@ -146,6 +146,14 @@ export async function* getRealtimeEventsOmnichain(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = params.pendingEvents;
+  // Note: With a single live chain, a reorg never reads its executed events.
+  const liveChainIds = new Set(
+    Array.from(params.perChainSync)
+      .filter(([, { syncProgress }]) => syncProgress.isEnd() === false)
+      .map(([chain]) => chain.id),
+  );
+  const isExecutedEventKept = (event: Event) =>
+    liveChainIds.size > 1 || liveChainIds.has(event.chain.id) === false;
   /** Closest-to-tip finalized checkpoint across all chains. */
   let finalizedCheckpoint = ZERO_CHECKPOINT_STRING;
 
@@ -231,7 +239,9 @@ export async function* getRealtimeEventsOmnichain(params: {
         pendingEvents = pendingEvents
           .concat(decodedEvents)
           .filter((e) => e.checkpoint > checkpoint);
-        executedEvents = executedEvents.concat(readyEvents);
+        for (const event of readyEvents) {
+          if (isExecutedEventKept(event)) executedEvents.push(event);
+        }
 
         yield {
           type: "block",
@@ -412,6 +422,8 @@ export async function* getRealtimeEventsMultichain(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
+  // Note: With a single live chain, a reorg never reads executed events.
+  const isExecutedEventKept = eventGenerators.length > 1;
 
   for await (const { chain, event } of mergeAsyncGenerators(eventGenerators)) {
     const { syncProgress, childAddresses, unfinalizedBlocks } =
@@ -497,7 +509,9 @@ export async function* getRealtimeEventsMultichain(params: {
           .concat(pendingEvents)
           .sort((a, b) => (a.checkpoint < b.checkpoint ? -1 : 1));
         pendingEvents = [];
-        executedEvents = executedEvents.concat(readyEvents);
+        if (isExecutedEventKept) {
+          for (const event of readyEvents) executedEvents.push(event);
+        }
 
         yield {
           type: "block",
