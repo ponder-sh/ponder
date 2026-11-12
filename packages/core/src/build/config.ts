@@ -971,6 +971,9 @@ export async function buildIndexingFunctions({
   };
 }
 
+/** The longest delay timers accept, about 24.8 days. */
+const MAX_HEARTBEAT_INTERVAL = 2_147_483_647;
+
 export function buildConfig({
   common,
   config,
@@ -1071,15 +1074,42 @@ export function buildConfig({
         );
       }
 
+      const pollingInterval = chain.pollingInterval ?? 1_000;
+
+      if (
+        chain.heartbeatInterval !== undefined &&
+        (!Number.isSafeInteger(chain.heartbeatInterval) ||
+          chain.heartbeatInterval < pollingInterval ||
+          chain.heartbeatInterval > MAX_HEARTBEAT_INTERVAL)
+      ) {
+        throw new Error(
+          `Invalid 'heartbeatInterval' for chain '${chainName}'. Expected an integer between ${pollingInterval} ('pollingInterval') and ${MAX_HEARTBEAT_INTERVAL} milliseconds, got ${chain.heartbeatInterval}.`,
+        );
+      }
+
+      if (
+        chain.heartbeatInterval !== undefined &&
+        (chain.experimentalRangeScan !== true || chain.ws === undefined)
+      ) {
+        logs.push({
+          level: "warn",
+          msg: "Ignoring 'heartbeatInterval', which applies only to chains with both 'experimentalRangeScan' and 'ws'.",
+          chain: chainName,
+          chain_id: chain.id,
+        });
+      }
+
       return {
         id: chain.id,
         name: chainName,
         rpc: chain.rpc,
         ws: chain.ws,
-        pollingInterval: chain.pollingInterval ?? 1_000,
+        pollingInterval,
         reorgWindow: chain.reorgWindow ?? DEFAULT_REORG_WINDOW,
         cacheRpcRequests: chain.cacheRpcRequests ?? true,
         ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
+        experimentalRangeScan: chain.experimentalRangeScan ?? false,
+        heartbeatInterval: chain.heartbeatInterval,
         viemChain: matchedChain,
       } satisfies Chain;
     },

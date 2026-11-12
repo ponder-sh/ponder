@@ -119,6 +119,33 @@ type ChainConfig<chain> = {
    * attempt to determine the block range automatically based on error messages.
    */
   ethGetLogsBlockRange?: number;
+  /**
+   * Experimental. Reduce realtime RPC usage by scanning each polling interval
+   * with ranged `eth_getLogs` requests instead of fetching every block.
+   *
+   * When enabled, a `pollingInterval` larger than the chain's block time
+   * reduces RPC usage proportionally. Useful for high-throughput L2 chains.
+   *
+   * With `ws`, it subscribes to the logs it scans for and scans as soon as one
+   * arrives, and otherwise every `heartbeatInterval`. `pollingInterval`
+   * then applies while the subscription is down, or paused because log
+   * notifications would cost more than polling.
+   *
+   * Applies to chains whose indexed sources are all `log` events, including
+   * factory sources and sources without an address. Chains using block,
+   * transaction, trace, or transfer sources fall back to the default per-block
+   * realtime sync, polled every `pollingInterval`: with this option, `ws` only
+   * carries log notifications, never every block. Default: `false`.
+   */
+  experimentalRangeScan?: boolean;
+  /**
+   * Experimental. With `experimentalRangeScan` and `ws`, how often (in ms) to
+   * scan when no log notification arrives. Must be at least `pollingInterval`,
+   * which still applies while the subscription is down or paused, and at most
+   * 2147483647 (about 24.8 days). Default: a third of `reorgWindow`, or
+   * `pollingInterval` if longer.
+   */
+  heartbeatInterval?: number;
 };
 
 type ChainsConfig<chains> = {} extends chains
