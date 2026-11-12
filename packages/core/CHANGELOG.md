@@ -1,5 +1,11 @@
 # ponder
 
+## 0.18.8
+
+### Patch Changes
+
+- [#2508](https://github.com/ponder-sh/ponder/pull/2508) [`df5502e`](https://github.com/ponder-sh/ponder/commit/df5502ed485403303f20f4596ca49196362430b3) Thanks [@kyscott18](https://github.com/kyscott18)! - Reduced the memory usage of live indexing with a single chain.
+
 ## 0.18.7
 
 ### Patch Changes
