@@ -146,9 +146,7 @@ export async function* getRealtimeEventsOmnichain(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = params.pendingEvents;
-  // Note: Executed events are only indexed again after a reorg of
-  // another chain, because the events of the reorged chain are dropped.
-  // With one live chain, only the events of other chains are kept.
+  // Note: With a single live chain, a reorg never reads its executed events.
   const liveChainIds = new Set(
     Array.from(params.perChainSync)
       .filter(([, { syncProgress }]) => syncProgress.isEnd() === false)
@@ -424,7 +422,7 @@ export async function* getRealtimeEventsMultichain(params: {
   let executedEvents: Event[] = [];
   /** Events that have not been executed. */
   let pendingEvents: Event[] = [];
-  // Note: See `getRealtimeEventsOmnichain`. All events are of live chains.
+  // Note: With a single live chain, a reorg never reads executed events.
   const isExecutedEventKept = eventGenerators.length > 1;
 
   for await (const { chain, event } of mergeAsyncGenerators(eventGenerators)) {
