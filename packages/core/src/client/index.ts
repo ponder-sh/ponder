@@ -399,6 +399,8 @@ export const client = ({
           for (const tableName of perViewTables.get(relation)!) {
             referencedTables.add(tableName);
           }
+        } else {
+          return c.text(`Relation "${relation}" not supported`, 500);
         }
       }
 
@@ -481,6 +483,8 @@ export const client = ({
             for (const tableName of perViewTables.get(relation)!) {
               referencedTables.add(tableName);
             }
+          } else {
+            return c.text(`Relation "${relation}" not supported`, 500);
           }
         }
 

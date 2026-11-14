@@ -99,7 +99,7 @@ test("client.db error", async () => {
 
   const response = await app.request(`/sql/db?${queryToParams(query)}`);
   expect(response.status).toBe(500);
-  expect(await response.text()).toContain('relation "account" does not exist');
+  expect(await response.text()).toContain('Relation "account" not supported');
 });
 
 test("client.db search_path", async () => {
@@ -371,5 +371,60 @@ test("client.live releases quota when request fails before streaming", async () 
   for (let i = 0; i < 1000; i++) {
     const response = await app.request("/sql/live");
     expect(response.status).toBe(400);
+  }
+});
+
+test("client.db relations", async () => {
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
+
+  const account = onchainTable("account", (p) => ({
+    address: p.hex().primaryKey(),
+    balance: p.bigint(),
+  }));
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema: { account } },
+  });
+  globalThis.PONDER_DATABASE = database;
+
+  const app = new Hono().use(
+    client({ db: database.readonlyQB.raw, schema: { account } }),
+  );
+
+  const request = (sql: string) =>
+    app.request(`/sql/db?${queryToParams({ sql, params: [] })}`);
+
+  for (const [sql, relation] of [
+    ["SELECT * FROM pg_wait_events", "pg_wait_events"],
+    ["SELECT * FROM _ponder_meta", "_ponder_meta"],
+    [
+      "SELECT * FROM (WITH _ponder_meta AS (SELECT 1) SELECT * FROM _ponder_meta) x, _ponder_meta",
+      "_ponder_meta",
+    ],
+    [
+      "WITH _ponder_meta AS (SELECT * FROM _ponder_meta) SELECT * FROM _ponder_meta",
+      "_ponder_meta",
+    ],
+  ] as const) {
+    const response = await request(sql);
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe(`Relation "${relation}" not supported`);
+  }
+
+  for (const sql of [
+    "SELECT * FROM account",
+    "SELECT * FROM _ponder_checkpoint",
+    "WITH a AS (SELECT * FROM account) SELECT * FROM a",
+  ]) {
+    const response = await request(sql);
+    expect(response.status).toBe(200);
   }
 });
