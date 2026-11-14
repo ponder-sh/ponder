@@ -356,9 +356,16 @@ export const client = ({
     } else {
       return globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
         (tx) => {
-          return tx._.session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
+          const preparedQuery = tx._.session.prepareQuery(
+            query,
+            undefined,
+            undefined,
+            false,
+          );
+          // Note: The extended query protocol rejects multiple statements.
+          // @ts-expect-error
+          preparedQuery.rawQueryConfig.queryMode = "extended";
+          return preparedQuery.execute();
         },
         { accessMode: "read only" },
       );
