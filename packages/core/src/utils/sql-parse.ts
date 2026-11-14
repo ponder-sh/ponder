@@ -939,11 +939,6 @@ const SELECT_STMT_VALIDATOR: ValidatorNode<"SelectStmt"> = {
   },
 };
 
-const COMMENT_STMT_VALIDATOR: ValidatorNode<"CommentStmt"> = {
-  node: "CommentStmt",
-  children: (node) => [...(node.object ? [node.object] : [])],
-};
-
 /** Validation rules for allowed Postgres SQL AST nodes. */
 const ALLOW_LIST = new Map(
   [
@@ -1029,7 +1024,6 @@ const ALLOW_LIST = new Map(
     JSON_OBJECT_AGG_VALIDATOR,
     JSON_ARRAY_AGG_VALIDATOR,
     SELECT_STMT_VALIDATOR,
-    COMMENT_STMT_VALIDATOR,
   ].map((node) => [node.node, node]),
 );
 

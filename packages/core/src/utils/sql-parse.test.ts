@@ -141,6 +141,14 @@ test("validateAllowableSQLQuery() cache identity", async () => {
   );
 });
 
+test("validateAllowableSQLQuery() comment", async () => {
+  await expect(
+    validateAllowableSQLQuery("COMMENT ON TABLE users IS 'comment';"),
+  ).rejects.toThrow("CommentStmt not supported");
+
+  await validateAllowableSQLQuery("SELECT 1 /* comment */ -- comment");
+});
+
 test("validateAllowableSQLQuery() select into", async () => {
   await expect(
     validateAllowableSQLQuery("SELECT * INTO users;"),
