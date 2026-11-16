@@ -1,4 +1,10 @@
-import type { Node, RangeVar, RawStmt } from "@pgsql/types";
+import type {
+  CommonTableExpr,
+  Node,
+  RangeVar,
+  RawStmt,
+  WithClause,
+} from "@pgsql/types";
 
 type ValidatorNode<
   node extends Node extends infer T ? (T extends T ? keyof T : never) : never,
@@ -166,26 +172,58 @@ export const getSQLQueryRelations = async (
 
   const root = await parseSQLQuery(sql);
 
-  const find = (node: Node) => {
-    if (FIND_LIST.has(getNodeType(node)) === false) {
-      throw new Error(`${getNodeType(node)} not supported`);
+  const find = (node: Node, ctes: string[]) => {
+    const type = getNodeType(node);
+    if (FIND_LIST.has(type) === false) {
+      throw new Error(`${type} not supported`);
     }
 
-    if (getNodeType(node) === "RangeVar") {
-      const relation = (node as { RangeVar: RangeVar }).RangeVar.relname;
-      if (relation) relations.add(relation);
+    // @ts-expect-error
+    const value = node[type];
+
+    if (type === "RangeVar") {
+      const rangeVar = value as RangeVar;
+      if (
+        rangeVar.relname &&
+        (rangeVar.schemaname !== undefined ||
+          ctes.includes(rangeVar.relname) === false)
+      ) {
+        relations.add(rangeVar.relname);
+      }
     }
 
-    for (const child of FIND_LIST.get(getNodeType(node))!.children(
-      // @ts-expect-error
-      node[getNodeType(node)],
-    )) {
-      find(child);
+    if (value?.withClause !== undefined) {
+      const withClause = value.withClause as WithClause;
+      const names = (withClause.ctes ?? []).map(
+        (cte) =>
+          (cte as { CommonTableExpr: CommonTableExpr }).CommonTableExpr
+            .ctename!,
+      );
+
+      // Note: A non-recursive CTE can only reference the CTEs before it.
+      for (const [i, cte] of (withClause.ctes ?? []).entries()) {
+        find(cte, [
+          ...ctes,
+          ...(withClause.recursive ? names : names.slice(0, i)),
+        ]);
+      }
+
+      for (const child of FIND_LIST.get(type)!.children({
+        ...value,
+        withClause: undefined,
+      })) {
+        find(child, [...ctes, ...names]);
+      }
+      return;
+    }
+
+    for (const child of FIND_LIST.get(type)!.children(value)) {
+      find(child, ctes);
     }
   };
 
   const relations = new Set<string>();
-  find(root);
+  find(root, []);
 
   RELATIONS_CACHE.set(hash, relations);
   if (RELATIONS_CACHE.size > 1_000_000) {
@@ -901,11 +939,6 @@ const SELECT_STMT_VALIDATOR: ValidatorNode<"SelectStmt"> = {
   },
 };
 
-const COMMENT_STMT_VALIDATOR: ValidatorNode<"CommentStmt"> = {
-  node: "CommentStmt",
-  children: (node) => [...(node.object ? [node.object] : [])],
-};
-
 /** Validation rules for allowed Postgres SQL AST nodes. */
 const ALLOW_LIST = new Map(
   [
@@ -991,7 +1024,6 @@ const ALLOW_LIST = new Map(
     JSON_OBJECT_AGG_VALIDATOR,
     JSON_ARRAY_AGG_VALIDATOR,
     SELECT_STMT_VALIDATOR,
-    COMMENT_STMT_VALIDATOR,
   ].map((node) => [node.node, node]),
 );
 

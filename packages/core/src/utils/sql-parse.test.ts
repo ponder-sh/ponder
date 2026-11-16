@@ -39,6 +39,44 @@ test("getSQLQueryRelations", async () => {
   `);
 });
 
+test("getSQLQueryRelations() cte scope", async () => {
+  expect(
+    await getSQLQueryRelations(
+      "WITH a AS (SELECT * FROM users), b AS (SELECT * FROM a) SELECT * FROM b;",
+    ),
+  ).toEqual(new Set(["users"]));
+
+  expect(
+    await getSQLQueryRelations(
+      "WITH pg_settings AS (SELECT * FROM pg_settings) SELECT * FROM pg_settings;",
+    ),
+  ).toEqual(new Set(["pg_settings"]));
+
+  expect(
+    await getSQLQueryRelations(
+      "WITH a AS (SELECT * FROM b), b AS (SELECT 1) SELECT * FROM a;",
+    ),
+  ).toEqual(new Set(["b"]));
+
+  expect(
+    await getSQLQueryRelations(
+      "SELECT * FROM (WITH meta AS (SELECT 1) SELECT * FROM meta) x, meta;",
+    ),
+  ).toEqual(new Set(["meta"]));
+
+  expect(
+    await getSQLQueryRelations(
+      "WITH a AS (SELECT 1) SELECT * FROM a UNION ALL SELECT * FROM (SELECT * FROM a) x;",
+    ),
+  ).toEqual(new Set());
+
+  expect(
+    await getSQLQueryRelations(
+      "WITH users AS (SELECT 1) SELECT * FROM public.users;",
+    ),
+  ).toEqual(new Set(["users"]));
+});
+
 test("getSQLQueryRelations() cache identity", async () => {
   const first = "SELECT 1 /*Ap0yb*/";
   const second = "SELECT * FROM _ponder_checkpoint /*Bd6bu*/";
@@ -101,6 +139,14 @@ test("validateAllowableSQLQuery() cache identity", async () => {
   await expect(validateAllowableSQLQuery(second)).rejects.toThrow(
     "System tables not supported",
   );
+});
+
+test("validateAllowableSQLQuery() comment", async () => {
+  await expect(
+    validateAllowableSQLQuery("COMMENT ON TABLE users IS 'comment';"),
+  ).rejects.toThrow("CommentStmt not supported");
+
+  await validateAllowableSQLQuery("SELECT 1 /* comment */ -- comment");
 });
 
 test("validateAllowableSQLQuery() select into", async () => {

@@ -356,9 +356,16 @@ export const client = ({
     } else {
       return globalThis.PONDER_DATABASE.readonlyQB.raw.transaction(
         (tx) => {
-          return tx._.session
-            .prepareQuery(query, undefined, undefined, false)
-            .execute();
+          const preparedQuery = tx._.session.prepareQuery(
+            query,
+            undefined,
+            undefined,
+            false,
+          );
+          // Note: The extended query protocol rejects multiple statements.
+          // @ts-expect-error
+          preparedQuery.rawQueryConfig.queryMode = "extended";
+          return preparedQuery.execute();
         },
         { accessMode: "read only" },
       );
@@ -392,6 +399,8 @@ export const client = ({
           for (const tableName of perViewTables.get(relation)!) {
             referencedTables.add(tableName);
           }
+        } else {
+          return c.text(`Relation "${relation}" not supported`, 500);
         }
       }
 
@@ -474,6 +483,8 @@ export const client = ({
             for (const tableName of perViewTables.get(relation)!) {
               referencedTables.add(tableName);
             }
+          } else {
+            return c.text(`Relation "${relation}" not supported`, 500);
           }
         }
 
