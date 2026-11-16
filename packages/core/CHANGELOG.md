@@ -1,5 +1,11 @@
 # ponder
 
+## 0.18.9
+
+### Patch Changes
+
+- [#2510](https://github.com/ponder-sh/ponder/pull/2510) [`f055683`](https://github.com/ponder-sh/ponder/commit/f055683c630ea168809848b0a454127630167243) Thanks [@kyscott18](https://github.com/kyscott18)! - Improved isolation and query validations for SQL client.
+
 ## 0.18.8
 
 ### Patch Changes
