@@ -794,6 +794,7 @@ export async function runMultichain({
               tx,
               {
                 checkpoint: event.checkpoint,
+                executedCheckpoints: event.executedCheckpoints,
                 tables,
               },
               context,
@@ -840,6 +841,7 @@ export async function runMultichain({
           database.userQB,
           {
             checkpoint: event.checkpoint,
+            executedCheckpoints: event.executedCheckpoints,
             tables,
             namespaceBuild,
           },

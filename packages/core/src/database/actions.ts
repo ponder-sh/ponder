@@ -415,13 +415,35 @@ WITH reverted1 AS (
   );
 };
 
+/**
+ * SQL that matches the reorg rows of each chain at or after its checkpoint in
+ * `executedCheckpoints`.
+ *
+ * Note: The operations of the events of a chain are in checkpoint order, so
+ * these are the rows of the events at or after each checkpoint.
+ */
+const getExecutedCheckpointsSql = (executedCheckpoints: string[]) =>
+  executedCheckpoints
+    .map(
+      (checkpoint) => `
+OR (SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
+AND checkpoint >= '${checkpoint}')`,
+    )
+    .join("");
+
 export const revertMultichain = async (
   qb: QB,
   {
     checkpoint,
+    executedCheckpoints = [],
     tables,
   }: {
     checkpoint: string;
+    /**
+     * The checkpoint of the first executed event of each chain that is indexed
+     * again. The rows of the chain at or after it are reverted.
+     */
+    executedCheckpoints?: string[];
     tables: Table[];
   },
   context?: { logger?: Logger },
@@ -442,7 +464,7 @@ ${tables
     (table) => `
 SELECT MIN(operation_id) AS operation_id FROM "${getTableConfig(table).schema ?? "public"}"."${getReorgTableName(table)}"
 WHERE SUBSTRING(checkpoint, 11, 16)::numeric = ${String(decodeCheckpoint(checkpoint).chainId)}
-AND checkpoint > '${checkpoint}'`,
+AND checkpoint > '${checkpoint}'${getExecutedCheckpointsSql(executedCheckpoints)}`,
   )
   .join(" UNION ALL ")}) AS all_mins;`),
         )
@@ -589,10 +611,17 @@ export const finalizeMultichain = async (
   qb: QB,
   {
     checkpoint,
+    executedCheckpoints = [],
     tables,
     namespaceBuild,
   }: {
     checkpoint: string;
+    /**
+     * The checkpoint of the first executed event of each chain that can be
+     * indexed again after a reorg. The rows of the chain at or after it are
+     * kept.
+     */
+    executedCheckpoints?: string[];
     tables: Table[];
     namespaceBuild: NamespaceBuild;
   },
@@ -637,7 +666,7 @@ WHERE checkpoint > (
   SELECT finalized_checkpoint 
   FROM "${getTableConfig(PONDER_CHECKPOINT).schema ?? "public"}"."${getTableName(PONDER_CHECKPOINT)}" 
   WHERE chain_id = SUBSTRING(checkpoint, 11, 16)::numeric
-)`,
+)${getExecutedCheckpointsSql(executedCheckpoints)}`,
   )
   .join(" UNION ALL ")}) AS all_mins;`),
         )
