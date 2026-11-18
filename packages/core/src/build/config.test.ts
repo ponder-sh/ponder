@@ -319,6 +319,63 @@ test("buildIndexingFunctions() builds topics for multiple event filters", async 
   expect((eventCallbacks[0]![0]!.filter as LogFilter).topic1).toEqual(bytes1);
 });
 
+test("buildIndexingFunctions() builds a filter for each event filter of an event", async () => {
+  const transfer = parseAbiItem(
+    "event Transfer(address indexed from, address indexed to, uint256 amount)",
+  );
+
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    contracts: {
+      a: {
+        chain: "mainnet",
+        abi: [transfer],
+        filter: [
+          { event: "Transfer", args: { from: address3 } },
+          { event: "Transfer", args: { to: address3 } },
+        ],
+        address: address1,
+        startBlock: 16370000,
+        endBlock: 16370020,
+      },
+    },
+  });
+
+  const configBuild = buildConfig({
+    common: context.common,
+    config,
+  });
+  const { eventCallbacks } = await buildIndexingFunctions({
+    common: context.common,
+    config,
+    indexingFunctions: [{ name: "a:Transfer", fn: () => {} }],
+    configBuild,
+  });
+
+  expect(
+    eventCallbacks[0]!.map(({ name, filter }) => ({
+      name,
+      topic1: (filter as LogFilter).topic1,
+      topic2: (filter as LogFilter).topic2,
+    })),
+  ).toMatchInlineSnapshot(`
+    [
+      {
+        "name": "a:Transfer",
+        "topic1": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "topic2": null,
+      },
+      {
+        "name": "a:Transfer",
+        "topic1": null,
+        "topic2": "0x0000000000000000000000000000000000000000000000000000000000000003",
+      },
+    ]
+  `);
+});
+
 test("buildIndexingFunctions() overrides default values with chain-specific values", async () => {
   const config = createConfig({
     chains: {

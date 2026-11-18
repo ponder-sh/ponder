@@ -480,8 +480,11 @@ export const buildEvents = ({
       transactionReceipt = transactionReceipts[transactionReceiptsIndex]!;
     }
 
-    for (const logEventCallbackIndex of logEventCallbackIndexes) {
-      const filter = eventCallbacks[logEventCallbackIndex]!.filter as LogFilter;
+    const logEventsIndex = events.length;
+
+    logEventCallbacks: for (const logEventCallbackIndex of logEventCallbackIndexes) {
+      const eventCallback = eventCallbacks[logEventCallbackIndex]!;
+      const filter = eventCallback.filter as LogFilter;
       if (
         isLogFilterMatched({ filter, log }) &&
         (isAddressFactory(filter.address)
@@ -492,6 +495,17 @@ export const buildEvents = ({
             })
           : true)
       ) {
+        // Note: An event has a filter for each of its `filter` entries, and a
+        // log that matches more than one of them is only one event.
+        for (let i = logEventsIndex; i < events.length; i++) {
+          if (
+            eventCallbacks[events[i]!.eventCallbackIndex]!.name ===
+            eventCallback.name
+          ) {
+            continue logEventCallbacks;
+          }
+        }
+
         if (filter.hasTransactionReceipt && transactionReceipt === undefined) {
           throw new Error(
             `Failed to build events from block data. Missing transaction receipt for block ${blockNumber} and transaction index ${transactionIndex} for chain ID ${chainId}`,
