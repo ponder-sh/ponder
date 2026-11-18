@@ -54,3 +54,9 @@ If the process crashes and starts back up again using the same exact configurati
 Internally, the indexing engine has two distinct modes – **backfill** and **live** indexing – which use different approaches for fetching data from the RPC.
 
 However, indexing function logic works the same way in both modes. As long as the logic is compatible with the expected onchain activity, indexing will work fine in both modes.
+
+#### Slow backfill with a warm RPC cache
+
+The `cache_rate` in the backfill logs measures the coverage of the RPC cache for the historical range. With `cache_rate=100%`, Ponder can read the required historical data from the cache. Starting with a fresh database schema still runs your indexing functions for the historical events and writes the results to that schema.
+
+If a warm backfill is slow, check indexing function durations in the terminal UI. An awaited HTTP request for every event can dominate indexing time even with a fully warm RPC cache. To isolate its cost, compare the same block range in two fresh schemas using the same RPC cache. Use a fixed local response in one run and check that both runs write equivalent results. For data shared across events, fetch a versioned snapshot once before backfill and read it in the indexing functions.

@@ -261,6 +261,21 @@ export const events = onchainTable("events", (t) => ({
 }));
 ```
 
+To store an absolute point in time, use `t.timestamp({ withTimezone: true })`.
+This creates a PostgreSQL `TIMESTAMP WITH TIME ZONE` column (also called
+`TIMESTAMPTZ`). In the default mode, the column still reads and writes
+JavaScript `Date` values. PostgreSQL stores the instant; it does not retain
+the original time zone or UTC offset.
+
+```ts [ponder.schema.ts]
+import { onchainTable } from "ponder";
+
+export const events = onchainTable("events", (t) => ({
+  id: t.text().primaryKey(),
+  occurredAt: t.timestamp({ withTimezone: true }).notNull(),
+}));
+```
+
 ### Custom types
 
 Use the `.$type()` modifier to customize the TypeScript type for a column. Note that the `.$type()` modifier does not validate data at runtime or in the database, it only enforces a TypeScript type.
