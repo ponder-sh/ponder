@@ -668,6 +668,7 @@ export const getChain = (params?: {
     reorgWindow: params?.reorgWindow ?? 1,
     cacheRpcRequests: params?.cacheRpcRequests ?? true,
     ethGetLogsBlockRange: undefined,
+    allowLateBlocks: false,
     viemChain: anvil,
   } satisfies Chain;
 };
