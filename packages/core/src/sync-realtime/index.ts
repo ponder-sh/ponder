@@ -65,8 +65,11 @@ import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
 import {
+  type BloomBits,
+  getBloomBits,
   getFactoryBloom,
   getLogFilterBloom,
+  isBloomBitsInBloom,
   isFactoryInBloom,
   isFilterInBloom,
   isInBloom,
@@ -96,6 +99,15 @@ export type BlockWithEventData = {
   traces: SyncTrace[];
   /** Child addresses found in the block per `factory_log` fragment ID. */
   childAddresses: Map<FactoryFragmentId, Set<Address>>;
+};
+
+type FetchedBlockEventData = BlockWithEventData & {
+  /**
+   * `childAddressVersion` at the time of the fetch. Only set if a log filter
+   * with a factory address was skipped because no child address was in the
+   * `logsBloom`.
+   */
+  skippedChildLogsVersion: number | undefined;
 };
 
 export type RealtimeSyncEvent =
@@ -189,6 +201,39 @@ export const createRealtimeSync = (
 
   const logFilterBlooms = logFilters.map(getLogFilterBloom);
   const factoryBlooms = factories.map(getFactoryBloom);
+  const logFilterFactoryBlooms = logFilters.map((filter) =>
+    isAddressFactory(filter.address)
+      ? getFactoryBloom(filter.address)
+      : undefined,
+  );
+  /** Child addresses converted to `BloomBits`, so that they are hashed once. */
+  const childAddressBlooms = new Map<Address, BloomBits>();
+  /** Incremented each time a child address is added to `childAddresses`. */
+  let childAddressVersion = 0;
+
+  /**
+   * Return true if a log from a child address of `logFilters[i]` can be in `bloom`.
+   * The child address is either known, or created in the same block.
+   *
+   * Note: False positives are possible.
+   */
+  const isChildAddressInBloom = (bloom: Uint8Array, i: number): boolean => {
+    const factoryBloom = logFilterFactoryBlooms[i];
+    if (factoryBloom === undefined) return true;
+    if (isFactoryInBloom({ bloom, factory: factoryBloom })) return true;
+
+    const factory = logFilters[i]!.address as Factory;
+    for (const address of childAddresses.get(factory.id)!.keys()) {
+      let childAddressBloom = childAddressBlooms.get(address);
+      if (childAddressBloom === undefined) {
+        childAddressBloom = getBloomBits(address);
+        childAddressBlooms.set(address, childAddressBloom);
+      }
+      if (isBloomBitsInBloom(bloom, childAddressBloom)) return true;
+    }
+
+    return false;
+  };
 
   const getLatestUnfinalizedBlock = () => {
     if (unfinalizedBlocks.length === 0) {
@@ -202,10 +247,13 @@ export const createRealtimeSync = (
    * @dev The data returned by this function may include false positives. This
    * is due to the fact that factory addresses are unknown and are always
    * treated as "matched".
+   *
+   * @dev Logs of a child address that is added to `childAddresses` after this
+   * function is called may be missing. See `skippedChildLogsVersion`.
    */
   const fetchBlockEventData = async (
     maybeBlockHeader: SyncBlock | SyncBlockHeader,
-  ): Promise<BlockWithEventData> => {
+  ): Promise<FetchedBlockEventData> => {
     const context = {
       logger: args.common.logger.child({ action: "fetch_block_data" }),
     };
@@ -230,15 +278,22 @@ export const createRealtimeSync = (
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
     const blockNumber = hexToNumber(maybeBlockHeader.number);
     const bloom = hexToBytes(maybeBlockHeader.logsBloom);
+    let skippedChildLogsVersion: number | undefined;
 
     const logsRequestFilter = mergeLogFiltersToBlockRequest({
-      logFilters: logFilters.filter(
-        (logFilter, i) =>
-          isBlockInFilter(logFilter, blockNumber) &&
-          (isAsyncExecution ||
-            maybeBlockHeader.logsBloom === zeroLogsBloom ||
-            isFilterInBloom({ bloom, filter: logFilterBlooms[i]! })),
-      ),
+      logFilters: logFilters.filter((logFilter, i) => {
+        if (isBlockInFilter(logFilter, blockNumber) === false) return false;
+        if (isAsyncExecution || maybeBlockHeader.logsBloom === zeroLogsBloom) {
+          return true;
+        }
+        if (isFilterInBloom({ bloom, filter: logFilterBlooms[i]! }) === false) {
+          return false;
+        }
+        if (isChildAddressInBloom(bloom, i)) return true;
+
+        skippedChildLogsVersion = childAddressVersion;
+        return false;
+      }),
       factories: factories.filter(
         (factory, i) =>
           isBlockInFilter(factory, blockNumber) &&
@@ -576,6 +631,7 @@ export const createRealtimeSync = (
         logs: [],
         traces: [],
         childAddresses: blockChildAddresses,
+        skippedChildLogsVersion,
       };
     }
 
@@ -665,6 +721,7 @@ export const createRealtimeSync = (
       logs,
       traces,
       childAddresses: blockChildAddresses,
+      skippedChildLogsVersion,
     };
   };
 
@@ -691,6 +748,7 @@ export const createRealtimeSync = (
           for (const address of blockAddresses) {
             if (knownAddresses.has(address) === false) {
               knownAddresses.set(address, hexToNumber(block.number));
+              childAddressVersion++;
             }
           }
         }
@@ -976,7 +1034,7 @@ export const createRealtimeSync = (
    * @dev It is an invariant that the correct events are generated or an error is thrown.
    */
   const reconcileBlock = async function* (
-    blockWithEventData: BlockWithEventData,
+    blockWithEventData: FetchedBlockEventData,
     blockCallback?: (isAccepted: boolean) => void,
   ): AsyncGenerator<RealtimeSyncEvent> {
     const endClock = startClock();
@@ -1086,6 +1144,15 @@ export const createRealtimeSync = (
 
     // New block is exactly one block ahead of the local chain.
     // Attempt to ingest it.
+
+    // A child address was added after the block was fetched. Fetch the block
+    // again, because logs of the child address may not have been requested.
+    if (
+      blockWithEventData.skippedChildLogsVersion !== undefined &&
+      blockWithEventData.skippedChildLogsVersion !== childAddressVersion
+    ) {
+      blockWithEventData = await fetchBlockEventData(block);
+    }
 
     const blockWithFilteredEventData = filterBlockEventData(blockWithEventData);
 

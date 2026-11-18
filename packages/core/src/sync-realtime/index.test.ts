@@ -770,6 +770,114 @@ test("handleBlock() block event with log factory", async () => {
   expect(data[1]?.transactions).toHaveLength(1);
 });
 
+test("sync() skips log request when bloom does not match a factory child address", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: otherFactory } = await deployFactory({ sender: ALICE });
+  const { address: otherPair } = await createPair({
+    factory: otherFactory,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x3", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map([[filter.address.id, new Map()]]),
+  });
+
+  const { block } = await swapPair({
+    pair: otherPair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  const syncResult = (await drainAsyncGenerator(
+    realtimeSync.sync(block),
+  )) as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  expect(
+    requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
+  ).toBe(false);
+
+  expect(syncResult).toHaveLength(1);
+  expect(syncResult[0]?.hasMatchedFilter).toBe(false);
+  expect(syncResult[0]?.logs).toHaveLength(0);
+});
+
+test("sync() requests logs for a child address added after the block was fetched", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployFactory({ sender: ALICE });
+  const { address: pair } = await createPair({
+    factory: address,
+    sender: ALICE,
+  });
+  const { block } = await swapPair({
+    pair,
+    amount0Out: 1n,
+    amount1Out: 1n,
+    to: ALICE,
+    sender: ALICE,
+  });
+
+  const { eventCallbacks } = getPairWithFactoryIndexingBuild({
+    address,
+  });
+
+  const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map([[filter.address.id, new Map()]]),
+  });
+
+  const syncResult = (await drainAsyncGenerator(
+    realtimeSync.sync(block),
+  )) as Extract<RealtimeSyncEvent, { type: "block" }>[];
+
+  expect(realtimeSync.unfinalizedBlocks).toHaveLength(2);
+
+  expect(syncResult).toHaveLength(2);
+
+  expect(syncResult[0]?.block.number).toBe("0x2");
+  expect(syncResult[1]?.block.number).toBe("0x3");
+
+  expect(syncResult[0]?.hasMatchedFilter).toBe(false);
+  expect(syncResult[1]?.hasMatchedFilter).toBe(true);
+
+  expect(syncResult[0]?.logs).toHaveLength(0);
+  expect(syncResult[1]?.logs).toHaveLength(1);
+});
+
 test("handleBlock() block event with factories shared by callbacks", async () => {
   const { common } = context;
   await setupDatabaseServices();
