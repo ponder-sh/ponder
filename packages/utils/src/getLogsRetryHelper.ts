@@ -437,7 +437,9 @@ export const getLogsRetryHelper = ({
     // 1rpc
     /response size should not greater than \d+ bytes/.test(sError) ||
     // drpc
-    /ranges over \d+ blocks are not supported on freetier/.test(sError)
+    /ranges over \d+ blocks are not supported on freetier/.test(sError) ||
+    // timeout, usually a too-wide range
+    sError.includes('"name":"TimeoutError"')
   ) {
     const ranges = chunk({
       params,
