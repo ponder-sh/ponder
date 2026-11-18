@@ -2390,6 +2390,46 @@ test("filter or with multi-field branches", async () => {
   expect(result2.data.pets.items).toMatchObject([{ id: "id1" }, { id: "id3" }]);
 });
 
+test("filter and/or with empty branches", async () => {
+  const pet = onchainTable("pet", (t) => ({
+    id: t.text().primaryKey(),
+    age: t.integer(),
+  }));
+  const schema = { pet };
+
+  const { database } = await setupDatabaseServices({
+    schemaBuild: { schema },
+  });
+  const contextValue = buildContextValue(database);
+  const query = (source: string) =>
+    execute({ schema: graphqlSchema, contextValue, document: parse(source) });
+
+  await database.userQB.raw.insert(schema.pet).values([
+    { id: "id1", age: 1 },
+    { id: "id2", age: 2 },
+  ]);
+
+  const graphqlSchema = buildGraphQLSchema({ schema });
+
+  const ids = async (where: string) => {
+    const result = await query(
+      `query { pets(where: ${where}) { items { id } } }`,
+    );
+    expect(result.errors?.[0]?.message).toBeUndefined();
+    // @ts-expect-error
+    return result.data.pets.items.map((item: { id: string }) => item.id);
+  };
+
+  // An empty filter object matches every row.
+  expect(await ids("{ OR: [{}, { age: 1 }] }")).toStrictEqual(["id1", "id2"]);
+  expect(await ids("{ OR: [{ AND: [] }, { age: 1 }] }")).toStrictEqual([
+    "id1",
+    "id2",
+  ]);
+  expect(await ids("{ AND: [{}] }")).toStrictEqual(["id1", "id2"]);
+  expect(await ids("{ AND: [{}, { age: 1 }] }")).toStrictEqual(["id1"]);
+});
+
 test("order by", async () => {
   const person = onchainTable("person", (t) => ({
     id: t.text().primaryKey(),
