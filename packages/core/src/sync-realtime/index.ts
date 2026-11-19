@@ -259,9 +259,22 @@ export const createRealtimeSync = (
    * Addresses and `topic0`s that the range scan requests, split by whether the
    * source has a static address.
    *
+   * Sources with a static address are requested by address, one request per
+   * batch of `ADDRESS_CHUNK_SIZE` addresses. The sources without one, such as
+   * factory children, are requested by `topic0` alone in one more request, and
+   * their logs are matched against the known child addresses afterwards. A
+   * static source's `topic0` is never requested without its address, so other
+   * contracts emitting a common signature, such as ERC-20 `Transfer`, never
+   * reach the scan.
+   *
    * @dev Only `topic0` is requested: the union of every source's `topic0`
    * matches a superset of each source, and the `topics` field is fragile for
    * many rpc providers. Logs are matched precisely client-side afterwards.
+   *
+   * Several requests can observe different chains if a reorg happens between
+   * them, or if one is answered by a node that is behind. `reconcileRange`
+   * retries a poll that reports a block at two hashes, and re-ingests a block
+   * once a later scan returns logs that an earlier one missed.
    */
   const rangeScanSources = (() => {
     /** Addresses of log filters and factories with a static address. */
@@ -309,34 +322,6 @@ export const createRealtimeSync = (
 
     return { staticAddresses, staticTopic0s, openTopic0s };
   })();
-
-  /**
-   * How each scan requests logs.
-   *
-   * - `static`: every source has a static address. One request per batch of
-   *   `ADDRESS_CHUNK_SIZE` addresses.
-   * - `merged`: one request without an address for every source's `topic0`,
-   *   the request the per-block path builds for one block
-   *   (`mergeLogFiltersToBlockRequest`) applied to a range.
-   * - `split`: the `static` requests, plus one request without an address for
-   *   the `topic0`s of the sources without a static address.
-   *
-   * A chain with a source without a static address starts `merged`, one
-   * request per scan. It switches to `split` for the rest of the run once a
-   * merged scan returns more than `RANGE_SCAN_MAX_MERGE_NOISE` logs that only
-   * the merge requested: a static source's signature emitted by other
-   * contracts, which is common for signatures such as ERC-20 `Transfer`.
-   *
-   * @dev A single request also gives one consistent view of the chain.
-   * Several requests (`split`, or more than `ADDRESS_CHUNK_SIZE` addresses) can
-   * observe different chains if a reorg happens between them, or if one is
-   * answered by a node that is behind. `reconcileRange` retries a poll that
-   * reports a block at two hashes, and re-ingests a block once a later scan
-   * returns logs that an earlier one missed.
-   */
-  let rangeScanMode: "static" | "merged" | "split" =
-    rangeScanSources.openTopic0s.size === 0 ? "static" : "merged";
-  const RANGE_SCAN_MAX_MERGE_NOISE = 1_000;
 
   /**
    * Maximum block range for a range-scan `eth_getLogs` request. Starts at the
@@ -1504,15 +1489,11 @@ export const createRealtimeSync = (
 
   /**
    * Fetch the logs that the sources may require in `[fromBlock, toBlock]`,
-   * with the requests of `rangeScanMode`.
+   * with the requests described at `rangeScanSources`.
    *
    * Requests are chunked by block range. A request rejected for being too wide
    * is split into the ranges suggested by the error and retried, and the
    * narrower range is remembered for later polls.
-   *
-   * @dev Logs that only a `merged` request matches, a static source's
-   * `topic0` from an address no source has, are dropped here and counted to
-   * decide whether to switch to `split`. They can't match a source.
    */
   const getRangeScanLogs = async (
     fromBlock: number,
@@ -1525,35 +1506,22 @@ export const createRealtimeSync = (
     let requestCount = 0;
     let didSplit = false;
 
-    const mode = rangeScanMode;
     const requestFilters: { address: Address[] | undefined; topic0s: Hex[] }[] =
       [];
 
-    if (mode === "merged") {
+    const addresses = Array.from(rangeScanSources.staticAddresses);
+    for (let i = 0; i < addresses.length; i += ADDRESS_CHUNK_SIZE) {
+      requestFilters.push({
+        address: addresses.slice(i, i + ADDRESS_CHUNK_SIZE),
+        topic0s: Array.from(rangeScanSources.staticTopic0s),
+      });
+    }
+
+    if (rangeScanSources.openTopic0s.size > 0) {
       requestFilters.push({
         address: undefined,
-        topic0s: Array.from(
-          new Set([
-            ...rangeScanSources.staticTopic0s,
-            ...rangeScanSources.openTopic0s,
-          ]),
-        ),
+        topic0s: Array.from(rangeScanSources.openTopic0s),
       });
-    } else {
-      const addresses = Array.from(rangeScanSources.staticAddresses);
-      for (let i = 0; i < addresses.length; i += ADDRESS_CHUNK_SIZE) {
-        requestFilters.push({
-          address: addresses.slice(i, i + ADDRESS_CHUNK_SIZE),
-          topic0s: Array.from(rangeScanSources.staticTopic0s),
-        });
-      }
-
-      if (mode === "split") {
-        requestFilters.push({
-          address: undefined,
-          topic0s: Array.from(rangeScanSources.openTopic0s),
-        });
-      }
     }
 
     const request = async (
@@ -1638,40 +1606,16 @@ export const createRealtimeSync = (
       rangeScanBlockRange = Math.ceil(rangeScanBlockRange * 1.05);
     }
 
-    // Note: a `split` scan can return a log twice, from the static and the
-    // open request.
+    // Note: a static source's log with the `topic0` of a source without a
+    // static address is returned twice, by both requests.
     const logs: SyncLog[] = [];
     const seen = new Set<string>();
-    let mergeNoiseCount = 0;
 
     for (const log of results.flat()) {
-      if (
-        mode === "merged" &&
-        rangeScanSources.staticAddresses.has(toLowerCase(log.address)) ===
-          false &&
-        (log.topics[0] === undefined ||
-          rangeScanSources.openTopic0s.has(toLowerCase(log.topics[0])) ===
-            false)
-      ) {
-        mergeNoiseCount += 1;
-        continue;
-      }
-
       const key = `${log.blockHash}_${log.logIndex}`;
       if (seen.has(key)) continue;
       seen.add(key);
       logs.push(log);
-    }
-
-    if (mode === "merged" && mergeNoiseCount > RANGE_SCAN_MAX_MERGE_NOISE) {
-      rangeScanMode = "split";
-
-      args.common.logger.debug({
-        msg: "Switched range scan to separate 'eth_getLogs' requests for static and factory sources",
-        chain: args.chain.name,
-        chain_id: args.chain.id,
-        unmatched_log_count: mergeNoiseCount,
-      });
     }
 
     return { logs, requestCount };
@@ -1811,7 +1755,8 @@ export const createRealtimeSync = (
         logsByBlockNumber.set(number, { hash: log.blockHash, logs: [log] });
       } else if (entry.hash !== log.blockHash) {
         // Note: only possible across requests that observed different chains,
-        // for example a reorg between the `split` requests. Retried next poll.
+        // for example a reorg between the request by address and the one
+        // without. Retried next poll.
         throw new Error(
           `Inconsistent 'eth_getLogs' responses: block ${number} reported with hashes ${entry.hash} and ${log.blockHash}`,
         );

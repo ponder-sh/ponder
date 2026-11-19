@@ -7,7 +7,6 @@ import {
   http,
   parseEther,
   RpcRequestError,
-  toHex,
 } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ALICE, BOB } from "@/_test/constants.js";
@@ -2384,16 +2383,19 @@ test("sync() range scan matches factory children created in the same scan", asyn
     new Map([[pair.toLowerCase(), 2]]),
   );
 
-  // One `eth_getLogs` without an address. Only the block that creates the pair
-  // is fetched: the head already has its transactions.
+  // One `eth_getLogs` for the factory by address, and one without an address
+  // for the pair's events. Only the block that creates the pair is fetched:
+  // the head already has its transactions.
   const requests = requestSpy.mock.calls.map(
     (call) => call[0] as { method: string; params: { address?: unknown }[] },
   );
   const getLogsRequests = requests.filter(
     (body) => body.method === "eth_getLogs",
   );
-  expect(getLogsRequests).toHaveLength(1);
-  expect(getLogsRequests[0]!.params[0]!.address).toBeUndefined();
+  expect(getLogsRequests.map((body) => body.params[0]!.address)).toStrictEqual([
+    [address.toLowerCase()],
+    undefined,
+  ]);
   expect(
     requests.filter((body) => body.method === "eth_getBlockByHash"),
   ).toHaveLength(1);
@@ -2581,7 +2583,7 @@ test("sync() range scan removes factory children when their creation is reorged"
   ]);
 });
 
-test("sync() range scan switches to separate requests when the merged request returns many unrelated logs", async () => {
+test("sync() range scan requests static sources by address and the others by topic0 alone", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
@@ -2589,17 +2591,9 @@ test("sync() range scan switches to separate requests when the merged request re
   const rpc = createRpc({ common, chain });
 
   const { address } = await deployFactory({ sender: ALICE });
-  const { address: pair } = await createPair({
-    factory: address,
-    sender: ALICE,
-  });
-  await swapPair({
-    pair,
-    amount0Out: 1n,
-    amount1Out: 1n,
-    to: ALICE,
-    sender: ALICE,
-  });
+  // Another factory emits the indexed factory's event signature.
+  const { address: otherFactory } = await deployFactory({ sender: ALICE });
+  await createPair({ factory: otherFactory, sender: ALICE });
 
   const { eventCallbacks } = getPairWithFactoryIndexingBuild({ address });
   const filter = eventCallbacks[0]!.filter as LogFilter<LogFactory>;
@@ -2615,70 +2609,45 @@ test("sync() range scan switches to separate requests when the merged request re
     childAddresses: new Map([[filter.address.id, new Map()]]),
   });
 
-  // The first scan also returns the factory's event from 1,001 other
-  // contracts, as a chain where that signature is common would.
-  const originalRequest = rpc.request.bind(rpc);
-  let isFirstGetLogs = true;
-  const requestSpy = vi
-    .spyOn(rpc, "request")
-    .mockImplementation(async (body, context) => {
-      const response = await originalRequest(body, context);
-      if (body.method !== "eth_getLogs" || isFirstGetLogs === false) {
-        return response;
-      }
-      isFirstGetLogs = false;
-      const logs = response as SyncLog[];
-      const factoryLog = logs.find(
-        (log) => log.topics[0] === filter.address.eventSelector,
-      )!;
-      const unrelatedLogs = Array.from({ length: 1_001 }, (_, i) => ({
-        ...factoryLog,
-        address: `0x${(i + 1).toString(16).padStart(40, "0")}` as Address,
-        logIndex: toHex(1_000 + i),
-      }));
-      return [...logs, ...unrelatedLogs] as typeof response;
-    });
+  const requestSpy = vi.spyOn(rpc, "request");
+  const head = await eth_getBlockByNumber(rpc, ["0x3", true]);
+  await drainAsyncGenerator(realtimeSync.sync(head));
 
-  const head3 = await eth_getBlockByNumber(rpc, ["0x3", true]);
-  const data = (await drainAsyncGenerator(realtimeSync.sync(head3))) as Extract<
-    RealtimeSyncEvent,
-    { type: "block" }
-  >[];
+  const getLogs = requestSpy.mock.calls.flatMap((call, i) => {
+    const body = call[0] as {
+      method: string;
+      params: { address?: Address[]; topics: Hex[][] }[];
+    };
+    return body.method === "eth_getLogs"
+      ? [
+          {
+            params: body.params[0]!,
+            response: requestSpy.mock.results[i]!.value as Promise<SyncLog[]>,
+          },
+        ]
+      : [];
+  });
 
-  // The unrelated logs match no source.
-  expect(
-    data.map((event) => [event.block.number, event.logs.length]),
-  ).toStrictEqual([
-    ["0x2", 0],
-    ["0x3", 1],
-  ]);
-
-  requestSpy.mockClear();
-  await simulateBlock();
-  const head4 = await eth_getBlockByNumber(rpc, ["0x4", true]);
-  await drainAsyncGenerator(realtimeSync.sync(head4));
-
-  // The next scan requests the factory by address, and the children's events
-  // without an address.
-  const getLogsParams = requestSpy.mock.calls
-    .map(
-      (call) =>
-        call[0] as {
-          method: string;
-          params: { address?: Address[]; topics: Hex[][] }[];
-        },
-    )
-    .filter((body) => body.method === "eth_getLogs")
-    .map((body) => body.params[0]!);
-
-  expect(getLogsParams.map((params) => params.address)).toStrictEqual([
+  // The factory is requested by address, and the children's events without
+  // an address.
+  expect(getLogs.map(({ params }) => params.address)).toStrictEqual([
     [address.toLowerCase()],
     undefined,
   ]);
-  expect(getLogsParams.map((params) => params.topics)).toStrictEqual([
+  expect(getLogs.map(({ params }) => params.topics)).toStrictEqual([
     [[filter.address.eventSelector]],
     [[filter.topic0]],
   ]);
+
+  // The other factory's event is never returned.
+  const logs = (
+    await Promise.all(getLogs.map(({ response }) => response))
+  ).flat();
+  expect(
+    logs.filter(
+      (log) => log.address.toLowerCase() === otherFactory.toLowerCase(),
+    ),
+  ).toStrictEqual([]);
 });
 
 test("sync() range scan retries when eth_getLogs and the head disagree", async () => {
