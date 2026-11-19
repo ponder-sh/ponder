@@ -1160,6 +1160,93 @@ test.each([-1, 1.5, 601, Number.NaN])(
   },
 );
 
+test("buildConfig() uses the configured heartbeat interval", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: {
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        ws: `ws://127.0.0.1:8545/${TEST_POOL_ID}`,
+        experimentalRangeScan: true,
+        heartbeatInterval: 300_000,
+      },
+      optimism: {
+        id: 10,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+      },
+    },
+    blocks: {
+      a: { chain: "mainnet" },
+      b: { chain: "optimism" },
+    },
+  });
+
+  const { chains, logs } = buildConfig({ common: context.common, config });
+
+  expect(chains.map((chain) => chain.heartbeatInterval)).toStrictEqual([
+    300_000,
+    undefined,
+  ]);
+  expect(logs).toStrictEqual([]);
+});
+
+test("buildConfig() warns that a heartbeat interval needs both experimentalRangeScan and ws", () => {
+  const config = createConfig({
+    chains: {
+      mainnet: {
+        id: 1,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        experimentalRangeScan: true,
+        heartbeatInterval: 300_000,
+      },
+      optimism: {
+        id: 10,
+        rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+        ws: `ws://127.0.0.1:8545/${TEST_POOL_ID}`,
+        heartbeatInterval: 300_000,
+      },
+    },
+    blocks: {
+      a: { chain: "mainnet" },
+      b: { chain: "optimism" },
+    },
+  });
+
+  const { logs } = buildConfig({ common: context.common, config });
+
+  expect(logs.map(({ msg, chain }) => [msg, chain])).toStrictEqual([
+    [
+      "Ignoring 'heartbeatInterval', which applies only to chains with both 'experimentalRangeScan' and 'ws'.",
+      "mainnet",
+    ],
+    [
+      "Ignoring 'heartbeatInterval', which applies only to chains with both 'experimentalRangeScan' and 'ws'.",
+      "optimism",
+    ],
+  ]);
+});
+
+test.each([999, 1_000.5, Number.NaN, 2_147_483_648])(
+  "buildConfig() rejects a heartbeat interval of %s, outside 'pollingInterval' and the longest timer delay or not an integer",
+  (heartbeatInterval) => {
+    const config = createConfig({
+      chains: {
+        mainnet: {
+          id: 1,
+          rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}`,
+          experimentalRangeScan: true,
+          heartbeatInterval,
+        },
+      },
+      blocks: { b: { chain: "mainnet" } },
+    });
+
+    expect(() => buildConfig({ common: context.common, config })).toThrow(
+      `Invalid 'heartbeatInterval' for chain 'mainnet'. Expected an integer between 1000 ('pollingInterval') and 2147483647 milliseconds, got ${heartbeatInterval}.`,
+    );
+  },
+);
+
 test("buildIndexingFunctions() hyperliquid evm", async () => {
   const config = createConfig({
     chains: {

@@ -141,6 +141,20 @@ export const SIM_PARAMS = {
   CACHE_RPC_REQUESTS: IN_MEMORY_SYNC_APPS.includes(APP_ID)
     ? pick([true, false], "cache-rpc-requests")
     : true,
+  // Note: only changes the realtime sync of chains whose sources are all `log`
+  // sources. Other chains fall back to the per-block realtime sync.
+  // `FORCE_RANGE_SCAN` pins the value so a failing seed can be replayed against
+  // both realtime strategies.
+  EXPERIMENTAL_RANGE_SCAN:
+    process.env.FORCE_RANGE_SCAN === undefined
+      ? pick([true, false], "experimental-range-scan")
+      : process.env.FORCE_RANGE_SCAN === "true",
+  // Note: reorgs in `eth_getLogs` responses (see `simulateGetLogsReorg`). Only
+  // the range scan makes realtime `eth_getLogs` requests with a block range.
+  REALTIME_GET_LOGS_REORG_RATE: pick(
+    [0, 0.05, 0.1],
+    "realtime-get-logs-reorg-rate",
+  ),
 };
 
 // 1. Setup database
@@ -1401,6 +1415,7 @@ const onBuild = async (app: PonderApp) => {
     // }
 
     chain.cacheRpcRequests = SIM_PARAMS.CACHE_RPC_REQUESTS;
+    chain.experimentalRangeScan = SIM_PARAMS.EXPERIMENTAL_RANGE_SCAN;
 
     // replace rpc with simulated transport
 

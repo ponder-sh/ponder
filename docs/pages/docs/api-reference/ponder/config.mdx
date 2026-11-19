@@ -159,6 +159,8 @@ export default createConfig({
 | **reorgWindow**           |  `number`                          | **Default: `180`**. Duration, in seconds between block timestamps, for which Ponder retains the data required to recover from reorgs. Must be an integer between `0` and `600`. |
 | **cacheRpcRequests**      |  `boolean`                         | **Default: `true`**. Cache JSON-RPC data in the database and reuse it between runs. [Read more](/docs/config/chains#rpc-request-cache) about RPC request caching. |
 | **ethGetLogsBlockRange** |  `number`                          | **Default: `undefined`**. Maximum block range for `eth_getLogs` requests. If undefined, Ponder will attempt to determine the block range automatically based on error messages. |
+| **experimentalRangeScan** |  `boolean`                         | **Default: `false`**. Experimental. Reduce realtime RPC usage by scanning each polling interval with ranged `eth_getLogs` requests. Applies to chains whose sources are all `log` sources, including factories. With `ws`, log notifications trigger the scans. [Read more](/docs/config/chains#range-scan-experimental) |
+| **heartbeatInterval**     |  `number`                          | **Default: `undefined`**. Experimental. With `experimentalRangeScan` and `ws`, how often (in ms) to scan when no log notification arrives. Must be an integer between `pollingInterval` and `2147483647`. If undefined, a third of `reorgWindow`, or `pollingInterval` if longer. [Read more](/docs/config/chains#scans-triggered-by-log-notifications) |
 
 ### `contracts`
 
