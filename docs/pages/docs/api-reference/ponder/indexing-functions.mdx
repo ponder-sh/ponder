@@ -441,7 +441,7 @@ type Transaction = {
   /** Max priority fee per gas (in wei). */
   maxPriorityFeePerGas?: bigint | undefined;
   /** Unique number identifying this transaction */
-  nonce: number;
+  nonce: bigint;
   /** Transaction recipient or `null` if deploying a contract */
   to: `0x${string}` | null;
   /** Index of this transaction in the block */
