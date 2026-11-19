@@ -146,6 +146,7 @@ export async function runIsolated({
     syncStore,
   });
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,

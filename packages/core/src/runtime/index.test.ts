@@ -65,6 +65,7 @@ beforeEach(setupIsolatedDatabase);
 beforeEach(setupCleanup);
 
 test("getLocalSyncProgress()", async () => {
+  const { syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -83,6 +84,7 @@ test("getLocalSyncProgress()", async () => {
   }
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -98,6 +100,7 @@ test("getLocalSyncProgress()", async () => {
 });
 
 test("getLocalSyncProgress() future end block", async () => {
+  const { syncStore } = await setupDatabaseServices();
   const chain = getChain();
   const rpc = createRpc({ chain, common: context.common });
 
@@ -118,6 +121,7 @@ test("getLocalSyncProgress() future end block", async () => {
   }
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,

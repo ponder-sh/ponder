@@ -170,6 +170,7 @@ export async function runOmnichain({
         syncStore,
       });
       const syncProgress = await getLocalSyncProgress({
+        syncStore,
         common,
         filters: eventCallbacks.map(({ filter }) => filter),
         chain,
