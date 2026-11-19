@@ -304,6 +304,7 @@ export type Chain = {
   cacheRpcRequests: boolean;
   ethGetLogsBlockRange: number | undefined;
   experimentalRangeScan: boolean;
+  heartbeatInterval: number | undefined;
   viemChain: ViemChain | undefined;
 };
 

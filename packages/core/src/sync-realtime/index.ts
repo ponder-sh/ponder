@@ -46,7 +46,7 @@ import {
   validateTracesAndBlock,
   validateTransactionsAndBlock,
 } from "@/rpc/actions.js";
-import type { Rpc } from "@/rpc/index.js";
+import type { Rpc, RpcLogTrigger } from "@/rpc/index.js";
 import {
   getChildAddress,
   getFilterFactories,
@@ -96,6 +96,11 @@ export type RealtimeSync = {
   unfinalizedBlocks: LightBlock[];
   /** `true` if the chain is synced with `experimentalRangeScan`. */
   isRangeScan: boolean;
+  /**
+   * Log notifications that trigger a scan, used when the chain has `ws`.
+   * `undefined` unless the chain is range scanned.
+   */
+  logTrigger: RpcLogTrigger | undefined;
 };
 
 export type BlockWithEventData = {
@@ -155,6 +160,8 @@ export const createRealtimeSync = (
   /** Closest-to-tip block that has been fetched but not yet reconciled. */
   let latestFetchedBlock: LightBlock | undefined;
   let fetchAndReconcileLatestBlockErrorCount = 0;
+  /** When the current run of failed latest-block attempts began. */
+  let firstLatestBlockErrorAt: number | undefined;
 
   const realtimeSyncLock = createLock();
 
@@ -229,7 +236,7 @@ export const createRealtimeSync = (
 
   if (args.chain.experimentalRangeScan && canRangeScan === false) {
     args.common.logger.warn({
-      msg: "Ignoring 'experimentalRangeScan' because the chain has block, transaction, trace, or transfer sources. Using the default per-block realtime sync.",
+      msg: "Ignoring 'experimentalRangeScan' because the chain has block, transaction, trace, or transfer sources. Using the default per-block realtime sync, polled every 'pollingInterval': with 'experimentalRangeScan', 'ws' only carries log notifications.",
       chain: args.chain.name,
       chain_id: args.chain.id,
     });
@@ -256,12 +263,12 @@ export const createRealtimeSync = (
   >();
 
   /**
-   * Addresses and `topic0`s that the range scan requests, split by whether the
-   * source has a static address.
+   * The filters of a range scan's `eth_getLogs` requests, one request each, and
+   * of its log notification subscriptions.
    *
-   * Sources with a static address are requested by address, one request per
+   * Sources with a static address are requested by address, one filter per
    * batch of `ADDRESS_CHUNK_SIZE` addresses. The sources without one, such as
-   * factory children, are requested by `topic0` alone in one more request, and
+   * factory children, are requested by `topic0` alone in one more filter, and
    * their logs are matched against the known child addresses afterwards. A
    * static source's `topic0` is never requested without its address, so other
    * contracts emitting a common signature, such as ERC-20 `Transfer`, never
@@ -276,7 +283,7 @@ export const createRealtimeSync = (
    * retries a poll that reports a block at two hashes, and re-ingests a block
    * once a later scan returns logs that an earlier one missed.
    */
-  const rangeScanSources = (() => {
+  const rangeScanFilters: { address?: Address[]; topics: [Hex[]] }[] = (() => {
     /** Addresses of log filters and factories with a static address. */
     const staticAddresses = new Set<Address>();
     /** `topic0`s of log filters and factories with a static address. */
@@ -320,8 +327,108 @@ export const createRealtimeSync = (
       }
     }
 
-    return { staticAddresses, staticTopic0s, openTopic0s };
+    const addresses = Array.from(staticAddresses);
+    return [
+      ...range(0, Math.ceil(addresses.length / ADDRESS_CHUNK_SIZE)).map(
+        (i) => ({
+          address: addresses.slice(
+            i * ADDRESS_CHUNK_SIZE,
+            (i + 1) * ADDRESS_CHUNK_SIZE,
+          ),
+          topics: [Array.from(staticTopic0s)] as [Hex[]],
+        }),
+      ),
+      ...(openTopic0s.size > 0
+        ? [{ topics: [Array.from(openTopic0s)] as [Hex[]] }]
+        : []),
+    ];
   })();
+
+  /**
+   * Blocks of notified logs, by hash, that a scan reaching them must return
+   * (range-scan path with `ws`), and how many scans were rejected for missing
+   * them.
+   */
+  const expectedLogBlocks = new Map<
+    Hash,
+    { number: number; rejections: number }
+  >();
+  const LOG_TRIGGER_MAX_REJECTIONS = 3;
+  /**
+   * Whether scans run every `pollingInterval` rather than on log notifications
+   * and the heartbeat (range-scan path, see `RpcLogTrigger.setPolling`).
+   */
+  let isLogTriggerPolling = true;
+
+  /**
+   * Log notifications that trigger a scan (range-scan path with `ws`).
+   *
+   * @dev A notification is only a trigger: the scan reads the logs, so a
+   * dropped notification delays its event to the next heartbeat scan and never
+   * loses it. Static sources are subscribed by address, the others by `topic0`
+   * alone, which keeps notifications for other contracts' logs to the
+   * signatures of the sources without a static address. Those are matched
+   * here against the known child addresses and trigger nothing. A factory's
+   * own log triggers the scan that finds its children.
+   */
+  const logTrigger: RpcLogTrigger | undefined = canRangeScan
+    ? {
+        filters: rangeScanFilters,
+        isTrigger: (log) => {
+          if (
+            factories.some((factory) => isLogFactoryMatched({ factory, log }))
+          )
+            return true;
+
+          return logFilters.some(
+            (filter) =>
+              isLogFilterMatched({ filter, log }) &&
+              (isAddressFactory(filter.address)
+                ? isAddressMatched({
+                    address: log.address,
+                    blockNumber: hexToNumber(log.blockNumber),
+                    childAddresses: childAddresses.get(filter.address.id)!,
+                  })
+                : true),
+          );
+        },
+        expect: (log) => {
+          // Note: a reorg removed the log, so its block can't be returned.
+          if (log.removed === true) {
+            expectedLogBlocks.delete(log.blockHash);
+          } else if (expectedLogBlocks.has(log.blockHash) === false) {
+            expectedLogBlocks.set(log.blockHash, {
+              number: hexToNumber(log.blockNumber),
+              rejections: 0,
+            });
+          }
+        },
+        isScanned: ({ blockNumber, blockHash, logIndex }) => {
+          const number = hexToNumber(blockNumber);
+          if (number <= hexToNumber(finalizedBlock.number)) return true;
+          const scanned = scannedBlocks.get(number);
+          return (
+            scanned?.hash === blockHash &&
+            scanned.logIndexes.has(hexToNumber(logIndex))
+          );
+        },
+        // Note: by default a third of the reorg window, so finality keeps
+        // advancing and a missed notification is swept up well within it, but
+        // never more often than `pollingInterval`.
+        heartbeatInterval:
+          args.chain.heartbeatInterval ??
+          (args.chain.reorgWindow > 0
+            ? Math.max(
+                args.chain.pollingInterval,
+                Math.floor((args.chain.reorgWindow * 1_000) / 3),
+              )
+            : args.chain.pollingInterval),
+        setPolling: (isPolling) => {
+          isLogTriggerPolling = isPolling;
+        },
+        hasFailed: () => fetchAndReconcileLatestBlockErrorCount > 0,
+      }
+    : undefined;
 
   /**
    * Maximum block range for a range-scan `eth_getLogs` request. Starts at the
@@ -396,6 +503,10 @@ export const createRealtimeSync = (
    * scan, so the share of blocks the per-block path would request logs for is
    * estimated from the heads' blooms, and never below the blocks that had a
    * matching log.
+   *
+   * @dev With log notifications, scans follow notifications and the heartbeat
+   * rather than `pollingInterval`, so only polls made while the subscription
+   * is down or paused are sampled.
    */
   const recordRangeScanPoll = ({
     blocks,
@@ -410,6 +521,7 @@ export const createRealtimeSync = (
     head?: SyncBlock | SyncBlockHeader;
   }) => {
     if (hasCheckedRangeScanCost) return;
+    if (isLogTriggerPolling === false) return;
 
     // Skip the first poll, which covers the gap left by the historical sync
     // rather than one polling interval.
@@ -1489,7 +1601,7 @@ export const createRealtimeSync = (
 
   /**
    * Fetch the logs that the sources may require in `[fromBlock, toBlock]`,
-   * with the requests described at `rangeScanSources`.
+   * with one request per filter of `rangeScanFilters`.
    *
    * Requests are chunked by block range. A request rejected for being too wide
    * is split into the ranges suggested by the error and retried, and the
@@ -1506,33 +1618,15 @@ export const createRealtimeSync = (
     let requestCount = 0;
     let didSplit = false;
 
-    const requestFilters: { address: Address[] | undefined; topic0s: Hex[] }[] =
-      [];
-
-    const addresses = Array.from(rangeScanSources.staticAddresses);
-    for (let i = 0; i < addresses.length; i += ADDRESS_CHUNK_SIZE) {
-      requestFilters.push({
-        address: addresses.slice(i, i + ADDRESS_CHUNK_SIZE),
-        topic0s: Array.from(rangeScanSources.staticTopic0s),
-      });
-    }
-
-    if (rangeScanSources.openTopic0s.size > 0) {
-      requestFilters.push({
-        address: undefined,
-        topic0s: Array.from(rangeScanSources.openTopic0s),
-      });
-    }
-
     const request = async (
-      filter: { address: Address[] | undefined; topic0s: Hex[] },
+      filter: (typeof rangeScanFilters)[number],
       from: number,
       to: number,
     ): Promise<SyncLog[]> => {
       const params: Parameters<typeof eth_getLogs>[1] = [
         {
           address: filter.address,
-          topics: [filter.topic0s],
+          topics: filter.topics,
           fromBlock: numberToHex(from),
           toBlock: numberToHex(to),
         },
@@ -1589,7 +1683,7 @@ export const createRealtimeSync = (
 
     const results = await Promise.all(
       chunks.flatMap(([from, to]) =>
-        requestFilters.map((filter) => request(filter, from, to)),
+        rangeScanFilters.map((filter) => request(filter, from, to)),
       ),
     );
 
@@ -1777,6 +1871,26 @@ export const createRealtimeSync = (
       throw new Error(
         `Inconsistent RPC responses: head block ${headNumber} has hash ${headBlock.hash}, but 'eth_getLogs' reported ${scannedHead.hash}`,
       );
+    }
+
+    // A block with a notified log that the scan reaches without returning any
+    // log for it: the node answering `eth_getLogs` is behind the node that
+    // sent the notification. The scan is rejected rather than move the head
+    // past the event, then accepted after `LOG_TRIGGER_MAX_REJECTIONS`, as the
+    // block may have been reorged out.
+    for (const [hash, expected] of expectedLogBlocks) {
+      if (
+        expected.number < windowFrom ||
+        logsByBlockNumber.has(expected.number) ||
+        expected.rejections === LOG_TRIGGER_MAX_REJECTIONS
+      ) {
+        expectedLogBlocks.delete(hash);
+      } else if (expected.number <= headNumber) {
+        expected.rejections += 1;
+        throw new Error(
+          `Inconsistent RPC responses: block ${expected.number} has a notified log, but 'eth_getLogs' returned no log for it`,
+        );
+      }
     }
 
     /** `true` if the block and all of its scanned logs were processed. */
@@ -2206,12 +2320,17 @@ export const createRealtimeSync = (
     }
 
     fetchAndReconcileLatestBlockErrorCount += 1;
+    firstLatestBlockErrorAt ??= Date.now();
 
-    // Number of retries is max(10, `MAX_LATEST_BLOCK_ATTEMPT_MS` / `args.chain.pollingInterval`)
+    // Number of retries is max(10, `MAX_LATEST_BLOCK_ATTEMPT_MS` / `args.chain.pollingInterval`).
+    // A range scan measures `MAX_LATEST_BLOCK_ATTEMPT_MS` in time instead, as
+    // its attempts can be a heartbeat apart rather than `pollingInterval`.
     if (
       fetchAndReconcileLatestBlockErrorCount >= 10 &&
-      fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
-        MAX_LATEST_BLOCK_ATTEMPT_MS
+      (canRangeScan
+        ? Date.now() - firstLatestBlockErrorAt > MAX_LATEST_BLOCK_ATTEMPT_MS
+        : fetchAndReconcileLatestBlockErrorCount * args.chain.pollingInterval >
+          MAX_LATEST_BLOCK_ATTEMPT_MS)
     ) {
       throw error;
     }
@@ -2265,6 +2384,7 @@ export const createRealtimeSync = (
 
           latestFetchedBlock = undefined;
           fetchAndReconcileLatestBlockErrorCount = 0;
+          firstLatestBlockErrorAt = undefined;
           return;
         }
 
@@ -2283,7 +2403,11 @@ export const createRealtimeSync = (
         latestFetchedBlock = undefined;
 
         fetchAndReconcileLatestBlockErrorCount = 0;
+        firstLatestBlockErrorAt = undefined;
       } catch (_error) {
+        // Note: a failed scan is retried by the next poll, even at the same
+        // head, as nothing of it was reconciled.
+        if (canRangeScan) latestFetchedBlock = undefined;
         blockCallback?.(false);
         onError(_error as Error, block);
       }
@@ -2293,5 +2417,6 @@ export const createRealtimeSync = (
       return unfinalizedBlocks;
     },
     isRangeScan: canRangeScan,
+    logTrigger,
   };
 };

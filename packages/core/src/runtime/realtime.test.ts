@@ -32,11 +32,25 @@ test("getReorgedBlockNumbers() returns nothing without reorged blocks", () => {
   ).toStrictEqual([]);
 });
 
-test("getNoNewBlockTimeout() waits as long as a range-scanned chain polls", () => {
-  const chain = { pollingInterval: 300_000 };
+test("getNoNewBlockTimeout() waits as long as a range-scanned chain scans", () => {
+  const chain = { pollingInterval: 18_000_000, ws: undefined };
+  const logTrigger = { heartbeatInterval: 18_000_000 };
 
   // The default per-block sync.
-  expect(getNoNewBlockTimeout({ chain, isRangeScan: false })).toBe(30_000);
-  // A range scan, which receives a block only every `pollingInterval`.
-  expect(getNoNewBlockTimeout({ chain, isRangeScan: true })).toBe(330_000);
+  expect(
+    getNoNewBlockTimeout({ chain, isRangeScan: false, logTrigger: undefined }),
+  ).toBe(30_000);
+  // A range scan polled every `pollingInterval`.
+  expect(getNoNewBlockTimeout({ chain, isRangeScan: true, logTrigger })).toBe(
+    18_030_000,
+  );
+  // A range scan triggered by log notifications, with a heartbeat longer
+  // than its 180 s reorg window.
+  expect(
+    getNoNewBlockTimeout({
+      chain: { pollingInterval: 2_000, ws: "wss://example.com" },
+      isRangeScan: true,
+      logTrigger: { heartbeatInterval: 2_100_000 },
+    }),
+  ).toBe(2_130_000);
 });

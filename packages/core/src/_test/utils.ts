@@ -659,6 +659,7 @@ export const getChain = (params?: {
   reorgWindow?: number;
   cacheRpcRequests?: boolean;
   experimentalRangeScan?: boolean;
+  heartbeatInterval?: number;
 }) => {
   return {
     name: "mainnet",
@@ -670,6 +671,7 @@ export const getChain = (params?: {
     cacheRpcRequests: params?.cacheRpcRequests ?? true,
     ethGetLogsBlockRange: undefined,
     experimentalRangeScan: params?.experimentalRangeScan ?? false,
+    heartbeatInterval: params?.heartbeatInterval,
     viemChain: anvil,
   } satisfies Chain;
 };

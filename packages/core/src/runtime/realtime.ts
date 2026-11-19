@@ -13,7 +13,7 @@ import type {
   SyncBlock,
   SyncBlockHeader,
 } from "@/internal/types.js";
-import type { Rpc } from "@/rpc/index.js";
+import type { Rpc, RpcLogTrigger } from "@/rpc/index.js";
 import {
   buildEvents,
   decodeEvents,
@@ -806,6 +806,7 @@ export async function* getRealtimeEventGenerator(params: {
   const noNewBlockTimeout = getNoNewBlockTimeout({
     chain: params.chain,
     isRangeScan: realtimeSync.isRangeScan,
+    logTrigger: realtimeSync.logTrigger,
   });
   let noNewBlockTimer = setTimeout(noNewBlockWarning, noNewBlockTimeout);
   // Hash of the most recent block received from the RPC.
@@ -831,7 +832,7 @@ export async function* getRealtimeEventGenerator(params: {
       return pwr.promise;
     },
     onError: realtimeSync.onError,
-    isRangeScan: realtimeSync.isRangeScan,
+    logTrigger: realtimeSync.logTrigger,
   });
 
   for await (const { block, blockCallback, endClock } of generator) {
@@ -893,15 +894,24 @@ export async function* getRealtimeEventGenerator(params: {
 
 /**
  * How long to wait for a new block before warning. A range-scanned chain
- * receives blocks only as often as it scans, every `pollingInterval`.
+ * receives blocks only as often as it scans: every `pollingInterval`, or every
+ * heartbeat with log notifications.
  */
 export const getNoNewBlockTimeout = ({
   chain,
   isRangeScan,
+  logTrigger,
 }: {
-  chain: Pick<Chain, "pollingInterval">;
+  chain: Pick<Chain, "pollingInterval" | "ws">;
   isRangeScan: boolean;
-}) => (isRangeScan ? chain.pollingInterval + 30_000 : 30_000);
+  logTrigger: Pick<RpcLogTrigger, "heartbeatInterval"> | undefined;
+}) => {
+  if (isRangeScan === false) return 30_000;
+  if (logTrigger !== undefined && chain.ws !== undefined) {
+    return logTrigger.heartbeatInterval + 30_000;
+  }
+  return chain.pollingInterval + 30_000;
+};
 
 /**
  * Every block number a reorg removed: the blocks above the common ancestor, up
