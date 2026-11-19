@@ -57,6 +57,7 @@ test("getLocalEventGenerator()", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -102,6 +103,7 @@ test("getLocalEventGenerator() pagination", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -147,6 +149,7 @@ test("getLocalEventGenerator() pagination checkpoints", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -207,6 +210,7 @@ test("getLocalEventGenerator() pagination with zero interval", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -252,6 +256,7 @@ test("getLocalInMemoryEventGenerator()", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -302,6 +307,7 @@ test("getLocalInMemoryEventGenerator() with start block after finalized block", 
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -354,6 +360,7 @@ test("getLocalInMemoryEventGenerator() ignores intervals table", async () => {
   });
 
   let syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -392,6 +399,7 @@ test("getLocalInMemoryEventGenerator() ignores intervals table", async () => {
   });
 
   syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain: inMemoryChain,
@@ -440,6 +448,7 @@ test("getLocalInMemoryEventGenerator() with crash recovery checkpoint", async ()
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -504,6 +513,7 @@ test("getLocalSyncGenerator()", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -552,6 +562,7 @@ test("getLocalSyncGenerator() with partial cache", async () => {
   });
 
   let syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -583,6 +594,7 @@ test("getLocalSyncGenerator() with partial cache", async () => {
   });
 
   syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -634,6 +646,7 @@ test("getLocalSyncGenerator() with full cache", async () => {
   });
 
   let syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -663,6 +676,7 @@ test("getLocalSyncGenerator() with full cache", async () => {
   });
 
   syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -721,6 +735,7 @@ test("getHistoricalEventsMultichain()", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -783,6 +798,7 @@ test("getHistoricalEvents() omnichain", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,
@@ -845,6 +861,7 @@ test("getHistoricalEvents() with crash recovery checkpoint", async () => {
   });
 
   const syncProgress = await getLocalSyncProgress({
+    syncStore,
     common: context.common,
     filters: eventCallbacks.map(({ filter }) => filter),
     chain,

@@ -171,6 +171,8 @@ export type SyncStore = {
   }>;
   insertRpcRequestResults(
     args: {
+      /** Prefix for isolated internal entries; omitted preserves existing hashes. */
+      cacheNamespace?: string;
       requests: {
         request: RequestParameters;
         blockNumber: number | undefined;
@@ -184,6 +186,7 @@ export type SyncStore = {
     args: {
       requests: RequestParameters[];
       chainId: number;
+      cacheNamespace?: string;
     },
     context?: { logger?: Logger },
   ): Promise<(string | undefined)[]>;
@@ -1271,12 +1274,16 @@ export const createSyncStore = ({
         cursor,
       };
     },
-    insertRpcRequestResults: async ({ requests, chainId }, context) => {
+    insertRpcRequestResults: async (
+      { requests, chainId, cacheNamespace = "" },
+      context,
+    ) => {
       if (requests.length === 0) return;
 
       const values = requests.map(({ request, blockNumber, result }) => ({
         requestHash: crypto
           .createHash("md5")
+          .update(cacheNamespace)
           .update(toLowerCase(JSON.stringify(orderObject(request))))
           .digest("hex"),
         chainId: BigInt(chainId),
@@ -1299,7 +1306,10 @@ export const createSyncStore = ({
         context,
       );
     },
-    getRpcRequestResults: async ({ requests, chainId }, context) => {
+    getRpcRequestResults: async (
+      { requests, chainId, cacheNamespace = "" },
+      context,
+    ) => {
       if (requests.length === 0) return [];
 
       // Optimized fast path for high number of `requests` using a range of block numbers
@@ -1323,6 +1333,7 @@ export const createSyncStore = ({
 
         const requestHash = crypto
           .createHash("md5")
+          .update(cacheNamespace)
           .update(toLowerCase(JSON.stringify(orderObject(request))))
           .digest("hex");
 

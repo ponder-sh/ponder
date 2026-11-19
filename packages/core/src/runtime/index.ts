@@ -74,10 +74,59 @@ export async function getLocalSyncProgress(params: {
   common: Common;
   chain: Chain;
   rpc: Rpc;
+  syncStore: SyncStore;
   filters: Filter[];
   finalizedBlock: LightBlock;
   cachedIntervals: CachedIntervals;
 }): Promise<SyncProgress> {
+  const getBlock = async (blockNumber: number) => {
+    const request = {
+      method: "eth_getBlockByNumber",
+      params: [numberToHex(blockNumber), false],
+    } satisfies Extract<
+      Parameters<Rpc["request"]>[0],
+      { method: "eth_getBlockByNumber" }
+    >;
+    const cacheable =
+      params.chain.cacheRpcRequests &&
+      blockNumber <= hexToNumber(params.finalizedBlock.number);
+    const [cached] = cacheable
+      ? await params.syncStore.getRpcRequestResults({
+          requests: [request],
+          chainId: params.chain.id,
+          // Indexing clients may cache unfinalized headers. Only reuse entries
+          // written by this finalized-only startup path.
+          cacheNamespace: "sync_progress:",
+        })
+      : [undefined];
+    let result: string | undefined;
+    const block = await eth_getBlockByNumber(
+      {
+        ...params.rpc,
+        request: async (body, context) => {
+          if (cached !== undefined) return JSON.parse(cached);
+          const response = await params.rpc.request(body, context);
+          // Preserve the wire response before standardizeBlock removes hashes
+          // from the transactions array.
+          result = JSON.stringify(response);
+          return response;
+        },
+      },
+      request.params,
+      { retryNullBlockRequest: true },
+    );
+    // Only persist validated, finalized headers. Unfinalized headers must be
+    // fetched again on restart to allow for reorgs.
+    if (cacheable && result !== undefined) {
+      await params.syncStore.insertRpcRequestResults({
+        requests: [{ request, result, blockNumber }],
+        chainId: params.chain.id,
+        cacheNamespace: "sync_progress:",
+      });
+    }
+    return block;
+  };
+
   const syncProgress = {
     isEnd: () => {
       if (
@@ -132,19 +181,8 @@ export async function getLocalSyncProgress(params: {
 
   const diagnostics = await Promise.all(
     cached === undefined
-      ? [
-          eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
-            retryNullBlockRequest: true,
-          }),
-        ]
-      : [
-          eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
-            retryNullBlockRequest: true,
-          }),
-          eth_getBlockByNumber(params.rpc, [numberToHex(cached), false], {
-            retryNullBlockRequest: true,
-          }),
-        ],
+      ? [getBlock(start)]
+      : [getBlock(start), getBlock(cached)],
   );
 
   syncProgress.finalized = params.finalizedBlock;
@@ -168,11 +206,7 @@ export async function getLocalSyncProgress(params: {
       timestamp: toHex(MAX_CHECKPOINT.blockTimestamp),
     } satisfies LightBlock;
   } else {
-    syncProgress.end = await eth_getBlockByNumber(
-      params.rpc,
-      [numberToHex(end), false],
-      { retryNullBlockRequest: true },
-    );
+    syncProgress.end = await getBlock(end);
   }
 
   return syncProgress;

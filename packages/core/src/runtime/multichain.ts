@@ -167,6 +167,7 @@ export async function runMultichain({
         syncStore,
       });
       const syncProgress = await getLocalSyncProgress({
+        syncStore,
         common,
         filters: eventCallbacks.map(({ filter }) => filter),
         chain,

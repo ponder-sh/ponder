@@ -4,6 +4,7 @@ import {
   getAbiItem,
   hexToBigInt,
   hexToNumber,
+  numberToHex,
   parseEther,
   zeroAddress,
 } from "viem";
@@ -41,6 +42,7 @@ import {
 import { buildLogFactory } from "@/build/factory.js";
 import { factory } from "@/config/address.js";
 import type { Factory, LogFilter } from "@/internal/types.js";
+import type { RequestParameters } from "@/rpc/index.js";
 import { getFactoryFragmentIds } from "@/runtime/fragments.js";
 import { orderObject } from "@/utils/order.js";
 import { getFilterBlockRange } from "./index.js";
@@ -1337,6 +1339,51 @@ test("getRpcRequestResults()", async () => {
     ]
   `);
 });
+
+test.each([1, 101])(
+  "RPC cache namespaces stay isolated with %s requests",
+  async (count) => {
+    const { syncStore } = await setupDatabaseServices();
+    const requests = Array.from(
+      { length: count },
+      (_, index) =>
+        ({
+          method: "eth_getBlockByNumber",
+          params: [numberToHex(index + 1), false],
+        }) satisfies RequestParameters,
+    );
+    const namespaces = [undefined, "sync_progress:", "other:"];
+    for (const cacheNamespace of namespaces) {
+      await syncStore.insertRpcRequestResults({
+        requests: requests.map((request, index) => ({
+          request,
+          blockNumber: index + 1,
+          result: `${cacheNamespace ?? "default"}${index}`,
+        })),
+        chainId: 1,
+        cacheNamespace,
+      });
+    }
+    for (const cacheNamespace of namespaces) {
+      expect(
+        await syncStore.getRpcRequestResults({
+          requests,
+          chainId: 1,
+          cacheNamespace,
+        }),
+      ).toEqual(
+        requests.map((_, index) => `${cacheNamespace ?? "default"}${index}`),
+      );
+    }
+    expect(
+      await syncStore.getRpcRequestResults({
+        requests,
+        chainId: 1,
+        cacheNamespace: "missing:",
+      }),
+    ).toEqual(requests.map(() => undefined));
+  },
+);
 
 test("getEventBlockData() pagination with multiple filters", async () => {
   const { syncStore } = await setupDatabaseServices();
