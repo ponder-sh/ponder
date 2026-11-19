@@ -1041,17 +1041,6 @@ export const standardizeTransactions = (
       error.stack = undefined;
       throw error;
     }
-    if (hexToBigInt(transaction.nonce) > BigInt(PG_INTEGER_MAX)) {
-      const error = new RpcProviderError(
-        `Invalid RPC response: 'transaction.nonce' (${hexToBigInt(transaction.nonce)}) is larger than the maximum allowed value (${PG_INTEGER_MAX}).`,
-      );
-      error.meta = [
-        "Please report this error to the RPC operator.",
-        requestText(request),
-      ];
-      error.stack = undefined;
-      throw error;
-    }
   }
 
   // Note: Sort transactions by transaction index. Do not rely on the rpc response order.

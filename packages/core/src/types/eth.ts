@@ -63,7 +63,7 @@ export type Transaction = Prettify<
     /** Contract code or a hashed method call */
     input: Hex;
     /** Unique number identifying this transaction */
-    nonce: number;
+    nonce: bigint;
     /** ECDSA signature r */
     r: Hex | null;
     /** ECDSA signature s */

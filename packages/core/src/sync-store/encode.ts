@@ -79,7 +79,7 @@ export const encodeTransaction = ({
   to: transaction.to ? toLowerCase(transaction.to) : null,
   input: transaction.input,
   value: hexToBigInt(transaction.value),
-  nonce: hexToNumber(transaction.nonce),
+  nonce: hexToBigInt(transaction.nonce),
   r: transaction.r ?? null,
   s: transaction.s ?? null,
   v: transaction.v ? hexToBigInt(transaction.v) : null,

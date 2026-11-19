@@ -798,7 +798,7 @@ export const syncTransactionToInternal = ({
   gas: hexToBigInt(transaction.gas),
   hash: transaction.hash,
   input: transaction.input,
-  nonce: hexToNumber(transaction.nonce),
+  nonce: hexToBigInt(transaction.nonce),
   r: transaction.r,
   s: transaction.s,
   to: transaction.to ? toLowerCase(transaction.to) : transaction.to,

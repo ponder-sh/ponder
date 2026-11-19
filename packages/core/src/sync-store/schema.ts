@@ -36,6 +36,7 @@ const numeric78 = customType<{ data: bigint; driverData: string }>({
 export const PONDER_SYNC_SCHEMAS = [
   "ponder_sync",
   "ponder_rpc_cache_1",
+  "ponder_rpc_cache_2",
 ] as const;
 /**
  * Latest database schema for the sync.
@@ -89,7 +90,7 @@ export const transactions = PONDER_SYNC.table(
     to: t.varchar({ length: 42 }).$type<Address>(),
     input: t.text().notNull().$type<Hex>(),
     value: numeric78().notNull(),
-    nonce: t.integer().notNull(),
+    nonce: numeric78().notNull(),
     r: t.varchar({ length: 66 }).$type<Hex>(),
     s: t.varchar({ length: 66 }).$type<Hex>(),
     v: numeric78(),
