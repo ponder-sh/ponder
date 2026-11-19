@@ -8,6 +8,7 @@ import {
   type Address,
   custom,
   type Hash,
+  type Hex,
   hexToNumber,
   type RpcBlock,
   type RpcLog,
@@ -35,6 +36,11 @@ const FIFO_QUEUE = createQueue<any, () => Promise<any>>({
   browser: false,
   worker: (callback) => callback(),
 });
+
+/** Number of the last block the realtime block engine delivered, by chain. */
+const realtimeHeads = new Map<number, number>();
+/** Number of the last block the realtime block engine delivers, by chain. */
+const realtimeEnds = new Map<number, number>();
 
 /**
  * Simulated transport.
@@ -83,6 +89,89 @@ export const sim =
         })
         .onConflictDoNothing();
       return result;
+    };
+
+    /** Blocks that a simulated `eth_getLogs` reorg reported under another hash, by that hash. */
+    const reorgedLogBlocks = new Map<Hash, number>();
+
+    /**
+     * Simulate an `eth_getLogs` response from a node that sees another chain
+     * than the one the realtime block engine delivered, for a range scan
+     * request that ends at the delivered head:
+     *
+     * - a node a few blocks behind, which returns no logs for the newest blocks
+     * - a reorg that replaced a block with one without logs
+     * - a reorg that included a block's transactions in a block with another
+     *   hash, which is then also served by `eth_getBlockByHash` and
+     *   `eth_getBlockReceipts`
+     *
+     * Each request draws on its own, so the requests of one scan can disagree.
+     *
+     * @dev Only blocks inside the reorg window are reorged, because Ponder
+     * doesn't handle deeper reorgs. A later request returns the canonical logs,
+     * except after the end block, where the chain is complete. Like the realtime
+     * block engine's reorgs, these stop before it.
+     */
+    const simulateGetLogsReorg = async (
+      logs: RpcLog[],
+      params: { fromBlock: Hex; toBlock: Hex },
+      random: () => number,
+    ): Promise<RpcLog[]> => {
+      const index = APP!.indexingBuild.chains.findIndex(
+        (_chain) => _chain.id === chain!.id,
+      );
+      const { reorgWindow } = APP!.indexingBuild.chains[index]!;
+      const finalizedBlock = APP!.indexingBuild.finalizedBlocks[index]!;
+      const fromBlock = hexToNumber(params.fromBlock);
+      const toBlock = hexToNumber(params.toBlock);
+
+      if (
+        toBlock !== realtimeHeads.get(chain!.id) ||
+        toBlock >= realtimeEnds.get(chain!.id)! ||
+        fromBlock <= hexToNumber(finalizedBlock.number)
+      ) {
+        return logs;
+      }
+
+      const kind = random();
+
+      if (kind < 1 / 3) {
+        const lag = 1 + Math.floor(random() * 3);
+        return logs.filter(
+          (log) => hexToNumber(log.blockNumber!) <= toBlock - lag,
+        );
+      }
+
+      const headTimestamp = hexToNumber(
+        (await getCachedBlock(toBlock)).timestamp,
+      );
+      const candidates: number[] = [];
+      for (const number of new Set(
+        logs.map((log) => hexToNumber(log.blockNumber!)),
+      )) {
+        const { timestamp } = await getCachedBlock(number);
+        if (headTimestamp - hexToNumber(timestamp) >= reorgWindow) continue;
+        // Note: a head at another hash is a separate case, which the realtime
+        // block engine already simulates.
+        if (kind >= 2 / 3 && number === toBlock) continue;
+        candidates.push(number);
+      }
+
+      if (candidates.length === 0) return logs;
+
+      const number = candidates[Math.floor(random() * candidates.length)]!;
+
+      if (kind < 2 / 3) {
+        return logs.filter((log) => hexToNumber(log.blockNumber!) !== number);
+      }
+
+      const hash = getReorgHash(chain!.id, toHex(number), "logs");
+      reorgedLogBlocks.set(hash, number);
+      return logs.map((log) =>
+        hexToNumber(log.blockNumber!) === number
+          ? { ...log, blockHash: hash }
+          : log,
+      );
     };
 
     const request = async (body: any) => {
@@ -200,6 +289,23 @@ export const sim =
           break;
         }
         case "eth_getBlockByHash": {
+          const reorgedNumber = reorgedLogBlocks.get(body.params[0]);
+          if (reorgedNumber !== undefined) {
+            const block = await getCachedBlock(reorgedNumber);
+            result = {
+              ...block,
+              hash: body.params[0],
+              transactions: block.transactions.map((transaction) =>
+                typeof transaction === "string"
+                  ? transaction
+                  : body.params[1]
+                    ? { ...transaction, blockHash: body.params[0] }
+                    : transaction.hash,
+              ),
+            };
+            break;
+          }
+
           const block = await DB.select({ body: RPC_SCHEMA.blocks.body })
             .from(RPC_SCHEMA.blocks)
             .where(
@@ -359,6 +465,13 @@ export const sim =
 
           result = logs;
 
+          if (IS_REALTIME && APP && "fromBlock" in body.params[0]) {
+            const random = seedrandom(`${SEED}_get_logs_reorg_${id}_${nonce}`);
+            if (random() < SIM_PARAMS.REALTIME_GET_LOGS_REORG_RATE) {
+              result = await simulateGetLogsReorg(logs, body.params[0], random);
+            }
+          }
+
           break;
         }
         case "eth_getTransactionReceipt": {
@@ -394,6 +507,20 @@ export const sim =
           break;
         }
         case "eth_getBlockReceipts": {
+          const reorgedNumber = reorgedLogBlocks.get(body.params[0]);
+          if (reorgedNumber !== undefined) {
+            const { hash } = await getCachedBlock(reorgedNumber);
+            const receipts = (await request({
+              method: "eth_getBlockReceipts",
+              params: [hash],
+            })) as { blockHash: Hash }[];
+            result = receipts.map((receipt) => ({
+              ...receipt,
+              blockHash: body.params[0],
+            }));
+            break;
+          }
+
           // Note: this assumes all eth_getBlockReceipts requests use block hash.
           const receipt = await DB.select()
             .from(RPC_SCHEMA.blockReceipts)
@@ -675,6 +802,7 @@ export const realtimeBlockEngine = async (
 
   for (const [chainId, { interval }] of chains) {
     incomplete.add(chainId);
+    realtimeEnds.set(chainId, interval[1]);
     blocks.set(chainId, [await getBlock(chainId, interval[0])]);
     blocks.get(chainId)!.push(await getNextBlock(chainId));
   }
@@ -692,7 +820,10 @@ export const realtimeBlockEngine = async (
         if (leader === undefined || leader === chainId) {
           const next = await simulate(chainId);
 
-          if (next) yield next;
+          if (next) {
+            realtimeHeads.set(chainId, hexToNumber(next.number!));
+            yield next;
+          }
 
           leader =
             Array.from(incomplete)[Math.floor(random() * incomplete.size)]!;
@@ -710,6 +841,7 @@ export const realtimeBlockEngine = async (
       while (true) {
         const next = await simulate(chainId);
         if (next === undefined) return;
+        realtimeHeads.set(chainId, hexToNumber(next.number!));
         yield next;
       }
     };

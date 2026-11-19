@@ -119,6 +119,19 @@ type ChainConfig<chain> = {
    * attempt to determine the block range automatically based on error messages.
    */
   ethGetLogsBlockRange?: number;
+  /**
+   * Experimental. Reduce realtime RPC usage by scanning each polling interval
+   * with ranged `eth_getLogs` requests instead of fetching every block.
+   *
+   * When enabled, a `pollingInterval` larger than the chain's block time
+   * reduces RPC usage proportionally. Useful for high-throughput L2 chains.
+   *
+   * Applies to chains whose indexed sources are all `log` events, including
+   * factory sources and sources without an address. Chains using block,
+   * transaction, trace, or transfer sources fall back to the default per-block
+   * realtime sync, and keep `ws`. Default: `false`.
+   */
+  experimentalRangeScan?: boolean;
 };
 
 type ChainsConfig<chains> = {} extends chains

@@ -658,6 +658,7 @@ export const getSimulatedEvent = ({
 export const getChain = (params?: {
   reorgWindow?: number;
   cacheRpcRequests?: boolean;
+  experimentalRangeScan?: boolean;
 }) => {
   return {
     name: "mainnet",
@@ -668,6 +669,7 @@ export const getChain = (params?: {
     reorgWindow: params?.reorgWindow ?? 1,
     cacheRpcRequests: params?.cacheRpcRequests ?? true,
     ethGetLogsBlockRange: undefined,
+    experimentalRangeScan: params?.experimentalRangeScan ?? false,
     viemChain: anvil,
   } satisfies Chain;
 };

@@ -78,6 +78,11 @@ export type Rpc = {
   subscribe: (params: {
     onBlock: (block: SyncBlock | SyncBlockHeader) => Promise<boolean>;
     onError: (error: Error) => void;
+    /**
+     * `true` when the realtime sync range scans the chain. The subscription then
+     * polls, never a WebSocket.
+     */
+    isRangeScan?: boolean;
   }) => void;
   unsubscribe: () => Promise<void>;
 };
@@ -713,12 +718,29 @@ export const createRpc = ({
     hostnames: backends.map((backend) => backend.hostname),
     // @ts-expect-error
     request: (parameters, context) => queue.add({ body: parameters, context }),
-    subscribe({ onBlock, onError }) {
+    subscribe({ onBlock, onError, isRangeScan = false }) {
+      // The range-scan path scans the entire unfinalized window on every head,
+      // so its cost is per-head, not per-block. A "newHeads" subscription
+      // delivers every block, which would make it more expensive than the
+      // default per-block sync. Use polling to bound the scan rate to
+      // `pollingInterval`.
+      if (chain.ws !== undefined && isRangeScan) {
+        common.logger.warn({
+          msg: "Ignoring 'ws' because 'experimentalRangeScan' is enabled. Using a polling subscription so that realtime RPC usage is bounded by 'pollingInterval'.",
+          chain: chain.name,
+          chain_id: chain.id,
+        });
+      }
+
       (async () => {
         while (true) {
           if (isUnsubscribed) return;
 
-          if (chain.ws === undefined || webSocketErrorCount >= RETRY_COUNT) {
+          if (
+            chain.ws === undefined ||
+            isRangeScan ||
+            webSocketErrorCount >= RETRY_COUNT
+          ) {
             common.logger.debug({
               msg: "Created JSON-RPC polling subscription",
               chain: chain.name,

@@ -2,6 +2,7 @@ import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import { context, setupAnvil, setupCommon } from "@/_test/setup.js";
 import { simulateBlock } from "@/_test/simulate.js";
 import { getChain } from "@/_test/utils.js";
+import type { SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 import { createRpc, sanitizeLogTopics } from "./index.js";
 
 beforeEach(setupCommon);
@@ -119,4 +120,66 @@ test("sanitizeLogTopics does not mutate the input", () => {
 test("sanitizeLogTopics preserves omitted and empty topics", () => {
   expect(sanitizeLogTopics([])).toStrictEqual([]);
   expect(sanitizeLogTopics([null, null])).toStrictEqual([]);
+});
+
+test("subscribe() polls full blocks", async () => {
+  const chain = { ...getChain(), pollingInterval: 100 };
+  const rpc = createRpc({ common: context.common, chain });
+  onTestFinished(() => rpc.unsubscribe());
+
+  await simulateBlock();
+
+  const requestSpy = vi.spyOn(rpc, "request");
+  const block = await new Promise<SyncBlock | SyncBlockHeader>((resolve) => {
+    rpc.subscribe({
+      onBlock: async (block) => {
+        resolve(block);
+        return true;
+      },
+      onError: () => {},
+    });
+  });
+
+  expect(requestSpy.mock.calls[0]![0]).toMatchObject({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  expect(block.transactions).toBeInstanceOf(Array);
+});
+
+test("subscribe() polls instead of using ws when range scanning", async () => {
+  const chain = {
+    ...getChain({ experimentalRangeScan: true }),
+    pollingInterval: 100,
+    ws: "ws://127.0.0.1:8545",
+  };
+  const rpc = createRpc({ common: context.common, chain });
+  onTestFinished(() => rpc.unsubscribe());
+
+  await simulateBlock();
+
+  const warnSpy = vi.spyOn(context.common.logger, "warn");
+  const requestSpy = vi.spyOn(rpc, "request");
+  const block = await new Promise<SyncBlock | SyncBlockHeader>((resolve) => {
+    rpc.subscribe({
+      onBlock: async (block) => {
+        resolve(block);
+        return true;
+      },
+      onError: () => {},
+      isRangeScan: true,
+    });
+  });
+
+  // Polled over HTTP despite `ws`.
+  expect(requestSpy.mock.calls[0]![0]).toMatchObject({
+    method: "eth_getBlockByNumber",
+    params: ["latest", true],
+  });
+  expect(block.transactions).toBeInstanceOf(Array);
+  expect(warnSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      msg: expect.stringContaining("Ignoring 'ws'"),
+    }),
+  );
 });
