@@ -205,6 +205,7 @@ export const createDatabase = ({
   schemaBuild: Omit<SchemaBuild, "graphqlSchema">;
 }): Database => {
   let heartbeatInterval: NodeJS.Timeout | undefined;
+  let isLockHeld = false;
 
   const PONDER_META = getPonderMetaTable(namespace.schema);
   const PONDER_CHECKPOINT = getPonderCheckpointTable(namespace.schema);
@@ -233,7 +234,7 @@ export const createDatabase = ({
     common.shutdown.add(async () => {
       clearInterval(heartbeatInterval);
 
-      if (["start", "dev"].includes(common.options.command)) {
+      if (isLockHeld) {
         await adminQB.wrap({ label: "unlock" }, (db) =>
           db
             .update(PONDER_META)
@@ -354,7 +355,7 @@ export const createDatabase = ({
     common.shutdown.add(async () => {
       clearInterval(heartbeatInterval);
 
-      if (["start", "dev"].includes(common.options.command)) {
+      if (isLockHeld) {
         await adminQB.wrap({ label: "unlock" }, (db) =>
           db
             .update(PONDER_META)
@@ -1036,6 +1037,8 @@ CREATE TABLE IF NOT EXISTS "${namespace.schema}"."${PONDER_CHECKPOINT_TABLE_NAME
           throw error;
         }
       }
+
+      isLockHeld = true;
 
       heartbeatInterval = setInterval(async () => {
         try {
