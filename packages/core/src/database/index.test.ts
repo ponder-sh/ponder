@@ -309,6 +309,79 @@ test("migrate() throws with schema used after waiting for lock", async () => {
   await context.common.shutdown.kill();
 });
 
+test("shutdown doesn't release a lock held by a different app", async () => {
+  context.common.options.databaseHeartbeatInterval = 250;
+  context.common.options.databaseHeartbeatTimeout = 1000;
+
+  const database = createDatabase({
+    common: context.common,
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "multichain",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+  await database.migrate({
+    buildId: "abc",
+    chains: [],
+    finalizedBlocks: [],
+  });
+
+  const shutdownTwo = createShutdown();
+  const databaseTwo = createDatabase({
+    common: { ...context.common, shutdown: shutdownTwo },
+    namespace: {
+      schema: "public",
+      viewsSchema: undefined,
+    },
+    preBuild: {
+      databaseConfig: context.databaseConfig,
+      ordering: "multichain",
+    },
+    schemaBuild: {
+      schema: { account },
+      statements: buildSchema({
+        schema: { account },
+        preBuild: { ordering: "multichain" },
+      }).statements,
+    },
+  });
+
+  const error = await databaseTwo
+    .migrate({
+      buildId: "abc",
+      chains: [],
+      finalizedBlocks: [],
+    })
+    .catch((err) => err);
+
+  expect(error).toBeInstanceOf(MigrationError);
+  expect(error.message).toContain("Failed to acquire lock");
+
+  await shutdownTwo.kill();
+
+  const app = await database.userQB.wrap((db) =>
+    db
+      .select()
+      .from(getPonderMetaTable("public"))
+      .then((result) => result[0]!.value),
+  );
+
+  expect(app.is_locked).toBe(1);
+
+  await context.common.shutdown.kill();
+});
+
 test("migrate() succeeds with crash recovery", async () => {
   const database = createDatabase({
     common: context.common,
