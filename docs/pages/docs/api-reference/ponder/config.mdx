@@ -21,7 +21,7 @@ export default createConfig({
 });
 ```
 
-By default, `ponder dev` and `start` look for `ponder.config.ts` in the current working directory. Use the `--config-file` CLI option to specify a different path.
+By default, `ponder dev` and `start` look for `ponder.config.ts` in the current working directory. Use the `--config` CLI option to specify a different path.
 
 ## `createConfig`
 
@@ -273,9 +273,9 @@ export default createConfig({
 | :-------- | :--------------------------------------------------: | :----------------------------------------------------------------------------------------- |
 | **name**  |                `string`                | **Required**. A unique name for the block interval. Must be unique across all block intervals. _Provided as the object property name._ |
 | **chain** |                `string`                | **Required**. The name of the chain this block interval is deployed to. References the `chains` field. Also supports [multiple chains](/docs/config/contracts#chain). |
-| **startBlock** |                `number`                | **Default: `0`**. Block number to start syncing events. |
-| **endBlock** |                `number`                | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range. |
-| **interval** |                `number`                | **Default: `0`**. The interval between blocks to index. |
+| **startBlock** |                `number \| "latest"`                | **Default: `0`**. Block number or tag to start syncing events. |
+| **endBlock** |                `number \| "latest"`                | **Default: `undefined`**. Block number to stop syncing events. If this field is specified, the contract will not be indexed in realtime. This field can be used alongside `startBlock` to index a specific block range. |
+| **interval** |                `number`                | **Default: `1`**. The interval between blocks to index. Must be a non-zero integer. |
 
 ## `factory`
 
