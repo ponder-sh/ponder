@@ -124,34 +124,57 @@ export async function getLocalSyncProgress(params: {
 
   // Earliest `fromBlock` among all `filters`
   const start = Math.min(...params.filters.map(getFilterFromBlock));
+  const requiresBackfill = start <= hexToNumber(params.finalizedBlock.number);
 
-  const cached = getCachedBlock({
-    filters: params.filters,
-    cachedIntervals: params.cachedIntervals,
-  });
+  const cached = requiresBackfill
+    ? getCachedBlock({
+        filters: params.filters,
+        cachedIntervals: params.cachedIntervals,
+      })
+    : undefined;
 
-  const diagnostics = await Promise.all(
+  const getStartBlock = async (): Promise<LightBlock> => {
+    if (!requiresBackfill) {
+      const latest = await eth_getBlockByNumber(params.rpc, ["latest", false], {
+        retryNullBlockRequest: true,
+      });
+      const latestBlockNumber = hexToNumber(latest.number);
+      if (start > latestBlockNumber) {
+        params.common.logger.info({
+          msg: "Waiting for configured start block",
+          chain: params.chain.name,
+          chain_id: params.chain.id,
+          start_block: start,
+          latest_block: latestBlockNumber,
+        });
+        // The tip timestamp is a lower bound for the future start checkpoint.
+        return {
+          number: numberToHex(start),
+          timestamp: latest.timestamp,
+          hash: "0x",
+          parentHash: "0x",
+        };
+      }
+      if (start === latestBlockNumber) return latest;
+    }
+
+    return eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
+      retryNullBlockRequest: true,
+    });
+  };
+
+  const [startBlock, cachedBlock] = await Promise.all([
+    getStartBlock(),
     cached === undefined
-      ? [
-          eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
-            retryNullBlockRequest: true,
-          }),
-        ]
-      : [
-          eth_getBlockByNumber(params.rpc, [numberToHex(start), false], {
-            retryNullBlockRequest: true,
-          }),
-          eth_getBlockByNumber(params.rpc, [numberToHex(cached), false], {
-            retryNullBlockRequest: true,
-          }),
-        ],
-  );
+      ? undefined
+      : eth_getBlockByNumber(params.rpc, [numberToHex(cached), false], {
+          retryNullBlockRequest: true,
+        }),
+  ]);
 
   syncProgress.finalized = params.finalizedBlock;
-  syncProgress.start = diagnostics[0];
-  if (diagnostics.length === 2) {
-    syncProgress.current = diagnostics[1];
-  }
+  syncProgress.start = startBlock;
+  syncProgress.current = cachedBlock;
 
   if (params.filters.some((filter) => filter.toBlock === undefined)) {
     return syncProgress;
