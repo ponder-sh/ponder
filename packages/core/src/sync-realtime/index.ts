@@ -197,6 +197,15 @@ export const createRealtimeSync = (
   };
 
   /**
+   * A known hash behind the local tip comes from a lagging node, not a reorg.
+   * If the tip was reorged out, its replacement is not in the local chain and
+   * triggers the reorg when it arrives.
+   */
+  const isInLocalChain = (hash: Hash) =>
+    finalizedBlock.hash === hash ||
+    unfinalizedBlocks.some((block) => block.hash === hash);
+
+  /**
    * Fetch all data (logs, traces, receipts) for the specified block required by `args.sources`
    *
    * @dev The data returned by this function may include false positives. This
@@ -964,9 +973,9 @@ export const createRealtimeSync = (
    * Finish syncing a block.
    *
    * The four cases are:
-   * 1) Block is the same as the one just processed, no-op.
-   * 2) Block is behind the last processed. This is a sign that
-   *    a reorg has occurred.
+   * 1) Block is already in the local chain, no-op.
+   * 2) Block is not in the local chain and not ahead of the last
+   *    processed. A reorg has occurred.
    * 3) Block is more than one ahead of the last processed,
    *    fetch all intermediate blocks and enqueue them again.
    * 4) Block is exactly one block ahead of the last processed,
@@ -985,7 +994,7 @@ export const createRealtimeSync = (
     const block = blockWithEventData.block;
 
     // We already saw and handled this block. No-op.
-    if (latestBlock.hash === block.hash) {
+    if (isInLocalChain(block.hash)) {
       args.common.logger.trace({
         msg: "Detected duplicate block",
         chain: args.chain.name,
@@ -1237,11 +1246,9 @@ export const createRealtimeSync = (
           hash: block.hash,
         });
 
-        const latestBlock = getLatestUnfinalizedBlock();
-
         // We already saw and handled this block. No-op.
         if (
-          latestBlock.hash === block.hash ||
+          isInLocalChain(block.hash) ||
           latestFetchedBlock?.hash === block.hash
         ) {
           args.common.logger.trace({
