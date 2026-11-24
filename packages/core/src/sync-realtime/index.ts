@@ -64,6 +64,7 @@ import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
+import { isBlockHashValid } from "./blockHash.js";
 import {
   getFactoryBloom,
   getLogFilterBloom,
@@ -226,24 +227,29 @@ export const createRealtimeSync = (
     ////////
 
     // Async-execution chains cannot reliably use blooms to filter or validate logs.
-    // A zero `logsBloom` is treated as missing.
+    // Some chains or RPCs return a zero `logsBloom` for blocks with logs, so a zero
+    // `logsBloom` is treated as missing, and logs are requested, unless the block
+    // hash proves it. An unverifiable header (an L2 or fork layout) requests logs.
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
     const blockNumber = hexToNumber(maybeBlockHeader.number);
     const bloom = hexToBytes(maybeBlockHeader.logsBloom);
+    const isBloomMissing =
+      maybeBlockHeader.logsBloom === zeroLogsBloom &&
+      isBlockHashValid(maybeBlockHeader) === false;
 
     const logsRequestFilter = mergeLogFiltersToBlockRequest({
       logFilters: logFilters.filter(
         (logFilter, i) =>
           isBlockInFilter(logFilter, blockNumber) &&
           (isAsyncExecution ||
-            maybeBlockHeader.logsBloom === zeroLogsBloom ||
+            isBloomMissing ||
             isFilterInBloom({ bloom, filter: logFilterBlooms[i]! })),
       ),
       factories: factories.filter(
         (factory, i) =>
           isBlockInFilter(factory, blockNumber) &&
           (isAsyncExecution ||
-            maybeBlockHeader.logsBloom === zeroLogsBloom ||
+            isBloomMissing ||
             isFactoryInBloom({ bloom, factory: factoryBlooms[i]! })),
       ),
     });

@@ -205,7 +205,13 @@ test("sync() catches error", async () => {
     childAddresses: new Map(),
   });
 
-  const blockData = await simulateBlock();
+  // The block has a matching log, so syncing it requests logs.
+  const blockData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
 
   const requestSpy = vi.spyOn(rpc, "request");
   requestSpy.mockRejectedValueOnce(new Error());
@@ -400,6 +406,39 @@ test("sync() skips log request when bloom does not match on standard chains", as
   await drainAsyncGenerator(
     realtimeSync.sync({ ...block, logsBloom: staleLogsBloom }),
   );
+
+  expect(
+    requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
+  ).toBe(false);
+});
+
+test("sync() skips log request for a zero bloom that the block hash proves", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  // An empty block has no logs, so its real `logsBloom` is zero.
+  const { block } = await simulateBlock();
+  expect(block.logsBloom).toBe(zeroLogsBloom);
+
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  await drainAsyncGenerator(realtimeSync.sync(block));
 
   expect(
     requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
