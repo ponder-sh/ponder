@@ -704,6 +704,48 @@ test("buildIndexingFunctions() coerces NaN startBlock to undefined", async () =>
   expect(eventCallbacks[0]![0]?.filter.fromBlock).toBe(undefined);
 });
 
+test("buildIndexingFunctions() logs future start blocks per source", async () => {
+  const startBlock = 1_000_000;
+  const config = createConfig({
+    chains: {
+      mainnet: { id: 1, rpc: `http://127.0.0.1:8545/${TEST_POOL_ID}` },
+    },
+    blocks: {
+      early: { chain: "mainnet", startBlock: 0, endBlock: startBlock },
+      future: { chain: "mainnet", startBlock },
+    },
+  });
+
+  const configBuild = buildConfig({ common: context.common, config });
+  const { eventCallbacks, logs } = await buildIndexingFunctions({
+    common: context.common,
+    config,
+    indexingFunctions: [
+      { name: "early:block", fn: () => {} },
+      { name: "future:block", fn: () => {} },
+    ],
+    configBuild,
+  });
+
+  expect(eventCallbacks[0]?.map(({ filter }) => filter.fromBlock)).toEqual([
+    0,
+    startBlock,
+  ]);
+  const futureStartLogs = logs.filter(
+    ({ msg }) => msg === "Source start block is ahead of the chain tip",
+  );
+  expect(futureStartLogs).toHaveLength(1);
+  expect(futureStartLogs[0]).toMatchObject({
+    level: "debug",
+    name: "future",
+    chain: "mainnet",
+    chain_id: 1,
+    start_block: startBlock,
+    latest_block: expect.any(Number),
+  });
+  expect(futureStartLogs[0]?.latest_block).toBeLessThan(startBlock);
+});
+
 test("buildIndexingFunctions() coerces `latest` to number", async () => {
   const config = createConfig({
     chains: {
