@@ -33,6 +33,7 @@ import {
   getChain,
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
+  testClient,
 } from "@/_test/utils.js";
 import { buildLogFactory } from "@/build/factory.js";
 import type {
@@ -1364,14 +1365,21 @@ test("handleReorg() finds common ancestor", async () => {
   const blockData1 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
 
+  const snapshotId = await testClient.snapshot();
+
   const blockData2 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData2.block));
 
   const blockData3 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
+  // Replace blocks 2 and 3 with a different block 2.
+  await testClient.revert({ id: snapshotId });
+  await testClient.increaseTime({ seconds: 1 });
+  const reorgedBlockData2 = await simulateBlock();
+
   const syncResult = await drainAsyncGenerator(
-    realtimeSync.sync(blockData2.block),
+    realtimeSync.sync(reorgedBlockData2.block),
   );
 
   expect(syncResult).toHaveLength(1);
@@ -1382,6 +1390,62 @@ test("handleReorg() finds common ancestor", async () => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+});
+
+test("sync() ignores a stale head that is already in the local chain", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 10 });
+  const rpc = createRpc({ chain, common });
+
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x0", true]);
+
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const blockData1 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
+  const blockData2 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData2.block));
+  const blockData3 = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
+
+  // A lagging node returns block 2 again as its latest block.
+  const blockCallback = vi.fn();
+  const syncResult = await drainAsyncGenerator(
+    realtimeSync.sync(blockData2.block, blockCallback),
+  );
+
+  const localChain = [
+    blockData1.block.hash,
+    blockData2.block.hash,
+    blockData3.block.hash,
+  ];
+
+  expect(syncResult).toHaveLength(0);
+  expect(blockCallback).toHaveBeenCalledWith(false);
+  expect(realtimeSync.unfinalizedBlocks.map((b) => b.hash)).toStrictEqual(
+    localChain,
+  );
+
+  const warnSpy = vi.spyOn(common.logger, "warn");
+  const finalizedResult = await drainAsyncGenerator(
+    realtimeSync.sync(finalizedBlock),
+  );
+  expect(finalizedResult).toHaveLength(0);
+  expect(warnSpy).not.toHaveBeenCalled();
+  expect(realtimeSync.unfinalizedBlocks.map((b) => b.hash)).toStrictEqual(
+    localChain,
+  );
 });
 
 test("handleReorg() removes child addresses with more than one parent", async () => {
@@ -1395,14 +1459,16 @@ test("handleReorg() removes child addresses with more than one parent", async ()
   const { address: parentY } = await deployErc20({ sender: ALICE });
   const { block: finalizedBlock } = await simulateBlock();
 
-  const { block: block1 } = await simulateBlock();
+  const beforeBlock1 = await testClient.snapshot();
+  await simulateBlock();
   const { block: block2 } = await mintErc20({
     erc20: parentX,
     to: BOB,
     amount: 1n,
     sender: ALICE,
   });
-  const { block: block3 } = await mintErc20({
+  const afterBlock2 = await testClient.snapshot();
+  await mintErc20({
     erc20: parentY,
     to: BOB,
     amount: 1n,
@@ -1464,14 +1530,20 @@ test("handleReorg() removes child addresses with more than one parent", async ()
   );
 
   // Reorg the block where the second parent emitted the child address.
-  await drainAsyncGenerator(realtimeSync.sync(block3));
+  await testClient.revert({ id: afterBlock2 });
+  await testClient.increaseTime({ seconds: 1 });
+  const { block: reorgedBlock3 } = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(reorgedBlock3));
 
   expect(childAddresses.get(factory.id)).toStrictEqual(
     new Map([[child, hexToNumber(block2.number)]]),
   );
 
   // Reorg the block where the child address was first found.
-  await drainAsyncGenerator(realtimeSync.sync(block1));
+  await testClient.revert({ id: beforeBlock1 });
+  await testClient.increaseTime({ seconds: 1 });
+  const { block: reorgedBlock1 } = await simulateBlock();
+  await drainAsyncGenerator(realtimeSync.sync(reorgedBlock1));
 
   expect(childAddresses.get(factory.id)).toStrictEqual(new Map());
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(0);
