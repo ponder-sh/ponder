@@ -18,6 +18,7 @@ import {
   deployErc20,
   deployFactory,
   mintErc20,
+  simulateBlock,
 } from "@/_test/simulate.js";
 import {
   getBlocksIndexingBuild,
@@ -35,6 +36,7 @@ import type {
 } from "@/internal/types.js";
 import { eth_getBlockByNumber } from "@/rpc/actions.js";
 import { createRpc } from "@/rpc/index.js";
+import { createRealtimeSync } from "@/sync-realtime/index.js";
 import { encodeCheckpoint } from "@/utils/checkpoint.js";
 import { drainAsyncGenerator } from "@/utils/generators.js";
 import type { Interval } from "@/utils/interval.js";
@@ -95,6 +97,63 @@ test("getLocalSyncProgress()", async () => {
   expect(syncProgress.start.number).toBe("0x0");
   expect(syncProgress.end).toBe(undefined);
   expect(syncProgress.current).toBe(undefined);
+});
+
+test("getLocalSyncProgress() future start block", async () => {
+  const chain = getChain();
+  const rpc = createRpc({ chain, common: context.common });
+  const { eventCallbacks } = getBlocksIndexingBuild({ interval: 1 });
+  const filter = eventCallbacks[0]!.filter;
+  const latest = await eth_getBlockByNumber(rpc, ["latest", false]);
+  filter.fromBlock = Number(latest.number) + 2;
+
+  const syncProgress = await getLocalSyncProgress({
+    common: context.common,
+    filters: [filter],
+    chain,
+    rpc,
+    finalizedBlock: latest,
+    cachedIntervals: new Map([
+      [
+        filter,
+        getFragments(filter).map(({ fragment }) => ({
+          fragment,
+          intervals: [],
+        })),
+      ],
+    ]),
+  });
+
+  expect(Number(syncProgress.start.number)).toBe(filter.fromBlock);
+  expect(syncProgress.start.timestamp).toBe(latest.timestamp);
+  expect(syncProgress.current).toBeUndefined();
+
+  const realtimeSync = createRealtimeSync({
+    common: context.common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress,
+    childAddresses: new Map(),
+  });
+
+  const beforeStart = await simulateBlock();
+  const atStart = await simulateBlock();
+  const beforeStartEvents = await drainAsyncGenerator(
+    realtimeSync.sync(beforeStart.block),
+  );
+  const atStartEvents = await drainAsyncGenerator(
+    realtimeSync.sync(atStart.block),
+  );
+
+  expect(beforeStartEvents[0]).toMatchObject({
+    type: "block",
+    hasMatchedFilter: false,
+  });
+  expect(atStartEvents[0]).toMatchObject({
+    type: "block",
+    hasMatchedFilter: true,
+  });
 });
 
 test("getLocalSyncProgress() future end block", async () => {

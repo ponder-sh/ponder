@@ -350,6 +350,21 @@ export async function buildIndexingFunctions({
       );
     }
 
+    if (startBlock !== undefined) {
+      const latestBlock = await perChainLatestBlockNumber.get(chain.name)!;
+      if (startBlock > latestBlock) {
+        logs.push({
+          level: "debug",
+          msg: "Source start block is ahead of the chain tip",
+          name: source.name,
+          chain: chain.name,
+          chain_id: chain.id,
+          start_block: startBlock,
+          latest_block: latestBlock,
+        });
+      }
+    }
+
     if (
       "address" in source &&
       typeof source.address === "object" &&
