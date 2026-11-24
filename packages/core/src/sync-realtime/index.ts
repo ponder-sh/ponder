@@ -64,6 +64,7 @@ import { isAsyncExecutionChain } from "@/utils/finality.js";
 import { createLock } from "@/utils/mutex.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
+import { isBlockHashValid } from "./blockHash.js";
 import {
   getFactoryBloom,
   getLogFilterBloom,
@@ -139,6 +140,7 @@ export const createRealtimeSync = (
   /** Closest-to-tip block that has been fetched but not yet reconciled. */
   let latestFetchedBlock: LightBlock | undefined;
   let fetchAndReconcileLatestBlockErrorCount = 0;
+  let hasVerifiedBloom = false;
 
   const realtimeSyncLock = createLock();
 
@@ -226,24 +228,37 @@ export const createRealtimeSync = (
     ////////
 
     // Async-execution chains cannot reliably use blooms to filter or validate logs.
-    // A zero `logsBloom` is treated as missing.
+    // A chain that never fills in blooms has a zero logsBloom in every header, even
+    // for blocks with logs. A zero logsBloom is trusted only when the block hash
+    // matches and this chain has already returned a matching non-zero logsBloom.
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
     const blockNumber = hexToNumber(maybeBlockHeader.number);
     const bloom = hexToBytes(maybeBlockHeader.logsBloom);
+    if (
+      hasVerifiedBloom === false &&
+      maybeBlockHeader.logsBloom !== zeroLogsBloom &&
+      isBlockHashValid(maybeBlockHeader)
+    ) {
+      hasVerifiedBloom = true;
+    }
+    const isBloomMissing =
+      maybeBlockHeader.logsBloom === zeroLogsBloom &&
+      (hasVerifiedBloom === false ||
+        isBlockHashValid(maybeBlockHeader) === false);
 
     const logsRequestFilter = mergeLogFiltersToBlockRequest({
       logFilters: logFilters.filter(
         (logFilter, i) =>
           isBlockInFilter(logFilter, blockNumber) &&
           (isAsyncExecution ||
-            maybeBlockHeader.logsBloom === zeroLogsBloom ||
+            isBloomMissing ||
             isFilterInBloom({ bloom, filter: logFilterBlooms[i]! })),
       ),
       factories: factories.filter(
         (factory, i) =>
           isBlockInFilter(factory, blockNumber) &&
           (isAsyncExecution ||
-            maybeBlockHeader.logsBloom === zeroLogsBloom ||
+            isBloomMissing ||
             isFactoryInBloom({ bloom, factory: factoryBlooms[i]! })),
       ),
     });
