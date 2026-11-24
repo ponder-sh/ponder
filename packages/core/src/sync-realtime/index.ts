@@ -934,6 +934,10 @@ export const createRealtimeSync = (
       duration: endClock(),
     });
 
+    args.common.metrics.ponder_realtime_reorg_total.inc({
+      chain: args.chain.name,
+    });
+
     // remove reorged blocks from `childAddresses`
     for (const block of reorgedBlocks) {
       const blockNumber = hexToNumber(block.number);
