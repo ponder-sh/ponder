@@ -33,6 +33,7 @@ import {
   getChain,
   getErc20IndexingBuild,
   getPairWithFactoryIndexingBuild,
+  testClient,
 } from "@/_test/utils.js";
 import { buildLogFactory } from "@/build/factory.js";
 import type {
@@ -1364,14 +1365,21 @@ test("handleReorg() finds common ancestor", async () => {
   const blockData1 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData1.block));
 
+  const snapshotId = await testClient.snapshot();
+
   const blockData2 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData2.block));
 
   const blockData3 = await simulateBlock();
   await drainAsyncGenerator(realtimeSync.sync(blockData3.block));
 
+  // Replace blocks 2 and 3 with a different block 2.
+  await testClient.revert({ id: snapshotId });
+  await testClient.increaseTime({ seconds: 1 });
+  const reorgedBlockData2 = await simulateBlock();
+
   const syncResult = await drainAsyncGenerator(
-    realtimeSync.sync(blockData2.block),
+    realtimeSync.sync(reorgedBlockData2.block),
   );
 
   expect(syncResult).toHaveLength(1);
@@ -1382,6 +1390,11 @@ test("handleReorg() finds common ancestor", async () => {
   });
 
   expect(realtimeSync.unfinalizedBlocks).toHaveLength(1);
+
+  const reorgs = await common.metrics.ponder_realtime_reorg_total.get();
+  expect(reorgs.values).toStrictEqual([
+    { labels: { chain: chain.name }, value: 1 },
+  ]);
 });
 
 test("handleReorg() removes child addresses with more than one parent", async () => {
