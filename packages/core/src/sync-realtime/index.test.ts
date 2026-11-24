@@ -412,7 +412,7 @@ test("sync() skips log request when bloom does not match on standard chains", as
   ).toBe(false);
 });
 
-test("sync() skips log request for a zero bloom that the block hash proves", async () => {
+test("sync() skips log request for a verified zero bloom after a verified non-zero bloom", async () => {
   const { common } = context;
   await setupDatabaseServices();
 
@@ -432,7 +432,14 @@ test("sync() skips log request for a zero bloom that the block hash proves", asy
     childAddresses: new Map(),
   });
 
-  // An empty block has no logs, so its real `logsBloom` is zero.
+  const mintData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  await drainAsyncGenerator(realtimeSync.sync(mintData.block));
+
   const { block } = await simulateBlock();
   expect(block.logsBloom).toBe(zeroLogsBloom);
 
@@ -443,6 +450,129 @@ test("sync() skips log request for a zero bloom that the block hash proves", asy
   expect(
     requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
   ).toBe(false);
+});
+
+test("sync() requests logs for a zero bloom before any non-zero bloom", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const { block } = await simulateBlock();
+  expect(block.logsBloom).toBe(zeroLogsBloom);
+
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  await drainAsyncGenerator(realtimeSync.sync(block));
+
+  expect(
+    requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
+  ).toBe(true);
+});
+
+test("sync() requests logs for a forged zero bloom after a verified non-zero bloom", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const firstMint = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  await drainAsyncGenerator(realtimeSync.sync(firstMint.block));
+
+  const secondMint = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  await drainAsyncGenerator(
+    realtimeSync.sync({ ...secondMint.block, logsBloom: zeroLogsBloom }),
+  );
+
+  expect(
+    requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
+  ).toBe(true);
+});
+
+test("sync() does not trust a zero bloom after an unverified non-zero bloom", async () => {
+  const { common } = context;
+  await setupDatabaseServices();
+
+  const chain = getChain({ reorgWindow: 2 });
+  const rpc = createRpc({ common, chain });
+
+  const { address } = await deployErc20({ sender: ALICE });
+  const { eventCallbacks } = getErc20IndexingBuild({ address });
+
+  const finalizedBlock = await eth_getBlockByNumber(rpc, ["0x1", true]);
+  const realtimeSync = createRealtimeSync({
+    common,
+    chain,
+    rpc,
+    eventCallbacks,
+    syncProgress: { finalized: finalizedBlock },
+    childAddresses: new Map(),
+  });
+
+  const mintData = await mintErc20({
+    erc20: address,
+    to: ALICE,
+    amount: parseEther("1"),
+    sender: ALICE,
+  });
+  await drainAsyncGenerator(
+    realtimeSync.sync({
+      ...mintData.block,
+      logsBloom: `0x${"f".repeat(512)}`,
+    }),
+  );
+
+  const { block } = await simulateBlock();
+  expect(block.logsBloom).toBe(zeroLogsBloom);
+
+  const requestSpy = vi.spyOn(rpc, "request");
+
+  await drainAsyncGenerator(realtimeSync.sync(block));
+
+  expect(
+    requestSpy.mock.calls.some(([request]) => request.method === "eth_getLogs"),
+  ).toBe(true);
 });
 
 test("sync() requests logs despite bloom mismatch on async-execution chains", async () => {

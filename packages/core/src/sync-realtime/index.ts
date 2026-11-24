@@ -140,6 +140,7 @@ export const createRealtimeSync = (
   /** Closest-to-tip block that has been fetched but not yet reconciled. */
   let latestFetchedBlock: LightBlock | undefined;
   let fetchAndReconcileLatestBlockErrorCount = 0;
+  let hasVerifiedBloom = false;
 
   const realtimeSyncLock = createLock();
 
@@ -227,15 +228,23 @@ export const createRealtimeSync = (
     ////////
 
     // Async-execution chains cannot reliably use blooms to filter or validate logs.
-    // Some chains or RPCs return a zero `logsBloom` for blocks with logs, so a zero
-    // `logsBloom` is treated as missing, and logs are requested, unless the block
-    // hash proves it. An unverifiable header (an L2 or fork layout) requests logs.
+    // A chain that never fills in blooms has a zero logsBloom in every header, even
+    // for blocks with logs. A zero logsBloom is trusted only when the block hash
+    // matches and this chain has already returned a matching non-zero logsBloom.
     const isAsyncExecution = isAsyncExecutionChain(args.chain.id);
     const blockNumber = hexToNumber(maybeBlockHeader.number);
     const bloom = hexToBytes(maybeBlockHeader.logsBloom);
+    if (
+      hasVerifiedBloom === false &&
+      maybeBlockHeader.logsBloom !== zeroLogsBloom &&
+      isBlockHashValid(maybeBlockHeader)
+    ) {
+      hasVerifiedBloom = true;
+    }
     const isBloomMissing =
       maybeBlockHeader.logsBloom === zeroLogsBloom &&
-      isBlockHashValid(maybeBlockHeader) === false;
+      (hasVerifiedBloom === false ||
+        isBlockHashValid(maybeBlockHeader) === false);
 
     const logsRequestFilter = mergeLogFiltersToBlockRequest({
       logFilters: logFilters.filter(

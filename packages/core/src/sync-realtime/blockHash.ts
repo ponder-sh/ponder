@@ -1,7 +1,9 @@
 import { type Hex, keccak256, numberToHex, toRlp } from "viem";
 import type { SyncBlock, SyncBlockHeader } from "@/internal/types.js";
 
-type HeaderField = readonly [key: string, kind: "bytes" | "quantity"];
+type FieldKind = "bytes" | "quantity";
+
+type HeaderField = readonly [key: string, kind: FieldKind];
 
 /** Header fields present since genesis, in RLP order. */
 const BASE_FIELDS: readonly HeaderField[] = [
@@ -36,35 +38,37 @@ const FORK_FIELDS: readonly HeaderField[] = [
   ["parentProposerPubkey", "bytes"],
 ];
 
-const encode = (value: Hex, kind: HeaderField[1]): Hex =>
-  kind === "bytes"
-    ? value
-    : BigInt(value) === 0n
-      ? "0x"
-      : numberToHex(BigInt(value));
+const encode = (value: Hex, kind: FieldKind): Hex => {
+  if (kind === "bytes") return value;
+  const n = BigInt(value);
+  return n === 0n ? "0x" : numberToHex(n);
+};
 
 /**
- * Return `true` if `block.hash` is the keccak256 of the RLP-encoded header,
- * which proves every header field, including `logsBloom`, came from the chain.
- * Returns `false` for a header layout this encoding does not cover, such as an
- * L2 or chain fork with its own header fields, or a wrong field from the RPC.
+ * Return true if `block.hash` is the keccak256 of the RLP-encoded header
+ * fields. Return false for a header layout these fields do not cover, such as
+ * an L2 or chain fork with its own fields, or for a malformed field.
  */
 export const isBlockHashValid = (
   block: SyncBlock | SyncBlockHeader,
 ): boolean => {
-  const header = block as unknown as Record<string, unknown>;
+  const header: Record<string, unknown> = block;
 
-  const fields: Hex[] = [];
-  for (const [key, kind] of BASE_FIELDS) {
-    const value = header[key];
-    if (typeof value !== "string") return false;
-    fields.push(encode(value as Hex, kind));
-  }
-  for (const [key, kind] of FORK_FIELDS) {
-    const value = header[key];
-    if (typeof value !== "string") break;
-    fields.push(encode(value as Hex, kind));
-  }
+  try {
+    const fields: Hex[] = [];
+    for (const [key, kind] of BASE_FIELDS) {
+      const value = header[key];
+      if (typeof value !== "string") return false;
+      fields.push(encode(value as Hex, kind));
+    }
+    for (const [key, kind] of FORK_FIELDS) {
+      const value = header[key];
+      if (typeof value !== "string") break;
+      fields.push(encode(value as Hex, kind));
+    }
 
-  return keccak256(toRlp(fields)) === block.hash;
+    return keccak256(toRlp(fields)) === block.hash;
+  } catch {
+    return false;
+  }
 };
