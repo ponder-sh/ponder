@@ -258,7 +258,7 @@ ponder.on("Neighborhood:NewNeighbor", async ({ event, context }) => {
 The `context.chain` object includes information about the chain that the current event is from. The object is strictly typed according to the chains defined in `ponder.config.ts`.
 
 ```ts [src/index.ts]
-ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+ponder.on("UniswapV3Factory:OwnerChanged", async ({ event, context }) => {
   context.chain;
   //      ^? { name: "mainnet", id: 1 } | { name: "base", id: 8453 }
 
