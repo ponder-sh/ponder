@@ -193,7 +193,7 @@ To determine which chain the current event is from, use the `context.chain` obje
 ```ts [src/index.ts]
 import { ponder } from "ponder:registry";
 
-ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+ponder.on("UniswapV3Factory:OwnerChanged", async ({ event, context }) => {
   context.chain;
   //      ^? { name: "mainnet", id: 1 } | { name: "base", id: 8453 }
 
@@ -218,7 +218,7 @@ The Uniswap V3 factory contract is deployed to the same address on most chains, 
 
 ```ts [ponder.config.ts]
 import { createConfig } from "ponder";
-import { UniswapV3FactoryAbi } from "./abis/EntryPoint";
+import { UniswapV3FactoryAbi } from "./abis/UniswapV3Factory";
 
 export default createConfig({
   chains: {
