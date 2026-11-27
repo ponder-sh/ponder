@@ -428,3 +428,56 @@ test("client.db relations", async () => {
     expect(response.status).toBe(200);
   }
 });
+
+test("client logs a failed LISTEN on pglite instead of leaving an unhandled rejection", async () => {
+  globalThis.PONDER_COMMON = context.common;
+  globalThis.PONDER_PRE_BUILD = {
+    ordering: "multichain",
+    databaseConfig: context.databaseConfig,
+  };
+  globalThis.PONDER_NAMESPACE_BUILD = {
+    schema: "public",
+    viewsSchema: undefined,
+  };
+
+  const { database } = await setupDatabaseServices();
+  globalThis.PONDER_DATABASE = database;
+
+  // The LISTEN statement on `driver.instance` only exists in the pglite branch.
+  if (database.driver.dialect !== "pglite") return;
+
+  const failure = new Error("LISTEN failed");
+  const instance = database.driver.instance;
+  const query = instance.query.bind(instance);
+  vi.spyOn(instance, "query").mockImplementation(((
+    sql: string,
+    ...args: unknown[]
+  ) =>
+    sql.startsWith("LISTEN")
+      ? Promise.reject(failure)
+      : // @ts-expect-error: forwards the original overloads
+        query(sql, ...args)) as typeof instance.query);
+
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on("unhandledRejection", onUnhandled);
+
+  const warn = vi.spyOn(context.common.logger, "warn");
+
+  try {
+    client({ db: database.readonlyQB.raw, schema: {} });
+
+    await vi.waitFor(() =>
+      expect(warn).toHaveBeenCalledWith({
+        msg: `Failed listen connection for "@ponder/client" middleware`,
+        error: failure,
+      }),
+    );
+
+    // Give Node a turn to emit `unhandledRejection` for a floating promise.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(unhandled).toStrictEqual([]);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+});

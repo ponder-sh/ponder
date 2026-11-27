@@ -192,7 +192,16 @@ export const client = ({
     const channel = getLiveQueryChannelName(
       globalThis.PONDER_NAMESPACE_BUILD.schema,
     );
-    driver.instance.query(`LISTEN "${channel}"`);
+    (async () => {
+      try {
+        await driver.instance.query(`LISTEN "${channel}"`);
+      } catch (error) {
+        globalThis.PONDER_COMMON.logger.warn({
+          msg: `Failed listen connection for "@ponder/client" middleware`,
+          error: error as Error,
+        });
+      }
+    })();
 
     const unsubscribe = driver.instance.onNotification((_, payload) => {
       const tables = JSON.parse(payload!) as string[];
