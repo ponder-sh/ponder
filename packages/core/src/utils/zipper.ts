@@ -34,12 +34,14 @@ export const zipper = <T>(
     }
   }
 
-  if (i < array1.length) {
-    result.push(...array1.slice(i));
+  while (i < array1.length) {
+    result.push(array1[i]!);
+    i++;
   }
 
-  if (j < array2.length) {
-    result.push(...array2.slice(j));
+  while (j < array2.length) {
+    result.push(array2[j]!);
+    j++;
   }
 
   return result;
